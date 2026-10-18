@@ -22,7 +22,8 @@ arrive without a new APK.
   to decode your heroes and gear. Your gear then stays on the phone.
 - **No account data** goes anywhere else. The app also fetches game data and icons from its content site
   (`e7-gear-content.pages.dev`), community builds by hero name from Fribbels' hero library and the
-  [RTA draft helper](https://rta-draft-helper.pages.dev), hero portraits from GitHub, and checks GitHub for new versions.
+  [RTA draft helper](https://rta-draft-helper.pages.dev), hero portraits from Fribbels' GitHub repository, and checks
+  GitHub for new versions.
 - **Bug reports** are sent only when you send one, with the phone model, window size and the last error.
 
 ## Disclaimer
@@ -35,7 +36,9 @@ against Epic Seven's terms of service; use the scan at your own risk.
 - [Fribbels' Epic 7 Optimizer](https://github.com/fribbels/Fribbels-Epic-7-Optimizer) by Fribbels:
   - scans are decoded by its server, the same way its auto-importer does it;
   - gear is kept, imported and exported in its `gear.txt` format;
-  - hero and artifact data (names, elements, exclusive equipment) and set piece counts come from its data files;
+  - hero names, elements, classes and exclusive equipment options come from its hero data, and the list of
+    artifacts from its artifact data;
+  - hero portraits are loaded from its repository;
   - community builds come from its hero library;
   - gear score, substat modification (reforge stones) and the penetration assumption follow its rules.
   E7 Gear is a separate project and isn't made or supported by Fribbels.

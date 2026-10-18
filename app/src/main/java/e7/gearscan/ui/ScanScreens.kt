@@ -142,7 +142,7 @@ fun ScanIntroScreen(model: AppModel) {
             }, style = zen(13.sp, FontWeight.Medium))
             VSpace(6.dp)
             Text("Other requests carry no account data: game data and icons from the app's content site, community builds by hero " +
-                "name from Fribbels' and the RTA helper's sites, portraits from GitHub. A bug report goes out only when you send one, " +
+                "name from Fribbels' and the RTA helper's sites, portraits from Fribbels' GitHub. A bug report goes out only when you send one, " +
                 "with the phone model and the last error.", style = zen(12.sp, FontWeight.Medium, C.muted))
         }
         Text("Not affiliated with Smilegate. Reading the game's traffic may go against its terms of service; use the scan at your own risk.",
@@ -248,8 +248,8 @@ fun ScanDataScreen(model: AppModel) {
         SectionTitle("Credits")
         Card(shadow = null, radius = 14.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
             fun open(url: String) = ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-            DataRow("Fribbels' Epic 7 Optimizer", "Its server decodes every scan. The gear.txt format, hero and artifact data, " +
-                "community builds, gear score and reforge rules come from it too. Thank you, Fribbels.", true) {
+            DataRow("Fribbels' Epic 7 Optimizer", "Its server decodes every scan. Hero names, elements and EE, hero portraits, " +
+                "community builds, the gear.txt format, gear score and reforge rules come from it too. Thank you, Fribbels.", true) {
                 open("https://github.com/fribbels/Fribbels-Epic-7-Optimizer")
             }
             DataRow("Other credits and licenses", "VPN capture, fonts, and E7 Gear's own code", true) {
