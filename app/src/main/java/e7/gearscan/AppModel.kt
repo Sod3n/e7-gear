@@ -234,12 +234,63 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             appUpdate = withContext(Dispatchers.IO) {
                 runCatching {
-                    val c = java.net.URL(e7.gearscan.data.AppUpdate.LATEST).openConnection() as java.net.HttpURLConnection
+                    val c = e7.gearscan.data.Http.open(e7.gearscan.data.AppUpdate.LATEST) as java.net.HttpURLConnection
                     c.connectTimeout = 8000; c.readTimeout = 15000; c.setRequestProperty("Accept", "application/vnd.github+json")
                     if (c.responseCode != 200) null else e7.gearscan.data.AppUpdate.newer(appVersion, c.inputStream.bufferedReader().use { it.readText() })
                 }.getOrNull()
             }
         }
+    }
+
+    /** The self-update's download, 0..1; null when none is running. */
+    var updateProgress: Float? by mutableStateOf(null)
+        private set
+    var updateProblem: String? by mutableStateOf(null)
+        private set
+    /** Downloaded and checked, waiting for the player to allow installs from this app. */
+    private var installWhenAllowed: File? = null
+
+    /** Downloads [appUpdate], checks it is this app signed with this key and newer, then opens Android's installer. */
+    fun updateApp() {
+        val u = appUpdate ?: return
+        val app = getApplication<Application>()
+        if (u.apk == null) {
+            app.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(u.page)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        }
+        if (updateProgress != null) return
+        updateProblem = null
+        updateProgress = 0f
+        viewModelScope.launch {
+            val apk = AppInstall.file(app, u.version)
+            val problem = withContext(Dispatchers.IO) {
+                runCatching {
+                    if (!apk.exists()) AppInstall.download(u.apk, apk, u.size) { p -> if ((p * 100).toInt() != ((updateProgress ?: 0f) * 100).toInt()) updateProgress = p }
+                    AppInstall.refusal(app, apk)
+                }.getOrElse { if (it is java.io.IOException) "" else "the download failed (${it.message})" }
+            }
+            updateProgress = null
+            when {
+                problem != null -> { apk.delete(); updateProblem = if (problem.isEmpty()) "Download stopped. Tap to try again." else "Not installed: $problem." }
+                app.packageManager.canRequestPackageInstalls() -> AppInstall.install(app, apk)
+                else -> {
+                    installWhenAllowed = apk
+                    updateProblem = "Allow installs from E7 Gear, then come back."
+                    app.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        android.net.Uri.parse("package:${app.packageName}")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            }
+        }
+    }
+
+    /** Back from the "Install unknown apps" switch: installs the waiting update once it's allowed. */
+    fun resumed() {
+        val apk = installWhenAllowed ?: return
+        val app = getApplication<Application>()
+        if (!app.packageManager.canRequestPackageInstalls()) return
+        installWhenAllowed = null
+        updateProblem = null
+        AppInstall.install(app, apk)
     }
 
     /** Last content check and what it found, for Scan & data. */
@@ -255,7 +306,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             val out = withContext(Dispatchers.IO) {
                 runCatching {
                     e7.gearscan.data.ContentUpdate.check(current) { url ->
-                        val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                        val c = e7.gearscan.data.Http.open(url) as java.net.HttpURLConnection
                         c.connectTimeout = 8000; c.readTimeout = 20000; c.useCaches = false
                         if (c.responseCode != 200) throw IOException("HTTP ${c.responseCode} for $url")
                         c.inputStream.use { it.readBytes() }
@@ -1005,22 +1056,30 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- files ----
-    fun export(name: String, text: String): Uri {
+    /** Saves [text] to Downloads/E7GearScan; returns where, and the name it got. */
+    fun export(name: String, text: String): Pair<Uri, String> {
         val app = getApplication<Application>()
         val dir = Environment.DIRECTORY_DOWNLOADS + "/E7GearScan"
         val coll = MediaStore.Downloads.EXTERNAL_CONTENT_URI
         app.contentResolver.delete(coll, "${MediaStore.MediaColumns.RELATIVE_PATH}=? AND ${MediaStore.MediaColumns.DISPLAY_NAME}=?",
             arrayOf("$dir/", name))
-        val uri = app.contentResolver.insert(coll, ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+        fun insert(n: String) = app.contentResolver.insert(coll, ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, n)
             put(MediaStore.MediaColumns.MIME_TYPE, if (name.endsWith(".json")) "application/json" else "text/plain")
             put(MediaStore.MediaColumns.RELATIVE_PATH, dir)
         })!!
+        // copies left by an earlier install aren't ours to replace, and Android numbers a name only up to 31 times
+        var saved = name
+        val uri = runCatching { insert(name) }.getOrElse {
+            val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(java.util.Date())
+            saved = name.substringBeforeLast('.') + "-$stamp." + name.substringAfterLast('.')
+            insert(saved)
+        }
         app.contentResolver.openOutputStream(uri)!!.use { it.write(text.toByteArray()) }
-        return uri
+        return uri to saved
     }
 
-    fun exportGear(): Uri? = box?.let { export("gear.txt", it.toText()) }
+    fun exportGear(): Pair<Uri, String>? = box?.let { export("gear.txt", it.toText()) }
 
     fun backupText(): String = JSONObject().put("app", "e7gear").put("version", 1).put("state", stateJson())
         .put("box", box?.json ?: JSONObject.NULL).put("history", JSONArray(history.map { it.toJson() })).toString()
@@ -1147,6 +1206,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     // last in the class: startup work started here reads fields declared above, which must exist before it runs
     init {
+        e7.gearscan.data.Http.agent = "E7Gear/$appVersion"
         viewModelScope.launch {
             val loaded = withContext(Dispatchers.IO) { readFiles() }
             lastCrash = withContext(Dispatchers.IO) { crashFile.takeIf { it.exists() }?.readText() }
@@ -1159,6 +1219,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             if (content.heroes.isEmpty()) checkContent()
             else if (System.currentTimeMillis() - contentCheckedAt > 24 * 3600 * 1000L) checkContent(quiet = true)
             checkAppUpdate()
+            withContext(Dispatchers.IO) { AppInstall.clean(getApplication(), appVersion) }
             withContext(Dispatchers.IO) { Reports.flush(reportsDir, content.feedbackUrl) }
         }
         viewModelScope.launch {

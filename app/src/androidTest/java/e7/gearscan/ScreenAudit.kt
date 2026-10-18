@@ -147,9 +147,9 @@ class ScreenAudit {
         // Never worse: A wants speed from B, who wears its fastest build; B keeps what it can't spare and ends no slower
         var tradesPool: e7.gearscan.PoolState? = null
         run {
-            // B wears the run's fastest boots and A chases speed, so A always wants them, whatever order the run picked
+            // B wears the run's fastest boots (or is its fastest hero, when none wears speed boots) and A chases speed
             fun bootSpeed(id: Long) = model.box!!.gearOf(id)[e7.gearscan.data.Slot.BOOTS]?.takeIf { it.mainType == e7.gearscan.data.GearStat.SPD }?.mainValue ?: 0.0
-            val b = poolDone.ids.maxBy(::bootSpeed)
+            val b = poolDone.ids.maxBy { bootSpeed(it) * 1000 + (model.currentBuild(it)?.final?.get(Stat.SPD) ?: 0.0) }
             val a = poolDone.ids.first { it != b }
             Log.i("ScreenAudit", "never worse: B wears speed boots ${bootSpeed(b)}")
             val ra = model.request(a).copy(); val rb = model.request(b).copy()
@@ -466,13 +466,27 @@ class ScreenAudit {
         })
         steps.add("pool-review-reset" to { ui { model.showHistory = false; model.pool = poolDone; model.search = single; model.stack = listOf(Screen.Optimize) } })
         steps.add("pool-trades-reset" to { ui { model.poolKeep = emptyMap(); model.poolGive = emptyMap(); model.sheet = null } })
-        steps.add("pool-off" to { ui { model.sheet = null; model.pool = poolDone; model.poolMode = false; model.stack = listOf(Screen.Optimize) } })
+        steps.add("app-update" to {
+            ui { model.sheet = null; model.poolMode = false; model.stack = listOf(Screen.Optimize)
+                model.appUpdate = e7.gearscan.data.AppUpdate.Release("9.9.9", "https://example.invalid", "https://example.invalid/E7-Gear-9.9.9.apk", 1) }
+            // the installed APK is this app with this key, so only its version may stop it
+            val own = e7.gearscan.AppInstall.refusal(ctx, java.io.File(ctx.applicationInfo.sourceDir))
+            if (own != "it isn't newer than this version") add("the update check misreads an APK", "app update: $own")
+            val agent = e7.gearscan.data.Http.open("https://example.invalid").getRequestProperty("User-Agent")
+            if (agent != "E7Gear/${model.appVersion}") add("requests don't name the app and version", "user agent: $agent")
+        })
+        steps.add("app-update-failed" to {
+            ui { model.updateApp() }
+            rule.waitUntil(30_000) { model.updateProgress == null && model.updateProblem != null }
+            if (model.updateProblem?.startsWith("Download stopped") != true) add("a failed update download isn't shown", "app update: ${model.updateProblem}")
+        })
+        steps.add("pool-off" to { ui { model.appUpdate = null; model.sheet = null; model.pool = poolDone; model.poolMode = false; model.stack = listOf(Screen.Optimize) } })
         screen("heroes", Screen.Heroes)
         steps.add("heroes-tier-editor" to { ui { model.sheet = null; model.stack = listOf(Screen.Heroes) }; clickText(model.heroName(model.hero(hero)!!)) })
         steps.add("heroes-unranked" to { ui { model.sheet = null; model.stack = listOf(Screen.Heroes) }; clickText("Show") })
         screen("hero-detail", Screen.Heroes, Screen.HeroDetail(hero))
         screen("scan-intro", Screen.ScanIntro)
-        steps.add("app-update" to {
+        steps.add("app-update-page-only" to {
             ui { model.sheet = null; model.poolMode = false; model.appUpdate = e7.gearscan.data.AppUpdate.Release("9.9.9", "https://github.com/Sod3n/e7-gear/releases"); model.stack = listOf(Screen.Optimize) }
             if (rule.onAllNodesWithText("E7 Gear 9.9.9 is out", useUnmergedTree = true).fetchSemanticsNodes().isEmpty()) add("a newer release shows no card", "app update")
         })

@@ -29,6 +29,11 @@ class MainActivity : ComponentActivity() {
         setContent { App(model) { finish() } }
     }
 
+    override fun onResume() {
+        super.onResume()
+        model.resumed()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.getBooleanExtra(EXTRA_CAPTURE, false)) model.showCapture()

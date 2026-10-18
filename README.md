@@ -3,11 +3,14 @@
 An Android gear optimizer for Epic Seven. It reads your heroes and gear straight from the game (no PC, no root),
 then finds builds for one hero or optimizes your whole roster at once without making anyone worse.
 
+E7 Gear stands on [Fribbels' Epic 7 Optimizer](https://github.com/fribbels/Fribbels-Epic-7-Optimizer): its server
+decodes every scan, and much of the app follows its formats and rules (see Credits). Thank you, Fribbels.
+
 ## Install
 
 1. Download the latest `E7-Gear-x.y.z.apk` from [Releases](https://github.com/Sod3n/e7-gear/releases/latest) on your phone.
 2. Open it and allow installs from that source once.
-3. The app tells you when a newer version is out.
+3. Later versions install from inside the app: it offers **Update** when one is out.
 
 Game data (heroes, artifacts, sets, icons) is downloaded on first start and refreshed by the app itself, so new heroes
 arrive without a new APK.
@@ -29,7 +32,13 @@ against Epic Seven's terms of service; use the scan at your own risk.
 
 ## Credits and licenses
 
-- Gear decoding and community builds: [Fribbels' Epic 7 Optimizer](https://github.com/fribbels/Fribbels-Epic-7-Optimizer).
+- [Fribbels' Epic 7 Optimizer](https://github.com/fribbels/Fribbels-Epic-7-Optimizer) by Fribbels:
+  - scans are decoded by its server, the same way its auto-importer does it;
+  - gear is kept, imported and exported in its `gear.txt` format;
+  - hero and artifact data (names, elements, exclusive equipment) and set piece counts come from its data files;
+  - community builds come from its hero library;
+  - gear score, substat modification (reforge stones) and the penetration assumption follow its rules.
+  E7 Gear is a separate project and isn't made or supported by Fribbels.
 - VPN capture: built on [sockstun](https://github.com/heiher/sockstun) and
   [hev-socks5-tunnel](https://github.com/heiher/hev-socks5-tunnel) (MIT).
 - Fonts: Zen Maru Gothic and Dela Gothic One (SIL Open Font License, `app/src/main/assets/licenses`).

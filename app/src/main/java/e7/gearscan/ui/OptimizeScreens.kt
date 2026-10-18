@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -78,13 +79,16 @@ fun OptimizeScreen(model: AppModel) {
         ScreenTitle("Optimize", "最適化") { ScanChip(model.scannedLabel(), model.scanPhase != ScanPhase.IDLE) { if (model.scanPhase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
         CrashCard(model)
         model.appUpdate?.let { u ->
-            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val p = model.updateProgress
             Card(shadow = C.pink, padding = PaddingValues(0.dp)) {
-                ListRow({ ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(u.page))) },
-                    Modifier.padding(horizontal = 12.dp, vertical = 10.dp), trailing = { Text("Download", style = zen(12.sp, color = C.deepPink)) }) {
+                ListRow({ model.updateApp() }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp), trailing = {
+                    Box(Modifier.widthIn(min = 56.dp), contentAlignment = Alignment.CenterEnd) {
+                        Text(if (p != null) "${(p * 100).toInt()}%" else if (u.apk != null) "Update" else "Download", style = zen(12.sp, color = C.deepPink))
+                    }
+                }) {
                     Text("E7 Gear ${u.version} is out", style = zen(13.sp))
-                    Text("You have ${model.appVersion}. Install the new APK over this one; your heroes and builds stay.",
-                        style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(model.updateProblem ?: "You have ${model.appVersion}. Your heroes and builds stay.",
+                        style = zen(11.sp, FontWeight.Medium, if (model.updateProblem != null) C.deepPink else C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
         }

@@ -10,6 +10,8 @@ ANDROID_SERIAL=$("$ADB" devices | awk '/^emulator-[0-9]+\tdevice/{print $1; exit
 export ANDROID_SERIAL E7_FIXTURES
 rm -rf app/build/audit
 "$ADB" shell rm -rf /sdcard/Android/data/e7.gearscan/files/audit
+# exports from earlier installs pile up (Android numbers a name only up to 31 times)
+"$ADB" shell rm -rf /sdcard/Download/E7GearScan
 # saved heroes, requests and tiers from the last run would change what this run finds
 "$ADB" shell pm clear e7.gearscan >/dev/null 2>&1 || true
 ./gradlew -q testDebugUnitTest

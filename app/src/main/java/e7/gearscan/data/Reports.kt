@@ -3,7 +3,6 @@ package e7.gearscan.data
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
-import java.net.URL
 
 /** Bug reports wait in [dir] until they reach the report endpoint. */
 object Reports {
@@ -22,7 +21,7 @@ object Reports {
         var mine = Outcome.QUEUED
         for (f in dir.listFiles { x -> x.name.endsWith(".json") }.orEmpty()) {
             val code = runCatching {
-                val c = URL(url).openConnection() as HttpURLConnection
+                val c = Http.open(url) as HttpURLConnection
                 c.requestMethod = "POST"; c.doOutput = true
                 c.connectTimeout = 10000; c.readTimeout = 20000
                 c.setRequestProperty("Content-Type", "application/json")

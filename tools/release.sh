@@ -25,5 +25,5 @@ OUT="E7-Gear-$VERSION.apk"
 cp "$APK" "build/$OUT"
 gh release create "v$VERSION" "build/$OUT" --title "E7 Gear $VERSION" --notes-file - <<EOF
 Install: download **$OUT** on your phone and open it (allow installs from this source once).
-The app checks for newer versions itself and shows a Download link when one is out.
+Later versions install from inside the app: it offers Update when one is out.
 EOF

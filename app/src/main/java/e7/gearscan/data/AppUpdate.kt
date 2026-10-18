@@ -6,14 +6,18 @@ import org.json.JSONObject
 object AppUpdate {
     const val LATEST = "https://api.github.com/repos/Sod3n/e7-gear/releases/latest"
 
-    class Release(val version: String, val page: String)
+    /** [apk]: the release's APK download, null when the release has none (then only the page helps). */
+    class Release(val version: String, val page: String, val apk: String? = null, val size: Long = 0)
 
     /** The latest release when it's newer than [installed] ("1.0.0"); tags are "v1.0.1". */
     fun newer(installed: String, latestJson: String): Release? {
         val j = JSONObject(latestJson)
         if (j.optBoolean("draft") || j.optBoolean("prerelease")) return null
         val version = j.getString("tag_name").removePrefix("v")
-        return if (compare(version, installed) > 0) Release(version, j.getString("html_url")) else null
+        if (compare(version, installed) <= 0) return null
+        val assets = j.optJSONArray("assets")
+        val apk = (0 until (assets?.length() ?: 0)).map { assets!!.getJSONObject(it) }.firstOrNull { it.getString("name").endsWith(".apk") }
+        return Release(version, j.getString("html_url"), apk?.getString("browser_download_url"), apk?.optLong("size") ?: 0)
     }
 
     fun compare(a: String, b: String): Int {

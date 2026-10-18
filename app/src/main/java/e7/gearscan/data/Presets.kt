@@ -6,7 +6,6 @@ import e7.gearscan.opt.Objectives
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
-import java.net.URL
 
 /** A community build cluster from Fribbels' hero library: same active sets. */
 class Preset(
@@ -56,7 +55,7 @@ object Presets {
         val fresh = (f.exists() && System.currentTimeMillis() - f.lastModified() < DAY_MS) ||
             (miss.exists() && System.currentTimeMillis() - miss.lastModified() < DAY_MS)
         if (!fresh && allowNetwork) runCatching {
-            val c = URL(url.replace("{code}", code)).openConnection() as HttpURLConnection
+            val c = Http.open(url.replace("{code}", code)) as HttpURLConnection
             c.connectTimeout = 8000; c.readTimeout = 15000
             when (c.responseCode) {
                 200 -> { dir.mkdirs(); f.writeText(c.inputStream.bufferedReader().use { it.readText() }); miss.delete() }
@@ -89,7 +88,7 @@ object Presets {
     }
 
     private fun fetch(url: String, name: String): String {
-        val c = URL(url).openConnection() as HttpURLConnection
+        val c = Http.open(url) as HttpURLConnection
         c.requestMethod = "POST"
         c.doOutput = true
         c.connectTimeout = 15000

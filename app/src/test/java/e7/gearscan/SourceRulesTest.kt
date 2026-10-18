@@ -33,6 +33,15 @@ class SourceRulesTest {
     }
 
     @Test
+    fun requestsNameTheApp() {
+        // Http.open adds "User-Agent: E7Gear/<version>"; a bare openConnection goes out as Android's default agent
+        val hits = src.walk().filter { it.extension == "kt" && it.name != "Http.kt" }.flatMap { f ->
+            f.readLines().withIndex().filter { "openConnection(" in it.value }.map { "${f.name}:${it.index + 1}: ${it.value.trim()}" }
+        }.toList()
+        assertTrue("requests without the app's User-Agent (use Http.open):\n" + hits.joinToString("\n"), hits.isEmpty())
+    }
+
+    @Test
     fun gridsGoThroughCardGrid() {
         // a hand-made grid lets one cell grow taller than its neighbour; CardGrid gives every row one height
         val hits = File(src, "e7/gearscan/ui").walk().filter { it.extension == "kt" && it.name != "Kit.kt" }.flatMap { f ->

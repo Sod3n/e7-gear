@@ -230,11 +230,11 @@ fun ScanDataScreen(model: AppModel) {
         Card(shadow = null, radius = 14.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
             // saved straight to Downloads; sharing is an extra the toast offers, not a sheet in the way
             DataRow("Export gear.txt", "Fribbels format, for desktop tools · saved to Downloads/E7GearScan", box != null) {
-                model.exportGear()?.let { uri -> model.showToast("Saved gear.txt to Downloads/E7GearScan", "Share") { share(uri, "text/plain") } }
+                model.exportGear()?.let { (uri, name) -> model.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "text/plain") } }
             }
             DataRow("Back up everything", "Heroes, builds, tiers, settings · saved to Downloads/E7GearScan", true) {
-                val uri = model.export("e7gear-backup.json", model.backupText())
-                model.showToast("Saved e7gear-backup.json to Downloads/E7GearScan", "Share") { share(uri, "application/json") }
+                val (uri, name) = model.export("e7gear-backup.json", model.backupText())
+                model.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "application/json") }
             }
             DataRow("Restore from a backup", null, true) { restore.launch(arrayOf("application/json", "text/plain", "*/*")) }
             DataRow("Import a gear.txt file", null, true) { importGear.launch(arrayOf("text/plain", "application/json", "*/*")) }
@@ -243,6 +243,17 @@ fun ScanDataScreen(model: AppModel) {
             DataRow("Report a bug", null, true) { model.go(Screen.Feedback()) }
             Row(Modifier.fillMaxWidth().tap { if (erase) model.eraseAll() else erase = true }.padding(horizontal = 12.dp, vertical = 10.dp)) {
                 Text(if (erase) "Tap again to erase everything" else "Erase all data", style = zen(13.sp, color = C.deepPink))
+            }
+        }
+        SectionTitle("Credits")
+        Card(shadow = null, radius = 14.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+            fun open(url: String) = ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            DataRow("Fribbels' Epic 7 Optimizer", "Its server decodes every scan. The gear.txt format, hero and artifact data, " +
+                "community builds, gear score and reforge rules come from it too. Thank you, Fribbels.", true) {
+                open("https://github.com/fribbels/Fribbels-Epic-7-Optimizer")
+            }
+            DataRow("Other credits and licenses", "VPN capture, fonts, and E7 Gear's own code", true) {
+                open("https://github.com/Sod3n/e7-gear#credits-and-licenses")
             }
         }
         note?.let { Text(it, style = zen(12.sp, color = C.blue)) }
