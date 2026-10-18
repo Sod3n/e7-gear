@@ -23,7 +23,8 @@ echo "$APK: v$VERSION, signed with the release key"
 [ "$1" = "--publish" ] || exit 0
 OUT="E7-Gear-$VERSION.apk"
 cp "$APK" "build/$OUT"
-gh release create "v$VERSION" "build/$OUT" --title "E7 Gear $VERSION" --notes-file - <<EOF
+# named explicitly: this checkout's gh default is the upstream fork parent (heiher/sockstun)
+gh release create "v$VERSION" "build/$OUT" -R Sod3n/e7-gear --title "E7 Gear $VERSION" --notes-file - <<EOF
 Install: download **$OUT** on your phone and open it (allow installs from this source once).
 Later versions install from inside the app: it offers Update when one is out.
 EOF
