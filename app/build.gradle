@@ -1,55 +1,53 @@
 apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
 android {
-	namespace "hev.sockstun"
+	namespace "e7.gearscan"
 	compileSdkVersion 34
 	ndkVersion "29.0.14206865"
 
 	defaultConfig {
-		applicationId "hev.sockstun"
-		minSdkVersion 24
+		applicationId "e7.gearscan"
+		minSdkVersion 29
 		targetSdkVersion 34
-		versionCode 12
-		versionName "8.0"
+		// one place for the version: appVersion=major.minor.patch in gradle.properties; the code counts up with it
+		def v = project.property("appVersion").toString().tokenize('.').collect { it as int }
+		versionCode v[0] * 10000 + v[1] * 100 + v[2]
+		versionName project.property("appVersion").toString()
+		testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 		setProperty("archivesBaseName", "$applicationId-$versionName")
 		ndk {
 			abiFilters "armeabi-v7a", "arm64-v8a",'x86','x86_64'
 		}
 		externalNativeBuild {
 			ndkBuild {
-				arguments "APP_CFLAGS+=-DPKGNAME=hev/sockstun -ffile-prefix-map=${rootDir}=."
+				arguments "APP_CFLAGS+=-DPKGNAME=e7/gearscan -ffile-prefix-map=${rootDir}=."
 				arguments "APP_LDFLAGS+=-Wl,--build-id=none"
 			}
 		}
 	}
 
+	// the release key lives outside the repo; tools/release.sh passes its path and password (from the Keychain).
+	// Without them a release build comes out unsigned rather than signed with some other key.
 	signingConfigs {
 		release {
+			if (System.getenv("E7_RELEASE_STORE")) {
+				storeFile file(System.getenv("E7_RELEASE_STORE"))
+				storePassword System.getenv("E7_RELEASE_PASSWORD")
+				keyAlias "e7gear"
+				keyPassword System.getenv("E7_RELEASE_PASSWORD")
+			}
 		}
 	}
 
 	buildTypes {
 		release {
 			minifyEnabled false
-			signingConfig signingConfigs.release
+			signingConfig System.getenv("E7_RELEASE_STORE") ? signingConfigs.release : null
 		}
 		debug {
 			minifyEnabled false
-			signingConfig signingConfigs.release
-		}
-	}
-
-	def propsFile = rootProject.file('store.properties')
-	def configName = 'release'
-
-	if (propsFile.exists() && android.signingConfigs.hasProperty(configName)) {
-		def props = new Properties()
-		props.load(new FileInputStream(propsFile))
-		if (props!=null && props.containsKey('storeFile')) {
-			android.signingConfigs[configName].storeFile = rootProject.file(props['storeFile'])
-			android.signingConfigs[configName].storePassword = props['storePassword']
-			android.signingConfigs[configName].keyAlias = props['keyAlias']
-			android.signingConfigs[configName].keyPassword = props['keyPassword']
 		}
 	}
 
@@ -59,11 +57,32 @@ android {
 		}
 	}
 
-	lintOptions {
-		checkReleaseBuilds false
-		// Or, if you prefer, you can continue to check for errors in release builds,
-		// but continue the build even when errors are found:
-		abortOnError false
+	compileOptions {
+		sourceCompatibility JavaVersion.VERSION_17
+		targetCompatibility JavaVersion.VERSION_17
+	}
+
+	buildFeatures {
+		compose true
+	}
+
+	// screens read the model's in-place state through rev; skipping by argument identity would hide those edits
+	composeCompiler {
+		enableStrongSkippingMode = false
+	}
+
+	kotlinOptions {
+		jvmTarget = '17'
+	}
+
+	lint {
+		abortOnError true
+		checkReleaseBuilds true
+	}
+
+	// the audit's box lives outside the repo (it is someone's real account): E7_FIXTURES=<dir with gear.txt>
+	if (System.getenv("E7_FIXTURES")) {
+		sourceSets.androidTest.assets.srcDirs += System.getenv("E7_FIXTURES")
 	}
 
 	dependenciesInfo {
@@ -75,6 +94,25 @@ android {
 }
 
 dependencies {
-	implementation 'androidx.appcompat:appcompat:1.7.0'
-	implementation 'com.google.android.material:material:1.12.0'
+	implementation platform('androidx.compose:compose-bom:2024.10.01')
+	implementation 'androidx.compose.ui:ui'
+	implementation 'androidx.compose.foundation:foundation'
+	implementation 'androidx.compose.material3:material3'
+	implementation 'androidx.activity:activity-compose:1.9.3'
+	implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
+	implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
+	implementation 'io.coil-kt:coil-compose:2.7.0'
+	implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+	debugImplementation 'androidx.compose.ui:ui-tooling'
+	testImplementation 'junit:junit:4.13.2'
+	androidTestImplementation platform('androidx.compose:compose-bom:2024.10.01')
+	androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
+	androidTestImplementation 'androidx.test:runner:1.7.0'
+	androidTestImplementation 'androidx.test.ext:junit:1.3.0'
+	androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0'
+	debugImplementation 'androidx.compose.ui:ui-test-manifest'
+	testImplementation 'org.json:json:20240303'
 }
+
+// lint errors (e.g. an API used without its permission) block release APKs
+afterEvaluate { tasks.named("assembleRelease") { dependsOn("lintRelease") } }

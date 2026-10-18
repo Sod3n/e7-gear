@@ -1,77 +1,41 @@
-[English](https://github.com/heiher/sockstun/blob/main/README.md ) |  [Русский](https://github.com/heiher/sockstun/blob/main/README_RU.md)
-# SocksTun
+# E7 Gear
 
-[![status](https://github.com/heiher/sockstun/actions/workflows/build.yaml/badge.svg?branch=main&event=push)](https://github.com/heiher/sockstun)
+An Android gear optimizer for Epic Seven. It reads your heroes and gear straight from the game (no PC, no root),
+then finds builds for one hero or optimizes your whole roster at once without making anyone worse.
 
-A simple and lightweight VPN over socks5 proxy for Android. It is based on a high-performance and low-overhead [tun2socks](https://github.com/heiher/hev-socks5-tunnel).
+## Install
 
-[<img src="https://github.com/heiher/sockstun/blob/main/.github/badges/get-it-on.png"
-    alt="Get it on GitHub"
-    height="80">](https://github.com/heiher/sockstun/releases)
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
-    alt="Get it on F-Droid"
-    height="80">](https://f-droid.org/packages/hev.sockstun)
+1. Download the latest `E7-Gear-x.y.z.apk` from [Releases](https://github.com/Sod3n/e7-gear/releases/latest) on your phone.
+2. Open it and allow installs from that source once.
+3. The app tells you when a newer version is out.
 
-## Features
+Game data (heroes, artifacts, sets, icons) is downloaded on first start and refreshed by the app itself, so new heroes
+arrive without a new APK.
 
-* Redirect TCP connections.
-* Redirect UDP packets. (Fullcone NAT, UDP-in-UDP and UDP-in-TCP [^1])
-* Simple username/password authentication.
-* Specifying DNS addresses.
-* IPv4/IPv6 dual stack.
-* Global/per-App modes.
+## What leaves your phone
 
-## How to Build
+- **Scanning:** the app runs a VPN for Epic Seven only and records the game's login. That data, which includes your
+  account id and current session, is sent to [Fribbels](https://github.com/fribbels/Fribbels-Epic-7-Optimizer)' server
+  to decode your heroes and gear. Your gear then stays on the phone.
+- **No account data** goes anywhere else. The app also fetches game data and icons from its content site
+  (`e7-gear-content.pages.dev`), community builds by hero name from Fribbels' hero library and the
+  [RTA draft helper](https://rta-draft-helper.pages.dev), hero portraits from GitHub, and checks GitHub for new versions.
+- **Bug reports** are sent only when you send one, with the phone model, window size and the last error.
 
-Fork this project and create a new release, or build manually:
+## Disclaimer
 
-```bash
-git clone --recursive https://github.com/heiher/sockstun
-cd sockstun
-gradle assembleDebug
-```
+E7 Gear is a fan project, not affiliated with or endorsed by Smilegate. Reading the game's network traffic may go
+against Epic Seven's terms of service; use the scan at your own risk.
 
-## Socks5 Server
+## Credits and licenses
 
-### UDP relay over TCP
+- Gear decoding and community builds: [Fribbels' Epic 7 Optimizer](https://github.com/fribbels/Fribbels-Epic-7-Optimizer).
+- VPN capture: built on [sockstun](https://github.com/heiher/sockstun) and
+  [hev-socks5-tunnel](https://github.com/heiher/hev-socks5-tunnel) (MIT).
+- Fonts: Zen Maru Gothic and Dela Gothic One (SIL Open Font License, `app/src/main/assets/licenses`).
+- E7 Gear's own code: MIT, see `LICENSE`.
 
-```bash
-git clone --recursive https://github.com/heiher/hev-socks5-server
-cd hev-socks5-server
-make
+## Building
 
-hev-socks5-server conf.yml
-```
-
-```yaml
-main:
-  workers: 4
-  port: 1080
-  listen-address: '::'
-
-misc:
-  limit-nofile: 65535
-```
-
-### UDP relay over UDP
-
-Any socks5 server that implements the CONNECT and UDP-ASSOCIATE methods of RFC1928.
-
-## Dependencies
-
-* HevSocks5Tunnel - https://github.com/heiher/hev-socks5-tunnel
-
-## Contributors
-
-* **claude** - https://github.com/claude
-* **hev** - https://hev.cc
-* **linsui** - https://github.com/linsui
-* **nikita nikitenko** - https://github.com/quadronick
-* **xapitonov** - https://github.com/xapitonov
-* **ziqi mo** - https://github.com/mosentest
-
-## License
-
-MIT
-
-[^1]: See [protocol specification](https://github.com/heiher/hev-socks5-core/tree/main?tab=readme-ov-file#udp-in-tcp). The [hev-socks5-server](https://github.com/heiher/hev-socks5-server) supports UDP relay over TCP.
+Android Studio or `./gradlew assembleDebug` (JDK 17). The app downloads its game data at runtime, so a debug build
+works without any data files. Tests that need game data download a copy on first run.

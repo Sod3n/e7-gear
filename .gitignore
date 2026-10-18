@@ -1,3 +1,16 @@
 .gradle
+.kotlin/
 app/.externalNativeBuild
 app/build
+build/
+local.properties
+# signing keys live outside the repo (tools/release.sh)
+*.jks
+*.keystore
+store.properties
+# game data and its local copy come from the content site, never the repo (tools/publish_content.sh)
+content/
+app/src/main/assets/content.json
+# working notes and machine-specific settings
+HANDOFF.md
+tools/publish.local

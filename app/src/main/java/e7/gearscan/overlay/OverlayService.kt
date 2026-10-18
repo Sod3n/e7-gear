@@ -1,0 +1,191 @@
+package e7.gearscan.overlay
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.graphics.PixelFormat
+import android.os.Build
+import android.os.IBinder
+import android.provider.Settings
+import android.view.Gravity
+import android.view.WindowManager
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import e7.gearscan.data.Item
+import e7.gearscan.data.Stat
+
+/** One build to copy in the game, as the floating checklist shows it. */
+class OverlayPiece(
+    val item: Item,
+    val setIcon: String?,
+    val mainText: String,
+    val subs: List<String>,
+    /** "on Silk", "on now" or "in bag". */
+    val owner: String,
+    val onHero: Boolean,
+    val find: String,
+    /** Modification stone step, e.g. "Def 33 → Spd 12". */
+    val mod: String? = null,
+    /** The piece as it is in the game now (before any suggested mod). */
+    val orig: Item = item,
+    val reforged: Boolean = false,
+    /** Pool checklists: whose piece this is. */
+    val forHero: String? = null,
+) {
+    fun copyFor(hero: String) = OverlayPiece(item, setIcon, mainText, subs, owner, onHero, find, mod, orig, reforged, hero)
+}
+
+class OverlayBuild(
+    val title: String,
+    val face: String?,
+    val pieces: List<OverlayPiece>,
+    val stats: List<Triple<Stat, Double, Double>>,
+)
+
+/** Shared between the app and the overlay window; both run in the app process. */
+object OverlayState {
+    var build: OverlayBuild? by mutableStateOf(null)
+    val done = mutableStateListOf<Boolean>()
+    val statOk = mutableStateListOf<Boolean>()
+    var expanded by mutableStateOf(false)
+    var tab by mutableStateOf(0)
+    var opacity by mutableStateOf(1f)
+    var focus by mutableStateOf(-1)
+    var running by mutableStateOf(false)
+    /** The bubble is being dragged over the bottom edge, where letting go closes it. */
+    var closeZone by mutableStateOf(false)
+
+    fun load(b: OverlayBuild) {
+        build = b
+        done.clear(); done.addAll(b.pieces.map { it.onHero })
+        statOk.clear(); statOk.addAll(b.stats.map { false })
+        expanded = false; tab = 0; focus = -1
+    }
+
+    val current: Int get() = focus.takeIf { it >= 0 && it < done.size && !done[it] } ?: done.indexOfFirst { !it }
+
+    fun canDraw(ctx: Context) = Settings.canDrawOverlays(ctx)
+}
+
+/**
+ * Hosts the bubble and checklist in a system overlay window over the game. Foreground, so it
+ * survives while the game is in front; it only draws, never reads or taps the game.
+ */
+class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
+    private val registry = LifecycleRegistry(this)
+    private val saved = SavedStateRegistryController.create(this)
+    override val lifecycle: Lifecycle get() = registry
+    override val savedStateRegistry: SavedStateRegistry get() = saved.savedStateRegistry
+
+    private lateinit var wm: WindowManager
+    private var view: ComposeView? = null
+    private lateinit var params: WindowManager.LayoutParams
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        saved.performRestore(null)
+        registry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+        wm = getSystemService(WindowManager::class.java)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP || OverlayState.build == null) { stopSelf(); return START_NOT_STICKY }
+        foreground()
+        show()
+        return START_NOT_STICKY
+    }
+
+    private fun show() {
+        if (view != null) return
+        val d = resources.displayMetrics.density
+        params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.END
+            x = 0
+            y = (110 * d).toInt()
+        }
+        view = ComposeView(this).apply {
+            setViewTreeLifecycleOwner(this@OverlayService)
+            setViewTreeSavedStateRegistryOwner(this@OverlayService)
+            setContent { OverlayUi(onMove = ::moveBy, onDock = ::dock, onClose = { stopSelf() }) }
+        }
+        if (OverlayState.expanded) params.width = (338 * d).toInt()
+        wm.addView(view, params)
+        registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+        OverlayState.running = true
+    }
+
+    /** Gravity is top-end, so x grows to the left. */
+    private fun moveBy(dx: Float, dy: Float) {
+        val v = view ?: return
+        val m = resources.displayMetrics
+        params.x = (params.x - dx.toInt()).coerceIn(0, maxOf(0, m.widthPixels - v.width))
+        params.y = (params.y + dy.toInt()).coerceIn(0, maxOf(0, m.heightPixels - v.height))
+        wm.updateViewLayout(v, params)
+        OverlayState.closeZone = !OverlayState.expanded && params.y + v.height > m.heightPixels - (120 * m.density).toInt()
+    }
+
+    private fun dock(expanded: Boolean) {
+        val v = view ?: return
+        val d = resources.displayMetrics.density
+        // wrap-content overlays are first measured at dialog width (~320 dp), which would squeeze the panel
+        params.width = if (expanded) (338 * d).toInt() else WindowManager.LayoutParams.WRAP_CONTENT
+        params.x = if (expanded) (14 * d).toInt() else 0
+        params.y = if (expanded) (6 * d).toInt() else params.y.coerceAtLeast((40 * d).toInt())
+        wm.updateViewLayout(v, params)
+    }
+
+    private fun foreground() {
+        val channel = "overlay"
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(channel, "Build over the game", NotificationManager.IMPORTANCE_LOW))
+        val stop = PendingIntent.getService(this, 2, Intent(this, OverlayService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE)
+        val n = Notification.Builder(this, channel)
+            .setContentTitle("Build checklist over the game")
+            .setContentText("Tap to close it.")
+            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setContentIntent(stop)
+            .build()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) startForeground(3, n)
+        else startForeground(3, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+    }
+
+    override fun onDestroy() {
+        view?.let { runCatching { wm.removeView(it) } }
+        view = null
+        OverlayState.running = false
+        registry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        super.onDestroy()
+    }
+
+    companion object {
+        const val ACTION_STOP = "e7.gearscan.OVERLAY_STOP"
+
+        fun start(ctx: Context) { ctx.startForegroundService(Intent(ctx, OverlayService::class.java)) }
+        fun stop(ctx: Context) { ctx.stopService(Intent(ctx, OverlayService::class.java)) }
+    }
+}

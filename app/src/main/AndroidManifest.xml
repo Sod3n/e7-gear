@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-		package="hev.sockstun"
 		xmlns:tools="http://schemas.android.com/tools">
-	<application android:label="@string/app_name" android:icon="@mipmap/sockstun"
-		android:theme="@style/Theme.SocksTun">
-		<service android:name=".TProxyService" android:process=":native"
+	<application android:label="@string/app_name" android:icon="@mipmap/ic_launcher"
+		android:theme="@style/Theme.GearScan">
+		<service android:name=".TProxyService"
 				android:permission="android.permission.BIND_VPN_SERVICE"
 				android:exported="true"
 				android:foregroundServiceType="specialUse">
@@ -12,43 +11,36 @@
 				<action android:name="android.net.VpnService"/>
 			</intent-filter>
 			<property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-				android:value="VPN service"/>
+				android:value="Per-app VPN that captures one game's login traffic"/>
 		</service>
-		<service android:name=".QSTileService"
-				android:label="@string/app_name"
-				android:icon="@drawable/ic_tile"
-				android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-				android:exported="true">
-			<intent-filter>
-				<action android:name="android.service.quicksettings.action.QS_TILE"/>
-			</intent-filter>
+		<service android:name=".overlay.OverlayService"
+				android:exported="false"
+				android:foregroundServiceType="specialUse">
+			<property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+				android:value="Floating checklist the user opens to copy a gear build into the game"/>
 		</service>
-		<receiver android:enabled="true" android:name=".ServiceReceiver"
-			android:exported="true">
-			<intent-filter>
-				<action android:name="android.intent.action.BOOT_COMPLETED"/>
-			</intent-filter>
-		</receiver>
+		<service android:name=".PoolService"
+				android:exported="false"
+				android:foregroundServiceType="specialUse">
+			<property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+				android:value="Gear optimization the user started, kept running while they play"/>
+		</service>
 		<activity android:name=".MainActivity" android:label="@string/app_name"
-				android:excludeFromRecents="true"
-			android:exported="true">
+				android:launchMode="singleTop"
+				android:windowSoftInputMode="adjustResize"
+				android:exported="true">
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN"/>
 				<category android:name="android.intent.category.LAUNCHER"/>
-				<category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-			</intent-filter>
-			<!-- Open this screen on Quick Settings tile long-press -->
-			<intent-filter>
-				<action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES"/>
-				<category android:name="android.intent.category.DEFAULT"/>
 			</intent-filter>
 		</activity>
-		<activity android:name=".AppListActivity" android:label="@string/app_name"/>
 	</application>
 	<uses-permission android:name="android.permission.INTERNET"/>
+	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+	<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 	<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-	<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+	<uses-permission android:name="android.permission.WAKE_LOCK"/>
 	<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
 		tools:ignore="QueryAllPackagesPermission" />
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
