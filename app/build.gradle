@@ -35,7 +35,7 @@ android {
 			if (System.getenv("E7_RELEASE_STORE")) {
 				storeFile file(System.getenv("E7_RELEASE_STORE"))
 				storePassword System.getenv("E7_RELEASE_PASSWORD")
-				keyAlias "e7gear"
+				keyAlias System.getenv("E7_RELEASE_ALIAS") ?: "e7gear"
 				keyPassword System.getenv("E7_RELEASE_PASSWORD")
 			}
 		}

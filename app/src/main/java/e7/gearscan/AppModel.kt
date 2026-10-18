@@ -1023,13 +1023,15 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun exportGear(): Uri? = box?.let { export("gear.txt", it.toText()) }
 
     fun backupText(): String = JSONObject().put("app", "e7gear").put("version", 1).put("state", stateJson())
-        .put("box", box?.json ?: JSONObject.NULL).toString()
+        .put("box", box?.json ?: JSONObject.NULL).put("history", JSONArray(history.map { it.toJson() })).toString()
 
     fun restore(text: String): Boolean = runCatching {
         val j = JSONObject(text)
         if (j.optString("app") != "e7gear") return false
         j.optJSONObject("box")?.let { b -> boxFile.writeText(b.toString()) }
         stateFile.writeText(j.getJSONObject("state").toString())
+        // backups from before history was included leave the current history as it is
+        j.optJSONArray("history")?.let { h -> historyFile.writeText(h.toString()); history = e7.gearscan.data.History.load(historyFile) }
         configs.clear()
         apply(readFiles())
         touch()

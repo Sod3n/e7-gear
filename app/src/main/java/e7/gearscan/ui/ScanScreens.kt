@@ -228,11 +228,13 @@ fun ScanDataScreen(model: AppModel) {
         }
         SectionTitle("Your data")
         Card(shadow = null, radius = 14.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-            DataRow("Export gear.txt", "Fribbels format, for desktop tools", box != null) {
-                model.exportGear()?.let { share(it, "text/plain") }
+            // saved straight to Downloads; sharing is an extra the toast offers, not a sheet in the way
+            DataRow("Export gear.txt", "Fribbels format, for desktop tools · saved to Downloads/E7GearScan", box != null) {
+                model.exportGear()?.let { uri -> model.showToast("Saved gear.txt to Downloads/E7GearScan", "Share") { share(uri, "text/plain") } }
             }
-            DataRow("Back up everything", "Heroes, builds, priority, settings", true) {
-                share(model.export("e7gear-backup.json", model.backupText()), "application/json")
+            DataRow("Back up everything", "Heroes, builds, tiers, settings · saved to Downloads/E7GearScan", true) {
+                val uri = model.export("e7gear-backup.json", model.backupText())
+                model.showToast("Saved e7gear-backup.json to Downloads/E7GearScan", "Share") { share(uri, "application/json") }
             }
             DataRow("Restore from a backup", null, true) { restore.launch(arrayOf("application/json", "text/plain", "*/*")) }
             DataRow("Import a gear.txt file", null, true) { importGear.launch(arrayOf("text/plain", "application/json", "*/*")) }

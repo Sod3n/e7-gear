@@ -147,7 +147,11 @@ class ScreenAudit {
         // Never worse: A wants speed from B, who wears its fastest build; B keeps what it can't spare and ends no slower
         var tradesPool: e7.gearscan.PoolState? = null
         run {
-            val (a, b) = poolDone.ids.take(2)
+            // B wears the run's fastest boots and A chases speed, so A always wants them, whatever order the run picked
+            fun bootSpeed(id: Long) = model.box!!.gearOf(id)[e7.gearscan.data.Slot.BOOTS]?.takeIf { it.mainType == e7.gearscan.data.GearStat.SPD }?.mainValue ?: 0.0
+            val b = poolDone.ids.maxBy(::bootSpeed)
+            val a = poolDone.ids.first { it != b }
+            Log.i("ScreenAudit", "never worse: B wears speed boots ${bootSpeed(b)}")
             val ra = model.request(a).copy(); val rb = model.request(b).copy()
             ui { model.request(b).goal = e7.gearscan.data.Goal.SPEED; model.request(b).lowerPriorityOnly = false }
             val keepSearch = model.search
@@ -312,7 +316,8 @@ class ScreenAudit {
             if (ready.size > 1 && at != ready[1]) add("pool walk does not resume at the first hero not reviewed", "pool")
             ui { ready.forEach { model.request(it).reviewed = false } }
         })
-        steps.add("pool-hero-reviewed" to { ui { model.sheet = null; model.request(poolDone.ids.first()).reviewed = true; model.stack = listOf(Screen.Optimize, Screen.PoolHero(poolDone.ids.first(), setup = false)) } })
+        // touch(): the same hero screen may already be open, and only a change it reads makes it redraw
+        steps.add("pool-hero-reviewed" to { ui { model.sheet = null; model.request(poolDone.ids.first()).reviewed = true; model.touch(); model.stack = listOf(Screen.Optimize, Screen.PoolHero(poolDone.ids.first(), setup = false)) } })
         steps.add("pool-hero-unreview" to {
             // the reviewed stamp takes the mark off one hero
             val id = poolDone.ids.first()
@@ -489,6 +494,13 @@ class ScreenAudit {
             if (model.screen != Screen.Capture) add("scan now from the restart sheet doesn't start the scan", "scan restart")
             ui { resetCapture(model) }
         })
+        steps.add("backup-saved" to {
+            // a backup is saved to Downloads and confirmed; sharing is offered, never forced
+            ui { resetCapture(model); model.sheet = null; model.toast = null; model.stack = listOf(Screen.Optimize, Screen.ScanData) }
+            runCatching { clickText("Back up everything") }.onFailure { add("can't tap Back up everything: ${it.message?.take(60)}", "backup") }
+            if (model.toast?.text?.startsWith("Saved e7gear-backup.json") != true) add("a backup doesn't confirm where it was saved", "backup")
+            ui { model.toast = null }
+        })
         screen("feedback", Screen.ScanData, Screen.Feedback())
         screen("feedback-error", Screen.Capture, Screen.Feedback("Nothing captured: Stopped before the lobby"))
         steps.add("results" to { ui { model.search = single; model.stack = listOf(Screen.Optimize, Screen.Results) } })
@@ -614,6 +626,17 @@ class ScreenAudit {
             ui { overlay = false; model.sheet = null; model.request(hero).capCrit = true; model.request(hero).mods = false; model.request(hero).goal = e7.gearscan.data.Goal.TARGETS; model.setTier(hero, 5); model.poolMode = false; model.showHistory = false; model.poolTiers = setOf(5); model.poolLosses = e7.gearscan.opt.PoolLosses.SAFE; model.poolEffort = e7.gearscan.opt.PoolEffort.BALANCED; model.showMatch = true; model.request(hero).maxChanges = 6 }
         }
         Locale.setDefault(Locale.US)
+
+        // last, since a restore reloads every setup the steps above hold: a backup carries history and a restore brings it
+        // back (moving to a new signing key depends on it)
+        run {
+            val runs = model.history.size
+            val text = model.backupText()
+            if (org.json.JSONObject(text).optJSONArray("history")?.length() != runs) add("a backup doesn't carry the history", "backup")
+            var ok = false
+            ui { ok = model.restore(text) }
+            if (!ok || model.history.size != runs || runs == 0) add("restoring a backup loses the history", "backup: $runs runs before, ${model.history.size} after")
+        }
 
         fun fmt(m: Map<String, Set<String>>) = m.entries.joinToString("\n") { (k, v) -> "$k\n" + v.joinToString("\n") { "    $it" } }
         val report = fmt(found)
