@@ -123,6 +123,7 @@ private fun Bubble(b: OverlayBuild, onMove: (Float, Float) -> Unit, onRelease: (
         if (closing || hint) {
             Text(when {
                 closing -> "Release to close"
+                next != null && next.onHero -> "${next.item.slot.label} · modify"
                 next != null -> "${next.item.slot.label} · ${next.owner.removePrefix("on ").removePrefix("in ")}"
                 else -> "Tap to record"
             }, style = zen(12.sp, color = C.card), maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -220,7 +221,7 @@ fun OverlayBody() {
                     Text("$done of $n", style = zen(11.sp, color = C.muted))
                 }
             }
-            Box(Modifier.onGloballyPositioned { rowTops[i] = it.positionInParent().y.toInt() }) { PieceRow(i, p, i == s.current) }
+            Column(Modifier.onGloballyPositioned { rowTops[i] = it.positionInParent().y.toInt() }) { PieceRow(i, p, i == s.current) }
         }
         else StatsTable(b)
     }
@@ -274,11 +275,12 @@ private fun PieceRow(i: Int, p: OverlayPiece, open: Boolean) {
             GearTile(p.item, 24.dp)
             SetIcon(p.setIcon, 16.dp)
             Text((p.forHero?.let { "$it: " } ?: "") + "${p.item.slot.label} · ${p.mainText}", style = zen(12.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (p.mod != null) Text("改", style = dela(11.sp, C.deepPink))
             // the stamp's room is kept when not done, so ticking a piece doesn't push the owner sideways
             Box(Modifier.alpha(if (done) 1f else 0f)) { Stamp("済") }
             Text(p.owner, style = zen(11.sp, color = ownerColor).copy(lineHeight = 13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         }
+        p.mod?.let { Text("改 Mod: $it", style = zen(11.sp, color = C.deepPink), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 98.dp, end = 10.dp, bottom = 3.dp)) }
     }
     Box(Modifier.fillMaxWidth().height(1.5.dp).background(C.line))
 }

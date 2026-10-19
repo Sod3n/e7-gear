@@ -545,6 +545,13 @@ class ScreenAudit {
         steps.add("overlay-mods" to {
             ui { model.search?.builds?.firstOrNull()?.let { OverlayState.load(model.overlayBuild(hero, it, "Build #1")); OverlayState.expanded = true; OverlayState.tab = 0 } }
             overlay = true
+            rule.waitForIdle()
+            // a modification happens in the game, so it is a step even on a piece the hero already wears
+            val modded = OverlayState.build!!.pieces.withIndex().filter { it.value.mod != null }
+            if (modded.isEmpty()) add("the mods fixture has no modified piece", "overlay-mods")
+            if (modded.any { OverlayState.done[it.index] }) add("a modification starts ticked", "overlay-mods")
+            val shown = rule.onAllNodesWithText("改 Mod:", substring = true, useUnmergedTree = true).fetchSemanticsNodes().size
+            if (shown < modded.size) add("the checklist doesn't list every modification", "overlay-mods: $shown of ${modded.size}")
         })
         steps.add("sheet-advanced-mods" to {
             overlay = false

@@ -948,7 +948,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val pieces = p.builds.flatMap { (id, b) ->
             val name = hero(id)?.let(::heroName) ?: return@flatMap emptyList()
             val ob = b?.let { overlayBuild(id, it, name) } ?: return@flatMap emptyList()
-            ob.pieces.filter { !it.onHero }.map { it.copyFor(name) }
+            ob.pieces.filter { !it.onHero || it.mod != null }.map { it.copyFor(name) }
         }
         return e7.gearscan.overlay.OverlayBuild("Pool · ${pieces.size} moves", null, pieces, emptyList())
     }

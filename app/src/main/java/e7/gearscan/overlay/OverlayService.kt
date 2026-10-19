@@ -66,7 +66,7 @@ object OverlayState {
     private val doneOrder = mutableStateListOf<Int>()
     var expanded by mutableStateOf(false)
     var tab by mutableStateOf(0)
-    var opacity by mutableStateOf(0.6f)
+    var opacity by mutableStateOf(0.8f)
     var focus by mutableStateOf(-1)
     var running by mutableStateOf(false)
     /** The bubble is being dragged over the bottom edge, where letting go closes it. */
@@ -77,7 +77,8 @@ object OverlayState {
 
     fun load(b: OverlayBuild, onFinish: (() -> Unit)? = null) {
         build = b
-        done.clear(); done.addAll(b.pieces.map { it.onHero })
+        // a worn piece is done unless it needs a modification, which is its own step in the game
+        done.clear(); done.addAll(b.pieces.map { it.onHero && it.mod == null })
         doneOrder.clear()
         expanded = false; tab = 0; focus = -1
         this.onFinish = onFinish; recorded = false
