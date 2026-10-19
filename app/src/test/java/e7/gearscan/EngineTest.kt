@@ -111,6 +111,9 @@ class EngineTest {
                 Quad("spd180", mins(180.0), emptyList(), DoubleArray(8) { Double.NaN }),
                 Quad("spd4+tor2|crit", mins(), listOf(tor, crit), DoubleArray(8) { Double.NaN }),
                 Quad("cr<=90", mins(), emptyList(), DoubleArray(8) { Double.NaN }.also { it[4] = 90.0 }),
+                // several minimums that compete for the same pieces: what the joint-minimums cut is for
+                Quad("atk+spd+cd+eff", jointMins(hb, slots, 0.55), emptyList(), DoubleArray(8) { Double.NaN }),
+                Quad("atk+spd+cd+eff with sets", jointMins(hb, slots, 0.5), listOf(tor, crit), DoubleArray(8) { Double.NaN }),
             )) {
                 val e = engine(hb, slots, obj, mins, alts, maxs, k = 10)
                 e.run(2)
@@ -122,6 +125,43 @@ class EngineTest {
         }
     }
 
+    @Test
+    fun matchesBruteForceWithCosts() {
+        // one-hero searches pay for modifications and pool runs for moves, both as a cost per piece
+        assumeTrue(gearPath != null)
+        val (hb, all) = setup()
+        val req = Request().apply { targets[3] = 230.0; targets[4] = 100.0; targets[5] = 280.0; targets[0] = 4000.0; weights[3] = 3 }
+        val objs = listOf("dmg" to Objectives.damage(), "targets" to Objectives.targets(req, hb), "spd" to Objectives.speed(),
+            "skill spd" to Objectives.skill(e7.gearscan.data.SkillDmg(3, 0.85, 1.3, spd = 0.001125)))
+        val none = DoubleArray(8) { Double.NaN }
+        for (slice in 0 until 3) {
+            val plain = all.map { li -> li.sortedByDescending { it.vec[slice * 2 % 8] + it.vec[5] }.take(7) }
+            for ((name, obj) in objs) {
+                val top = brute(hb, plain, obj, mins(), emptyList(), none, 10)
+                // big enough to reorder the top 10: a third of their spread per costed piece
+                val each = maxOf(1e-6, (top.first() - top.last()) / 3)
+                val slots = plain.map { li -> li.mapIndexed { i, c -> Candidate(c.ref, c.vec, c.set, c.ghost, c.changed, if (i % 3 == 1) each else 0.0) } }
+                for ((cname, mins) in listOf("none" to mins(), "spd180" to mins(180.0))) {
+                    val e = engine(hb, slots, obj, mins, emptyList(), none, k = 10)
+                    e.run(2)
+                    val got = e.results().map { it.value }
+                    val want = brute(hb, slots, obj, mins, emptyList(), none, 10)
+                    assertEquals("$name/$cname/$slice count", want.size, got.size)
+                    for (i in want.indices) assertEquals("$name/$cname/$slice #$i", want[i], got[i], 1e-6 * maxOf(1.0, Math.abs(want[i])))
+                }
+            }
+        }
+    }
+
+    /** Minimums [at] of the way from each stat's lowest to highest reachable total on [slots]. */
+    private fun jointMins(hb: HeroBase, slots: List<List<Candidate>>, at: Double) = DoubleArray(8) { Double.NaN }.also { m ->
+        for (x in intArrayOf(0, 3, 5, 6)) {
+            val lo = hb.fixed[x] + slots.sumOf { li -> li.minOf { it.vec[x] } }
+            val hi = hb.fixed[x] + slots.sumOf { li -> li.maxOf { it.vec[x] } }
+            m[x] = lo + at * (hi - lo)
+        }
+    }
+
     private data class Quad(val a: String, val b: DoubleArray, val c: List<IntArray>, val d: DoubleArray)
 
     private fun brute(hb: HeroBase, slots: List<List<Candidate>>, obj: Objective, mins: DoubleArray,
@@ -130,6 +170,7 @@ class EngineTest {
         val acc = DoubleArray(NS)
         val cnt = IntArray(content.sets.size)
         val sb = DoubleArray(10)
+        var paid = 0.0
         fun rec(d: Int) {
             if (d == 6) {
                 Calc.setBonus(cnt, content.sets, hb, sb)
@@ -139,14 +180,14 @@ class EngineTest {
                     if (!maxs[x].isNaN() && s[x] > maxs[x]) return
                 }
                 if (alts.isNotEmpty() && alts.none { a -> a.indices.all { cnt[it] >= a[it] } }) return
-                vals += obj.eval(s, sb[8], sb[9])
+                vals += obj.eval(s, sb[8], sb[9]) - paid
                 return
             }
             for (c in slots[d]) {
                 for (x in 0 until NS) acc[x] += c.vec[x]
-                cnt[c.set]++
+                cnt[c.set]++; paid += c.cost
                 rec(d + 1)
-                cnt[c.set]--
+                cnt[c.set]--; paid -= c.cost
                 for (x in 0 until NS) acc[x] -= c.vec[x]
             }
         }

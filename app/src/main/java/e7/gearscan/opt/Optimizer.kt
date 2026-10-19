@@ -185,6 +185,18 @@ class Setup(
             .sortedByDescending(::worth).take(MODS_PER_ITEM) }
     }
 
+    /** What one modification has to gain to be worth its stone, in the goal's units: a roll toward the targets, 2 speed, else 1% of the worn gear's value. */
+    val modCost: Double by lazy {
+        when (req.goal) {
+            Goal.TARGETS -> 1.0
+            Goal.SPEED -> 2.0
+            else -> Calc.final(hb, current().values, req.reforged, content).let { f ->
+                val s = DoubleArray(GS + 1) { if (it < GS) f.stats[it] else f.gs }
+                0.01 * maxOf(0.0, Objectives.of(req, hb).eval(s, f.dmgMult, f.pen))
+            }
+        }
+    }
+
     fun build(items: List<Item>, value: Double = Double.NaN): Build {
         val f = Calc.final(hb, items, req.reforged, content)
         val eq = items.count { !it.ghost && it.equippedOn != null && it.equippedOn != hero.id }
@@ -199,8 +211,8 @@ class SearchRun(
     private val extra: List<Item> = emptyList(),
     private val maxGhost: Int = 0,
     private val startThreshold: Double = Double.NEGATIVE_INFINITY,
-    /** Taken off a build's value for each piece, in the objective's units; >= 0. */
-    private val cost: (Item) -> Double = { 0.0 },
+    /** Taken off a build's value for each piece, in the objective's units; >= 0. One-hero searches pay for modifications. */
+    private val cost: (Item) -> Double = { if (it.mod != null) setup.modCost else 0.0 },
 ) {
     private val pool: List<Item>
     val engine: Engine
@@ -235,6 +247,13 @@ class SearchRun(
     }
 
     fun cancel() { engine.cancelled = true }
+
+    /** Whether any build meets the rules: true, false, or null when [limitMs] ran out first. */
+    fun anyBuild(threads: Int, limitMs: Long): Boolean? {
+        engine.stopAtFirst = true
+        run(threads, limitMs)
+        return if (engine.results().isNotEmpty()) true else if (engine.timedOut) null else false
+    }
 
     fun builds(): List<Build> = engine.results().map { e -> setup.build(e.picks.map { pool[it] }, e.value) }
 }

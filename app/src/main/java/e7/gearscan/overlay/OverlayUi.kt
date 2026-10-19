@@ -171,6 +171,8 @@ private fun OverlayControls(b: OverlayBuild, onMove: (Float, Float) -> Unit, onC
                 Text("×", style = dela(13.sp, C.card))
             }
         }
+        b.flag?.let { Text(it, style = zen(11.sp, FontWeight.Medium, C.deepPink), maxLines = 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp)) }
         Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val n = s.done.count { it }

@@ -3,6 +3,7 @@ package e7.gearscan
 import e7.gearscan.data.Content
 import e7.gearscan.data.SetChoice
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.io.File
@@ -18,22 +19,26 @@ class SetChoiceTest {
     }
 
     @Test
-    fun tappingATwoPieceSetThreeTimesAsksForThree() {
-        var c = SetChoice(emptyList(), emptyMap())
-        repeat(3) { c = c.tapTwo("HealthSet") }
-        assertEquals(listOf(mapOf("HealthSet" to 6)), c.toAlts())
-        assertEquals(emptyList<Map<String, Int>>(), c.tapTwo("HealthSet").toAlts())
+    fun aTapPicksOrDropsTheCountGoesUpSeparately() {
+        val one = SetChoice(emptyList(), emptyMap()).tapTwo("HealthSet")
+        val three = one.repeatTwo("HealthSet").repeatTwo("HealthSet")
+        assertEquals(listOf(mapOf("HealthSet" to 6)), three.toAlts())
+        assertEquals("a single tap drops it at any count", emptyList<Map<String, Int>>(), three.tapTwo("HealthSet").toAlts())
+        assertEquals("past three pairs it wraps to one", one.two, three.repeatTwo("HealthSet").two)
         // counts add up and never pass three pairs
-        val mixed = SetChoice(emptyList(), emptyMap()).tapTwo("HealthSet").tapTwo("HealthSet").tapTwo("CriticalSet")
+        val mixed = one.repeatTwo("HealthSet").tapTwo("CriticalSet")
         assertEquals(listOf(mapOf("HealthSet" to 4, "CriticalSet" to 2)), mixed.toAlts())
         assertEquals(mixed.two, mixed.tapTwo("HitSet").two)
+        assertFalse(mixed.canRepeat("CriticalSet"))
+        assertEquals(mixed.two, mixed.repeatTwo("CriticalSet").two)
     }
 
     @Test
-    fun aSecondTapBesideAFourPieceSetMakesRoom() {
+    fun besideAFourPieceSetATapTogglesThePartner() {
         val c = SetChoice(listOf("SpeedSet"), emptyMap()).tapTwo("HealthSet")
         assertEquals(listOf(mapOf("SpeedSet" to 4, "HealthSet" to 2)), c.toAlts())
-        assertEquals(listOf(mapOf("HealthSet" to 4)), c.tapTwo("HealthSet").toAlts())
+        assertFalse(c.canRepeat("HealthSet"))
+        assertEquals(listOf(mapOf("SpeedSet" to 4)), c.tapTwo("HealthSet").toAlts())
     }
 
     @Test

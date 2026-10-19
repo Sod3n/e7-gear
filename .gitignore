@@ -13,4 +13,5 @@ content/
 app/src/main/assets/content.json
 # working notes and machine-specific settings
 HANDOFF.md
+USER_REPORTS.md
 tools/publish.local

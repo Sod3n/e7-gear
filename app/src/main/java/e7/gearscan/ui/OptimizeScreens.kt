@@ -290,12 +290,12 @@ fun ResultsScreen(model: AppModel) {
                     LinkText("Cancel", color = C.deepPink) { model.cancelSearch() }
                 }
                 VSpace(6.dp)
-                val frac = ((now - s.startedAt).toFloat() / model.limitMs).coerceIn(0.02f, 1f)
+                val frac = ((now - s.startedAt).toFloat() / s.limitMs).coerceIn(0.02f, 1f)
                 Box(Modifier.fillMaxWidth().height(9.dp).clip(RoundedCornerShape(99.dp)).border(2.dp, C.ink, RoundedCornerShape(99.dp))) {
                     Box(Modifier.fillMaxWidth(frac).height(9.dp).stripes(C.pink, C.lightPink, shape = RoundedCornerShape(99.dp)))
                 }
                 VSpace(6.dp)
-                Text("Best so far is shown. Stops at ${model.limitMs / 1000} s.", style = zen(11.sp, FontWeight.Medium, C.muted))
+                Text("Best so far is shown. Stops at ${s.limitMs / 1000} s.", style = zen(11.sp, FontWeight.Medium, C.muted))
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -309,22 +309,39 @@ fun ResultsScreen(model: AppModel) {
                     onClick = { model.showMatch = false; model.sheet = Sheet(SheetKind.SHOW, h.id) })
             }
         }
-        if (req.ghost) GhostBand(model, s, r, if (byMatch) h.id else null)
+        // history and other finished lists without a ghost run have nothing to report there
+        if (req.ghost && (s.running || s.ghostRunning || s.ghostSearched)) GhostBand(model, s, r, if (byMatch) h.id else null)
         ModsLine(model, s, req)
         val cur = s.current
         if (!s.running && s.builds.isEmpty()) {
             Card(shadow = null, radius = 14.dp, border = 2.dp) {
-                Text(if (s.cancelled) "Search cancelled before any build was found." else "No build meets these rules.", style = dela(14.sp))
+                Text(when {
+                    s.cancelled -> "Search cancelled before any build was found."
+                    s.timedOut -> "No build found in ${s.limitMs / 1000} s."
+                    else -> "No build meets these rules."
+                }, style = dela(14.sp))
                 VSpace(4.dp)
-                Text("Loosen a minimum, the sets or the mains, allow lower enhance levels, or take gear from more heroes.",
-                    style = zen(12.sp, FontWeight.Medium, C.muted))
+                val bl = s.blockers
+                Text(when {
+                    s.cancelled -> "Search again to finish it."
+                    s.checkingBlockers -> "Checking which rule to loosen…"
+                    bl.isNullOrEmpty() -> "Loosening any single rule isn't enough. Loosen several: minimums, sets, mains or enhance level."
+                    else -> "Loosen any one of these and builds appear: " + bl.joinToString(" · ")
+                }, style = zen(12.sp, FontWeight.Medium, C.muted), minLines = 2)
+                if (s.timedOut && !s.cancelled && s.limitMs < model.longLimitMs) {
+                    VSpace(6.dp)
+                    Text("It stopped before checking every combination, so a build may still exist. Mods make the search slower.",
+                        style = zen(12.sp, FontWeight.Medium, C.muted))
+                    VSpace(4.dp)
+                    LinkText("Search for ${model.longLimitMs / 1000} s") { model.startSearch(model.longLimitMs) }
+                }
             }
         }
         s.builds.forEachIndexed { i, b -> ResultCard(model, i, b, cur, r, req, if (byMatch) h.id else null) }
         if (s.running) for (i in s.builds.size until 4) SkeletonCard(i)
         if (!s.running && s.builds.isNotEmpty()) {
             Text(when {
-                s.timedOut -> "Stopped at ${model.limitMs / 1000} s: these are the best builds found so far."
+                s.timedOut -> "Stopped at ${s.limitMs / 1000} s: these are the best builds found so far."
                 s.cancelled -> "Cancelled: these are the best builds found so far."
                 else -> "Complete: no other build of your gear beats #${s.builds.size} under these rules."
             }, style = zen(11.sp, FontWeight.Medium, C.muted))
@@ -370,11 +387,15 @@ private fun GhostBand(model: AppModel, s: e7.gearscan.SearchState, r: Rating, ma
         padding = PaddingValues(horizontal = 12.dp, vertical = 9.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             GhostTag()
+            val none = !s.running && best == null
             Text(when {
+                g != null && none -> "1 ghost ${g.ghost!!.slot.label.lowercase()} makes a build possible"
                 g != null -> "Best with 1 ghost ${g.ghost!!.slot.label.lowercase()}"
-                s.running || s.ghostRunning -> "Looking for the best ghost piece…"
-                s.ghostSearched -> "No single ghost piece beats #1"
-                else -> "Ghost search runs after the main search"
+                s.running -> "Ghost search runs after the main search"
+                s.ghostRunning && none -> "Looking for one ghost piece that meets the rules…"
+                s.ghostRunning -> "Looking for the best ghost piece…"
+                none -> "Even one ghost piece can't meet these rules"
+                else -> "No single ghost piece beats #1"
             }, style = zen(12.sp, color = C.blue), modifier = Modifier.weight(1f))
             ChevronSlot(g != null, C.blue)
         }
@@ -392,7 +413,9 @@ private fun GhostBand(model: AppModel, s: e7.gearscan.SearchState, r: Rating, ma
                 Text("${r.short.lowercase()}${if (r != Rating.SPD && Math.abs(spd) >= 1) ", ${fmtSigned(spd)} spd" else ""} over #1", style = zen(12.sp, color = C.blue),
                     modifier = Modifier.padding(bottom = 2.dp))
             }
-        } else Skeleton(Modifier.width(160.dp).height(10.dp))
+        } else if (g != null) Text("Meets every rule · tap to see it", style = zen(12.sp, color = C.blue))
+        else if (s.running || s.ghostRunning) Skeleton(Modifier.width(160.dp).height(10.dp))
+        else Spacer(Modifier.height(10.dp))
     }
 }
 
@@ -470,15 +493,17 @@ fun CompareScreen(model: AppModel, index: Int, poolHero: Long?, review: Boolean 
             model.markReviewed(heroId)
             if (next != null) model.replace(Screen.PoolReview(next)) else model.back()
         }
-    }) else if (readOnly) null else ({
+    }) else ({
+        val at = model.pool?.startedAt?.takeIf { poolHero != null } ?: model.search?.startedAt ?: 0
         PinkButton("Show over game", Modifier.weight(1f)) {
-            if (!model.showOverGame(heroId, b, if (teamHero != null) heroName else "$heroName #${index + 1}")) model.go(Screen.OverlayIntro)
+            if (!model.showOverGame(heroId, b, if (teamHero != null) heroName else "$heroName #${index + 1}",
+                    if (readOnly) model.historyFlag(at) else null)) model.go(Screen.OverlayIntro)
         }
-        OutlineButton("Equip in app") { model.recordBuild(heroId, b) }
+        // a past run's pieces may have moved; the checklist checks each one in the game, equipping blind here doesn't
+        if (!readOnly) OutlineButton("Equip in app") { model.recordBuild(heroId, b) }
     })) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            BackLink(if (teamHero != null) "Pool done" else "Best 50") { model.back() }
-            Spacer(Modifier.weight(1f))
+            BackToPrevious(model, Modifier.weight(1f))
             if (review) {
                 if (heroId in model.pool!!.reviewed) { Stamp("済", "reviewed", C.blue); HSpace(8.dp) }
                 Text("${at + 1} of ${queue.size}", style = zen(12.sp, color = C.muted))
@@ -552,7 +577,7 @@ private fun CompareRow(stat: Stat?, label: String, now: String, new: String, del
     Row(Modifier.fillMaxWidth().padding(vertical = 2.5.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(20.dp)) { if (stat != null) StatIcon(stat, 13.dp) }
         val hs = zen(10.sp, color = C.muted)
-        Text(label, style = if (header) hs.copy(letterSpacing = 0.6.sp) else zen(13.sp), modifier = Modifier.weight(1f))
+        FitText(label, if (header) hs.copy(letterSpacing = 0.6.sp) else zen(13.sp), Modifier.weight(1f), short = stat?.short)
         FitText(now, if (header) hs else zen(13.sp, color = C.muted), Modifier.width(54.dp), textAlign = TextAlign.End)
         FitText(new, if (header) hs else dela(13.sp), Modifier.width(62.dp), textAlign = TextAlign.End)
         val (dt, dc) = when (delta) {
@@ -605,7 +630,8 @@ private fun GearCard(model: AppModel, it: Item?, heroId: Long, reforged: Boolean
 fun GhostBuildScreen(model: AppModel) {
     val s = model.search ?: return
     val g = s.ghost ?: return
-    val best = s.builds.firstOrNull() ?: return
+    val best = s.builds.firstOrNull() ?: s.current ?: return
+    val owned = s.builds.isNotEmpty()
     val gp = g.ghost ?: return
     val req = model.request(s.heroId)
     val r = model.showRating.let { if (it == Rating.SPD) Rating.DMG else it }
@@ -613,12 +639,13 @@ fun GhostBuildScreen(model: AppModel) {
         PinkButton("Back to results", Modifier.weight(1f)) { model.back() }
         OutlineButton("Equip", dashed = true, enabled = false) {}
     }) {
-        BackLink("Best 50") { model.back() }
+        BackToPrevious(model)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             GhostTag(); Text("Ghost build", style = TitleStyle)
         }
         Card(shadow = C.blue) {
-            Text("Gain over your best owned-only build", style = zen(11.sp, FontWeight.Bold, C.muted))
+            Text(if (owned) "Gain over your best owned-only build" else "No owned-only build meets the rules · change from current gear",
+                style = zen(11.sp, FontWeight.Bold, C.muted))
             VSpace(6.dp)
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 FitText(fmtSigned(g.rating(r) - best.rating(r)), dela(26.sp, C.blue))

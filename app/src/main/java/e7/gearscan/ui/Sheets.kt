@@ -49,6 +49,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -652,13 +655,13 @@ private fun SetsSheet(model: AppModel, heroId: Long) {
     SheetBody("Sets", trailing = { LinkText("Any sets") { commit(SetChoice(emptyList(), emptyMap())) } }, button = "Done",
         onButton = { model.save(); model.sheet = null }) {
         Text("4-piece: pick every set you'd accept. With one, the 2-piece picks are its partner (any one of them). " +
-            "Without one, tap a 2-piece set again for ×2 or ×3: Health three times is three Health sets.",
+            "Without one, the + on a picked 2-piece set asks for ×2 or ×3. A tap on a set drops it.",
             style = zen(12.sp, FontWeight.Medium, C.muted))
         Row(Modifier.fillMaxWidth().height(28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Needs:", style = zen(13.sp))
             SetChoiceSummary(model, choice, 20.dp)
         }
-        for ((title, pieces) in listOf("4-piece · any one of" to 4, "2-piece · tap again for ×2, ×3" to 2)) {
+        for ((title, pieces) in listOf("4-piece · any one of" to 4, "2-piece · + for ×2, ×3" to 2)) {
             SectionTitle(title)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 model.content.sets.filter { it.pieces == pieces }.forEach { st ->
@@ -673,9 +676,14 @@ private fun SetsSheet(model: AppModel, heroId: Long) {
                             SetIcon(st.icon, 28.dp)
                             Text(st.name, style = zen(9.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        if (pieces == 2 && n >= 2 && choice.mix == null) Text("×$n", style = dela(10.sp, C.card),
-                            modifier = Modifier.align(Alignment.TopEnd).offset(4.dp, (-4).dp).clip(RoundedCornerShape(6.dp)).background(C.deepPink)
-                                .padding(horizontal = 4.dp))
+                        // its own tap target, a little bigger than it looks; the tile under it only picks or drops
+                        if (pieces == 2 && choice.canRepeat(st.key)) Box(Modifier.align(Alignment.TopEnd).offset(8.dp, (-8).dp)
+                            .semantics { contentDescription = "More ${st.name}" }.tap { commit(choice.repeatTwo(st.key)) }.padding(4.dp)) {
+                            Box(Modifier.defaultMinSize(minWidth = 20.dp).clip(RoundedCornerShape(6.dp)).background(C.deepPink)
+                                .padding(horizontal = 4.dp), contentAlignment = Alignment.Center) {
+                                Text(if (n >= 2) "×$n" else "+", style = dela(11.sp, C.card))
+                            }
+                        }
                     }
                 }
             }

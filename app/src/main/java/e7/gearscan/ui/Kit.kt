@@ -268,25 +268,21 @@ fun PulseDot(size: Dp) {
     Box(Modifier.size(size).alpha(a).clip(CircleShape).background(C.pink))
 }
 
-/** "‹ <previous screen>" for screens that can be reached from several places. */
+const val BACK_TAG = "back-link"
+
+/** "‹ <the screen back goes to>": screens open from several places (a hero from another hero), so it's never hard-coded. */
 @Composable
-fun BackToPrevious(model: e7.gearscan.AppModel) {
-    val label = when (model.stack.getOrNull(model.stack.size - 2)) {
-        e7.gearscan.Screen.Optimize -> "Optimize"
-        e7.gearscan.Screen.Heroes -> "Heroes"
-        e7.gearscan.Screen.ScanData -> "Scan & data"
-        e7.gearscan.Screen.Capture -> "Scan"
-        e7.gearscan.Screen.Results -> "Best 50"
-        e7.gearscan.Screen.ScanResult -> "Imported"
-        else -> "Back"
-    }
-    BackLink(label) { model.back() }
+fun BackToPrevious(model: e7.gearscan.AppModel, modifier: Modifier = Modifier) {
+    BackLink(model.backLabel(), modifier) { model.back() }
 }
 
 @Composable
-fun BackLink(text: String, onClick: () -> Unit) {
-    Text("‹ $text", style = zen(14.sp, color = C.blue).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
-        modifier = Modifier.tap(onClick).padding(vertical = 2.dp))
+fun BackLink(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    // a long hero name shrinks rather than pushing the row's other items off; only the words take the tap
+    Box(modifier, contentAlignment = Alignment.CenterStart) {
+        FitText("‹ $text", zen(14.sp, color = C.blue).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+            Modifier.testTag(BACK_TAG).tap(onClick).padding(vertical = 2.dp))
+    }
 }
 
 @Composable

@@ -136,8 +136,11 @@ private fun TierEditor(model: AppModel, h: OwnedHero, onClose: () -> Unit) {
     Column(Modifier.fillMaxWidth().hatch().border(2.5.dp, C.ink).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth().tap(onClose), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Face(model.face(h), 36.dp)
-            Text(model.heroName(h), style = zen(14.sp).copy(lineHeight = 17.sp), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(tierLabel(t), style = zen(12.sp, color = C.deepPink), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // the tier sits under the name, which keeps the row's width: long names don't fit beside "Best of account"
+            Column(Modifier.weight(1f)) {
+                Text(model.heroName(h), style = zen(14.sp).copy(lineHeight = 17.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(tierLabel(t), style = zen(12.sp, color = C.deepPink), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
         TierBar(t) { model.setTier(h.id, it) }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -208,8 +211,7 @@ fun HeroDetailScreen(model: AppModel, id: Long) {
         OutlineButton("Bonus stats") { model.sheet = Sheet(SheetKind.BONUS, id) }
     }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            BackLink("Heroes") { model.back() }
-            Spacer(Modifier.weight(1f))
+            BackToPrevious(model, Modifier.weight(1f))
             Text("Tier $tier", style = zen(12.sp, color = C.muted))
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {

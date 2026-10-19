@@ -13,17 +13,22 @@ class SetChoice(val four: List<String>, val two: Map<String, Int>, val mix: List
         return four.flatMap { f -> partners.map { p -> mapOf(f to 4) + p } }.distinct()
     }
 
-    /** Next state after a tap on a 2-piece tile: partner on/off beside a 4-piece pick, else ×1 → ×2 → ×3 → off within 3 pairs. */
+    /** A tap on a 2-piece tile picks or drops it; a role mix starts over from this set. */
     fun tapTwo(key: String): SetChoice {
-        val cur = two[key] ?: 0
-        if (four.isNotEmpty() && mix == null) {
-            // a second tap asks for two of it, which leaves no room for a 4-piece set
-            return if (cur == 0) SetChoice(four, two + (key to 1)) else SetChoice(emptyList(), mapOf(key to 2))
-        }
-        val base = if (mix != null) emptyMap() else two
-        val c = base[key] ?: 0
-        val next = if (c >= 3 || base.values.sum() + 1 > 3) 0 else c + 1
-        return SetChoice(emptyList(), (base + (key to next)).filterValues { it > 0 })
+        if (mix != null) return SetChoice(four, mapOf(key to 1))
+        if (key in two) return SetChoice(four, two - key)
+        if (four.isEmpty() && two.values.sum() >= 3) return this
+        return SetChoice(four, two + (key to 1))
+    }
+
+    /** The count on a picked 2-piece set can go up: no 4-piece set and fewer than 3 pairs, or it's already above ×1. */
+    fun canRepeat(key: String) = four.isEmpty() && mix == null && key in two && (two.values.sum() < 3 || two.getValue(key) > 1)
+
+    /** ×1 → ×2 → ×3 → ×1 within 3 pairs. */
+    fun repeatTwo(key: String): SetChoice {
+        if (!canRepeat(key)) return this
+        val next = if (two.values.sum() < 3) two.getValue(key) + 1 else 1
+        return SetChoice(emptyList(), two + (key to next))
     }
 
     /** A 4-piece pick turns 2-piece counts back into partner picks. */

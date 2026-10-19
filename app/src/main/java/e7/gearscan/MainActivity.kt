@@ -31,7 +31,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        e7.gearscan.overlay.OverlayState.appInFront = true
         model.resumed()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        e7.gearscan.overlay.OverlayState.appInFront = false
     }
 
     override fun onNewIntent(intent: Intent) {

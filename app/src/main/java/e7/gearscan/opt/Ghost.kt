@@ -96,13 +96,12 @@ object Ghost {
      * Ghost candidates around [best]: for each allowed slot, the sets the request needs (or the set
      * already there) times the mains worth trying, scored by the goal's gain when swapped into [best].
      */
-    fun candidates(setup: Setup, best: Build, reforged: Boolean): List<Item> {
+    fun candidates(setup: Setup, best: Build, reforged: Boolean, baseline: Double = best.value): List<Item> {
         val req = setup.req
         val needed = req.setAlts.flatMap { it.keys }.toSet()
         val out = ArrayList<Item>()
         val obj = Objectives.of(req, setup.hb)
         val useful = usefulStats(setup, best, obj)
-        val baseline = best.value
         for (slot in req.ghostSlots) {
             val inSlot = best.items.firstOrNull { it.slot == slot } ?: continue
             val sets = (needed + inSlot.set).filter { set ->

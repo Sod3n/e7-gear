@@ -44,7 +44,7 @@ fun HistoryList(model: AppModel) {
             HistoryRow(model, e)
         }
     }
-    Text("Opened runs are read only: gear may have moved since, and each piece shows where it is now. The last ${e7.gearscan.data.History.KEEP} are kept.",
+    Text("Gear may have moved since a run: each piece shows where it is now, and its checklist is flagged as from history. The last ${e7.gearscan.data.History.KEEP} are kept.",
         style = zen(11.sp, FontWeight.Medium, C.muted))
 }
 
@@ -72,6 +72,6 @@ private fun HistoryRow(model: AppModel, e: HistoryEntry) {
 /** Over a run opened from history: when it was, and why there's nothing to equip. */
 @Composable
 fun HistoryNote(at: Long) {
-    Text("From history · ${historyStamp(at)}. Read only: gear may have moved since; each piece shows where it is now.",
+    Text("From history · ${historyStamp(at)}. Gear may have moved since; each piece shows where it is now. The checklist works, flagged as from history.",
         style = zen(11.sp, FontWeight.Medium, C.deepPink))
 }

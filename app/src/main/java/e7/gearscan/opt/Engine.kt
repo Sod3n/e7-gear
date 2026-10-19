@@ -58,6 +58,8 @@ class Engine(
     val nodes = AtomicLong()
     @Volatile var cancelled = false
     @Volatile var timedOut = false
+    /** A feasibility check: the first build found ends the search. */
+    @Volatile var stopAtFirst = false
     var deadline = Long.MAX_VALUE
     val keptPerSlot: IntArray
 
@@ -74,6 +76,16 @@ class Engine(
     private val spec = obj.targets
     private val subsets: Array<IntArray>
     private val subMax: Array<DoubleArray>
+
+    // joint minimums: per-stat best pieces often differ, so for every subset of minimums the summed relative
+    // shortfall must fit in what one piece per remaining slot adds to that same sum
+    private val minIdx = (0 until 8).filter { !mins[it].isNaN() && mins[it] > 0 }
+    private val minSubs: Array<IntArray> = (1 until (1 shl minIdx.size)).map { m ->
+        minIdx.indices.filter { m shr it and 1 == 1 }.map { minIdx[it] }.toIntArray()
+    }.filter { it.size >= 2 }.toTypedArray()
+    // each subset twice: stats scaled by the minimum, and by the stat's typical piece
+    private val minScale = Array(2) { DoubleArray(8) { 1.0 } }
+    private val minSubMax: Array<Array<DoubleArray>>
 
     init {
         val four = statSets.filter { sets[it].pieces == 4 }
@@ -110,6 +122,17 @@ class Engine(
             }
             suf
         }
+        for (x in minIdx) { minScale[0][x] = mins[x]; minScale[1][x] = maxOf(1e-6, (sufMax[0][x] - sufMin[0][x]) / 6) }
+        minSubMax = Array(2) { w -> Array(minSubs.size) { si ->
+            val sub = minSubs[si]
+            val suf = DoubleArray(7)
+            for (d in 5 downTo 0) {
+                var mx = if (st[d].isEmpty()) 0.0 else Double.NEGATIVE_INFINITY
+                for (c in st[d]) { var v = 0.0; for (x in sub) v += c.vec[x] / minScale[w][x]; mx = maxOf(mx, v) }
+                suf[d] = suf[d + 1] + mx
+            }
+            suf
+        } }
         if (obj.product != 0) {
             val px = if (obj.product == 2) 1 else 0
             val py = if (obj.product == 2) 2 else 5
@@ -209,6 +232,7 @@ class Engine(
     @Synchronized private fun offer(v: Double, picks: IntArray) {
         if (v <= thr) return
         heap.add(Entry(v, picks))
+        if (stopAtFirst) cancelled = true
         if (heap.size > k) heap.poll()
         if (heap.size >= k) thr = maxOf(thr, heap.peek()!!.value)
     }
@@ -232,12 +256,22 @@ class Engine(
             return true
         }
 
+        /** With set bonus [v] and slots after [d] still open: can the minimums be met together? */
+        fun minsJointly(d: Int, v: DoubleArray): Boolean {
+            for (w in 0 until 2) for ((si, sub) in minSubs.withIndex()) {
+                var need = 0.0
+                for (x in sub) need += (mins[x] - fixed[x] - acc[x] - v[x]) / minScale[w][x]
+                if (need > minSubMax[w][si][d + 1] + 1e-9) return false
+            }
+            return true
+        }
+
         fun bound(d: Int, rem: Int): Double {
             var best = Double.NEGATIVE_INFINITY
             for (v in bonusVectors(cnt, rem)) {
                 for (x in 0 until 8) sa[x] = fixed[x] + acc[x] + sufMax[d + 1][x] + v[x]
                 sa[GS] = acc[GS] + sufMax[d + 1][GS]
-                if (!minsOk(sa)) continue
+                if (!minsOk(sa) || !minsJointly(d, v)) continue
                 best = maxOf(best, obj.eval(sa, v[8], v[9]))
             }
             if (best == Double.NEGATIVE_INFINITY || best <= thr) return best
@@ -253,7 +287,7 @@ class Engine(
             for (v in bonusVectors(cnt, rem)) {
                 if (hasMin) {
                     for (x in 0 until 8) sa[x] = fixed[x] + acc[x] + sufMax[d + 1][x] + v[x]
-                    if (!minsOk(sa)) continue
+                    if (!minsOk(sa) || !minsJointly(d, v)) continue
                 }
                 var miss = 0.0
                 for ((si, sub) in subsets.withIndex()) {

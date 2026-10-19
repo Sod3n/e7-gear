@@ -56,6 +56,8 @@ class OverlayBuild(
     val face: String?,
     val pieces: List<OverlayPiece>,
     val stats: List<Triple<Stat, Double, Double>>,
+    /** Shown under the title: a checklist from a past run, which may not match the gear any more. */
+    val flag: String? = null,
 )
 
 /** Shared between the app and the overlay window; both run in the app process. */
@@ -73,6 +75,10 @@ object OverlayState {
     var closeZone by mutableStateOf(false)
     /** Records the finished checklist in the app's box; set by whoever loaded the build. */
     var onFinish: (() -> Unit)? = null
+    /** E7 Gear itself is on screen: the overlay hides, or it would sit on the app and take its taps. */
+    var appInFront = false
+        set(v) { field = v; onAppInFront?.invoke(v) }
+    var onAppInFront: ((Boolean) -> Unit)? = null
     var recorded by mutableStateOf(false)
 
     fun load(b: OverlayBuild, onFinish: (() -> Unit)? = null) {
@@ -116,6 +122,8 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     /** The panel's list, under the controls: not touchable and at most 80% opaque, so the game gets the taps. */
     private var body: ComposeView? = null
     private lateinit var bodyParams: WindowManager.LayoutParams
+    /** The bubble's place down the right edge (0 top, 1 bottom): low, clear of the game's menus and filter rows, and a share so it stays put when the game turns the screen. */
+    private var bubbleAt = 0.75f
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -164,7 +172,9 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         if (OverlayState.expanded) params.width = (338 * d).toInt()
         wm.addView(body, bodyParams)
         wm.addView(view, params)
-        placeBody()
+        OverlayState.onAppInFront = ::hideForApp
+        hideForApp(OverlayState.appInFront)
+        if (OverlayState.expanded) dock(true) else placeBubble()
         registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
         registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
         OverlayState.running = true
@@ -182,11 +192,35 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         wm.updateViewLayout(b, bodyParams)
     }
 
+    private fun hideForApp(hide: Boolean) {
+        val v = view ?: return
+        v.visibility = if (hide) android.view.View.GONE else android.view.View.VISIBLE
+        params.flags = if (hide) params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            else params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        wm.updateViewLayout(v, params)
+        // the app may have been in portrait; the game turns the screen while the overlay is hidden
+        if (!hide && !OverlayState.expanded) placeBubble() else placeBody()
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (!OverlayState.expanded) placeBubble()
+    }
+
+    private fun placeBubble() {
+        val v = view ?: return
+        val h = if (v.height > 0) v.height else (80 * resources.displayMetrics.density).toInt()
+        params.y = ((screen().height() - h) * bubbleAt).toInt().coerceAtLeast(0)
+        wm.updateViewLayout(v, params)
+        placeBody()
+    }
+
     private fun placeBody() {
         val v = view ?: return
         val b = body ?: return
-        b.visibility = if (OverlayState.expanded) android.view.View.VISIBLE else android.view.View.GONE
+        b.visibility = if (OverlayState.expanded && !OverlayState.appInFront) android.view.View.VISIBLE else android.view.View.GONE
         bodyParams.width = params.width
+        bodyParams.gravity = params.gravity
         bodyParams.x = params.x
         bodyParams.y = params.y + v.height + (PANEL_GAP * resources.displayMetrics.density).toInt()
         wm.updateViewLayout(b, bodyParams)
@@ -205,13 +239,15 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         } else android.util.DisplayMetrics().also { @Suppress("DEPRECATION") wm.defaultDisplay.getMetrics(it) }
             .let { android.graphics.Rect(0, 0, it.widthPixels, it.heightPixels) }
 
-    /** Gravity is top-end, so x grows to the left. */
+    /** With top-end gravity x grows to the left. */
     private fun moveBy(dx: Float, dy: Float) {
         val v = view ?: return
         val r = screen()
         val maxY = maxOf(0, r.height() - v.height)
-        params.x = (params.x - dx.toInt()).coerceIn(0, maxOf(0, r.width() - v.width))
+        val fromEnd = (params.gravity and Gravity.RELATIVE_HORIZONTAL_GRAVITY_MASK) == Gravity.END
+        params.x = (params.x + if (fromEnd) -dx.toInt() else dx.toInt()).coerceIn(0, maxOf(0, r.width() - v.width))
         params.y = (params.y + dy.toInt()).coerceIn(0, maxY)
+        if (!OverlayState.expanded && maxY > 0) bubbleAt = params.y.toFloat() / maxY
         wm.updateViewLayout(v, params)
         placeBody()
         // only a bubble pushed against the bottom edge closes; anywhere else on a short landscape screen is a move
@@ -223,10 +259,10 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         val d = resources.displayMetrics.density
         // wrap-content overlays are first measured at dialog width (~320 dp), which would squeeze the panel
         params.width = if (expanded) (338 * d).toInt() else WindowManager.LayoutParams.WRAP_CONTENT
+        // open on the left: in the game's gear screens the list to pick from is on the right
+        params.gravity = Gravity.TOP or if (expanded) Gravity.START else Gravity.END
         params.x = if (expanded) (14 * d).toInt() else 0
-        params.y = if (expanded) (6 * d).toInt() else params.y.coerceAtLeast((40 * d).toInt())
-        wm.updateViewLayout(v, params)
-        placeBody()
+        if (expanded) { params.y = (6 * d).toInt(); wm.updateViewLayout(v, params); placeBody() } else placeBubble()
     }
 
     private fun foreground() {
@@ -246,6 +282,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     }
 
     override fun onDestroy() {
+        OverlayState.onAppInFront = null
         view?.let { runCatching { wm.removeView(it) } }
         body?.let { runCatching { wm.removeView(it) } }
         view = null; body = null

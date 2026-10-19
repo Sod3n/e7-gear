@@ -27,6 +27,8 @@ import e7.gearscan.data.PresetTabs
 import e7.gearscan.data.Presets
 import e7.gearscan.data.Request
 import e7.gearscan.data.SavedBuild
+import e7.gearscan.data.Stat
+import e7.gearscan.data.fmtNum
 import e7.gearscan.data.ScanDiff
 import e7.gearscan.data.Reports
 import e7.gearscan.data.Slot
@@ -76,7 +78,7 @@ enum class ScanError { NOTHING, SERVER, VPN, NOT_INSTALLED }
 
 enum class ScanPhase { IDLE, CAPTURING, IMPORTING }
 
-class SearchState(
+data class SearchState(
     val heroId: Long,
     val running: Boolean = true,
     val startedAt: Long = System.currentTimeMillis(),
@@ -90,8 +92,12 @@ class SearchState(
     val ghostSearched: Boolean = false,
     val team: List<Pair<Long, Build?>> = emptyList(),
     val moved: Int = 0,
-    /** Opened from history (its start time): read only, nothing to equip from here. */
+    /** Opened from history (its start time): no equip in the app, only a checklist flagged as from history. */
     val historyAt: Long = 0,
+    /** No build: the rules that each, loosened alone, let builds through. */
+    val blockers: List<String>? = null,
+    val checkingBlockers: Boolean = false,
+    val limitMs: Long = 15_000L,
 )
 
 const val CRASH_FILE = "crash.txt"
@@ -130,7 +136,7 @@ data class PoolState(
     val round: Int = 1,
     /** Heroes looked at in the results walk-through; kept with the run's history entry. */
     val reviewed: Set<Long> = emptySet(),
-    /** Opened from history: read only, the gear may have moved since. */
+    /** Opened from history: the gear may have moved since; its checklist is flagged. */
     val fromHistory: Boolean = false,
     /** Each hero's setup as the run used it, so an edit made while reviewing can offer a re-run. */
     val setups: Map<Long, String> = emptyMap(),
@@ -145,6 +151,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     private val historyFile = File(files, "history.json")
     internal val buildsDir = File(files, "builds")
     val limitMs = 15_000L
+    val longLimitMs = 60_000L
 
     var content: Content by mutableStateOf(loadContent())
         private set
@@ -208,6 +215,28 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     // replacing the only screen keeps Optimize under it, so the new screen's back link has somewhere to go
     fun replace(s: Screen) { sheet = null; stack = stack.dropLast(1).ifEmpty { if (s == Screen.Optimize) emptyList() else listOf(Screen.Optimize) } + s }
     fun tab(s: Screen) { sheetUnder.clear(); sheet = null; stack = listOf(s) }
+    /** A screen as a back link names it: its title. */
+    fun screenLabel(s: Screen): String = when (s) {
+        Screen.ScanIntro, Screen.Capture -> "Scan"
+        Screen.ScanData -> "Scan & data"
+        Screen.ScanResult -> "Imported"
+        Screen.Optimize -> "Optimize"
+        Screen.Heroes -> "Heroes"
+        Screen.Results -> "Best 50"
+        Screen.GhostBuild -> "Ghost build"
+        is Screen.Compare -> s.poolHero?.let { id -> hero(id)?.let(::heroName) } ?: "Build #${s.index + 1}"
+        is Screen.HeroDetail -> hero(s.id)?.let(::heroName) ?: "Hero"
+        is Screen.DiffItems -> listOf("New items", "Enhanced", "Moved").getOrElse(s.kind) { "Imported" }
+        Screen.OverlayIntro -> "Show over game"
+        is Screen.Feedback -> "Feedback"
+        Screen.PoolRun -> if (pool?.running == true) "Optimizing pool" else "Pool done"
+        is Screen.PoolReview -> hero(s.id)?.let(::heroName) ?: "Pool done"
+        is Screen.PoolHero -> hero(s.id)?.let(::heroName) ?: "Whole pool"
+    }
+
+    /** Where back goes from the current screen, by name. */
+    fun backLabel(): String = stack.getOrNull(stack.size - 2)?.let(::screenLabel) ?: "Back"
+
     fun back(): Boolean {
         if (sheet != null) { sheet = null; return true }
         if (stack.size <= 1) return false
@@ -472,7 +501,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- search ----
-    fun startSearch() {
+    fun startSearch(limit: Long = limitMs) {
         cancelSearch()
         val id = team.firstOrNull() ?: return
         val setup = setup(id) ?: return
@@ -483,11 +512,11 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         }
         val r = SearchRun(setup, 50)
         run = r
-        search = SearchState(id, current = cur)
+        search = SearchState(id, current = cur, limitMs = limit)
         val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 6)
         thread(name = "search") {
             val t0 = System.nanoTime()
-            r.run(threads, limitMs)
+            r.run(threads, limit)
             val builds = r.builds()
             android.util.Log.i("E7Search", "threads=$threads ms=${(System.nanoTime() - t0) / 1_000_000} nodes=${r.engine.nodes.get()} " +
                 "timedOut=${r.engine.timedOut} kept=${r.engine.keptPerSlot.toList()} best=${builds.firstOrNull()?.value}")
@@ -503,9 +532,11 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                         matchOf(id, cur)?.pct ?: 0, matchOf(id, best)?.pct ?: 0, best.items.count { !it.ghost && (it.equippedOn != id || it.mod != null) },
                         mapOf(id to builds.take(HISTORY_BUILDS).map { b -> b.items.filter { !it.ghost }.map(e7.gearscan.data.PieceRef::of) })))
                 }
+                val none = builds.isEmpty() && !stopped
                 search = SearchState(id, false, started, System.currentTimeMillis(), builds, cur, r.engine.timedOut, stopped,
-                    ghostRunning = setup.req.ghost && builds.isNotEmpty() && !stopped)
-                if (setup.req.ghost && builds.isNotEmpty() && !stopped) startGhost(setup, builds.first(), r)
+                    ghostRunning = setup.req.ghost && !stopped, checkingBlockers = none, limitMs = limit)
+                if (none) startRescue(setup, r)
+                else if (setup.req.ghost && !stopped) startGhost(setup, builds.first(), r)
             }
         }
         viewModelScope.launch {
@@ -514,26 +545,66 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 if (run !== r || search?.running != true) break
                 val partial = withContext(Dispatchers.Default) { r.builds() }
                 if (run === r && search?.running == true) search = search?.let {
-                    SearchState(id, true, it.startedAt, builds = partial, current = cur)
+                    SearchState(id, true, it.startedAt, builds = partial, current = cur, limitMs = it.limitMs)
                 }
             }
         }
     }
 
-    private fun startGhost(setup: Setup, best: Build, main: SearchRun) {
-        thread(name = "ghost") {
-            val ghosts = Ghost.candidates(setup, best, setup.req.reforged)
-            val g = SearchRun(setup, 1, ghosts, maxGhost = 1, startThreshold = best.value)
+    private fun startGhost(setup: Setup, best: Build?, main: SearchRun) {
+        thread(name = "ghost") { ghostSearch(setup, best, main) }
+    }
+
+    /** [best] null: no build meets the rules, so any build with one ghost piece that meets them counts. */
+    private fun ghostSearch(setup: Setup, best: Build?, main: SearchRun) {
+        val b = best?.let { base ->
+            val floor = if (main.builds().isEmpty()) Double.NEGATIVE_INFINITY else base.value
+            val ghosts = Ghost.candidates(setup, base, setup.req.reforged, floor)
+            val g = SearchRun(setup, 1, ghosts, maxGhost = 1, startThreshold = floor)
             g.run(Runtime.getRuntime().availableProcessors().coerceIn(1, 6), 10_000)
-            val b = g.builds().firstOrNull()?.takeIf { it.ghost != null }
-            viewModelScope.launch {
-                if (run !== main) return@launch
-                search = search?.let {
-                    SearchState(it.heroId, false, it.startedAt, it.finishedAt, it.builds, it.current, it.timedOut, it.cancelled,
-                        ghostRunning = false, ghost = b, ghostSearched = true)
-                }
-            }
+            g.builds().firstOrNull()?.takeIf { it.ghost != null }
         }
+        viewModelScope.launch {
+            if (run !== main) return@launch
+            search = search?.copy(ghostRunning = false, ghost = b, ghostSearched = true)
+        }
+    }
+
+    /** No build met the rules: find which rule alone rules out every build, then try one ghost piece. */
+    private fun startRescue(setup: Setup, main: SearchRun) {
+        thread(name = "rescue") {
+            val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 6)
+            fun run(q: e7.gearscan.data.Request) =
+                SearchRun(Setup(setup.hero, setup.game, setup.cfg, q, setup.box, setup.content, setup.canTakeFrom, setup.excluded), 1)
+            fun best(q: e7.gearscan.data.Request): Build? = run(q).also { it.run(threads, 3_000) }.builds().firstOrNull()
+            val blockers = ArrayList<String>()
+            for ((label, relax) in relaxations(setup.req)) {
+                if (this.run !== main || main.engine.cancelled) return@thread
+                if (run(setup.req.copy().also(relax)).anyBuild(threads, 3_000) == true) blockers += label
+            }
+            viewModelScope.launch {
+                if (run === main) search = search?.copy(blockers = blockers, checkingBlockers = false)
+            }
+            if (!setup.req.ghost || this.run !== main) return@thread
+            val base = best(setup.req.copy().also { q -> q.mins.fill(Double.NaN); q.maxs.fill(Double.NaN); q.capCrit = false })
+            ghostSearch(setup, base, main)
+        }
+    }
+
+    private fun relaxations(req: e7.gearscan.data.Request): List<Pair<String, (e7.gearscan.data.Request) -> Unit>> = buildList {
+        Stat.entries.forEach { st ->
+            val i = st.ordinal
+            if (!req.mins[i].isNaN()) add("${st.label} at least ${fmtNum(req.mins[i])}" to { q -> q.mins[i] = Double.NaN })
+            if (!req.maxs[i].isNaN()) add("${st.label} at most ${fmtNum(req.maxs[i])}" to { q -> q.maxs[i] = Double.NaN })
+        }
+        if (req.capCrit && req.maxs[Stat.CR.ordinal].isNaN()) add("Crit chance cap" to { q -> q.capCrit = false })
+        if (req.setAlts.isNotEmpty()) add("The sets" to { q -> q.setAlts = emptyList() })
+        if (req.mains.values.any { it.isNotEmpty() }) add("The mains" to { q -> q.mains = emptyMap() })
+        if (req.minEnhance > 0) add("Enhanced to +${req.minEnhance}" to { q -> q.minEnhance = 0 })
+        if (req.lowerPriorityOnly) add("Only lower tiers" to { q -> q.lowerPriorityOnly = false })
+        if (!req.allowLocked) add("No locked items" to { q -> q.allowLocked = true })
+        if (req.keepCurrent) add("Keep current gear" to { q -> q.keepCurrent = false })
+        if (req.maxChanges < 6) add("Change at most ${req.maxChanges}" to { q -> q.maxChanges = 6 })
     }
 
     fun cancelSearch() {
@@ -932,8 +1003,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun editedSinceRun(): List<Long> = pool?.let { p -> p.setups.filter { (id, k) -> setupKey(id) != k }.keys.toList() }.orEmpty()
 
     /** Loads one hero's build as the in-game checklist; finishing it records the build. */
-    fun loadBuildChecklist(heroId: Long, b: Build, title: String) =
-        e7.gearscan.overlay.OverlayState.load(overlayBuild(heroId, b, title)) { recordBuild(heroId, b) }
+    fun loadBuildChecklist(heroId: Long, b: Build, title: String, flag: String? = null) =
+        e7.gearscan.overlay.OverlayState.load(overlayBuild(heroId, b, title, flag)) { recordBuild(heroId, b) }
 
     /** Loads the pool's moves as the in-game checklist; finishing it records them all. */
     fun loadPoolChecklist(): Boolean {
@@ -950,7 +1021,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             val ob = b?.let { overlayBuild(id, it, name) } ?: return@flatMap emptyList()
             ob.pieces.filter { !it.onHero || it.mod != null }.map { it.copyFor(name) }
         }
-        return e7.gearscan.overlay.OverlayBuild("Pool · ${pieces.size} moves", null, pieces, emptyList())
+        return e7.gearscan.overlay.OverlayBuild("Pool · ${pieces.size} moves", null, pieces, emptyList(), p.takeIf { it.fromHistory }?.let { historyFlag(it.startedAt) })
     }
 
     // ---- history ----
@@ -970,7 +1041,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         return setup(heroId)?.build(items)
     }
 
-    /** Opens a past run read only; false while a run or search is going, which it would replace. */
+    /** Opens a past run (the pending pool run and the newest search live); false while a run or search is going, which it would replace. */
     fun openHistory(e: e7.gearscan.data.HistoryEntry): Boolean {
         if (e.pool) {
             if (pool?.running == true) return false
@@ -983,8 +1054,13 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         } else {
             if (search?.running == true) return false
             val id = e.builds.keys.firstOrNull() ?: return false
-            val cur = currentBuild(id) ?: return false
-            search = SearchState(id, false, e.at, e.at, e.builds[id].orEmpty().mapNotNull { restoreBuild(id, it) }, cur, historyAt = e.at)
+            // the newest search opens live, ready to equip, like the pending pool run
+            val latest = history.firstOrNull { !it.pool }?.at == e.at
+            if (!(latest && search?.startedAt == e.at && search?.heroId == id)) {
+                val cur = currentBuild(id) ?: return false
+                search = SearchState(id, false, e.at, e.at, e.builds[id].orEmpty().mapNotNull { restoreBuild(id, it) }, cur,
+                    historyAt = if (latest) 0 else e.at)
+            }
             go(Screen.Results)
         }
         return true
@@ -1011,7 +1087,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- over the game ----
-    fun overlayBuild(heroId: Long, b: Build, title: String): e7.gearscan.overlay.OverlayBuild {
+    fun historyFlag(at: Long) = "From history · ${e7.gearscan.ui.historyStamp(at)}. Gear may have moved since; check each piece."
+
+    fun overlayBuild(heroId: Long, b: Build, title: String, flag: String? = null): e7.gearscan.overlay.OverlayBuild {
         val h = hero(heroId)
         val reforged = request(heroId).reforged
         val cur = currentBuild(heroId)
@@ -1030,13 +1108,13 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 box?.itemsById?.get(it.id) ?: it, reforged)
         }
         val stats = e7.gearscan.data.Stat.entries.map { st -> Triple(st, b.final[st], cur?.final?.get(st) ?: 0.0) }
-        return e7.gearscan.overlay.OverlayBuild(title, h?.let(::face), pieces, stats)
+        return e7.gearscan.overlay.OverlayBuild(title, h?.let(::face), pieces, stats, flag)
     }
 
     /** True when the overlay started; false when the permission screen must come first. */
-    fun showOverGame(heroId: Long, b: Build, title: String): Boolean {
+    fun showOverGame(heroId: Long, b: Build, title: String, flag: String? = null): Boolean {
         val app = getApplication<Application>()
-        loadBuildChecklist(heroId, b, title)
+        loadBuildChecklist(heroId, b, title, flag)
         if (!e7.gearscan.overlay.OverlayState.canDraw(app)) return false
         e7.gearscan.overlay.OverlayService.stop(app)
         e7.gearscan.overlay.OverlayService.start(app)

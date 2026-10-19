@@ -38,6 +38,15 @@ class ModsTest {
     }
 
     @Test
+    fun aSameStatReRollMustBeatTheValueEvenAtALowRoll() {
+        // greater stone, lv88: speed after two rolls is 3..5 (typical 4); a modded 3 could come back as 3, a 2 can't get worse
+        fun reRolls(now: Double) = variants(item(Slot.BOOTS, 15, Substat(GearStat.HP, 180.0, 1, false), Substat(GearStat.SPD, now, 2, true)))
+            .filter { it.mod!!.to == GearStat.SPD }
+        assertTrue(reRolls(3.0).isEmpty())
+        assertEquals(listOf(4.0), reRolls(2.0).map { it.subs[1].value })
+    }
+
+    @Test
     fun anAlreadyModdedSubstatIsTheOnlyOneThatCanChange() {
         val it = item(Slot.HELMET, 15, Substat(GearStat.HP, 180.0, 1, false), Substat(GearStat.ATK, 40.0, 1, true))
         assertEquals(setOf(1), variants(it).map { v -> v.mod!!.index }.toSet())

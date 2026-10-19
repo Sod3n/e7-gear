@@ -98,7 +98,8 @@ object Mods {
                 if (item.slot == Slot.ARMOR && to.stat == e7.gearscan.data.Stat.ATK) continue
                 if (to != s.type && item.subs.any { it.type == to }) continue
                 val v = value(to, s.rolls, greater, table, quality)
-                if (to == s.type && v <= s.value) continue
+                // re-rolling into the same stat is only worth a stone if even a low roll beats what is there
+                if (to == s.type && value(to, s.rolls, greater, table, 0.0) <= s.value) continue
                 val subs = item.subs.toMutableList().also { it[i] = Substat(to, v, s.rolls, true) }
                 out += Item(item.id, item.slot, item.set, item.rank, item.level, item.enhance, item.mainType, item.mainValue, subs,
                     item.locked, item.equippedOn, mod = Mod(i, s.type, s.value, to, v))

@@ -194,7 +194,7 @@ fun ScanDataScreen(model: AppModel) {
     Frame(null, null, actions = {
         PinkButton("Scan now", Modifier.weight(1f)) { if (!model.consent) model.go(Screen.ScanIntro) else start() }
     }) {
-        BackLink("Optimize") { model.back() }
+        BackToPrevious(model)
         ScreenTitle("Scan & data", "読取")
         Card(padding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -446,7 +446,7 @@ fun DiffItemsScreen(model: AppModel, kind: Int) {
     val d = model.lastDiff ?: return
     val ids = when (kind) { 0 -> d.newItems; 1 -> d.enhanced; else -> d.moved }
     Frame(null, null) {
-        BackLink("Imported") { model.back() }
+        BackToPrevious(model)
         ScreenTitle(listOf("New items", "Enhanced", "Moved")[kind])
         if (ids.isEmpty()) Text("None since the last scan.", style = zen(13.sp, FontWeight.Medium, C.muted))
         ids.mapNotNull { box.itemsById[it] }.forEach { ItemRow(model, it) }

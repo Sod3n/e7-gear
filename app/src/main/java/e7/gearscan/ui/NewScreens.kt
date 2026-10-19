@@ -72,7 +72,7 @@ fun OverlayIntroScreen(model: AppModel) {
             }
         }
     }) {
-        BackLink(OverlayState.build?.title?.let { t -> if ('#' in t) "Build #" + t.substringAfterLast('#') else t } ?: "Back") { model.back() }
+        BackToPrevious(model)
         Text("Show this build over the game", style = TitleStyle.copy(fontSize = 24.sp, lineHeight = 28.sp))
         Text("A small panel floats on top of Epic Seven, so you can equip each piece without switching apps.",
             style = zen(13.sp, FontWeight.Medium, C.muted))
@@ -147,8 +147,7 @@ fun FeedbackScreen(model: AppModel, error: String?) {
             else -> PinkButton("Done", Modifier.weight(1f)) { model.back() }
         }
     }) {
-        val from = model.stack.getOrNull(model.stack.size - 2)
-        BackLink(when (from) { e7.gearscan.Screen.ScanData -> "Scan & data"; e7.gearscan.Screen.Capture -> "Scan"; else -> "Back" }) { model.back() }
+        BackToPrevious(model)
         ScreenTitle("Feedback", "報告")
         if (error != null && outcome == null) StateCard("Opened from an error", "Topic is set to Bug and the error is attached: ${error.lineSequence().first()}")
         when (outcome?.first) {

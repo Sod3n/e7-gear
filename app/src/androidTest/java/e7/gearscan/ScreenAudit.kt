@@ -22,6 +22,8 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -60,9 +62,9 @@ class ScreenAudit {
     private data class Setup(val name: String, val widthDp: Int, val fontScale: Float, val locale: Locale)
 
     private val setups = listOf(
-        Setup("360-ru", 360, 1f, Locale("ru", "RU")),
+        Setup("353-ru", 353, 1f, Locale("ru", "RU")),
         Setup("411-en", 411, 1f, Locale.US),
-        Setup("360-big-en", 360, 1.3f, Locale.US),
+        Setup("353-big-en", 353, 1.3f, Locale.US),
         Setup("411-big-ru", 411, 1.3f, Locale("ru", "RU")),
     )
 
@@ -97,6 +99,8 @@ class ScreenAudit {
             }
         }
         heroNames = model.box!!.heroes.map { model.heroName(it) }.filter { it.length > 3 }.toSet()
+        check(model.box!!.heroes.any { model.gameHero(it) != null && model.box!!.gearOf(it.id).size == 6 }) {
+            "no fully geared known hero: box ${model.box!!.heroes.size} heroes, ${model.box!!.heroes.count { model.gameHero(it) != null }} known; content ${model.content.heroes.size} heroes" }
         val hero = model.box!!.heroes.first { model.gameHero(it) != null && model.box!!.gearOf(it.id).size == 6 }.id
         val team = model.box!!.heroes.filter { model.gameHero(it) != null && model.box!!.gearOf(it.id).size == 6 }.take(3).map { it.id }
         ui {
@@ -263,6 +267,10 @@ class ScreenAudit {
             val torrent = model.content.setByName("Torrent")!!.key
             ui { model.sheet = null; model.stack = listOf(Screen.Optimize); model.request(hero).setAlts = listOf(mapOf(torrent to 6)); model.touch(); model.sheet = Sheet(SheetKind.SETS, hero) }
         })
+        steps.add("sets-health-crit-plus" to {
+            val health = model.content.setByName("Health")!!.key; val crit = model.content.setByName("Critical")!!.key
+            ui { model.sheet = null; model.stack = listOf(Screen.Optimize); model.request(hero).setAlts = listOf(mapOf(health to 2, crit to 2)); model.touch(); model.sheet = Sheet(SheetKind.SETS, hero) }
+        })
         steps.add("edits-survive-restart" to restart@{
             // Android may close the app while the player is in the game; an edit must already be on disk.
             // once: a second AppModel holds a whole box in memory
@@ -282,8 +290,12 @@ class ScreenAudit {
             val health = model.content.setByName("Health")!!.key
             ui { model.sheet = null; model.stack = listOf(Screen.Optimize); model.sheet = Sheet(SheetKind.SETS, hero) }
             clickText("Any sets")
-            repeat(3) { runCatching { clickText("Health") }.onFailure { e -> add("can't tap Health: ${e.message?.take(60)}", "sets") } }
-            if (model.request(hero).setAlts != listOf(mapOf(health to 6))) add("three taps on Health don't ask for three Health sets", model.request(hero).setAlts.toString())
+            runCatching { clickText("Health") }.onFailure { e -> add("can't tap Health: ${e.message?.take(60)}", "sets") }
+            repeat(2) { runCatching { clickDesc("More Health") }.onFailure { e -> add("can't tap Health's +: ${e.message?.take(60)}", "sets") } }
+            if (model.request(hero).setAlts != listOf(mapOf(health to 6))) add("Health and + twice don't ask for three Health sets", model.request(hero).setAlts.toString())
+            runCatching { clickText("Health") }
+            if (model.request(hero).setAlts.isNotEmpty()) add("one tap on Health ×3 doesn't drop it", model.request(hero).setAlts.toString())
+            ui { model.request(hero).setAlts = listOf(mapOf(health to 6)); model.touch() }
         })
         steps.add("goal-damage-skills" to { ui { model.sheet = null; model.stack = listOf(Screen.Optimize); model.request(hero).goal = e7.gearscan.data.Goal.DAMAGE; model.touch(); model.sheet = Sheet(SheetKind.GOALS, hero) } })
         steps.add("pool-setup" to { ui { model.sheet = null; model.poolMode = true; model.stack = listOf(Screen.Optimize) } })
@@ -411,18 +423,43 @@ class ScreenAudit {
                 ui { model.tab(Screen.Optimize); model.showHistory = true; model.openHistory(e) }
                 if (model.screen != Screen.PoolRun || model.pool?.fromHistory != true) add("opening a pool run from history doesn't show it", "history")
                 if (rule.onAllNodesWithText("Just record", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) add("a run from history offers to equip", "history")
+                if (rule.onAllNodesWithText("Checklist", useUnmergedTree = true).fetchSemanticsNodes().isEmpty()) add("a pool run from history has no checklist", "history")
+                ui { model.loadPoolChecklist() }
+                if (OverlayState.build?.flag == null) add("a pool run's checklist from history isn't flagged", "history")
             }
             model.history.firstOrNull { it.at == model.pendingPool }?.let { p ->
                 ui { model.tab(Screen.Optimize); model.showHistory = true; model.openHistory(p) }
                 if (model.pool?.fromHistory != false || model.pool?.startedAt != p.at) add("the pending run opens read only from history", "history")
+                ui { model.loadPoolChecklist() }
+                if (OverlayState.build?.flag != null) add("the pending run's checklist is flagged as from history", "history")
             } ?: add("no pending run in history", "history")
             ui { model.tab(Screen.Optimize); model.showHistory = true; e?.let { model.openHistory(it) } }
         })
-        steps.add("history-open-hero" to {
+        steps.add("history-open-hero-latest" to {
             val e = model.history.firstOrNull { !it.pool }
-            if (e != null) {
-                ui { model.pool = poolDone; model.tab(Screen.Optimize); model.showHistory = true; model.openHistory(e) }
+            if (e == null) add("no one-hero search in history", "history")
+            else {
+                ui { model.pool = poolDone; model.search = null; model.tab(Screen.Optimize); model.showHistory = true; model.openHistory(e) }
+                if (model.screen != Screen.Results || model.search?.startedAt != e.at || model.search?.historyAt != 0L) add("the newest search doesn't open live from history", "history")
+                ui { model.go(Screen.Compare(0)) }
+                for (t in listOf("Show over game", "Equip in app"))
+                    if (rule.onAllNodesWithText(t, useUnmergedTree = true).fetchSemanticsNodes().isEmpty()) add("the newest search from history has no \"$t\"", "history")
+            }
+        })
+        steps.add("history-open-hero" to {
+            val e = model.history.filter { !it.pool }.getOrNull(1)
+            if (e == null) add("no older one-hero search in history", "history")
+            else {
+                ui { model.tab(Screen.Optimize); model.showHistory = true; model.openHistory(e) }
                 if (model.screen != Screen.Results || model.search?.historyAt != e.at) add("opening a search from history doesn't show it", "history")
+            }
+        })
+        steps.add("history-hero-compare" to {
+            if (model.search?.historyAt?.let { it != 0L } != true || model.search?.builds.isNullOrEmpty()) add("no search from history with a build to open", "history")
+            else {
+                ui { model.go(Screen.Compare(0)) }
+                if (rule.onAllNodesWithText("Show over game", useUnmergedTree = true).fetchSemanticsNodes().isEmpty()) add("a build from history has no checklist", "history")
+                if (rule.onAllNodesWithText("Equip in app", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) add("a build from history offers to equip", "history")
             }
         })
         steps.add("pool-review" to {
@@ -436,7 +473,8 @@ class ScreenAudit {
                 runCatching { clickText("Review next · ", substring = true) }.onFailure { add("can't tap Review next: ${it.message?.take(60)}", "pool review") }
                 if (model.screen != Screen.PoolReview(queue[0])) add("Review next doesn't open the first change", "pool review")
                 else {
-                    runCatching { clickText(if (queue.size > 1) "Next · " else "Done", substring = true) }.onFailure { add("can't tap Next: ${it.message?.take(60)}", "pool review") }
+                    // a long hero name shortens the button to "Next ›"
+                    runCatching { clickText(if (queue.size > 1) "Next" else "Done", substring = true) }.onFailure { add("can't tap Next: ${it.message?.take(60)}", "pool review") }
                     if (queue[0] !in model.pool!!.reviewed) add("Next doesn't mark the hero reviewed", "pool review")
                     if (queue.size > 1 && model.screen != Screen.PoolReview(queue[1])) add("Next doesn't move to the next change", "pool review")
                 }
@@ -531,6 +569,32 @@ class ScreenAudit {
         screen("feedback-error", Screen.Capture, Screen.Feedback("Nothing captured: Stopped before the lobby"))
         steps.add("results" to { ui { model.search = single; model.stack = listOf(Screen.Optimize, Screen.Results) } })
         screen("ghost", Screen.Optimize, Screen.Results, Screen.GhostBuild)
+        steps.add("results-none" to {
+            // rules no build can meet: the ghost search and the blocker check must both finish and say so
+            val req = model.request(hero)
+            val was = req.mins[Stat.SPD.ordinal]; val ghostWas = req.ghost
+            ui { req.mins[Stat.SPD.ordinal] = 999.0; req.ghost = true; model.stack = listOf(Screen.Optimize, Screen.Results) }
+            search(model, listOf(hero))
+            rule.waitForIdle()
+            val s = model.search!!
+            if (s.builds.isNotEmpty()) add("the no-build fixture found a build", "results-none")
+            if (!s.ghostSearched) add("no build: the ghost search never ran", "results-none")
+            if (s.blockers?.any { it.startsWith("Speed at least 999") } != true) add("no build: the blocking minimum isn't named", "results-none: ${s.blockers}")
+            if (rule.onAllNodesWithText("Speed at least 999", substring = true).fetchSemanticsNodes().isEmpty())
+                add("no build: the blocking minimum isn't shown", "results-none")
+            ui { req.mins[Stat.SPD.ordinal] = was; req.ghost = ghostWas }
+        })
+        steps.add("results-none-timeout" to {
+            ui {
+                model.search = SearchState(hero, false, current = single!!.current, timedOut = true, ghostSearched = true,
+                    blockers = listOf("Effectiveness at least 70", "Crit chance cap", "Speed at least 305"))
+                model.stack = listOf(Screen.Optimize, Screen.Results)
+            }
+            rule.waitForIdle()
+            if (rule.onAllNodesWithText("Search for 60 s").fetchSemanticsNodes().isEmpty()) add("a timed-out empty search offers no longer search", "results-none-timeout")
+            if (rule.onAllNodesWithText("No build meets these rules.").fetchSemanticsNodes().isNotEmpty()) add("a timed-out search claims no build exists", "results-none-timeout")
+        })
+        steps.add("results-none-done" to { ui { model.search = single; model.stack = listOf(Screen.Optimize, Screen.Results) } })
         // a build with modded pieces, made from the real #1 so the mod display is checked without a slow mods search
         steps.add("results-mods" to {
             ui {
@@ -571,6 +635,9 @@ class ScreenAudit {
         steps.add("overlay-all-done" to { ui { OverlayState.tab = 0; OverlayState.done.indices.forEach { OverlayState.done[it] = true } } })
         steps.add("overlay-recorded" to { ui { OverlayState.recorded = true } })
         steps.add("overlay-bubble-all-done" to { ui { OverlayState.recorded = false; OverlayState.expanded = false } })
+        steps.add("overlay-history-flag" to { ui { model.search?.builds?.firstOrNull()?.let {
+            OverlayState.load(model.overlayBuild(hero, it, "Build #1", model.historyFlag(System.currentTimeMillis() - 86_400_000))) }
+            OverlayState.expanded = true; OverlayState.tab = 0 } })
 
         // state flips that must not move anything else: (name, open the screen, change the state)
         val sheetOn = { k: SheetKind -> ui { overlay = false; model.search = single; model.stack = listOf(Screen.Optimize); model.sheet = Sheet(k, hero) } }
@@ -598,10 +665,14 @@ class ScreenAudit {
                 { ui { model.poolTiers = if (4 in model.poolTiers) model.poolTiers - 4 else model.poolTiers + 4 } }),
             Triple("pool: a target edit moves the score", { ui { model.sheet = null; model.poolMode = true; model.stack = listOf(Screen.Optimize) } }, {
                 ui {
-                    // targets set to what the hero has now take it to 100%, so the score has to move
-                    val id = model.poolHeroes().first { (model.matchFor(it.id)?.pct ?: 100) < 100 }.id
-                    val r = model.request(id); val cur = model.currentBuild(id)!!
-                    for (st in e7.gearscan.data.Stat.entries) if (!r.targets[st.ordinal].isNaN()) r.targets[st.ordinal] = Math.floor(cur.final[st])
+                    // a hero short on a target gets targets at its current stats (score up); one already there, after an
+                    // earlier setup did that, gets them 10% higher (score down): either way the score has to move
+                    val h = model.poolHeroes().first { h -> model.currentBuild(h.id) != null &&
+                        e7.gearscan.data.Stat.entries.any { st -> !model.request(h.id).targets[st.ordinal].isNaN() } }
+                    val r = model.request(h.id); val cur = model.currentBuild(h.id)!!
+                    val short = e7.gearscan.data.Stat.entries.any { st -> !r.targets[st.ordinal].isNaN() && cur.final[st] < r.targets[st.ordinal] - 1 }
+                    for (st in e7.gearscan.data.Stat.entries) if (!r.targets[st.ordinal].isNaN())
+                        r.targets[st.ordinal] = if (short) Math.floor(cur.final[st]) else Math.floor(cur.final[st] * 1.1 + 5)
                     model.touch()
                 }
             }),
@@ -713,6 +784,13 @@ class ScreenAudit {
         rule.waitForIdle()
     }
 
+    private fun clickDesc(desc: String) {
+        val node = rule.onAllNodesWithContentDescription(desc, useUnmergedTree = true)[0]
+        runCatching { node.performScrollTo() }
+        node.performClick()
+        rule.waitForIdle()
+    }
+
     private fun screenHash(): Int {
         val b = rule.onRoot().captureToImage().asAndroidBitmap()
         val px = IntArray(b.width * b.height); b.getPixels(px, 0, b.width, 0, 0, b.width, b.height)
@@ -740,14 +818,23 @@ class ScreenAudit {
 
     private fun search(model: AppModel, heroes: List<Long>) {
         ui { model.team = heroes; model.pickHero(heroes[0]); if (heroes.size > 1) model.team = heroes; model.startSearch() }
-        rule.waitUntil(90_000) { model.search?.let { !it.running && !it.ghostRunning } == true }
+        rule.waitUntil(90_000) { model.search?.let { !it.running && !it.ghostRunning && !it.checkingBlockers } == true }
     }
+
+    private val GHOST_VERDICTS = listOf("ghost piece beats", "ghost piece can't", "makes a build possible", "Best with 1 ghost")
+    private val PROGRESS = listOf("runs after the main search", "Looking for", "Checking which rule to loosen")
 
     private var overlayShown = false
     private lateinit var model: AppModel
 
     private fun check(step: String, s: Setup) {
         val where = "$step@${s.name}"
+        // a progress line with nothing left to run reads as a search that never ends
+        val idle = model.search?.let { !it.running && !it.ghostRunning && !it.checkingBlockers } ?: true
+        if (idle) PROGRESS.filter { rule.onAllNodesWithText(it, substring = true).fetchSemanticsNodes().isNotEmpty() }
+            .forEach { add("waits on nothing", "$where: \"$it\"") }
+        if (model.search?.ghostSearched == false) GHOST_VERDICTS.filter { rule.onAllNodesWithText(it, substring = true).fetchSemanticsNodes().isNotEmpty() }
+            .forEach { add("a ghost result nobody searched for", "$where: \"$it\"") }
         val widthPx = s.widthDp * ctx.resources.displayMetrics.density
         val nodes = rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), true).fetchSemanticsNodes(false)
         for (n in nodes) {
@@ -780,6 +867,10 @@ class ScreenAudit {
         // a screen reached from another one needs a visible way back, not only the system gesture
         if (model.stack.size > 1 && model.sheet == null && !overlayShown && textBounds().keys.none { it.startsWith("‹") })
             add("no back link", "${model.screen::class.simpleName} (first at $where)")
+        // a screen opens from several places (a hero from another hero): its back link names where back really goes
+        val wantBack = "‹ " + model.backLabel()
+        rule.onAllNodesWithTag(e7.gearscan.ui.BACK_TAG).fetchSemanticsNodes(false).map(::text).filter { it != wantBack }
+            .forEach { add("back link names the wrong screen", "\"$it\" goes to \"$wantBack\" (first at $where)") }
         // a back link on the only screen does nothing when tapped
         if (model.stack.size == 1 && model.sheet == null && !overlayShown && model.screen != Screen.Optimize && textBounds().keys.any { it.startsWith("‹ ") })
             add("back link goes nowhere", "${model.screen::class.simpleName} (first at $where)")

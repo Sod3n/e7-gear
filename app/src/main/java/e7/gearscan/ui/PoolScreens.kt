@@ -227,7 +227,7 @@ fun PoolRunScreen(model: AppModel) {
         } }
         Text("A piece moves only when the hero taking it gains more than its wearer loses, counting higher tiers more. Stop any time and keep what's done. You can leave the app; we'll notify you.",
             style = zen(11.sp, FontWeight.Medium, C.muted))
-    } else Frame(null, null, actions = if (p.fromHistory) null else ({
+    } else Frame(null, null, actions = ({
         // moves happen in the game, so the checklist comes first; its last step records them here
         PinkButton("Checklist", Modifier.weight(1f)) {
             if (model.loadPoolChecklist()) {
@@ -235,7 +235,7 @@ fun PoolRunScreen(model: AppModel) {
                 else model.go(Screen.OverlayIntro)
             }
         }
-        OutlineButton("Just record") { model.equipPool(); model.tab(Screen.Optimize) }
+        if (!p.fromHistory) OutlineButton("Just record") { model.equipPool(); model.tab(Screen.Optimize) }
     })) {
         BackToPrevious(model)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -346,8 +346,7 @@ fun PoolHeroScreen(model: AppModel, heroId: Long, setup: Boolean) {
         PinkButton(if (next != null) "Next · ${model.heroName(next)} ›" else "Done", Modifier.weight(1f), short = "Next ›".takeIf { next != null }) { req.reviewed = true; model.save(); goNext() }
     }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            BackLink("Whole pool") { model.back() }
-            Spacer(Modifier.weight(1f))
+            BackToPrevious(model, Modifier.weight(1f))
             // tapping the stamp takes the mark off, so this hero comes up again in the walk
             if (req.reviewed) { Box(Modifier.tap { req.reviewed = false; model.touch() }) { Stamp("済", "reviewed", C.blue) }; HSpace(8.dp) }
             Text("${i + 1} of ${queue.size}", style = zen(12.sp, color = C.muted))
