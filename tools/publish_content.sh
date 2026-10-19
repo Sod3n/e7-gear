@@ -89,6 +89,10 @@ new = sorted({h["name"] or h["code"] for h in c["heroes"]} - {h["name"] or h["co
 print(f"{name}: {len(c['heroes'])} heroes, {len(c['artifacts'])} artifacts; new heroes: {', '.join(new) or 'none'}")
 EOF
 
+# Pages sends "max-age=0, must-revalidate" by default, and the app's image loader obeys it: every cached portrait cost a
+# network round trip (5 at a time) before it showed. A redrawn image reaches phones within a week.
+printf '/img/*\n  Cache-Control: public, max-age=604800\n' > "$SITE/_headers"
+
 # the local copy the tests read; the app's own tests check it parses
 mkdir -p content && cp "$TMP/content.json" content/content.json
 ./gradlew -q testDebugUnitTest --tests e7.gearscan.ContentUpdateTest --tests e7.gearscan.SourceRulesTest
