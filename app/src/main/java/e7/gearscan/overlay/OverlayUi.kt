@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -33,9 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -84,29 +85,51 @@ private fun Modifier.dragWindow(onMove: (Float, Float) -> Unit, onTap: (() -> Un
     }
 }
 
+/** The panel's two parts as one column; the service shows them as two windows (see [OverlayControls]). */
 @Composable
 fun OverlayUi(onMove: (Float, Float) -> Unit, onDock: (Boolean) -> Unit, onClose: () -> Unit) {
+    if (!OverlayState.expanded) OverlayTop(onMove, onDock, onClose)
+    else Column(Modifier.width(PANEL_WIDTH.dp), verticalArrangement = Arrangement.spacedBy(PANEL_GAP.dp)) {
+        OverlayTop(onMove, onDock, onClose)
+        OverlayBody()
+    }
+}
+
+/** The touchable window: the bubble, or the panel's controls. */
+@Composable
+fun OverlayTop(onMove: (Float, Float) -> Unit, onDock: (Boolean) -> Unit, onClose: () -> Unit) {
     val b = OverlayState.build ?: return
     if (!OverlayState.expanded) Bubble(b, onMove, onRelease = { if (OverlayState.closeZone) { OverlayState.closeZone = false; onClose() } }) {
         OverlayState.expanded = true; onDock(true)
     }
-    else Panel(b, onMove, { OverlayState.expanded = false; onDock(false) }, onClose)
+    else OverlayControls(b, onMove, { OverlayState.expanded = false; onDock(false) }, onClose)
 }
+
+const val PANEL_WIDTH = 330
+const val PANEL_GAP = 4
+/** Taps pass through an app's overlay only at this opacity or less (Android 12+ blocks them above 0.8). */
+val OPACITY_STEPS = listOf(0.8f, 0.6f, 0.4f)
 
 @Composable
 private fun Bubble(b: OverlayBuild, onMove: (Float, Float) -> Unit, onRelease: () -> Unit, onOpen: () -> Unit) {
     val s = OverlayState
     val doneCount = s.done.count { it }
     val next = s.current.takeIf { it >= 0 }?.let { b.pieces[it] }
+    // the hint names the next step for a few seconds, then gets out of the game's way
+    var hint by remember { mutableStateOf(true) }
+    LaunchedEffect(next?.item?.id, doneCount) { hint = true; kotlinx.coroutines.delay(5000); hint = false }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 4.dp, bottom = 8.dp)) {
         val closing = s.closeZone
-        Text(when {
-            closing -> "Release to close"
-            next != null -> "Next: ${next.item.slot.label} ${next.owner.replace("on ", "from ").replace("in bag", "from bag")}"
-            else -> "All done · tap to record"
-        }, style = zen(12.sp, color = C.card), maxLines = 2, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 190.dp).clip(RoundedCornerShape(10.dp)).background(if (closing) C.red else C.ink).padding(horizontal = 10.dp, vertical = 6.dp))
-        Spacer(Modifier.width(12.dp))
+        if (closing || hint) {
+            Text(when {
+                closing -> "Release to close"
+                next != null -> "${next.item.slot.label} · ${next.owner.removePrefix("on ").removePrefix("in ")}"
+                else -> "Tap to record"
+            }, style = zen(12.sp, color = C.card), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 150.dp).clip(RoundedCornerShape(10.dp)).background(if (closing) C.red else C.ink)
+                    .padding(horizontal = 9.dp, vertical = 5.dp))
+            Spacer(Modifier.width(10.dp))
+        }
         Box(Modifier.dragWindow(onMove, onOpen, onRelease).padding(start = 8.dp, bottom = 6.dp)) {
             Box(Modifier.size(64.dp).hardShadow(if (closing) C.red else C.pink, 3.dp, 4.dp, 32.dp).clip(CircleShape)
                 .background(if (closing) C.red else C.card).border(3.dp, C.ink, CircleShape),
@@ -118,15 +141,15 @@ private fun Bubble(b: OverlayBuild, onMove: (Float, Float) -> Unit, onRelease: (
     }
 }
 
+/** Everything the player taps: title, tabs, the step buttons and opacity. Solid, since taps land here. */
 @Composable
-private fun Panel(b: OverlayBuild, onMove: (Float, Float) -> Unit, onCollapse: () -> Unit, onClose: () -> Unit) {
+private fun OverlayControls(b: OverlayBuild, onMove: (Float, Float) -> Unit, onCollapse: () -> Unit, onClose: () -> Unit) {
     val s = OverlayState
-    val h = (LocalConfiguration.current.screenHeightDp - 12).coerceIn(240, 440)
     LaunchedEffect(s.recorded) { if (s.recorded) { kotlinx.coroutines.delay(1500); onClose() } }
     val shape = RoundedCornerShape(18.dp)
-    Column(Modifier.padding(end = 4.dp, bottom = 4.dp).width(330.dp).height(h.dp).alpha(s.opacity)
-        .hardShadow(C.pink, 4.dp, 4.dp, 18.dp).clip(shape).background(C.card.copy(alpha = 0.97f)).border(2.5.dp, C.ink, shape)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
+    Column(Modifier.padding(end = 4.dp).width(PANEL_WIDTH.dp).hardShadow(C.pink, 4.dp, 4.dp, 18.dp).clip(shape).background(C.card)
+        .border(2.5.dp, C.ink, shape)) {
+        Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.dragWindow(onMove).padding(horizontal = 2.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 repeat(2) { Box(Modifier.width(16.dp).height(2.5.dp).clip(RoundedCornerShape(2.dp)).background(C.muted)) }
@@ -147,41 +170,59 @@ private fun Panel(b: OverlayBuild, onMove: (Float, Float) -> Unit, onCollapse: (
                 Text("×", style = dela(13.sp, C.card))
             }
         }
-        Box(Modifier.fillMaxWidth().height(2.dp).background(C.ink))
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            if (s.tab == 0) b.pieces.forEachIndexed { i, p ->
-                // pool checklists: a heading each time the hero changes, so 48 moves read as a few short lists
-                if (p.forHero != null && b.pieces.getOrNull(i - 1)?.forHero != p.forHero) {
-                    val n = b.pieces.count { it.forHero == p.forHero }
-                    val done = b.pieces.indices.count { b.pieces[it].forHero == p.forHero && s.done.getOrElse(it) { false } }
-                    Row(Modifier.fillMaxWidth().background(C.paper).padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(p.forHero, style = dela(12.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("$done of $n", style = zen(11.sp, color = C.muted))
-                    }
-                }
-                PieceRow(i, p, i == s.current)
-            }
-            else StatsTable(b)
-        }
-        Box(Modifier.fillMaxWidth().height(2.dp).background(C.ink))
-        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
+        Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (s.tab == 0) {
-                val n = s.done.count { it }
-                Text("$n of ${b.pieces.size} done", style = zen(12.sp, color = C.muted), modifier = Modifier.weight(1f))
-                when {
-                    s.recorded -> Text("Recorded in E7 Gear", style = zen(12.sp, color = C.blue))
-                    // the game's gear changed; the last step tells the app, or its next search starts from old gear
-                    n == b.pieces.size -> FooterButton("Finished · record it") { s.onFinish?.invoke(); s.recorded = true }
-                    else -> FooterButton("Done · next") { s.current.takeIf { it >= 0 }?.let { s.done[it] = true; s.focus = -1 } }
-                }
-            } else {
-                Text("Opacity", style = zen(10.sp, color = C.muted))
-                OpacitySlider(Modifier.weight(1f))
-                Text("${Math.round(s.opacity * 100)}%", style = zen(10.sp, color = C.muted))
-                Text("Close", style = zen(11.sp, color = C.deepPink), modifier = Modifier.tap(onClose).padding(start = 4.dp))
+            val n = s.done.count { it }
+            Text("$n of ${b.pieces.size} done", style = zen(12.sp, color = C.muted), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // the list below lets taps through to the game; its opacity is the one thing worth changing mid-game
+            Row(Modifier.clip(RoundedCornerShape(999.dp)).border(2.dp, C.ink, RoundedCornerShape(999.dp)).tap {
+                s.opacity = OPACITY_STEPS[(OPACITY_STEPS.indexOf(s.opacity) + 1).mod(OPACITY_STEPS.size)]
+            }.padding(horizontal = 8.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(Modifier.size(10.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Brush.horizontalGradient(
+                    0f to C.ink, 0.5f to C.ink, 0.5f to C.card, 1f to C.card)).border(1.5.dp, C.ink, CircleShape))
+                Text("${Math.round(s.opacity * 100)}%", style = zen(11.sp))
+            }
+            val last = s.lastDone
+            Text("Undo", style = zen(11.sp, color = if (last != null) C.ink else C.faint), modifier = Modifier.clip(RoundedCornerShape(999.dp))
+                .border(2.dp, if (last != null) C.ink else C.faint, RoundedCornerShape(999.dp))
+                .tap(if (last != null && !s.recorded) ({ s.undo() }) else null).padding(horizontal = 8.dp, vertical = 3.dp))
+            when {
+                s.recorded -> Text("Recorded", style = zen(12.sp, color = C.blue))
+                // the game's gear changed; the last step tells the app, or its next search starts from old gear
+                n == b.pieces.size -> FooterButton("Finished · record it") { s.onFinish?.invoke(); s.recorded = true }
+                else -> FooterButton("Done · next") { s.markCurrentDone() }
             }
         }
+    }
+}
+
+/** What the panel shows: the pieces or the stats. Drawn in a window that taps pass through to the game. */
+@Composable
+fun OverlayBody() {
+    val s = OverlayState
+    val b = s.build ?: return
+    if (!s.expanded) return
+    val shape = RoundedCornerShape(18.dp)
+    val scroll = rememberScrollState()
+    val rowTops = remember { mutableMapOf<Int, Int>() }
+    // nobody can scroll a window that taps pass through, so the open piece is scrolled into view for them
+    LaunchedEffect(s.current, s.tab) { rowTops[s.current]?.let { scroll.animateScrollTo(it) } }
+    val max = (LocalConfiguration.current.screenHeightDp - 110).coerceAtLeast(160)
+    Column(Modifier.padding(end = 4.dp).width(PANEL_WIDTH.dp).heightIn(max = max.dp).clip(shape).background(C.card)
+        .border(2.5.dp, C.ink, shape).verticalScroll(scroll)) {
+        if (s.tab == 0) b.pieces.forEachIndexed { i, p ->
+            // pool checklists: a heading each time the hero changes, so 48 moves read as a few short lists
+            if (p.forHero != null && b.pieces.getOrNull(i - 1)?.forHero != p.forHero) {
+                val n = b.pieces.count { it.forHero == p.forHero }
+                val done = b.pieces.indices.count { b.pieces[it].forHero == p.forHero && s.done.getOrElse(it) { false } }
+                Row(Modifier.fillMaxWidth().background(C.paper).padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(p.forHero, style = dela(12.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("$done of $n", style = zen(11.sp, color = C.muted))
+                }
+            }
+            Box(Modifier.onGloballyPositioned { rowTops[i] = it.positionInParent().y.toInt() }) { PieceRow(i, p, i == s.current) }
+        }
+        else StatsTable(b)
     }
 }
 
@@ -193,9 +234,9 @@ private fun FooterButton(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun Check(on: Boolean, onToggle: () -> Unit) {
+private fun Check(on: Boolean) {
     val shape = RoundedCornerShape(6.dp)
-    Box(Modifier.size(22.dp).clip(shape).background(if (on) C.pink else C.card).border(2.5.dp, C.ink, shape).tap(onToggle),
+    Box(Modifier.size(22.dp).clip(shape).background(if (on) C.pink else C.card).border(2.5.dp, C.ink, shape),
         contentAlignment = Alignment.Center) { if (on) CheckMark(12.dp) }
 }
 
@@ -207,7 +248,7 @@ private fun PieceRow(i: Int, p: OverlayPiece, open: Boolean) {
     if (open) {
         Row(Modifier.fillMaxWidth().hatch().padding(horizontal = 10.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Check(done) { s.done[i] = !done }
+            Check(done)
             GearTile(p.item, 40.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -227,9 +268,9 @@ private fun PieceRow(i: Int, p: OverlayPiece, open: Boolean) {
             }
         }
     } else {
-        Row(Modifier.fillMaxWidth().tap { s.focus = i }.padding(horizontal = 10.dp, vertical = 2.dp),
+        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Check(done) { s.done[i] = !done }
+            Check(done)
             GearTile(p.item, 24.dp)
             SetIcon(p.setIcon, 16.dp)
             Text((p.forHero?.let { "$it: " } ?: "") + "${p.item.slot.label} · ${p.mainText}", style = zen(12.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -244,48 +285,24 @@ private fun PieceRow(i: Int, p: OverlayPiece, open: Boolean) {
 
 @Composable
 private fun StatsTable(b: OverlayBuild) {
-    val s = OverlayState
     Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
         Row(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
             val hs = zen(9.sp, color = C.muted).copy(letterSpacing = 0.5.sp)
             Text("STAT", style = hs, modifier = Modifier.padding(start = 18.dp).weight(1f))
             FitText("BUILD", hs, Modifier.width(58.dp), textAlign = TextAlign.End)
             FitText("NOW", hs, Modifier.width(52.dp), textAlign = TextAlign.End)
-            Spacer(Modifier.width(30.dp))
         }
         Box(Modifier.fillMaxWidth().height(2.dp).background(C.ink))
-        b.stats.forEachIndexed { i, (st, build, now) ->
+        b.stats.forEach { (st, build, now) ->
             fun f(v: Double) = if (st.pct) "${fmtNum(Math.floor(v))}%" else fmtInt(Math.floor(v))
             Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                 StatIcon(st, 12.dp)
                 Text(st.label, style = zen(12.sp), modifier = Modifier.padding(start = 6.dp).weight(1f))
                 FitText(f(build), dela(12.sp), Modifier.width(58.dp), textAlign = TextAlign.End)
                 FitText(f(now), zen(11.sp, FontWeight.Medium, C.muted), Modifier.width(52.dp), textAlign = TextAlign.End)
-                Spacer(Modifier.width(8.dp))
-                Check(s.statOk.getOrElse(i) { false }) { s.statOk[i] = !s.statOk[i] }
             }
         }
-        Text("Tick each stat once the game shows the build value.", style = zen(10.sp, FontWeight.Medium, C.muted),
+        Text("Compare with the hero's stats in the game once every piece is on.", style = zen(10.sp, FontWeight.Medium, C.muted),
             modifier = Modifier.padding(top = 6.dp))
-    }
-}
-
-@Composable
-private fun OpacitySlider(modifier: Modifier) {
-    val s = OverlayState
-    var w by remember { mutableFloatStateOf(1f) }
-    fun set(x: Float) { s.opacity = (0.3f + 0.7f * (x / w).coerceIn(0f, 1f)) }
-    Box(modifier.height(18.dp).onSizeChanged { w = it.width.toFloat().coerceAtLeast(1f) }
-        .pointerInput(Unit) {
-            awaitPointerEventScope {
-                while (true) {
-                    val e = awaitPointerEvent()
-                    e.changes.firstOrNull()?.let { c -> if (c.pressed) { set(c.position.x); c.consume() } }
-                }
-            }
-        }, contentAlignment = Alignment.CenterStart) {
-        Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(99.dp)).border(2.dp, C.ink, RoundedCornerShape(99.dp)))
-        Box(Modifier.fillMaxWidth((s.opacity - 0.3f) / 0.7f).height(8.dp).clip(RoundedCornerShape(99.dp)).background(C.pink)
-            .border(2.dp, C.ink, RoundedCornerShape(99.dp)))
     }
 }

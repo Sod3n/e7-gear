@@ -49,6 +49,9 @@ import java.io.ByteArrayOutputStream
 fun OverlayIntroScreen(model: AppModel) {
     val ctx = LocalContext.current
     var waiting by remember { mutableStateOf(false) }
+    // came back from Android's settings without the permission: on Android 13+ an app installed outside a store has
+    // that switch locked until "Allow restricted settings" is turned on in its App info
+    var blocked by remember { mutableStateOf(false) }
     fun go() {
         OverlayService.start(ctx)
         model.overlaySeen = true
@@ -57,7 +60,8 @@ fun OverlayIntroScreen(model: AppModel) {
         model.openGame()
     }
     LifecycleResumeEffect(waiting) {
-        if (waiting && OverlayState.canDraw(ctx)) { waiting = false; go() }
+        if (waiting && OverlayState.canDraw(ctx)) { waiting = false; blocked = false; go() }
+        else if (waiting) blocked = true
         onPauseOrDispose { }
     }
     Frame(null, null, actions = {
@@ -76,13 +80,23 @@ fun OverlayIntroScreen(model: AppModel) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 IntroStep(1, "Allow “Display over other apps”", "Android opens its settings page once. Turn it on, then come back.")
                 IntroStep(2, "Open the game's gear screen", "The bubble stays at the edge; tap it to open the checklist.")
-                IntroStep(3, "Tick pieces as you equip them", "When all six are done, check the final stats.")
+                IntroStep(3, "Tap Done as you equip each piece", "The list lets taps through to the game. When all are done, record the build.")
             }
         }
         DashedBox(Modifier.fillMaxWidth(), color = C.ink, padding = PaddingValues(12.dp)) {
             Text("The panel only shows information. It never taps or reads the game screen.", style = zen(12.sp, FontWeight.Medium))
         }
-        if (waiting) Text("Turn on “Allow display over other apps” for E7 Gear, then come back here.", style = zen(12.sp, color = C.blue))
+        if (blocked && android.os.Build.VERSION.SDK_INT >= 33) DashedBox(Modifier.fillMaxWidth(), color = C.blue, padding = PaddingValues(12.dp)) {
+            Text("Switch greyed out, or “Restricted setting”?", style = zen(13.sp, color = C.blue))
+            VSpace(4.dp)
+            Text("Android locks it for apps installed from a file. Open App info, tap the three-dot menu in the corner, choose “Allow restricted settings”, " +
+                "then tap the pink button again.", style = zen(12.sp, FontWeight.Medium))
+            VSpace(6.dp)
+            LinkText("Open App info") {
+                ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}")))
+            }
+        }
+        else if (waiting) Text("Turn on “Allow display over other apps” for E7 Gear, then come back here.", style = zen(12.sp, color = C.blue))
     }
 }
 

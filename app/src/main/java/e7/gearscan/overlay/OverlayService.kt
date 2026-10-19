@@ -62,10 +62,11 @@ class OverlayBuild(
 object OverlayState {
     var build: OverlayBuild? by mutableStateOf(null)
     val done = mutableStateListOf<Boolean>()
-    val statOk = mutableStateListOf<Boolean>()
+    /** Pieces in the order they were ticked, for Undo. */
+    private val doneOrder = mutableStateListOf<Int>()
     var expanded by mutableStateOf(false)
     var tab by mutableStateOf(0)
-    var opacity by mutableStateOf(1f)
+    var opacity by mutableStateOf(0.6f)
     var focus by mutableStateOf(-1)
     var running by mutableStateOf(false)
     /** The bubble is being dragged over the bottom edge, where letting go closes it. */
@@ -77,12 +78,23 @@ object OverlayState {
     fun load(b: OverlayBuild, onFinish: (() -> Unit)? = null) {
         build = b
         done.clear(); done.addAll(b.pieces.map { it.onHero })
-        statOk.clear(); statOk.addAll(b.stats.map { false })
+        doneOrder.clear()
         expanded = false; tab = 0; focus = -1
         this.onFinish = onFinish; recorded = false
     }
 
     val current: Int get() = focus.takeIf { it >= 0 && it < done.size && !done[it] } ?: done.indexOfFirst { !it }
+    val lastDone: Int? get() = doneOrder.lastOrNull()
+
+    fun markCurrentDone() {
+        val i = current.takeIf { it >= 0 } ?: return
+        done[i] = true; doneOrder.add(i); focus = -1
+    }
+
+    fun undo() {
+        val i = doneOrder.removeLastOrNull() ?: return
+        done[i] = false; focus = i
+    }
 
     fun canDraw(ctx: Context) = Settings.canDrawOverlays(ctx)
 }
@@ -100,6 +112,9 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private lateinit var wm: WindowManager
     private var view: ComposeView? = null
     private lateinit var params: WindowManager.LayoutParams
+    /** The panel's list, under the controls: not touchable and at most 80% opaque, so the game gets the taps. */
+    private var body: ComposeView? = null
+    private lateinit var bodyParams: WindowManager.LayoutParams
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -130,26 +145,76 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             x = 0
             y = (110 * d).toInt()
         }
-        view = ComposeView(this).apply {
-            setViewTreeLifecycleOwner(this@OverlayService)
-            setViewTreeSavedStateRegistryOwner(this@OverlayService)
-            setContent { OverlayUi(onMove = ::moveBy, onDock = ::dock, onClose = { stopSelf() }) }
+        bodyParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply { gravity = Gravity.TOP or Gravity.END; alpha = OverlayState.opacity }
+        body = composeView {
+            OverlayBody()
+            androidx.compose.runtime.LaunchedEffect(OverlayState.opacity) { setBodyAlpha(OverlayState.opacity) }
+        }
+        view = composeView { OverlayTop(onMove = ::moveBy, onDock = ::dock, onClose = { stopSelf() }) }.apply {
+            // the list hangs under the controls, whatever height they take
+            addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placeBody() }
         }
         if (OverlayState.expanded) params.width = (338 * d).toInt()
+        wm.addView(body, bodyParams)
         wm.addView(view, params)
+        placeBody()
         registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
         registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
         OverlayState.running = true
     }
 
+    private fun composeView(content: @androidx.compose.runtime.Composable () -> Unit) = ComposeView(this).apply {
+        setViewTreeLifecycleOwner(this@OverlayService)
+        setViewTreeSavedStateRegistryOwner(this@OverlayService)
+        setContent(content)
+    }
+
+    private fun setBodyAlpha(a: Float) {
+        val b = body ?: return
+        bodyParams.alpha = a
+        wm.updateViewLayout(b, bodyParams)
+    }
+
+    private fun placeBody() {
+        val v = view ?: return
+        val b = body ?: return
+        b.visibility = if (OverlayState.expanded) android.view.View.VISIBLE else android.view.View.GONE
+        bodyParams.width = params.width
+        bodyParams.x = params.x
+        bodyParams.y = params.y + v.height + (PANEL_GAP * resources.displayMetrics.density).toInt()
+        wm.updateViewLayout(b, bodyParams)
+    }
+
+    /**
+     * Where the overlay can sit now, in its own coordinates: between the system bars, which is where the window
+     * manager places it. displayMetrics can keep the portrait size after the game turns the screen.
+     */
+    private fun screen(): android.graphics.Rect =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val m = wm.currentWindowMetrics
+            val i = m.windowInsets.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.systemBars() or
+                android.view.WindowInsets.Type.displayCutout())
+            android.graphics.Rect(0, 0, m.bounds.width() - i.left - i.right, m.bounds.height() - i.top - i.bottom)
+        } else android.util.DisplayMetrics().also { @Suppress("DEPRECATION") wm.defaultDisplay.getMetrics(it) }
+            .let { android.graphics.Rect(0, 0, it.widthPixels, it.heightPixels) }
+
     /** Gravity is top-end, so x grows to the left. */
     private fun moveBy(dx: Float, dy: Float) {
         val v = view ?: return
-        val m = resources.displayMetrics
-        params.x = (params.x - dx.toInt()).coerceIn(0, maxOf(0, m.widthPixels - v.width))
-        params.y = (params.y + dy.toInt()).coerceIn(0, maxOf(0, m.heightPixels - v.height))
+        val r = screen()
+        val maxY = maxOf(0, r.height() - v.height)
+        params.x = (params.x - dx.toInt()).coerceIn(0, maxOf(0, r.width() - v.width))
+        params.y = (params.y + dy.toInt()).coerceIn(0, maxY)
         wm.updateViewLayout(v, params)
-        OverlayState.closeZone = !OverlayState.expanded && params.y + v.height > m.heightPixels - (120 * m.density).toInt()
+        placeBody()
+        // only a bubble pushed against the bottom edge closes; anywhere else on a short landscape screen is a move
+        OverlayState.closeZone = !OverlayState.expanded && params.y >= maxY - (12 * resources.displayMetrics.density).toInt()
     }
 
     private fun dock(expanded: Boolean) {
@@ -160,6 +225,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         params.x = if (expanded) (14 * d).toInt() else 0
         params.y = if (expanded) (6 * d).toInt() else params.y.coerceAtLeast((40 * d).toInt())
         wm.updateViewLayout(v, params)
+        placeBody()
     }
 
     private fun foreground() {
@@ -180,7 +246,8 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     override fun onDestroy() {
         view?.let { runCatching { wm.removeView(it) } }
-        view = null
+        body?.let { runCatching { wm.removeView(it) } }
+        view = null; body = null
         OverlayState.running = false
         registry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         super.onDestroy()
