@@ -1,6 +1,7 @@
 package e7.gearscan.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.foundation.background
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
@@ -55,7 +56,11 @@ fun App(model: AppModel, onExit: () -> Unit) {
 @Composable
 private fun ToastHost(model: AppModel, modifier: Modifier) {
     val t = model.toast ?: return
-    LaunchedEffect(t.id) { kotlinx.coroutines.delay(6000); if (model.toast?.id == t.id) model.toast = null }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    // counts only while the app is in front: a toast set from over the game waits for the player to come back
+    LaunchedEffect(t.id) {
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) { kotlinx.coroutines.delay(6000); if (model.toast?.id == t.id) model.toast = null }
+    }
     Row(modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 92.dp).fillMaxWidth()
         .clip(RoundedCornerShape(14.dp)).background(C.ink).padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

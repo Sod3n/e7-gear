@@ -1,5 +1,7 @@
 package e7.gearscan.ui
 
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.draw.alpha
 import android.content.Intent
 import android.net.Uri
 import android.net.VpnService
@@ -152,6 +154,7 @@ fun ScanIntroScreen(model: AppModel) {
             Checkbox(agree) { agree = it }
             Text("I understand what is sent and agree to scan", style = zen(13.sp))
         }
+        LinkText("Restore a backup or import a gear.txt instead") { model.consent = agree; model.save(); model.replace(Screen.ScanData) }
     }
 }
 
@@ -173,7 +176,9 @@ fun ScanDataScreen(model: AppModel) {
     var erase by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf<String?>(null) }
     val restore = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        uri?.let { model.readUri(it) }?.let { note = if (model.restore(it)) "Backup restored." else "That file is not a backup from this app." }
+        uri?.let { model.readUri(it) }?.let {
+            if (model.restore(it)) { model.tab(Screen.Optimize); model.showToast("Backup restored") } else note = "That file is not a backup from this app."
+        }
     }
     val importGear = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { model.readUri(it) }?.let { t ->
@@ -187,7 +192,7 @@ fun ScanDataScreen(model: AppModel) {
     val box = model.box
     model.rev
     Frame(null, null, actions = {
-        PinkButton("Scan now", Modifier.weight(1f), enabled = model.consent) { if (!model.consent) model.go(Screen.ScanIntro) else start() }
+        PinkButton("Scan now", Modifier.weight(1f)) { if (!model.consent) model.go(Screen.ScanIntro) else start() }
     }) {
         BackLink("Optimize") { model.back() }
         ScreenTitle("Scan & data", "読取")
@@ -279,9 +284,14 @@ fun CaptureScreen(model: AppModel) {
     Frame(null, null, actions = {
         when {
             importing -> PinkButton("Importing…", Modifier.weight(1f), enabled = false) {}
+            // the main button is the next step: back to the game until the box arrives, then importing it
+            capturing && model.lobbyLikely -> {
+                PinkButton("Stop and import", Modifier.weight(1f)) { model.stopAndImport() }
+                OutlineButton("Game", Modifier.width(96.dp)) { model.openGame() }
+            }
             capturing -> {
                 PinkButton("Back to the game", Modifier.weight(1f)) { model.openGame() }
-                OutlineButton("Stop") { if (model.lobbyLikely || model.captureBytes > 0) model.stopAndImport() else model.returnedEarly = true }
+                OutlineButton("Stop", Modifier.width(96.dp)) { if (model.captureBytes > 0) model.stopAndImport() else model.returnedEarly = true }
             }
             err == ScanError.SERVER -> PinkButton("Send again", Modifier.weight(1f)) { model.stopAndImport() }
             err == ScanError.NOT_INSTALLED -> PinkButton("Open Play Store", Modifier.weight(1f)) {
@@ -317,14 +327,15 @@ fun CaptureScreen(model: AppModel) {
             }
             err != null -> ErrorCard(err, model)
             capturing -> Card {
-                if (model.returnedEarly || !model.lobbyLikely) {
-                    Tag("Not finished yet")
-                    VSpace(8.dp)
-                    Text("Your heroes haven't arrived. Go back to the game and wait for the lobby.", style = zen(14.sp, FontWeight.Medium))
-                } else {
-                    Tag("Looks complete", bg = C.ghostBg)
-                    VSpace(8.dp)
-                    Text("The lobby data seems to be here. Press Stop to import.", style = zen(14.sp, FontWeight.Medium))
+                // both messages are laid out and the other one hidden, so the card keeps the taller one's height
+                val done = !model.returnedEarly && model.lobbyLikely
+                Box {
+                    for (shows in listOf(false, true)) Column(if (shows == done) Modifier else Modifier.alpha(0f).clearAndSetSemantics {}) {
+                        if (shows) Tag("Looks complete", bg = C.ghostBg) else Tag("Not finished yet")
+                        VSpace(8.dp)
+                        Text(if (shows) "Your heroes and gear seem to be here. Press Stop and import."
+                            else "Your heroes haven't arrived. Go back to the game and wait for the lobby.", style = zen(14.sp, FontWeight.Medium))
+                    }
                 }
                 VSpace(10.dp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

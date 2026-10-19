@@ -202,7 +202,7 @@ fun HeroDetailScreen(model: AppModel, id: Long) {
     val cfg = model.config(id)
     val tier = model.tier(id)
     Frame(model, Screen.Heroes, actions = {
-        PinkButton("Optimize ${model.heroName(h)}", Modifier.weight(1f), enabled = model.gameHero(h) != null) {
+        PinkButton("Optimize ${model.heroName(h)}", Modifier.weight(1f), enabled = model.gameHero(h) != null, short = "Optimize") {
             model.pickHero(id); model.team = listOf(id); model.tab(Screen.Optimize)
         }
         OutlineButton("Bonus stats") { model.sheet = Sheet(SheetKind.BONUS, id) }

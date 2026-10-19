@@ -125,6 +125,8 @@ private fun NoBox(model: AppModel) {
         Text("Scan the game once to load your heroes and gear, or import a Fribbels gear.txt.", style = zen(13.sp, FontWeight.Medium, C.muted))
         VSpace(10.dp)
         PinkButton("Scan the game", Modifier.fillMaxWidth()) { model.go(if (model.consent) Screen.ScanData else Screen.ScanIntro) }
+        VSpace(8.dp)
+        LinkText("Restore a backup or import a gear.txt") { model.go(Screen.ScanData) }
     }
 }
 
@@ -464,7 +466,7 @@ fun CompareScreen(model: AppModel, index: Int, poolHero: Long?, review: Boolean 
         val prev = queue.getOrNull(at - 1)
         OutlineButton("‹ Previous", Modifier.width(118.dp), enabled = prev != null) { prev?.let { model.replace(Screen.PoolReview(it)) } }
         val next = queue.drop(at + 1).firstOrNull { it !in model.pool!!.reviewed }
-        PinkButton(next?.let { "Next · ${model.hero(it)?.let(model::heroName)} ›" } ?: "Done", Modifier.weight(1f)) {
+        PinkButton(next?.let { "Next · ${model.hero(it)?.let(model::heroName)} ›" } ?: "Done", Modifier.weight(1f), short = next?.let { "Next ›" }) {
             model.markReviewed(heroId)
             if (next != null) model.replace(Screen.PoolReview(next)) else model.back()
         }
@@ -472,12 +474,7 @@ fun CompareScreen(model: AppModel, index: Int, poolHero: Long?, review: Boolean 
         PinkButton("Show over game", Modifier.weight(1f)) {
             if (!model.showOverGame(heroId, b, if (teamHero != null) heroName else "$heroName #${index + 1}")) model.go(Screen.OverlayIntro)
         }
-        OutlineButton("Equip in app") {
-            val prev = model.equip(heroId, b)
-            val name = req.presetLabel?.let { "${it.substringAfter("· ").replace("Community ", "Preset ")} build" } ?: "Build ${model.config(heroId).saved.size + 1}"
-            if (model.config(heroId).saved.none { it.items.toSet() == b.items.filter { i -> !i.ghost }.map { i -> i.id }.toSet() }) model.saveBuild(heroId, b, name)
-            model.showToast("Equipped in this app and saved to $heroName's builds", "Undo") { model.undoEquip(prev) }
-        }
+        OutlineButton("Equip in app") { model.recordBuild(heroId, b) }
     })) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             BackLink(if (teamHero != null) "Pool done" else "Best 50") { model.back() }

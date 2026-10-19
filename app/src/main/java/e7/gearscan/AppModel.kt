@@ -205,7 +205,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         sheet = null
         stack = stack + s
     }
-    fun replace(s: Screen) { sheet = null; stack = stack.dropLast(1) + s }
+    // replacing the only screen keeps Optimize under it, so the new screen's back link has somewhere to go
+    fun replace(s: Screen) { sheet = null; stack = stack.dropLast(1).ifEmpty { if (s == Screen.Optimize) emptyList() else listOf(Screen.Optimize) } + s }
     fun tab(s: Screen) { sheetUnder.clear(); sheet = null; stack = listOf(s) }
     fun back(): Boolean {
         if (sheet != null) { sheet = null; return true }
@@ -554,6 +555,14 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         return prev
     }
 
+    /** Equips [b] in the app's box and keeps it in the hero's saved builds; the toast offers Undo. */
+    fun recordBuild(heroId: Long, b: Build) {
+        val prev = equip(heroId, b)
+        val name = request(heroId).presetLabel?.let { "${it.substringAfter("· ").replace("Community ", "Preset ")} build" } ?: "Build ${config(heroId).saved.size + 1}"
+        if (config(heroId).saved.none { it.items.toSet() == b.items.filter { i -> !i.ghost }.map { i -> i.id }.toSet() }) saveBuild(heroId, b, name)
+        showToast("Equipped in this app and saved to ${hero(heroId)?.let(::heroName) ?: "the hero"}'s builds", "Undo") { undoEquip(prev) }
+    }
+
     fun undoEquip(prev: Map<Long, Long?>) {
         val b = box ?: return
         for ((id, owner) in prev) b.itemsById[id]?.let { b.setEquipped(it, owner) }
@@ -886,8 +895,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         pool = pool?.copy(running = false, current = null, currentBest = null, finishedAt = System.currentTimeMillis())
     }
 
-    fun equipPool() {
-        val p = pool ?: return
+    fun equipPool(run: PoolState? = pool) {
+        val p = run ?: return
         val prev = LinkedHashMap<Long, Long?>()
         // first owner wins: undo must restore the box as it was before any of these equips
         for ((id, b) in p.builds) b?.let { equip(id, it).forEach { (item, owner) -> prev.putIfAbsent(item, owner) } }
@@ -919,6 +928,18 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     /** Heroes whose setup changed since the shown run used it. */
     fun editedSinceRun(): List<Long> = pool?.let { p -> p.setups.filter { (id, k) -> setupKey(id) != k }.keys.toList() }.orEmpty()
+
+    /** Loads one hero's build as the in-game checklist; finishing it records the build. */
+    fun loadBuildChecklist(heroId: Long, b: Build, title: String) =
+        e7.gearscan.overlay.OverlayState.load(overlayBuild(heroId, b, title)) { recordBuild(heroId, b) }
+
+    /** Loads the pool's moves as the in-game checklist; finishing it records them all. */
+    fun loadPoolChecklist(): Boolean {
+        val p = pool ?: return false
+        val b = poolOverlay() ?: return false
+        e7.gearscan.overlay.OverlayState.load(b) { equipPool(p); tab(Screen.Optimize) }
+        return true
+    }
 
     fun poolOverlay(): e7.gearscan.overlay.OverlayBuild? {
         val p = pool ?: return null
@@ -1013,7 +1034,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** True when the overlay started; false when the permission screen must come first. */
     fun showOverGame(heroId: Long, b: Build, title: String): Boolean {
         val app = getApplication<Application>()
-        e7.gearscan.overlay.OverlayState.load(overlayBuild(heroId, b, title))
+        loadBuildChecklist(heroId, b, title)
         if (!e7.gearscan.overlay.OverlayState.canDraw(app)) return false
         e7.gearscan.overlay.OverlayService.stop(app)
         e7.gearscan.overlay.OverlayService.start(app)

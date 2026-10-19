@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -102,7 +103,7 @@ private fun Bubble(b: OverlayBuild, onMove: (Float, Float) -> Unit, onRelease: (
         Text(when {
             closing -> "Release to close"
             next != null -> "Next: ${next.item.slot.label} ${next.owner.replace("on ", "from ").replace("in bag", "from bag")}"
-            else -> "All 6 done · check stats"
+            else -> "All done · tap to record"
         }, style = zen(12.sp, color = C.card), maxLines = 2, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.widthIn(max = 190.dp).clip(RoundedCornerShape(10.dp)).background(if (closing) C.red else C.ink).padding(horizontal = 10.dp, vertical = 6.dp))
         Spacer(Modifier.width(12.dp))
@@ -121,6 +122,7 @@ private fun Bubble(b: OverlayBuild, onMove: (Float, Float) -> Unit, onRelease: (
 private fun Panel(b: OverlayBuild, onMove: (Float, Float) -> Unit, onCollapse: () -> Unit, onClose: () -> Unit) {
     val s = OverlayState
     val h = (LocalConfiguration.current.screenHeightDp - 12).coerceIn(240, 440)
+    LaunchedEffect(s.recorded) { if (s.recorded) { kotlinx.coroutines.delay(1500); onClose() } }
     val shape = RoundedCornerShape(18.dp)
     Column(Modifier.padding(end = 4.dp, bottom = 4.dp).width(330.dp).height(h.dp).alpha(s.opacity)
         .hardShadow(C.pink, 4.dp, 4.dp, 18.dp).clip(shape).background(C.card.copy(alpha = 0.97f)).border(2.5.dp, C.ink, shape)) {
@@ -167,9 +169,11 @@ private fun Panel(b: OverlayBuild, onMove: (Float, Float) -> Unit, onCollapse: (
             if (s.tab == 0) {
                 val n = s.done.count { it }
                 Text("$n of ${b.pieces.size} done", style = zen(12.sp, color = C.muted), modifier = Modifier.weight(1f))
-                val all = n == b.pieces.size
-                FooterButton(if (all) "Check stats" else "Done · next") {
-                    if (all) s.tab = 1 else s.current.takeIf { it >= 0 }?.let { s.done[it] = true; s.focus = -1 }
+                when {
+                    s.recorded -> Text("Recorded in E7 Gear", style = zen(12.sp, color = C.blue))
+                    // the game's gear changed; the last step tells the app, or its next search starts from old gear
+                    n == b.pieces.size -> FooterButton("Finished · record it") { s.onFinish?.invoke(); s.recorded = true }
+                    else -> FooterButton("Done · next") { s.current.takeIf { it >= 0 }?.let { s.done[it] = true; s.focus = -1 } }
                 }
             } else {
                 Text("Opacity", style = zen(10.sp, color = C.muted))

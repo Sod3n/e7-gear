@@ -410,7 +410,7 @@ class ScreenAudit {
             else {
                 ui { model.tab(Screen.Optimize); model.showHistory = true; model.openHistory(e) }
                 if (model.screen != Screen.PoolRun || model.pool?.fromHistory != true) add("opening a pool run from history doesn't show it", "history")
-                if (rule.onAllNodesWithText("Equip all", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) add("a run from history offers to equip", "history")
+                if (rule.onAllNodesWithText("Just record", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) add("a run from history offers to equip", "history")
             }
             model.history.firstOrNull { it.at == model.pendingPool }?.let { p ->
                 ui { model.tab(Screen.Optimize); model.showHistory = true; model.openHistory(p) }
@@ -486,6 +486,18 @@ class ScreenAudit {
         steps.add("heroes-unranked" to { ui { model.sheet = null; model.stack = listOf(Screen.Heroes) }; clickText("Show") })
         screen("hero-detail", Screen.Heroes, Screen.HeroDetail(hero))
         screen("scan-intro", Screen.ScanIntro)
+        // first start: Scan & data must be reachable without agreeing to scan, and both ways in leave Optimize under it
+        steps.add("first-start-restore-link" to {
+            ui { model.sheet = null; model.consent = false; model.stack = listOf(Screen.ScanIntro) }
+            clickText("Restore a backup or import a gear.txt instead"); rule.waitForIdle()
+            if (model.stack != listOf(Screen.Optimize, Screen.ScanData)) add("first start traps you on Scan & data", "restore link: ${model.stack}")
+        })
+        steps.add("first-start-continue" to {
+            ui { model.sheet = null; model.consent = false; model.stack = listOf(Screen.ScanIntro) }
+            clickText("I understand what is sent and agree to scan"); clickText("Continue"); rule.waitForIdle()
+            if (model.stack != listOf(Screen.Optimize, Screen.ScanData)) add("first start traps you on Scan & data", "continue: ${model.stack}")
+            if (!model.consent) add("first start loses the scan consent", "continue")
+        })
         steps.add("app-update-page-only" to {
             ui { model.sheet = null; model.poolMode = false; model.appUpdate = e7.gearscan.data.AppUpdate.Release("9.9.9", "https://github.com/Sod3n/e7-gear/releases"); model.stack = listOf(Screen.Optimize) }
             if (rule.onAllNodesWithText("E7 Gear 9.9.9 is out", useUnmergedTree = true).fetchSemanticsNodes().isEmpty()) add("a newer release shows no card", "app update")
@@ -549,6 +561,9 @@ class ScreenAudit {
         steps.add("overlay-pieces" to { ui { OverlayState.closeZone = false; OverlayState.expanded = true; OverlayState.tab = 0 } })
         steps.add("overlay-done" to { ui { OverlayState.done.indices.take(3).forEach { OverlayState.done[it] = true } } })
         steps.add("overlay-stats" to { ui { OverlayState.tab = 1 } })
+        steps.add("overlay-all-done" to { ui { OverlayState.tab = 0; OverlayState.done.indices.forEach { OverlayState.done[it] = true } } })
+        steps.add("overlay-recorded" to { ui { OverlayState.recorded = true } })
+        steps.add("overlay-bubble-all-done" to { ui { OverlayState.recorded = false; OverlayState.expanded = false } })
 
         // state flips that must not move anything else: (name, open the screen, change the state)
         val sheetOn = { k: SheetKind -> ui { overlay = false; model.search = single; model.stack = listOf(Screen.Optimize); model.sheet = Sheet(k, hero) } }
@@ -592,6 +607,8 @@ class ScreenAudit {
             Triple("pool: clear reviewed", { ui { model.sheet = null; model.poolMode = true; model.stack = listOf(Screen.Optimize); model.poolMembers().take(3).forEach { model.request(it.id).reviewed = true }
                 model.touch(); model.sheet = Sheet(SheetKind.POOL_LIST, 0) } }, { clickText("Clear") }),
             Triple("hero: change tier", { ui { model.sheet = null; model.stack = listOf(Screen.Heroes, Screen.HeroDetail(hero)) } }, { ui { model.setTier(hero, 1) } }),
+            Triple("capture: the box arrives", { ui { model.sheet = null; model.stack = listOf(Screen.ScanData, Screen.Capture) }; capture(model, 20_000) },
+                { capture(model, 300_000) }),
             Triple("feedback: topic", { ui { model.sheet = null; model.stack = listOf(Screen.ScanData, Screen.Feedback()) } }, { clickText("Idea") }),
             Triple("feedback: tick", { ui { model.stack = listOf(Screen.ScanData, Screen.Feedback()) } }, { clickText("Include the last scan log") }),
             Triple("overlay: piece done", { ui { model.search = single; single!!.builds.firstOrNull()?.let { OverlayState.load(model.overlayBuild(hero, it, "Build #1")) }; OverlayState.expanded = true; OverlayState.tab = 0 }; overlay = true },
@@ -640,6 +657,26 @@ class ScreenAudit {
             ui { overlay = false; model.sheet = null; model.request(hero).capCrit = true; model.request(hero).mods = false; model.request(hero).goal = e7.gearscan.data.Goal.TARGETS; model.setTier(hero, 5); model.poolMode = false; model.showHistory = false; model.poolTiers = setOf(5); model.poolLosses = e7.gearscan.opt.PoolLosses.SAFE; model.poolEffort = e7.gearscan.opt.PoolEffort.BALANCED; model.showMatch = true; model.request(hero).maxChanges = 6 }
         }
         Locale.setDefault(Locale.US)
+
+        // gear moved over the game is invisible to the app: finishing a checklist must leave the app's box as the game now is
+        run {
+            fun worn(id: Long) = model.box!!.gearOf(id).values.map { it.id }.toSet()
+            fun wants(b: e7.gearscan.opt.Build) = b.items.filter { !it.ghost }.map { it.id }.toSet()
+            fun finish() {
+                ui { OverlayState.done.indices.forEach { OverlayState.done[it] = true }; OverlayState.expanded = true; OverlayState.tab = 0 }
+                overlay = true; rule.waitForIdle()
+                runCatching { clickText("Finished · record it") }.onFailure { add("a finished checklist has no record step", "overlay footer") }
+                rule.waitForIdle(); overlay = false; rule.waitForIdle()
+            }
+            val b = single!!.builds.first()
+            ui { model.search = single; model.loadBuildChecklist(hero, b, "Build #1") }
+            finish()
+            if (worn(hero) != wants(b)) add("a finished checklist isn't recorded", "one hero")
+            ui { model.pool = poolDone; model.pendingPool = poolDone.startedAt; model.loadPoolChecklist() }
+            finish()
+            val wrong = poolDone.builds.filter { (id, pb) -> pb != null && worn(id) != wants(pb) }.keys
+            if (wrong.isNotEmpty() || model.pendingPool != null) add("a finished pool checklist isn't recorded", "${wrong.size} heroes differ, pending ${model.pendingPool}")
+        }
 
         // last, since a restore reloads every setup the steps above hold: a backup carries history and a restore brings it
         // back (moving to a new signing key depends on it)
@@ -710,6 +747,9 @@ class ScreenAudit {
             val layouts = mutableListOf<TextLayoutResult>()
             n.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(layouts)
             for (r in layouts) textProblems(r).forEach { add(it, "$where: \"${r.layoutInput.text.text.take(60)}\"") }
+            // FitText shrinks to 70% before it cuts; a cut one (a button label, a number) has lost its meaning
+            if (n.config.getOrNull(SemanticsProperties.TestTag) == e7.gearscan.ui.FIT_TAG && layouts.any { it.lineCount > 0 && it.isLineEllipsized(0) })
+                add("cut to fit", "$where: \"${text(n).take(60)}\"")
             if (n.positionInRoot.x + n.size.width > widthPx + 2 && n.size.width > 0)
                 add("past the right edge", "$where: \"${text(n).take(60)}\"")
         }
@@ -733,6 +773,9 @@ class ScreenAudit {
         // a screen reached from another one needs a visible way back, not only the system gesture
         if (model.stack.size > 1 && model.sheet == null && !overlayShown && textBounds().keys.none { it.startsWith("‹") })
             add("no back link", "${model.screen::class.simpleName} (first at $where)")
+        // a back link on the only screen does nothing when tapped
+        if (model.stack.size == 1 && model.sheet == null && !overlayShown && model.screen != Screen.Optimize && textBounds().keys.any { it.startsWith("‹ ") })
+            add("back link goes nowhere", "${model.screen::class.simpleName} (first at $where)")
         Problems.drain().forEach { if (it.startsWith("image failed: http")) warn("remote image missing", it) else add("data gap", "$it (first at $where)") }
         runCatching {
             val bmp = rule.onRoot().captureToImage().asAndroidBitmap()

@@ -70,12 +70,16 @@ object OverlayState {
     var running by mutableStateOf(false)
     /** The bubble is being dragged over the bottom edge, where letting go closes it. */
     var closeZone by mutableStateOf(false)
+    /** Records the finished checklist in the app's box; set by whoever loaded the build. */
+    var onFinish: (() -> Unit)? = null
+    var recorded by mutableStateOf(false)
 
-    fun load(b: OverlayBuild) {
+    fun load(b: OverlayBuild, onFinish: (() -> Unit)? = null) {
         build = b
         done.clear(); done.addAll(b.pieces.map { it.onHero })
         statOk.clear(); statOk.addAll(b.stats.map { false })
         expanded = false; tab = 0; focus = -1
+        this.onFinish = onFinish; recorded = false
     }
 
     val current: Int get() = focus.takeIf { it >= 0 && it < done.size && !done[it] } ?: done.indexOfFirst { !it }

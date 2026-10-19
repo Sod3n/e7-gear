@@ -42,6 +42,16 @@ class SourceRulesTest {
     }
 
     @Test
+    fun checklistsRecordWhatTheyFinish() {
+        // gear moved in the game is invisible to the app; a checklist without a finish action leaves the box stale
+        val hits = File(src, "e7/gearscan").walk().filter { it.extension == "kt" && it.name != "OverlayService.kt" }.flatMap { f ->
+            f.readLines().withIndex().filter { "OverlayState.load(" in it.value && !Regex("""\) \{ .+ }\s*$""").containsMatchIn(it.value) }
+                .map { "${f.name}:${it.index + 1}: ${it.value.trim()}" }
+        }.toList()
+        assertTrue("checklists loaded without a record step:\n" + hits.joinToString("\n"), hits.isEmpty())
+    }
+
+    @Test
     fun gridsGoThroughCardGrid() {
         // a hand-made grid lets one cell grow taller than its neighbour; CardGrid gives every row one height
         val hits = File(src, "e7/gearscan/ui").walk().filter { it.extension == "kt" && it.name != "Kit.kt" }.flatMap { f ->

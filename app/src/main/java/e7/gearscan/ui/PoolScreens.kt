@@ -228,14 +228,14 @@ fun PoolRunScreen(model: AppModel) {
         Text("A piece moves only when the hero taking it gains more than its wearer loses, counting higher tiers more. Stop any time and keep what's done. You can leave the app; we'll notify you.",
             style = zen(11.sp, FontWeight.Medium, C.muted))
     } else Frame(null, null, actions = if (p.fromHistory) null else ({
-        PinkButton("Equip all ${p.builds.count { it.value != null }}", Modifier.weight(1f)) { model.equipPool(); model.tab(Screen.Optimize) }
-        OutlineButton("Checklist") {
-            model.poolOverlay()?.let { b ->
-                OverlayState.load(b)
+        // moves happen in the game, so the checklist comes first; its last step records them here
+        PinkButton("Checklist", Modifier.weight(1f)) {
+            if (model.loadPoolChecklist()) {
                 if (OverlayState.canDraw(model.getApplication())) { OverlayService.start(model.getApplication()); model.openGame() }
                 else model.go(Screen.OverlayIntro)
             }
         }
+        OutlineButton("Just record") { model.equipPool(); model.tab(Screen.Optimize) }
     })) {
         BackToPrevious(model)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -343,7 +343,7 @@ fun PoolHeroScreen(model: AppModel, heroId: Long, setup: Boolean) {
         // always laid out (dimmed on the first hero) so Next keeps its place
         val prev = queue.getOrNull(i - 1)
         OutlineButton("‹ Previous", Modifier.width(118.dp), enabled = prev != null) { model.save(); prev?.let { model.replace(Screen.PoolHero(it, setup)) } }
-        PinkButton(if (next != null) "Next · ${model.heroName(next)} ›" else "Done", Modifier.weight(1f)) { req.reviewed = true; model.save(); goNext() }
+        PinkButton(if (next != null) "Next · ${model.heroName(next)} ›" else "Done", Modifier.weight(1f), short = "Next ›".takeIf { next != null }) { req.reviewed = true; model.save(); goNext() }
     }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BackLink("Whole pool") { model.back() }

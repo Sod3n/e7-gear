@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.Canvas
@@ -159,21 +160,26 @@ fun Card(
 
 /** One line that shrinks (to 70%) rather than wrapping or clipping; for numbers, ranks and button labels. */
 @Composable
-fun FitText(text: String, style: TextStyle, modifier: Modifier = Modifier, textAlign: TextAlign? = null) {
+fun FitText(text: String, style: TextStyle, modifier: Modifier = Modifier, textAlign: TextAlign? = null, short: String? = null) {
     var scale by remember(text, style) { mutableFloatStateOf(1f) }
+    // a label that still overflows at the smallest size switches to its short form (a hero's name dropped) instead of "…"
+    var useShort by remember(text, style) { mutableStateOf(false) }
     val align = when (textAlign) { TextAlign.Center -> Alignment.Center; TextAlign.End, TextAlign.Right -> Alignment.CenterEnd; else -> Alignment.CenterStart }
     // keeps the full-size line height, so a shrunk number never makes its row shorter
     val measurer = androidx.compose.ui.text.rememberTextMeasurer()
     val lineHeight = with(androidx.compose.ui.platform.LocalDensity.current) { remember(style, this) { measurer.measure(" ", style).size.height.toDp() } }
     Box(modifier.heightIn(min = lineHeight), contentAlignment = align) {
-        Text(text, style = style.copy(fontSize = style.fontSize * scale), textAlign = textAlign,
-            maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
-            onTextLayout = { if (it.hasVisualOverflow && scale > 0.7f) scale -= 0.06f })
+        Text(if (useShort && short != null) short else text, style = style.copy(fontSize = style.fontSize * scale), textAlign = textAlign,
+            maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag(FIT_TAG),
+            onTextLayout = {
+                if (it.hasVisualOverflow && scale > 0.7f) scale -= 0.06f
+                else if (it.hasVisualOverflow && short != null && !useShort) { useShort = true; scale = 1f }
+            })
     }
 }
 
 @Composable
-fun PinkButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+fun PinkButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, short: String? = null, onClick: () -> Unit) {
     val shape = RoundedCornerShape(999.dp)
     Box(
         modifier.height(52.dp)
@@ -181,7 +187,7 @@ fun PinkButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = t
             .clip(shape).background(if (enabled) C.pink else C.line).border(2.5.dp, if (enabled) C.ink else C.faint, shape)
             .tap(if (enabled) onClick else null),
         contentAlignment = Alignment.Center,
-    ) { FitText(text, dela(16.sp, if (enabled) C.ink else C.muted), Modifier.padding(horizontal = 14.dp)) }
+    ) { FitText(text, dela(16.sp, if (enabled) C.ink else C.muted), Modifier.padding(horizontal = 14.dp), short = short) }
 }
 
 @Composable
@@ -296,6 +302,7 @@ private fun Chevron(color: Color = C.muted) = Text("›", style = dela(16.sp, co
 const val ROW_TAG = "list-row"
 const val SLOT_TAG = "row-slot"
 const val CELL_TAG = "grid-cell"
+const val FIT_TAG = "fit-text"
 
 /** The arrow's place at a row's end, laid out whether or not the row opens anything. */
 @Composable
