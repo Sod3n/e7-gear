@@ -306,11 +306,13 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val out = withContext(Dispatchers.IO) {
                 runCatching {
-                    e7.gearscan.data.ContentUpdate.check(current) { url ->
-                        val c = e7.gearscan.data.Http.open(url) as java.net.HttpURLConnection
-                        c.connectTimeout = 8000; c.readTimeout = 20000; c.useCaches = false
-                        if (c.responseCode != 200) throw IOException("HTTP ${c.responseCode} for $url")
-                        c.inputStream.use { it.readBytes() }
+                    e7.gearscan.data.ContentUpdate.check(current) { site ->
+                        e7.gearscan.data.Mirror.fetch(site, siteFirst = true) { url ->
+                            val c = e7.gearscan.data.Http.open(url) as java.net.HttpURLConnection
+                            c.connectTimeout = 8000; c.readTimeout = 20000; c.useCaches = false
+                            if (c.responseCode != 200) throw IOException("HTTP ${c.responseCode} for $url")
+                            c.inputStream.use { it.readBytes() }
+                        }
                     }.also { o ->
                         // whole-file replace, so a write cut short never leaves half a content file
                         o.bytes?.let { b -> File(files, "content.json.tmp").apply { writeBytes(b); renameTo(File(files, "content.json")) } }
@@ -1143,6 +1145,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         put("poolSkip", JSONArray(poolSkip.toList())); put("poolLosses", poolLosses.name); put("poolEffort", poolEffort.name)
         pendingPool?.let { put("pendingPool", it) }
         put("contentCheckedAt", contentCheckedAt); put("poolSecondsPerHero", poolSecondsPerHero)
+        put("contentMirror", e7.gearscan.data.Mirror.active)
         lastPool?.let { put("lastPoolAt", it.first); put("lastPoolScore", it.second) }
     }
 
@@ -1184,6 +1187,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         poolSkip = longs("poolSkip").toSet()
         pendingPool = if (j.has("pendingPool")) j.getLong("pendingPool") else null
         contentCheckedAt = j.optLong("contentCheckedAt")
+        e7.gearscan.data.Mirror.active = j.optBoolean("contentMirror")
         poolSecondsPerHero = j.optDouble("poolSecondsPerHero", 3.0)
         poolLosses = runCatching { PoolLosses.valueOf(j.optString("poolLosses")) }.getOrDefault(PoolLosses.SAFE)
         poolEffort = runCatching { PoolEffort.valueOf(j.optString("poolEffort")) }.getOrDefault(PoolEffort.BALANCED)

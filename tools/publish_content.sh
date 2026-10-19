@@ -101,3 +101,4 @@ if [ "$1" = "--dry-run" ]; then echo "dry run: site in $SITE, not deployed"; exi
 npx --yes wrangler@3 pages project list | grep -q "e7-gear-content" ||
 	npx --yes wrangler@3 pages project create e7-gear-content --production-branch main
 npx --yes wrangler@3 pages deploy "$SITE" --project-name e7-gear-content --branch main --commit-dirty=true
+tools/mirror_content.sh "$SITE"

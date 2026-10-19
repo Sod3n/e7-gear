@@ -69,11 +69,11 @@ class Content(val version: String, json: JSONObject) {
         o.optDouble("res", 0.0))
 
     companion object {
-        const val DEFAULT_IMAGE_BASE = "https://e7-gear-content.pages.dev/img/"
+        const val DEFAULT_IMAGE_BASE = Mirror.SITE + "img/"
 
         /** Before the first download: no game data at all, only where to get it (the APK ships none). */
         val EMPTY: Content by lazy {
-            parse(JSONObject().put("version", "0").put("contentManifest", "https://e7-gear-content.pages.dev/manifest.json")
+            parse(JSONObject().put("version", "0").put("contentManifest", Mirror.SITE + "manifest.json")
                 .put("images", JSONObject().put("face", "").put("artifact", "")).put("builds", "")
                 .put("sets", org.json.JSONArray()).put("heroes", org.json.JSONArray()).put("artifacts", org.json.JSONArray()).toString())
         }

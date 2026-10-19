@@ -78,8 +78,9 @@ fun gameImage(path: String) = GameImages.base + path
 val MissingImage = androidx.compose.ui.graphics.painter.ColorPainter(Color(0xFFE6DCCA))
 
 fun installImageLoader(ctx: android.content.Context) {
-    val http = okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
-        chain.proceed(chain.request().newBuilder().header("User-Agent", e7.gearscan.data.Http.agent).build())
+    val http = okhttp3.OkHttpClient.Builder().connectTimeout(6, java.util.concurrent.TimeUnit.SECONDS).addInterceptor { chain ->
+        val req = chain.request().newBuilder().header("User-Agent", e7.gearscan.data.Http.agent).build()
+        e7.gearscan.data.Mirror.fetch(req.url.toString()) { u -> chain.proceed(req.newBuilder().url(u).build()) }
     }.build()
     coil.Coil.setImageLoader(coil.ImageLoader.Builder(ctx).okHttpClient(http).eventListener(object : coil.EventListener {
         override fun onError(request: coil.request.ImageRequest, result: coil.request.ErrorResult) {
