@@ -107,14 +107,24 @@ fun OverlayTop(onMove: (Float, Float) -> Unit, onDock: (Boolean) -> Unit, onClos
 
 const val PANEL_WIDTH = 330
 const val PANEL_GAP = 4
-/** Taps pass through an app's overlay only at this opacity or less (Android 12+ blocks them above 0.8). */
-val OPACITY_STEPS = listOf(0.8f, 0.6f, 0.4f)
+/** Taps pass through an app's overlay only at this opacity or less (Android 12+ blocks them above 0.8); 0 hides the list, keeping the controls. */
+val OPACITY_STEPS = listOf(0.8f, 0.6f, 0.4f, 0f)
+
+/** Where the next step happens: in pool runs the hero to open in the game, otherwise the piece. */
+private fun nextHint(b: OverlayBuild, i: Int): String {
+    val p = b.pieces[i]
+    val hero = p.forHero ?: return if (p.modStep) "${p.item.slot.label} · modify" else "${p.item.slot.label} · ${p.owner.removePrefix("on ").removePrefix("in ")}"
+    if (p.modStep) return "Modify · $hero"
+    val left = b.pieces.indices.count { b.pieces[it].forHero == hero && !b.pieces[it].modStep && !OverlayState.done.getOrElse(it) { true } }
+    return "$hero · $left ${if (left == 1) "piece" else "pieces"}"
+}
 
 @Composable
 private fun Bubble(b: OverlayBuild, onMove: (Float, Float) -> Unit, onRelease: () -> Unit, onOpen: () -> Unit) {
     val s = OverlayState
     val doneCount = s.done.count { it }
-    val next = s.current.takeIf { it >= 0 }?.let { b.pieces[it] }
+    val nextAt = s.current.takeIf { it >= 0 }
+    val next = nextAt?.let { b.pieces[it] }
     // the hint names the next step for a few seconds, then gets out of the game's way
     var hint by remember { mutableStateOf(true) }
     LaunchedEffect(next?.item?.id, doneCount) { hint = true; kotlinx.coroutines.delay(5000); hint = false }
@@ -123,8 +133,7 @@ private fun Bubble(b: OverlayBuild, onMove: (Float, Float) -> Unit, onRelease: (
         if (closing || hint) {
             Text(when {
                 closing -> "Release to close"
-                next != null && next.onHero -> "${next.item.slot.label} · modify"
-                next != null -> "${next.item.slot.label} · ${next.owner.removePrefix("on ").removePrefix("in ")}"
+                nextAt != null -> nextHint(b, nextAt)
                 else -> "Tap to record"
             }, style = zen(12.sp, color = C.card), maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(max = 150.dp).clip(RoundedCornerShape(10.dp)).background(if (closing) C.red else C.ink)
@@ -178,12 +187,13 @@ private fun OverlayControls(b: OverlayBuild, onMove: (Float, Float) -> Unit, onC
             val n = s.done.count { it }
             Text("$n of ${b.pieces.size} done", style = zen(12.sp, color = C.muted), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             // the list below lets taps through to the game; its opacity is the one thing worth changing mid-game
-            Row(Modifier.clip(RoundedCornerShape(999.dp)).border(2.dp, C.ink, RoundedCornerShape(999.dp)).tap {
+            Row(Modifier.width(64.dp).clip(RoundedCornerShape(999.dp)).border(2.dp, C.ink, RoundedCornerShape(999.dp)).tap {
                 s.opacity = OPACITY_STEPS[(OPACITY_STEPS.indexOf(s.opacity) + 1).mod(OPACITY_STEPS.size)]
-            }.padding(horizontal = 8.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            }.padding(horizontal = 8.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)) {
                 Box(Modifier.size(10.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Brush.horizontalGradient(
                     0f to C.ink, 0.5f to C.ink, 0.5f to C.card, 1f to C.card)).border(1.5.dp, C.ink, CircleShape))
-                Text("${Math.round(s.opacity * 100)}%", style = zen(11.sp))
+                FitText(if (s.listHidden) "Hidden" else "${Math.round(s.opacity * 100)}%", zen(11.sp))
             }
             val last = s.lastDone
             Text("Undo", style = zen(11.sp, color = if (last != null) C.ink else C.faint), modifier = Modifier.clip(RoundedCornerShape(999.dp))
@@ -192,9 +202,14 @@ private fun OverlayControls(b: OverlayBuild, onMove: (Float, Float) -> Unit, onC
             when {
                 s.recorded -> Text("Recorded", style = zen(12.sp, color = C.blue))
                 // the game's gear changed; the last step tells the app, or its next search starts from old gear
-                n == b.pieces.size -> FooterButton("Finished · record it") { s.onFinish?.invoke(); s.recorded = true }
+                n == b.pieces.size -> FooterButton("Finished · record it") { s.finish() }
                 else -> FooterButton("Done · next") { s.markCurrentDone() }
             }
+        }
+        // with the list hidden, the open step is named here instead
+        s.current.takeIf { it >= 0 && s.listHidden }?.let { b.pieces[it] }?.let { p ->
+            Text((p.forHero?.let { "$it · " } ?: "") + "${p.item.slot.label} · ${p.mainText} · " + (p.mod?.let { "改 Mod: $it" } ?: p.owner),
+                style = zen(12.sp, color = if (p.modStep) C.deepPink else C.ink), modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp))
         }
     }
 }
@@ -204,7 +219,7 @@ private fun OverlayControls(b: OverlayBuild, onMove: (Float, Float) -> Unit, onC
 fun OverlayBody() {
     val s = OverlayState
     val b = s.build ?: return
-    if (!s.expanded) return
+    if (!s.expanded || s.listHidden) return
     val shape = RoundedCornerShape(18.dp)
     val scroll = rememberScrollState()
     val rowTops = remember { mutableMapOf<Int, Int>() }
@@ -214,13 +229,15 @@ fun OverlayBody() {
     Column(Modifier.padding(end = 4.dp).width(PANEL_WIDTH.dp).heightIn(max = max.dp).clip(shape).background(C.card)
         .border(2.5.dp, C.ink, shape).verticalScroll(scroll)) {
         if (s.tab == 0) b.pieces.forEachIndexed { i, p ->
-            // pool checklists: a heading each time the hero changes, so 48 moves read as a few short lists
-            if (p.forHero != null && b.pieces.getOrNull(i - 1)?.forHero != p.forHero) {
-                val n = b.pieces.count { it.forHero == p.forHero }
-                val done = b.pieces.indices.count { b.pieces[it].forHero == p.forHero && s.done.getOrElse(it) { false } }
+            // a heading each time the hero (pool checklists) or the menu (equip, then modify) changes, so 48 moves read as a few short lists
+            fun group(q: OverlayPiece?) = q?.let { it.forHero to it.modStep }
+            if ((p.forHero != null || p.modStep) && group(b.pieces.getOrNull(i - 1)) != group(p)) {
+                val members = b.pieces.indices.filter { group(b.pieces[it]) == group(p) }
+                val done = members.count { s.done.getOrElse(it) { false } }
                 Row(Modifier.fillMaxWidth().background(C.paper).padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(p.forHero, style = dela(12.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("$done of $n", style = zen(11.sp, color = C.muted))
+                    Text(if (p.modStep) "改 Modify" + (p.forHero?.let { " · $it" } ?: "") else p.forHero.orEmpty(), style = dela(12.sp),
+                        modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("$done of ${members.size}", style = zen(11.sp, color = C.muted))
                 }
             }
             Column(Modifier.onGloballyPositioned { rowTops[i] = it.positionInParent().y.toInt() }) { PieceRow(i, p, i == s.current) }
@@ -247,7 +264,8 @@ private fun Check(on: Boolean) {
 private fun PieceRow(i: Int, p: OverlayPiece, open: Boolean) {
     val s = OverlayState
     val done = s.done.getOrElse(i) { false }
-    val ownerColor = if (p.owner.startsWith("on ") && !p.onHero) C.blue else C.muted
+    val worn = p.owner.startsWith("on ") && !p.onHero
+    val ownerColor = if (worn) C.blue else C.muted
     if (open) {
         Row(Modifier.fillMaxWidth().hatch().padding(horizontal = 10.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -256,17 +274,16 @@ private fun PieceRow(i: Int, p: OverlayPiece, open: Boolean) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     SetIcon(p.setIcon, 18.dp)
-                    Text((p.forHero?.let { "$it · " } ?: "") + p.item.slot.label, style = dela(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.weight(1f))
-                    Text(p.owner, style = zen(11.sp, color = ownerColor).copy(lineHeight = 13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text((p.forHero?.let { "$it · " } ?: "") + p.item.slot.label, style = dela(13.sp))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     StatIcon(p.item.mainType.stat, 12.dp)
                     Text(p.mainText, style = zen(13.sp))
                 }
                 SubGrid(p.orig, p.reforged)
-                p.mod?.let { Text("改 Mod: $it", style = zen(11.sp, color = C.deepPink), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                Text("Find: ${p.find}", style = zen(11.sp), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                p.mod?.let { Text("改 Mod: $it", style = zen(11.sp, color = C.deepPink)) }
+                // whoever wears the piece is where the game shows it, so the name is never cut
+                if (!p.modStep) Text(p.owner.replaceFirstChar { it.uppercase() }, style = zen(12.sp, color = ownerColor),
                     modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(C.card).padding(horizontal = 7.dp, vertical = 2.dp))
             }
         }
@@ -276,12 +293,14 @@ private fun PieceRow(i: Int, p: OverlayPiece, open: Boolean) {
             Check(done)
             GearTile(p.item, 24.dp)
             SetIcon(p.setIcon, 16.dp)
-            Text((p.forHero?.let { "$it: " } ?: "") + "${p.item.slot.label} · ${p.mainText}", style = zen(12.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("${p.item.slot.label} · ${p.mainText}", style = zen(12.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             // the stamp's room is kept when not done, so ticking a piece doesn't push the owner sideways
             Box(Modifier.alpha(if (done) 1f else 0f)) { Stamp("済") }
-            Text(p.owner, style = zen(11.sp, color = ownerColor).copy(lineHeight = 13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            if (!p.modStep && !worn) Text(p.owner, style = zen(11.sp, color = ownerColor))
         }
-        p.mod?.let { Text("改 Mod: $it", style = zen(11.sp, color = C.deepPink), maxLines = 1, overflow = TextOverflow.Ellipsis,
+        // a wearer's name gets a line of its own, so it is never cut
+        val note = p.mod?.let { "改 Mod: $it" } ?: p.owner.takeIf { worn }
+        note?.let { Text(it, style = zen(11.sp, color = if (p.modStep) C.deepPink else ownerColor),
             modifier = Modifier.padding(start = 98.dp, end = 10.dp, bottom = 3.dp)) }
     }
     Box(Modifier.fillMaxWidth().height(1.5.dp).background(C.line))

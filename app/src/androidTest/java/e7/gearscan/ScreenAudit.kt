@@ -435,7 +435,14 @@ class ScreenAudit {
             } ?: add("no pending run in history", "history")
             ui { model.tab(Screen.Optimize); model.showHistory = true; e?.let { model.openHistory(it) } }
         })
+        steps.add("overlay-pool" to {
+            ui { model.history.firstOrNull { it.at == model.pendingPool }?.let { model.openHistory(it) }
+                model.loadPoolChecklist(); OverlayState.expanded = true; OverlayState.tab = 0 }
+            if (OverlayState.build?.pieces?.any { it.forHero != null } != true) add("the pool checklist has no moves to show", "overlay-pool")
+            overlay = true
+        })
         steps.add("history-open-hero-latest" to {
+            overlay = false
             val e = model.history.firstOrNull { !it.pool }
             if (e == null) add("no one-hero search in history", "history")
             else {
@@ -614,6 +621,19 @@ class ScreenAudit {
             val modded = OverlayState.build!!.pieces.withIndex().filter { it.value.mod != null }
             if (modded.isEmpty()) add("the mods fixture has no modified piece", "overlay-mods")
             if (modded.any { OverlayState.done[it.index] }) add("a modification starts ticked", "overlay-mods")
+            // the game modifies in another menu than it equips: every mod waits until all the equipping is done
+            val lastEquip = OverlayState.build!!.pieces.indexOfLast { !it.modStep }
+            if (modded.any { it.index < lastEquip }) add("a modification comes before the equipping is done", "overlay-mods")
+            // closing the checklist (or the app) and opening the same one again keeps its ticks
+            var kept = false
+            ui {
+                val before = OverlayState.done.count { it }
+                OverlayState.markCurrentDone()
+                model.search?.builds?.firstOrNull()?.let { OverlayState.load(model.overlayBuild(hero, it, "Build #1")) }
+                kept = OverlayState.done.count { it } == before + 1 && OverlayState.lastDone != null
+                OverlayState.undo(); OverlayState.expanded = true; OverlayState.tab = 0
+            }
+            if (!kept) add("reopening a checklist loses its ticks", "overlay-mods")
             val shown = rule.onAllNodesWithText("改 Mod:", substring = true, useUnmergedTree = true).fetchSemanticsNodes().size
             if (shown < modded.size) add("the checklist doesn't list every modification", "overlay-mods: $shown of ${modded.size}")
         })
@@ -630,6 +650,8 @@ class ScreenAudit {
         })
         steps.add("overlay-bubble-closing" to { ui { OverlayState.closeZone = true } })
         steps.add("overlay-pieces" to { ui { OverlayState.closeZone = false; OverlayState.expanded = true; OverlayState.tab = 0 } })
+        steps.add("overlay-list-hidden" to { ui { OverlayState.opacity = 0f } })
+        steps.add("overlay-list-shown" to { ui { OverlayState.opacity = 0.8f } })
         steps.add("overlay-done" to { ui { OverlayState.done.indices.take(3).forEach { OverlayState.done[it] = true } } })
         steps.add("overlay-stats" to { ui { OverlayState.tab = 1 } })
         steps.add("overlay-all-done" to { ui { OverlayState.tab = 0; OverlayState.done.indices.forEach { OverlayState.done[it] = true } } })

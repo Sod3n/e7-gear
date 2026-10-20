@@ -1016,11 +1016,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun poolOverlay(): e7.gearscan.overlay.OverlayBuild? {
         val p = pool ?: return null
-        val pieces = p.builds.flatMap { (id, b) ->
+        val steps = p.builds.flatMap { (id, b) ->
             val name = hero(id)?.let(::heroName) ?: return@flatMap emptyList()
             val ob = b?.let { overlayBuild(id, it, name) } ?: return@flatMap emptyList()
-            ob.pieces.filter { !it.onHero || it.mod != null }.map { it.copyFor(name) }
+            ob.pieces.filter { !it.onHero || it.modStep }.map { it.copyFor(name) }
         }
+        val pieces = steps.filter { !it.modStep } + steps.filter { it.modStep }
         return e7.gearscan.overlay.OverlayBuild("Pool · ${pieces.size} moves", null, pieces, emptyList(), p.takeIf { it.fromHistory }?.let { historyFlag(it.startedAt) })
     }
 
@@ -1093,20 +1094,21 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val h = hero(heroId)
         val reforged = request(heroId).reforged
         val cur = currentBuild(heroId)
-        val pieces = Slot.entries.mapNotNull { s -> b.items.firstOrNull { it.slot == s } }.filter { !it.ghost }.map { it ->
+        val items = Slot.entries.mapNotNull { s -> b.items.firstOrNull { it.slot == s } }.filter { !it.ghost }
+        fun step(it: Item, modStep: Boolean): e7.gearscan.overlay.OverlayPiece {
             val ref = reforged && it.reforgeable
             val main = if (ref) e7.gearscan.calc.Reforge.main(it.mainType, it.mainValue) else it.mainValue
             val holder = it.equippedOn
             val set = content.set(it.set)
-            e7.gearscan.overlay.OverlayPiece(it, set?.icon, "${it.mainType.short} ${it.mainType.format(main)}",
+            return e7.gearscan.overlay.OverlayPiece(it, set?.icon, "${it.mainType.short} ${it.mainType.format(main)}",
                 // the piece as it looks in the game today; a mod is shown as its own step
                 (box?.itemsById?.get(it.id) ?: it).let { orig -> orig.subs.indices.map { i -> orig.subs[i].let { s -> (if (s.modified) "改 " else "") + "${s.type.short} ${s.type.format(e7.gearscan.calc.Calc.subValue(orig, i, reforged))}" } } },
                 when (holder) { null -> "in bag"; heroId -> "on now"; else -> "on " + (hero(holder)?.let(::heroName) ?: "other") },
                 holder == heroId,
-                "${set?.name ?: it.set} ${it.slot.label.lowercase()} +${it.enhance} · ${it.mainType.short} ${it.mainType.format(it.mainValue)}",
-                it.mod?.let { m -> "${m.from.short} ${m.from.format(m.fromValue)} → ${m.to.short} ${m.to.format(m.toValue)}" },
+                it.mod?.takeIf { modStep }?.let { m -> "${m.from.short} ${m.from.format(m.fromValue)} → ${m.to.short} ${m.to.format(m.toValue)}" },
                 box?.itemsById?.get(it.id) ?: it, reforged)
         }
+        val pieces = items.map { step(it, false) } + items.filter { it.mod != null }.map { step(it, true) }
         val stats = e7.gearscan.data.Stat.entries.map { st -> Triple(st, b.final[st], cur?.final?.get(st) ?: 0.0) }
         return e7.gearscan.overlay.OverlayBuild(title, h?.let(::face), pieces, stats, flag)
     }
@@ -1310,6 +1312,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     // last in the class: startup work started here reads fields declared above, which must exist before it runs
     init {
         e7.gearscan.data.Http.agent = "E7Gear/$appVersion"
+        e7.gearscan.overlay.OverlayState.progressFile = File(files, "checklist.json")
         viewModelScope.launch {
             val loaded = withContext(Dispatchers.IO) { readFiles() }
             lastCrash = withContext(Dispatchers.IO) { crashFile.takeIf { it.exists() }?.readText() }

@@ -39,8 +39,7 @@ class OverlayPiece(
     /** "on Silk", "on now" or "in bag". */
     val owner: String,
     val onHero: Boolean,
-    val find: String,
-    /** Modification stone step, e.g. "Def 33 → Spd 12". */
+    /** Modification stone step, e.g. "Def 33 → Spd 12"; set on mod steps only. */
     val mod: String? = null,
     /** The piece as it is in the game now (before any suggested mod). */
     val orig: Item = item,
@@ -48,7 +47,10 @@ class OverlayPiece(
     /** Pool checklists: whose piece this is. */
     val forHero: String? = null,
 ) {
-    fun copyFor(hero: String) = OverlayPiece(item, setIcon, mainText, subs, owner, onHero, find, mod, orig, reforged, hero)
+    /** The game modifies gear in another menu than it equips, so a mod is its own step, after all the equipping. */
+    val modStep get() = mod != null
+
+    fun copyFor(hero: String) = OverlayPiece(item, setIcon, mainText, subs, owner, onHero, mod, orig, reforged, hero)
 }
 
 class OverlayBuild(
@@ -58,7 +60,9 @@ class OverlayBuild(
     val stats: List<Triple<Stat, Double, Double>>,
     /** Shown under the title: a checklist from a past run, which may not match the gear any more. */
     val flag: String? = null,
-)
+) {
+    val key get() = pieces.joinToString(",") { "${it.forHero.orEmpty()}:${it.item.id}:${it.mod.orEmpty()}" }
+}
 
 /** Shared between the app and the overlay window; both run in the app process. */
 object OverlayState {
@@ -80,14 +84,48 @@ object OverlayState {
         set(v) { field = v; onAppInFront?.invoke(v) }
     var onAppInFront: ((Boolean) -> Unit)? = null
     var recorded by mutableStateOf(false)
+    /** Ticks of the last few checklists, so closing the checklist or the app doesn't lose them; set by the app. */
+    var progressFile: java.io.File? = null
+
+    val listHidden get() = opacity == 0f
 
     fun load(b: OverlayBuild, onFinish: (() -> Unit)? = null) {
         build = b
-        // a worn piece is done unless it needs a modification, which is its own step in the game
-        done.clear(); done.addAll(b.pieces.map { it.onHero && it.mod == null })
+        done.clear(); done.addAll(b.pieces.map { it.onHero && !it.modStep })
         doneOrder.clear()
+        restoreProgress(b)
         expanded = false; tab = 0; focus = -1
         this.onFinish = onFinish; recorded = false
+    }
+
+    fun finish() {
+        onFinish?.invoke(); recorded = true
+        build?.let { b -> editProgress { it.remove(b.key) } }
+    }
+
+    private fun readProgress() = runCatching { org.json.JSONObject(progressFile!!.readText()) }.getOrElse { org.json.JSONObject() }
+
+    private fun editProgress(edit: (org.json.JSONObject) -> Unit) {
+        val f = progressFile ?: return
+        val all = readProgress().also(edit)
+        val keep = all.keys().asSequence().sortedByDescending { all.getJSONObject(it).optLong("at") }.take(5).toSet()
+        all.keys().asSequence().toList().filter { it !in keep }.forEach { all.remove(it) }
+        runCatching { f.writeText(all.toString()) }
+    }
+
+    private fun restoreProgress(b: OverlayBuild) {
+        val o = readProgress().optJSONObject(b.key) ?: return
+        val d = o.getJSONArray("done")
+        if (d.length() != done.size) return
+        for (i in done.indices) done[i] = d.getBoolean(i)
+        val order = o.getJSONArray("order")
+        for (i in 0 until order.length()) doneOrder.add(order.getInt(i))
+    }
+
+    private fun saveProgress() {
+        val b = build ?: return
+        editProgress { it.put(b.key, org.json.JSONObject().put("at", System.currentTimeMillis())
+            .put("done", org.json.JSONArray(done.toList())).put("order", org.json.JSONArray(doneOrder.toList()))) }
     }
 
     val current: Int get() = focus.takeIf { it >= 0 && it < done.size && !done[it] } ?: done.indexOfFirst { !it }
@@ -96,11 +134,13 @@ object OverlayState {
     fun markCurrentDone() {
         val i = current.takeIf { it >= 0 } ?: return
         done[i] = true; doneOrder.add(i); focus = -1
+        saveProgress()
     }
 
     fun undo() {
         val i = doneOrder.removeLastOrNull() ?: return
         done[i] = false; focus = i
+        saveProgress()
     }
 
     fun canDraw(ctx: Context) = Settings.canDrawOverlays(ctx)
@@ -161,11 +201,12 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply { gravity = Gravity.TOP or Gravity.END; alpha = OverlayState.opacity }
-        body = composeView {
-            OverlayBody()
+        body = composeView { OverlayBody() }
+        view = composeView {
+            OverlayTop(onMove = ::moveBy, onDock = ::dock, onClose = { stopSelf() })
+            // here: the list's window is gone while it is hidden
             androidx.compose.runtime.LaunchedEffect(OverlayState.opacity) { setBodyAlpha(OverlayState.opacity) }
-        }
-        view = composeView { OverlayTop(onMove = ::moveBy, onDock = ::dock, onClose = { stopSelf() }) }.apply {
+        }.apply {
             // the list hangs under the controls, whatever height they take
             addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placeBody() }
         }
@@ -187,9 +228,9 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     }
 
     private fun setBodyAlpha(a: Float) {
-        val b = body ?: return
-        bodyParams.alpha = a
-        wm.updateViewLayout(b, bodyParams)
+        if (body == null) return
+        if (a > 0f) bodyParams.alpha = a
+        placeBody()
     }
 
     private fun hideForApp(hide: Boolean) {
@@ -218,7 +259,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private fun placeBody() {
         val v = view ?: return
         val b = body ?: return
-        b.visibility = if (OverlayState.expanded && !OverlayState.appInFront) android.view.View.VISIBLE else android.view.View.GONE
+        b.visibility = if (OverlayState.expanded && !OverlayState.appInFront && !OverlayState.listHidden) android.view.View.VISIBLE else android.view.View.GONE
         bodyParams.width = params.width
         bodyParams.gravity = params.gravity
         bodyParams.x = params.x
