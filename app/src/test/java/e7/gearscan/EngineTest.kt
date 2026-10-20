@@ -97,6 +97,9 @@ class EngineTest {
         }
         val tor = IntArray(content.sets.size).also { it[content.setIndex("SpeedSet")] = 4; it[content.setIndex("TorrentSet")] = 2 }
         val crit = IntArray(content.sets.size).also { it[content.setIndex("CriticalSet")] = 2 }
+        // sets the sliced slots hold in few slots or none: the set-supply cut must not drop a reachable build
+        val pursuit = IntArray(content.sets.size).also { it[content.setIndex("SpeedSet")] = 4; it[content.setIndex("PursuitSet")] = 2 }
+        val pairs3 = IntArray(content.sets.size).also { it[content.setIndex("CriticalSet")] = 2; it[content.setIndex("HitSet")] = 2; it[content.setIndex("ImmunitySet")] = 2 }
         val objs = listOf("dmg" to Objectives.damage(), "ehp" to Objectives.ehp(), "cp" to Objectives.cp(),
             "targets" to Objectives.targets(req, hb), "spd" to Objectives.speed(), "spd then targets" to Objectives.speedThenTargets(req, hb),
             // skills scaling off own hp, def or speed, and one that can't crit (Krau S2, Corvus S1, Vildred S3, Krau S3)
@@ -110,6 +113,7 @@ class EngineTest {
                 Quad("none", mins(), emptyList(), DoubleArray(8) { Double.NaN }),
                 Quad("spd180", mins(180.0), emptyList(), DoubleArray(8) { Double.NaN }),
                 Quad("spd4+tor2|crit", mins(), listOf(tor, crit), DoubleArray(8) { Double.NaN }),
+                Quad("spd4+pursuit2|crit2+hit2+imm2", mins(), listOf(pursuit, pairs3), DoubleArray(8) { Double.NaN }),
                 Quad("cr<=90", mins(), emptyList(), DoubleArray(8) { Double.NaN }.also { it[4] = 90.0 }),
                 // several minimums that compete for the same pieces: what the joint-minimums cut is for
                 Quad("atk+spd+cd+eff", jointMins(hb, slots, 0.55), emptyList(), DoubleArray(8) { Double.NaN }),

@@ -41,10 +41,13 @@ android {
 		}
 	}
 
+	// device timings (SearchSpeedTest, PoolSpeedTest) need E7_TEST_BUILD_TYPE=release: debuggable builds run ~3x slower
+	testBuildType System.getenv("E7_TEST_BUILD_TYPE") ?: "debug"
+
 	buildTypes {
 		release {
 			minifyEnabled false
-			signingConfig System.getenv("E7_RELEASE_STORE") ? signingConfigs.release : null
+			signingConfig System.getenv("E7_RELEASE_STORE") ? signingConfigs.release : (System.getenv("E7_TEST_BUILD_TYPE") == "release" ? signingConfigs.debug : null)
 		}
 		debug {
 			minifyEnabled false

@@ -87,6 +87,10 @@ class Engine(
     private val minScale = Array(2) { DoubleArray(8) { 1.0 } }
     private val minSubMax: Array<Array<DoubleArray>>
 
+    // per set alternative: the sets it asks for, and per depth a bitmask of those sets the slot has pieces in
+    private val altSets: Array<IntArray> = setAlts.map { a -> a.indices.filter { a[it] > 0 }.toIntArray() }.toTypedArray()
+    private val supply: Array<IntArray>
+
     init {
         val four = statSets.filter { sets[it].pieces == 4 }
         val two = statSets.filter { sets[it].pieces == 2 }
@@ -103,6 +107,11 @@ class Engine(
         order = ord.toIntArray()
         st = Array(6) { d -> filtered[ord[d]].toTypedArray() }
         keptPerSlot = IntArray(6) { d -> st[d].size }
+        supply = Array(setAlts.size) { a -> IntArray(6) { d ->
+            var m = 0
+            for ((p, set) in altSets[a].withIndex()) if (st[d].any { it.set == set }) m = m or (1 shl p)
+            m
+        } }
         for (d in 5 downTo 0) for (x in 0 until NS) {
             var mx = Double.NEGATIVE_INFINITY; var mn = Double.POSITIVE_INFINITY
             for (c in st[d]) { mx = maxOf(mx, c.vec[x]); mn = minOf(mn, c.vec[x]) }
@@ -219,12 +228,25 @@ class Engine(
         return outl.toTypedArray().also { memo[key] = it }
     }
 
-    private fun altsFeasible(cnt: IntArray, rem: Int): Boolean {
+    /** Slots after [d] can still complete some alternative: Hall's condition over the sets it still lacks. */
+    private fun altsFeasible(cnt: IntArray, d: Int): Boolean {
         if (setAlts.isEmpty()) return true
-        for (alt in setAlts) {
-            var need = 0
-            for (i in alt.indices) need += maxOf(0, alt[i] - cnt[i])
-            if (need <= rem) return true
+        for ((a, alt) in setAlts.withIndex()) {
+            val ids = altSets[a]
+            var need = 0; var short = 0
+            for ((p, set) in ids.withIndex()) { val n = alt[set] - cnt[set]; if (n > 0) { need += n; short = short or (1 shl p) } }
+            if (need > 5 - d) continue
+            var ok = true
+            var m = short
+            while (m != 0 && ok) {
+                var demand = 0
+                for ((p, set) in ids.withIndex()) if (m shr p and 1 == 1) demand += alt[set] - cnt[set]
+                var slots = 0
+                for (j in d + 1 until 6) if (supply[a][j] and m != 0) slots++
+                if (demand > slots) ok = false
+                m = (m - 1) and short
+            }
+            if (ok) return true
         }
         return false
     }
@@ -371,21 +393,27 @@ class Engine(
             }
         }
 
-        fun visit(d: Int, i: Int) {
+        // children's bounds per depth, so the most promising is searched first
+        val bufB = Array(6) { DoubleArray(st[it].size) }
+        val bufI = Array(6) { IntArray(st[it].size) }
+
+        /** Puts piece [i] in slot depth [d]; false when it is not allowed or its sets can no longer be completed. */
+        fun push(d: Int, i: Int): Boolean {
             val c = st[d][i]
-            if (c.ghost && ghosts >= maxGhost) return
-            if (c.changed && changes >= maxChanged) return
-            val rem = 5 - d
+            if (c.ghost && ghosts >= maxGhost) return false
+            if (c.changed && changes >= maxChanged) return false
             cnt[c.set]++
-            if (!altsFeasible(cnt, rem)) { cnt[c.set]--; return }
+            if (!altsFeasible(cnt, d)) { cnt[c.set]--; return false }
             for (x in 0 until NS) acc[x] += c.vec[x]
             if (c.ghost) ghosts++
             if (c.changed) changes++
             cost += c.cost
             pick[d] = i
-            // costs left to pay are >= 0, so the stat bound minus what is paid so far still bounds the value
-            if (rem == 0) leaf()
-            else if (maxsOk(d) && bound(d, rem) - cost > thr) dfs(d + 1)
+            return true
+        }
+
+        fun pop(d: Int, i: Int) {
+            val c = st[d][i]
             cost -= c.cost
             if (c.ghost) ghosts--
             if (c.changed) changes--
@@ -393,14 +421,51 @@ class Engine(
             cnt[c.set]--
         }
 
+        // costs left to pay are >= 0, so the stat bound minus what is paid so far still bounds the value
+        fun childBound(d: Int): Double = if (maxsOk(d)) bound(d, 5 - d) - cost else Double.NEGATIVE_INFINITY
+
+        fun visit(d: Int, i: Int) {
+            if (!push(d, i)) return
+            if (d == 5) leaf() else if (childBound(d) > thr) dfs(d + 1)
+            pop(d, i)
+        }
+
         fun dfs(d: Int) {
             if ((nodes.incrementAndGet() and 0x3FFF) == 0L && System.nanoTime() > deadline) timedOut = true
             if (cancelled || timedOut) return
             val row = st[d]
-            for (i in row.indices) {
-                if (cancelled || timedOut) return
-                visit(d, i)
+            if (d == 5) {
+                for (i in row.indices) { if (cancelled || timedOut) return; visit(d, i) }
+                return
             }
+            val bs = bufB[d]; val ix = bufI[d]
+            var n = 0
+            for (i in row.indices) {
+                if (!push(d, i)) continue
+                val b = childBound(d)
+                pop(d, i)
+                if (b > thr) { bs[n] = b; ix[n] = i; n++ }
+            }
+            sortDesc(bs, ix, n)
+            for (t in 0 until n) {
+                if (cancelled || timedOut || bs[t] <= thr) return
+                val i = ix[t]
+                push(d, i); dfs(d + 1); pop(d, i)
+            }
+        }
+    }
+
+    /** Shell sort of [ix] by [bs] descending, both in step, over the first [n]. */
+    private fun sortDesc(bs: DoubleArray, ix: IntArray, n: Int) {
+        var gap = n / 2
+        while (gap > 0) {
+            for (i in gap until n) {
+                val b = bs[i]; val x = ix[i]
+                var j = i
+                while (j >= gap && bs[j - gap] < b) { bs[j] = bs[j - gap]; ix[j] = ix[j - gap]; j -= gap }
+                bs[j] = b; ix[j] = x
+            }
+            gap /= 2
         }
     }
 
@@ -415,13 +480,25 @@ class Engine(
 
     private fun runAll(threads: Int) {
         if (st.any { it.isEmpty() }) return
+        // first pieces in order of their bounds, the same as every depth below
+        val rootB = DoubleArray(st[0].size)
+        val root = IntArray(st[0].size)
+        var n = 0
+        Worker().run {
+            for (i in st[0].indices) {
+                if (!push(0, i)) continue
+                rootB[n] = childBound(0); root[n] = i; n++
+                pop(0, i)
+            }
+        }
+        sortDesc(rootB, root, n)
         val next = AtomicInteger()
         val task = Runnable {
             val w = Worker()
             while (!stopped) {
-                val i = next.getAndIncrement()
-                if (i >= st[0].size) break
-                w.visit(0, i)
+                val t = next.getAndIncrement()
+                if (t >= n || rootB[t] <= thr) break
+                w.visit(0, root[t])
             }
         }
         if (threads <= 1) { task.run(); return }
