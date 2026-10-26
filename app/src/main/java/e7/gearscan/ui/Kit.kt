@@ -75,7 +75,7 @@ object GameImages {
 
 fun gameImage(path: String) = GameImages.base + path
 
-val MissingImage = androidx.compose.ui.graphics.painter.ColorPainter(Color(0xFFE6DCCA))
+val MissingImage get() = androidx.compose.ui.graphics.painter.ColorPainter(C.line)
 
 fun installImageLoader(ctx: android.content.Context) {
     val http = okhttp3.OkHttpClient.Builder().connectTimeout(6, java.util.concurrent.TimeUnit.SECONDS).addInterceptor { chain ->
@@ -140,7 +140,7 @@ private fun Modifier.composedClick(onClick: () -> Unit) = this.then(
 @Composable
 fun Card(
     modifier: Modifier = Modifier,
-    shadow: Color? = C.ink,
+    shadow: Color? = C.shadow,
     shadowOffset: Dp = 4.dp,
     radius: Dp = 16.dp,
     border: Dp = 2.5.dp,
@@ -154,7 +154,7 @@ fun Card(
     Column(
         Modifier.fillMaxWidth().then(modifier)
             .then(if (shadow != null) Modifier.hardShadow(shadow, shadowOffset, shadowOffset, radius) else Modifier)
-            .clip(shape).background(bg).then(if (halftone) Modifier.halftone() else Modifier).border(border, C.ink, shape).tap(onClick).padding(padding),
+            .clip(shape).background(bg).then(if (halftone) Modifier.halftone() else Modifier).border(border, C.edge, shape).tap(onClick).padding(padding),
         content = content,
     )
 }
@@ -184,11 +184,11 @@ fun PinkButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = t
     val shape = RoundedCornerShape(999.dp)
     Box(
         modifier.height(52.dp)
-            .then(if (enabled) Modifier.hardShadow(C.ink, 3.dp, 4.dp, 26.dp) else Modifier)
-            .clip(shape).background(if (enabled) C.pink else C.line).border(2.5.dp, if (enabled) C.ink else C.faint, shape)
+            .then(if (enabled) Modifier.hardShadow(C.shadow, 3.dp, 4.dp, 26.dp) else Modifier)
+            .clip(shape).background(if (enabled) C.pink else C.line).border(2.5.dp, if (enabled) C.edge else C.faint, shape)
             .tap(if (enabled) onClick else null),
         contentAlignment = Alignment.Center,
-    ) { FitText(text, dela(16.sp, if (enabled) C.ink else C.muted), Modifier.padding(horizontal = 14.dp), short = short) }
+    ) { FitText(text, dela(16.sp, if (enabled) C.onAccent else C.muted), Modifier.padding(horizontal = 14.dp), short = short) }
 }
 
 @Composable
@@ -197,7 +197,7 @@ fun OutlineButton(text: String, modifier: Modifier = Modifier, height: Dp = 52.d
     val shape = RoundedCornerShape(999.dp)
     Box(
         modifier.height(height).clip(shape).background(C.card)
-            .then(if (dashed || !enabled) Modifier.dashedBorder(C.faint, 2.dp, height / 2) else Modifier.border(2.dp, C.ink, shape))
+            .then(if (dashed || !enabled) Modifier.dashedBorder(C.faint, 2.dp, height / 2) else Modifier.border(2.dp, C.edge, shape))
             .tap(if (enabled) onClick else null).padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
     ) { FitText(text, zen(14.sp, color = if (enabled) C.ink else C.faint)) }
@@ -207,20 +207,21 @@ fun OutlineButton(text: String, modifier: Modifier = Modifier, height: Dp = 52.d
 fun Pill(text: String, modifier: Modifier = Modifier, selected: Boolean = false, bg: Color? = null, onClick: (() -> Unit)? = null,
          leading: (@Composable () -> Unit)? = null) {
     val shape = RoundedCornerShape(999.dp)
+    val fill = bg ?: if (selected) C.pink else Color.Transparent
     Row(
-        modifier.clip(shape).background(bg ?: if (selected) C.pink else Color.Transparent).border(2.dp, C.ink, shape)
+        modifier.clip(shape).background(fill).border(2.dp, C.edge, shape)
             .tap(onClick).padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         leading?.invoke()
-        Text(text, style = zen(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text, style = zen(12.sp, color = textOn(fill)), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
-fun Tag(text: String, bg: Color = C.pink, fg: Color = C.ink, border: Boolean = true, size: Int = 11) {
+fun Tag(text: String, bg: Color = C.pink, fg: Color = textOn(bg), border: Boolean = true, size: Int = 11) {
     Text(text, style = dela(size.sp, fg), modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(bg)
-        .then(if (border) Modifier.border(2.dp, C.ink, RoundedCornerShape(6.dp)) else Modifier)
+        .then(if (border) Modifier.border(2.dp, C.edge, RoundedCornerShape(6.dp)) else Modifier)
         .padding(horizontal = 7.dp, vertical = 2.dp))
 }
 
@@ -233,8 +234,8 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier, trailing: String? 
         Text(text, style = dela(14.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         Box(Modifier.weight(1f).height(6.dp).drawBehind {
             val w = 2.dp.toPx()
-            drawRect(C.ink, size = Size(size.width, w))
-            drawRect(C.ink, topLeft = Offset(0f, size.height - w), size = Size(size.width, w))
+            drawRect(C.edge, size = Size(size.width, w))
+            drawRect(C.edge, topLeft = Offset(0f, size.height - w), size = Size(size.width, w))
         })
         trailing?.let { Text(it, style = zen(11.sp, FontWeight.Bold, C.muted)) }
     }
@@ -254,7 +255,7 @@ fun ScreenTitle(title: String, kana: String? = null, modifier: Modifier = Modifi
 @Composable
 fun ScanChip(text: String, live: Boolean = false, onClick: () -> Unit) {
     val shape = RoundedCornerShape(999.dp)
-    Row(Modifier.clip(shape).background(if (live) C.ink else C.card).border(2.dp, C.ink, shape).tap(onClick).padding(horizontal = 10.dp, vertical = 4.dp),
+    Row(Modifier.clip(shape).background(if (live) C.ink else C.card).border(2.dp, C.edge, shape).tap(onClick).padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (live) PulseDot(8.dp) else Box(Modifier.size(8.dp).clip(CircleShape).background(C.blue))
         FitText(text, zen(12.sp, color = if (live) C.card else C.ink))
@@ -347,7 +348,7 @@ fun <T> CardGrid(items: List<T>, columns: Int = 2, gap: Dp = 8.dp, cell: @Compos
 @Composable
 fun RowCard(label: String, onClick: (() -> Unit)?, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
     val shape = RoundedCornerShape(14.dp)
-    Row(modifier.fillMaxWidth().clip(shape).background(C.card).border(2.dp, C.ink, shape).tap(onClick)
+    Row(modifier.fillMaxWidth().clip(shape).background(C.card).border(2.dp, C.edge, shape).tap(onClick)
         .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(label, style = zen(12.sp, color = C.muted), modifier = Modifier.widthIn(min = 58.dp), maxLines = 1, softWrap = false)
@@ -427,12 +428,12 @@ fun GearTile(item: Item?, size: Dp = 44.dp, slotIcon: String? = null, setIcon: S
                         ghost -> Modifier.stripes(C.ghostStripe, C.ghostBg, shape = shape).dashedBorder(C.blue, 2.dp, 10.dp)
                         else -> Modifier.background(C.slate).drawBehind {
                             drawRect(rankColor(item.rank), topLeft = Offset(0f, this.size.height - inset), size = Size(this.size.width, inset))
-                        }.border(2.dp, C.ink, shape)
+                        }.border(2.dp, C.edge, shape)
                     }
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            if (icon != null) GearIcon(icon, size * 0.6f, when { item == null -> C.faint; ghost -> C.blue; else -> C.card })
+            if (icon != null) GearIcon(icon, size * 0.6f, when { item == null -> C.faint; ghost -> C.blue; else -> C.onTile })
         }
         if (item != null && size >= 36.dp) {
             Text("+${item.enhance}", style = dela(9.sp, C.card), modifier = Modifier.offset((-4).dp, (-6).dp)
@@ -458,21 +459,21 @@ fun Skeleton(modifier: Modifier, radius: Dp = 6.dp) {
 @Composable
 fun Toggle(on: Boolean, onChange: (Boolean) -> Unit) {
     val shape = RoundedCornerShape(999.dp)
-    Box(Modifier.width(38.dp).height(24.dp).clip(shape).background(if (on) C.pink else C.card).border(2.dp, C.ink, shape)
+    Box(Modifier.width(38.dp).height(24.dp).clip(shape).background(if (on) C.pink else C.card).border(2.dp, C.edge, shape)
         .tap { onChange(!on) }.padding(3.dp), contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart) {
-        Box(Modifier.size(15.dp).clip(CircleShape).background(C.card).border(2.dp, C.ink, CircleShape))
+        Box(Modifier.size(15.dp).clip(CircleShape).background(C.card).border(2.dp, C.edge, CircleShape))
     }
 }
 
 @Composable
 fun Segmented(options: List<String>, selected: Int, modifier: Modifier = Modifier, height: Dp = 36.dp, onSelect: (Int) -> Unit) {
     val shape = RoundedCornerShape(999.dp)
-    Row(modifier.fillMaxWidth().height(height).clip(shape).background(C.card).border(2.dp, C.ink, shape)) {
+    Row(modifier.fillMaxWidth().height(height).clip(shape).background(C.card).border(2.dp, C.edge, shape)) {
         options.forEachIndexed { i, o ->
-            if (i > 0) Box(Modifier.width(2.dp).fillMaxHeightCompat().background(C.ink))
+            if (i > 0) Box(Modifier.width(2.dp).fillMaxHeightCompat().background(C.edge))
             Box(Modifier.weight(1f).fillMaxHeightCompat().background(if (i == selected) C.pink else Color.Transparent).tap { onSelect(i) },
                 contentAlignment = Alignment.Center) {
-                Text(o, style = zen(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(o, style = zen(13.sp, color = if (i == selected) C.onAccent else C.ink), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -483,9 +484,9 @@ fun Modifier.fillMaxHeightCompat() = this.then(Modifier.fillMaxHeight())
 @Composable
 fun Checkbox(on: Boolean, onChange: (Boolean) -> Unit) {
     val shape = RoundedCornerShape(5.dp)
-    Box(Modifier.size(20.dp).clip(shape).background(if (on) C.pink else C.card).border(2.dp, C.ink, shape).tap { onChange(!on) },
+    Box(Modifier.size(20.dp).clip(shape).background(if (on) C.pink else C.card).border(2.dp, C.edge, shape).tap { onChange(!on) },
         contentAlignment = Alignment.Center) {
-        if (on) CheckMark(11.dp)
+        if (on) CheckMark(11.dp, C.onAccent)
     }
 }
 
@@ -508,7 +509,7 @@ fun WeightBoxes(weight: Int, pink: Boolean, onChange: ((Int) -> Unit)?) {
         for (i in 1..3) {
             val shape = RoundedCornerShape(2.dp)
             Box(Modifier.size(11.dp).clip(shape).background(if (i <= weight) (if (pink) C.pink else C.ink) else C.card)
-                .border(2.dp, C.ink, shape).tap(onChange?.let { f -> { f(if (weight == i) i - 1 else i) } }))
+                .border(2.dp, C.edge, shape).tap(onChange?.let { f -> { f(if (weight == i) i - 1 else i) } }))
         }
     }
 }
@@ -546,7 +547,7 @@ fun HSpace(w: Dp) = Spacer(Modifier.width(w))
 @Composable
 fun Spinner(modifier: Modifier = Modifier) {
     Canvas(modifier.size(16.dp)) {
-        drawCircle(C.ink, style = Stroke(2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f))))
+        drawCircle(C.edge, style = Stroke(2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f))))
     }
 }
 

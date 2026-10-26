@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -11,8 +12,14 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.graphics.toArgb
+import androidx.lifecycle.lifecycleScope
 import e7.gearscan.ui.App
+import e7.gearscan.ui.C
+import e7.gearscan.ui.Themes
 import e7.gearscan.ui.installImageLoader
+import kotlinx.coroutines.launch
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -22,8 +29,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(state)
         installCrashCatcher()
         installImageLoader(this)
-        enableEdgeToEdge(SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
-            SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT))
+        Themes.load(this)
+        applySystemBars(Themes.dark)
+        lifecycleScope.launch { snapshotFlow { Themes.dark }.collect { applySystemBars(it) } }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         setContent { App(model) { finish() } }
@@ -43,6 +51,12 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.getBooleanExtra(EXTRA_CAPTURE, false)) model.showCapture()
+    }
+
+    private fun applySystemBars(dark: Boolean) {
+        val style = if (dark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+        enableEdgeToEdge(style, style)
+        window.setBackgroundDrawable(ColorDrawable(C.paper.toArgb()))
     }
 
     private fun installCrashCatcher() {

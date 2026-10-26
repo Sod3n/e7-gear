@@ -169,6 +169,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     override fun onCreate() {
         super.onCreate()
+        e7.gearscan.ui.Themes.load(this)
         saved.performRestore(null)
         registry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         wm = getSystemService(WindowManager::class.java)
@@ -245,6 +246,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        e7.gearscan.ui.Themes.load(this)
         if (!OverlayState.expanded) placeBubble()
     }
 

@@ -175,7 +175,7 @@ private fun SingleSetup(model: AppModel, h: OwnedHero) {
 internal fun PresetCard(model: AppModel, h: OwnedHero, req: Request) {
     val loading = model.presetLoading[h.code] == true
     val shape = RoundedCornerShape(14.dp)
-    Row(Modifier.fillMaxWidth().hardShadow(C.pink, 3.dp, 3.dp, 14.dp).clip(shape).background(C.card).border(2.5.dp, C.ink, shape)
+    Row(Modifier.fillMaxWidth().hardShadow(C.pink, 3.dp, 3.dp, 14.dp).clip(shape).background(C.card).border(2.5.dp, C.edge, shape)
         .tap { model.sheet = Sheet(SheetKind.PRESET, h.id) }.padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Tag("PRESET")
@@ -291,7 +291,7 @@ fun ResultsScreen(model: AppModel) {
                 }
                 VSpace(6.dp)
                 val frac = ((now - s.startedAt).toFloat() / s.limitMs).coerceIn(0.02f, 1f)
-                Box(Modifier.fillMaxWidth().height(9.dp).clip(RoundedCornerShape(99.dp)).border(2.dp, C.ink, RoundedCornerShape(99.dp))) {
+                Box(Modifier.fillMaxWidth().height(9.dp).clip(RoundedCornerShape(99.dp)).border(2.dp, C.edge, RoundedCornerShape(99.dp))) {
                     Box(Modifier.fillMaxWidth(frac).height(9.dp).stripes(C.pink, C.lightPink, shape = RoundedCornerShape(99.dp)))
                 }
                 VSpace(6.dp)
@@ -354,7 +354,7 @@ fun ResultsScreen(model: AppModel) {
 fun StaleBox(model: AppModel) {
     val age = if (model.lastScan > 0) (System.currentTimeMillis() - model.lastScan) / 3_600_000 else return
     if (age < 24) return
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).hatch().border(2.dp, C.ink, RoundedCornerShape(10.dp))
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).hatch().border(2.dp, C.edge, RoundedCornerShape(10.dp))
         .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("Box is ${if (age < 48) "a day" else "${age / 24} days"} old · new gear isn't counted", style = zen(12.sp),
             modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -423,7 +423,7 @@ private fun GhostBand(model: AppModel, s: e7.gearscan.SearchState, r: Rating, ma
 private fun ResultCard(model: AppModel, i: Int, b: Build, cur: Build?, r: Rating, req: Request, matchHero: Long? = null) {
     val shape = RoundedCornerShape(14.dp)
     Row(Modifier.fillMaxWidth().then(if (i == 0) Modifier.hardShadow(C.pink, 4.dp, 4.dp, 14.dp) else Modifier)
-        .clip(shape).background(C.card).then(if (i == 0) Modifier.halftone() else Modifier).border(2.5.dp, C.ink, shape).tap { model.go(Screen.Compare(i)) }
+        .clip(shape).background(C.card).then(if (i == 0) Modifier.halftone() else Modifier).border(2.5.dp, C.edge, shape).tap { model.go(Screen.Compare(i)) }
         .padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         RankChip(i + 1)
@@ -552,7 +552,7 @@ private fun TakenByOthers(model: AppModel, heroId: Long) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         lost.forEach { (item, who) ->
             val shape = RoundedCornerShape(10.dp)
-            Row(Modifier.fillMaxWidth().clip(shape).background(C.card).border(2.dp, C.ink, shape).padding(7.dp),
+            Row(Modifier.fillMaxWidth().clip(shape).background(C.card).border(2.dp, C.edge, shape).padding(7.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GearTile(item, 40.dp, setIcon = model.content.set(item.set)?.icon)
                 Column(Modifier.weight(1f)) {
@@ -598,7 +598,7 @@ fun GearGrid(model: AppModel, items: List<Item>, heroId: Long, reforged: Boolean
 private fun GearCard(model: AppModel, it: Item?, heroId: Long, reforged: Boolean, modifier: Modifier, openHolder: ((Long) -> Unit)? = null) {
     val shape = RoundedCornerShape(10.dp)
     Row(modifier.clip(shape).background(if (it?.ghost == true) C.ghostBg else C.card)
-        .then(if (it?.ghost == true) Modifier.dashedBorder(C.blue, 2.dp, 10.dp) else Modifier.border(2.dp, C.ink, shape))
+        .then(if (it?.ghost == true) Modifier.dashedBorder(C.blue, 2.dp, 10.dp) else Modifier.border(2.dp, C.edge, shape))
         .padding(7.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         GearTile(it, 40.dp, setIcon = it?.let { i -> model.content.set(i.set)?.icon })
         Column(Modifier.weight(1f)) {

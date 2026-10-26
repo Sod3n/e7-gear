@@ -83,7 +83,7 @@ fun OverlayIntroScreen(model: AppModel) {
                 IntroStep(3, "Tap Done as you equip each piece", "The list lets taps through to the game. When all are done, record the build.")
             }
         }
-        DashedBox(Modifier.fillMaxWidth(), color = C.ink, padding = PaddingValues(12.dp)) {
+        DashedBox(Modifier.fillMaxWidth(), color = C.edge, padding = PaddingValues(12.dp)) {
             Text("The panel only shows information. It never taps or reads the game screen.", style = zen(12.sp, FontWeight.Medium))
         }
         if (blocked && android.os.Build.VERSION.SDK_INT >= 33) DashedBox(Modifier.fillMaxWidth(), color = C.blue, padding = PaddingValues(12.dp)) {

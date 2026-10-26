@@ -37,7 +37,7 @@ val TIER_LABELS = listOf("Just geared", "A bit of good gear", "Good gear", "Some
 
 fun tierLabel(t: Int) = "$t · ${TIER_LABELS[t - 1]}"
 
-val PaperBrush = Brush.verticalGradient(listOf(Color(0xFFF3E9D6), Color(0xFFECDFC6)))
+val PaperBrush get() = Brush.verticalGradient(listOf(C.p.paperTop, C.p.paperBottom))
 
 /** Pink dot screen marking the selected card. */
 fun Modifier.halftone(): Modifier = drawBehind {
@@ -46,21 +46,21 @@ fun Modifier.halftone(): Modifier = drawBehind {
     var y = step / 2
     while (y < size.height) {
         var x = step / 2
-        while (x < size.width) { drawCircle(Color(0xFFF5B3D1), r, Offset(x, y)); x += step }
+        while (x < size.width) { drawCircle(C.p.halftoneDot, r, Offset(x, y)); x += step }
         y += step
     }
 }
 
 /** Pink diagonal bands marking what is being edited now. */
 fun Modifier.hatch(): Modifier = drawBehind {
-    drawRect(Color(0xFFFDE3EF))
+    drawRect(C.lightPink)
     val band = 8.dp.toPx()
     clipRect {
         var x = -size.height
         while (x < size.width) {
             drawPath(Path().apply {
                 moveTo(x, size.height); lineTo(x + band, size.height); lineTo(x + band + size.height, 0f); lineTo(x + size.height, 0f); close()
-            }, Color(0xFFF9D0E3))
+            }, C.p.hatchBand)
             x += band * 2
         }
     }
@@ -76,7 +76,7 @@ fun SeigaihaStrip(modifier: Modifier = Modifier) {
             var x = 0f
             while (x <= size.width + tile) {
                 for ((r, a) in listOf(6f to 0.55f, 11f to 0.4f, 16f to 0.25f))
-                    drawCircle(Color(0xFFFF4FA8).copy(alpha = a), r * k, Offset(x, size.height), style = Stroke(k))
+                    drawCircle(C.p.seigaiha.copy(alpha = a), r * k, Offset(x, size.height), style = Stroke(k))
                 x += tile
             }
         }
@@ -131,9 +131,9 @@ fun TierBar(tier: Int, modifier: Modifier = Modifier, height: Dp = 44.dp, onChan
         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for (i in 1..5) {
             val shape = RoundedCornerShape(10.dp)
-            Box(Modifier.weight(1f).height(height).then(if (i == tier) Modifier.hardShadow(C.ink, 2.dp, 3.dp, 10.dp) else Modifier)
-                .clip(shape).background(if (i <= tier) C.pink else C.card).border(2.5.dp, C.ink, shape),
-                contentAlignment = Alignment.Center) { Text("$i", style = dela(15.sp)) }
+            Box(Modifier.weight(1f).height(height).then(if (i == tier) Modifier.hardShadow(C.shadow, 2.dp, 3.dp, 10.dp) else Modifier)
+                .clip(shape).background(if (i <= tier) C.pink else C.card).border(2.5.dp, C.edge, shape),
+                contentAlignment = Alignment.Center) { Text("$i", style = dela(15.sp, if (i <= tier) C.onAccent else C.ink)) }
         }
     }
 }
@@ -144,9 +144,9 @@ fun WeightBar(weight: Int, onChange: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().height(47.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         for (i in 0..3) {
             val shape = RoundedCornerShape(10.dp)
-            Box(Modifier.weight(1f).height(44.dp).then(if (i == weight) Modifier.hardShadow(C.ink, 2.dp, 3.dp, 10.dp) else Modifier)
-                .clip(shape).background(if (i <= weight) C.pink else C.card).border(2.5.dp, C.ink, shape).tap { onChange(i) },
-                contentAlignment = Alignment.Center) { Text("$i", style = dela(15.sp)) }
+            Box(Modifier.weight(1f).height(44.dp).then(if (i == weight) Modifier.hardShadow(C.shadow, 2.dp, 3.dp, 10.dp) else Modifier)
+                .clip(shape).background(if (i <= weight) C.pink else C.card).border(2.5.dp, C.edge, shape).tap { onChange(i) },
+                contentAlignment = Alignment.Center) { Text("$i", style = dela(15.sp, if (i <= weight) C.onAccent else C.ink)) }
         }
     }
 }

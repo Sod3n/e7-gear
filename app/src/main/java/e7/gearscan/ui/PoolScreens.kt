@@ -137,11 +137,11 @@ fun RowScope.PoolButton(model: AppModel) {
     val seconds = ready * model.poolSecondsPerHero
     val time = if (seconds < 60) "about ${maxOf(5, Math.round(seconds / 5).toInt() * 5)} s" else "about ${Math.round(seconds / 60)} min"
     val shape = RoundedCornerShape(999.dp)
-    Column(Modifier.weight(1f).height(56.dp).then(if (ready > 0) Modifier.hardShadow(C.ink, 3.dp, 4.dp, 28.dp) else Modifier).clip(shape)
-        .background(if (ready > 0) C.pink else C.line).border(2.5.dp, C.ink, shape)
+    Column(Modifier.weight(1f).height(56.dp).then(if (ready > 0) Modifier.hardShadow(C.shadow, 3.dp, 4.dp, 28.dp) else Modifier).clip(shape)
+        .background(if (ready > 0) C.pink else C.line).border(2.5.dp, C.edge, shape)
         .tap(if (ready > 0) ({ model.startPool(); model.go(Screen.PoolRun) }) else null),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        FitText("Optimize $ready heroes", dela(16.sp))
+        FitText("Optimize $ready heroes", dela(16.sp, if (ready > 0) C.onAccent else C.ink))
         FitText(time + if (skipped > 0) " · $skipped skipped unless set up" else "", zen(10.sp, FontWeight.Medium))
     }
 }
@@ -179,7 +179,7 @@ private fun PoolScoreCard(label: String, before: Int?, score: Int, note: String?
 @Composable
 private fun ScoreBar(now: Float, before: Float?) {
     val shape = RoundedCornerShape(99.dp)
-    Box(Modifier.fillMaxWidth().height(9.dp).clip(shape).background(C.card).border(2.dp, C.ink, shape)) {
+    Box(Modifier.fillMaxWidth().height(9.dp).clip(shape).background(C.card).border(2.dp, C.edge, shape)) {
         Box(Modifier.fillMaxWidth(now.coerceIn(0f, 1f)).height(9.dp).background(C.pink))
         Box(Modifier.fillMaxWidth((before ?: now).coerceIn(0f, 1f)).height(9.dp).background(C.ink))
     }

@@ -54,8 +54,8 @@ private fun HistoryRow(model: AppModel, e: HistoryEntry) {
     ListRow({ if (!model.openHistory(e)) model.showToast(if (e.pool) "A pool run is going; open this when it ends" else "A search is going; open this when it ends") },
         Modifier.padding(horizontal = 12.dp, vertical = 10.dp), leading = {
             if (hero != null) Face(model.face(hero), 34.dp)
-            else Box(Modifier.size(34.dp).clip(CircleShape).background(C.pink).border(2.dp, C.ink, CircleShape), contentAlignment = Alignment.Center) {
-                Text("一括", style = zen(10.sp, FontWeight.Bold))
+            else Box(Modifier.size(34.dp).clip(CircleShape).background(C.pink).border(2.dp, C.edge, CircleShape), contentAlignment = Alignment.Center) {
+                Text("一括", style = zen(10.sp, FontWeight.Bold, C.onAccent))
             }
         }, trailing = {
             Slot(92.dp) {

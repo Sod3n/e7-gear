@@ -112,8 +112,8 @@ fun ScanIntroScreen(model: AppModel) {
         CrashCard(model)
         VSpace(6.dp)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.size(52.dp).hardShadow(C.blue, 3.dp, 3.dp, 26.dp).clip(CircleShape).background(C.pink).border(3.dp, C.ink, CircleShape),
-                contentAlignment = Alignment.Center) { Text("最", style = dela(24.sp)) }
+            Box(Modifier.size(52.dp).hardShadow(C.blue, 3.dp, 3.dp, 26.dp).clip(CircleShape).background(C.pink).border(3.dp, C.edge, CircleShape),
+                contentAlignment = Alignment.Center) { Text("最", style = dela(24.sp, C.onAccent)) }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FitText("Gear Optimizer", dela(19.sp).pinkShadow(5f), Modifier.weight(1f, fill = false))
@@ -125,7 +125,7 @@ fun ScanIntroScreen(model: AppModel) {
         }
         Text("Read your heroes and gear from the game", style = dela(24.sp).pinkShadow(6f))
         Text("No PC, no root. The app watches Epic Seven log in once and copies your box.", style = zen(13.sp, FontWeight.Medium, C.muted))
-        Card(shadow = C.ink, padding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
+        Card(shadow = C.shadow, padding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Step(1, "A VPN for Epic Seven only", "Other apps keep their normal connection.")
                 Step(2, "You log in to the lobby", "The app records the game's login data.")
@@ -200,7 +200,7 @@ fun ScanDataScreen(model: AppModel) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 val icon = model.game?.let { g -> runCatching { ctx.packageManager.getApplicationIcon(g) }.getOrNull() }
                 Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).stripes(C.stripeA, C.stripeB, shape = RoundedCornerShape(10.dp))
-                    .border(2.dp, C.ink, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
+                    .border(2.dp, C.edge, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
                     if (icon != null) AsyncImage(icon, null, Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)))
                 }
                 Column(Modifier.weight(1f)) {
@@ -387,7 +387,7 @@ private fun Counter(label: String, value: String, modifier: Modifier) {
 private fun Milestone(text: String, done: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.padding(vertical = 2.dp)) {
-        Box(Modifier.size(16.dp).clip(CircleShape).then(if (done) Modifier.background(C.blue) else Modifier.dashedBorder(C.ink, 1.5.dp, 8.dp)))
+        Box(Modifier.size(16.dp).clip(CircleShape).then(if (done) Modifier.background(C.blue) else Modifier.dashedBorder(C.edge, 1.5.dp, 8.dp)))
         Text(text, style = zen(13.sp, FontWeight.Medium))
     }
 }

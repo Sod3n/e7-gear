@@ -93,10 +93,10 @@ private fun TraitRow(label: String, options: List<Pair<String, String>>, selecte
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(label, style = zen(13.sp), modifier = Modifier.padding(end = 6.dp))
         TraitChip(selected == null, ring = false, bg = if (selected == null) C.pink else C.field, onClick = { onSelect(null) }) {
-            Text("All", style = zen(11.sp, FontWeight.Black))
+            Text("All", style = zen(11.sp, FontWeight.Black, if (selected == null) C.onAccent else C.ink))
         }
         options.forEach { (key, _) ->
-            TraitChip(selected == key, ring = true, bg = C.ink, onClick = { onSelect(if (selected == key) null else key) }) {
+            TraitChip(selected == key, ring = true, bg = C.iconBg, onClick = { onSelect(if (selected == key) null else key) }) {
                 AsyncImage(gameImage(icon(key)), null, Modifier.size(18.dp))
             }
         }
@@ -107,5 +107,5 @@ private fun TraitRow(label: String, options: List<Pair<String, String>>, selecte
 @Composable
 private fun TraitChip(on: Boolean, ring: Boolean, bg: Color, onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(Modifier.size(38.dp).then(if (on && ring) Modifier.border(3.dp, C.pink, CircleShape) else Modifier).padding(5.dp)
-        .clip(CircleShape).background(bg).border(2.dp, C.ink, CircleShape).tap(onClick), contentAlignment = Alignment.Center) { content() }
+        .clip(CircleShape).background(bg).border(2.dp, C.edge, CircleShape).tap(onClick), contentAlignment = Alignment.Center) { content() }
 }

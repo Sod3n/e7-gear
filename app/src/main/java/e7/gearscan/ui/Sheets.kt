@@ -260,7 +260,7 @@ private fun PresetSkeleton() {
 private fun NumBox(value: Double, pink: Boolean, modifier: Modifier = Modifier, onChange: (Double) -> Unit) {
     var text by remember(value) { mutableStateOf(if (value.isNaN()) "" else fmtNum(value)) }
     val shape = RoundedCornerShape(8.dp)
-    Box(modifier.height(30.dp).clip(shape).background(C.card).border(2.dp, if (pink) C.pink else C.ink, shape).padding(horizontal = 3.dp),
+    Box(modifier.height(30.dp).clip(shape).background(C.card).border(2.dp, if (pink) C.pink else C.edge, shape).padding(horizontal = 3.dp),
         contentAlignment = Alignment.Center) {
         if (text.isEmpty()) Text("—", style = zen(12.sp, color = C.faint))
         BasicTextField(text, { t ->
@@ -311,7 +311,7 @@ private fun TargetsSheet(model: AppModel, heroId: Long) {
                 FitText("TARGET", hs, Modifier.width(58.dp), textAlign = TextAlign.Center)
                 FitText("WT", hs, Modifier.width(44.dp), textAlign = TextAlign.Center)
             }
-            Box(Modifier.fillMaxWidth().height(2.dp).background(C.ink))
+            Box(Modifier.fillMaxWidth().height(2.dp).background(C.edge))
             for (st in rows) {
                 val now = cur?.final?.get(st)
                 if (st == open) TargetEditor(model, req, st, now) { open = null }
@@ -340,7 +340,7 @@ internal fun TargetRow(req: Request, st: Stat, now: Double?, onTap: () -> Unit) 
         ValueChip(req.targets[i], dela(12.sp), Modifier.width(58.dp), if (req.fromPreset[i]) C.lightPink else C.ghostBg)
         Row(Modifier.width(44.dp), horizontalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterHorizontally)) {
             for (w in 1..3) Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(if (w <= req.weights[i]) C.pink else Color.Transparent)
-                .border(2.dp, C.ink, RoundedCornerShape(3.dp)))
+                .border(2.dp, C.edge, RoundedCornerShape(3.dp)))
         }
     }
     Box(Modifier.fillMaxWidth().height(1.5.dp).background(C.line))
@@ -357,7 +357,7 @@ private fun TargetEditor(model: AppModel, req: Request, st: Stat, now: Double?, 
     val i = st.ordinal
     val step = when (st) { Stat.ATK -> 50.0; Stat.DEF -> 25.0; Stat.HP -> 250.0; else -> 1.0 }
     val start = now?.let { Math.round(it / step) * step } ?: 0.0
-    Column(Modifier.padding(vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).hatch().border(2.5.dp, C.ink, RoundedCornerShape(14.dp))
+    Column(Modifier.padding(vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).hatch().border(2.5.dp, C.edge, RoundedCornerShape(14.dp))
         .padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth().tap(onClose), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatIcon(st, 16.dp)
@@ -390,7 +390,7 @@ private fun Stepper(label: String, value: Double, step: Double, start: Double, m
     val shape = RoundedCornerShape(12.dp)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, style = zen(11.sp, color = C.muted))
-        Row(Modifier.fillMaxWidth().height(44.dp).clip(shape).background(C.card).border(2.5.dp, C.ink, shape),
+        Row(Modifier.fillMaxWidth().height(44.dp).clip(shape).background(C.card).border(2.5.dp, C.edge, shape),
             verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.width(36.dp).fillMaxHeight().tap { if (!value.isNaN()) onChange((value - step).coerceAtLeast(0.0)) },
                 contentAlignment = Alignment.Center) { Text("−", style = dela(16.sp)) }
@@ -500,10 +500,10 @@ private fun AdvancedSheet(model: AppModel, heroId: Long) {
                 Slot.entries.forEach { s ->
                     val on = s in req.ghostSlots
                     Box(Modifier.size(42.dp).clip(RoundedCornerShape(10.dp)).background(if (on) C.slate else C.card)
-                        .border(2.dp, if (on) C.ink else C.faint, RoundedCornerShape(10.dp))
+                        .border(2.dp, if (on) C.edge else C.faint, RoundedCornerShape(10.dp))
                         .tap { edit { r -> r.ghostSlots = if (on) r.ghostSlots - s else r.ghostSlots + s } },
                         contentAlignment = Alignment.Center) {
-                        GearIcon(s.icon, 24.dp, if (on) C.card else C.faint)
+                        GearIcon(s.icon, 24.dp, if (on) C.onTile else C.faint)
                     }
                 }
             }
@@ -538,7 +538,7 @@ private fun BonusSheet(model: AppModel, heroId: Long) {
         button = "Save", onButton = { model.save(); model.sheet = null }) {
         Text("Artifact", style = zen(13.sp))
         val art = model.content.artifact(cfg.artifact ?: model.request(heroId).artifact)
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(2.5.dp, C.ink, RoundedCornerShape(12.dp))
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(2.5.dp, C.edge, RoundedCornerShape(12.dp))
             .tap { model.sheet = Sheet(SheetKind.ARTIFACT, heroId, back = SheetKind.BONUS) }.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             ArtifactIcon(model, art, 30.dp)
@@ -572,7 +572,7 @@ private fun BonusSheet(model: AppModel, heroId: Long) {
         val first = listOf(Bonus.ATK_P, Bonus.HP_P, Bonus.DEF_P, Bonus.SPD, Bonus.CR, Bonus.CD)
         val rest = listOf(Bonus.ATK, Bonus.HP, Bonus.DEF, Bonus.EFF, Bonus.RES, Bonus.FINAL_ATK, Bonus.FINAL_HP, Bonus.FINAL_DEF)
         CardGrid(if (more) first + rest else first, columns = 3) { b, cell ->
-            Column(cell.clip(RoundedCornerShape(10.dp)).border(2.dp, C.ink, RoundedCornerShape(10.dp)).padding(8.dp)) {
+            Column(cell.clip(RoundedCornerShape(10.dp)).border(2.dp, C.edge, RoundedCornerShape(10.dp)).padding(8.dp)) {
                 FitText(b.label, zen(9.sp, color = C.muted))
                 var t by remember(b, cfg.bonus[b.ordinal]) { mutableStateOf(fmtNum(cfg.bonus[b.ordinal])) }
                 BasicTextField(t, { s -> t = s.filter { it.isDigit() || it == '.' || it == '-' }.take(6); cfg.bonus[b.ordinal] = t.toDoubleOrNull() ?: 0.0; model.touch() },
@@ -670,7 +670,7 @@ private fun SetsSheet(model: AppModel, heroId: Long) {
                     // same size selected or not, so the grid never jumps; the count sits on the tile's corner
                     Box(Modifier.width(62.dp)) {
                         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (on) C.lightPink else C.card)
-                            .border(2.dp, if (on) C.ink else C.line, RoundedCornerShape(12.dp))
+                            .border(2.dp, if (on) C.edge else C.line, RoundedCornerShape(12.dp))
                             .tap { commit(if (pieces == 4) choice.tapFour(st.key) else choice.tapTwo(st.key)) }
                             .padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             SetIcon(st.icon, 28.dp)

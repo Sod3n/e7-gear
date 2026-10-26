@@ -133,7 +133,7 @@ private fun HeroRow(model: AppModel, h: OwnedHero, last: Boolean, onTap: () -> U
 @Composable
 private fun TierEditor(model: AppModel, h: OwnedHero, onClose: () -> Unit) {
     val t = model.tier(h.id)
-    Column(Modifier.fillMaxWidth().hatch().border(2.5.dp, C.ink).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth().hatch().border(2.5.dp, C.edge).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth().tap(onClose), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Face(model.face(h), 36.dp)
             // the tier sits under the name, which keeps the row's width: long names don't fit beside "Best of account"
@@ -154,7 +154,7 @@ private fun TierEditor(model: AppModel, h: OwnedHero, onClose: () -> Unit) {
 @Composable
 fun MissingSetRow(st: e7.gearscan.data.SetDef) {
     val shape = RoundedCornerShape(8.dp)
-    Row(Modifier.fillMaxWidth().clip(shape).background(C.lightPink).border(2.dp, C.ink, shape).padding(horizontal = 10.dp, vertical = 4.dp),
+    Row(Modifier.fillMaxWidth().clip(shape).background(C.lightPink).border(2.dp, C.edge, shape).padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         SetIcon(st.icon, 18.dp)
         Text("No ${st.name} set", style = zen(13.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -164,7 +164,7 @@ fun MissingSetRow(st: e7.gearscan.data.SetDef) {
 
 @Composable
 private fun MatchCard(model: AppModel, id: Long, m: Match.Result) {
-    Card(shadow = C.ink, radius = 14.dp, border = 2.5.dp, padding = PaddingValues(12.dp)) {
+    Card(shadow = C.shadow, radius = 14.dp, border = 2.5.dp, padding = PaddingValues(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             Text("Match with", style = zen(13.sp))
             LinkText(m.label, size = 13) { model.sheet = Sheet(SheetKind.PRESET, id) }
@@ -177,7 +177,7 @@ private fun MatchCard(model: AppModel, id: Long, m: Match.Result) {
             m.rows.forEach { r ->
                 val shape = RoundedCornerShape(8.dp)
                 Row(Modifier.fillMaxWidth().clip(shape).background(if (r.met) C.ghostBg else C.lightPink)
-                    .border(2.dp, if (r.met) C.blue else C.ink, shape).padding(horizontal = 10.dp, vertical = 4.dp),
+                    .border(2.dp, if (r.met) C.blue else C.edge, shape).padding(horizontal = 10.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(r.stat.label, style = zen(13.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     FitText(fmtInt(Math.floor(r.now)), zen(13.sp), Modifier.width(52.dp), textAlign = TextAlign.End)

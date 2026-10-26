@@ -142,10 +142,10 @@ private fun Bubble(b: OverlayBuild, onMove: (Float, Float) -> Unit, onRelease: (
         }
         Box(Modifier.dragWindow(onMove, onOpen, onRelease).padding(start = 8.dp, bottom = 6.dp)) {
             Box(Modifier.size(64.dp).hardShadow(if (closing) C.red else C.pink, 3.dp, 4.dp, 32.dp).clip(CircleShape)
-                .background(if (closing) C.red else C.card).border(3.dp, C.ink, CircleShape),
+                .background(if (closing) C.red else C.card).border(3.dp, C.edge, CircleShape),
                 contentAlignment = Alignment.Center) { if (closing) Text("×", style = dela(28.sp, C.card)) else Face(b.face, 48.dp) }
-            Text("$doneCount/${b.pieces.size}", style = dela(11.sp), modifier = Modifier.align(Alignment.BottomStart).offset((-8).dp, 6.dp)
-                .clip(RoundedCornerShape(999.dp)).background(C.pink).border(2.dp, C.ink, RoundedCornerShape(999.dp))
+            Text("$doneCount/${b.pieces.size}", style = dela(11.sp, C.onAccent), modifier = Modifier.align(Alignment.BottomStart).offset((-8).dp, 6.dp)
+                .clip(RoundedCornerShape(999.dp)).background(C.pink).border(2.dp, C.edge, RoundedCornerShape(999.dp))
                 .padding(horizontal = 7.dp, vertical = 1.dp))
         }
     }
@@ -158,7 +158,7 @@ private fun OverlayControls(b: OverlayBuild, onMove: (Float, Float) -> Unit, onC
     LaunchedEffect(s.recorded) { if (s.recorded) { kotlinx.coroutines.delay(1500); onClose() } }
     val shape = RoundedCornerShape(18.dp)
     Column(Modifier.padding(end = 4.dp).width(PANEL_WIDTH.dp).hardShadow(C.pink, 4.dp, 4.dp, 18.dp).clip(shape).background(C.card)
-        .border(2.5.dp, C.ink, shape)) {
+        .border(2.5.dp, C.edge, shape)) {
         Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.dragWindow(onMove).padding(horizontal = 2.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -166,14 +166,14 @@ private fun OverlayControls(b: OverlayBuild, onMove: (Float, Float) -> Unit, onC
             }
             Box(Modifier.dragWindow(onMove)) { Face(b.face, 26.dp) }
             Text(b.title, style = zen(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).dragWindow(onMove))
-            Row(Modifier.clip(RoundedCornerShape(999.dp)).border(2.dp, C.ink, RoundedCornerShape(999.dp))) {
+            Row(Modifier.clip(RoundedCornerShape(999.dp)).border(2.dp, C.edge, RoundedCornerShape(999.dp))) {
                 listOf("Pieces", "Stats").forEachIndexed { i, t ->
-                    if (i > 0) Box(Modifier.width(2.dp).height(22.dp).background(C.ink))
-                    Text(t, style = zen(11.sp), modifier = Modifier.background(if (s.tab == i) C.pink else C.card).tap { s.tab = i }
+                    if (i > 0) Box(Modifier.width(2.dp).height(22.dp).background(C.edge))
+                    Text(t, style = zen(11.sp, color = if (s.tab == i) C.onAccent else C.ink), modifier = Modifier.background(if (s.tab == i) C.pink else C.card).tap { s.tab = i }
                         .padding(horizontal = 9.dp, vertical = 3.dp))
                 }
             }
-            Box(Modifier.size(26.dp).clip(CircleShape).border(2.dp, C.ink, CircleShape).tap(onCollapse), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(26.dp).clip(CircleShape).border(2.dp, C.edge, CircleShape).tap(onCollapse), contentAlignment = Alignment.Center) {
                 Text("–", style = dela(12.sp))
             }
             Box(Modifier.size(26.dp).clip(CircleShape).background(C.ink).tap(onClose), contentAlignment = Alignment.Center) {
@@ -187,17 +187,17 @@ private fun OverlayControls(b: OverlayBuild, onMove: (Float, Float) -> Unit, onC
             val n = s.done.count { it }
             Text("$n of ${b.pieces.size} done", style = zen(12.sp, color = C.muted), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             // the list below lets taps through to the game; its opacity is the one thing worth changing mid-game
-            Row(Modifier.width(64.dp).clip(RoundedCornerShape(999.dp)).border(2.dp, C.ink, RoundedCornerShape(999.dp)).tap {
+            Row(Modifier.width(64.dp).clip(RoundedCornerShape(999.dp)).border(2.dp, C.edge, RoundedCornerShape(999.dp)).tap {
                 s.opacity = OPACITY_STEPS[(OPACITY_STEPS.indexOf(s.opacity) + 1).mod(OPACITY_STEPS.size)]
             }.padding(horizontal = 8.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)) {
                 Box(Modifier.size(10.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Brush.horizontalGradient(
-                    0f to C.ink, 0.5f to C.ink, 0.5f to C.card, 1f to C.card)).border(1.5.dp, C.ink, CircleShape))
+                    0f to C.ink, 0.5f to C.ink, 0.5f to C.card, 1f to C.card)).border(1.5.dp, C.edge, CircleShape))
                 FitText(if (s.listHidden) "Hidden" else "${Math.round(s.opacity * 100)}%", zen(11.sp))
             }
             val last = s.lastDone
             Text("Undo", style = zen(11.sp, color = if (last != null) C.ink else C.faint), modifier = Modifier.clip(RoundedCornerShape(999.dp))
-                .border(2.dp, if (last != null) C.ink else C.faint, RoundedCornerShape(999.dp))
+                .border(2.dp, if (last != null) C.edge else C.faint, RoundedCornerShape(999.dp))
                 .tap(if (last != null && !s.recorded) ({ s.undo() }) else null).padding(horizontal = 8.dp, vertical = 3.dp))
             when {
                 s.recorded -> Text("Recorded", style = zen(12.sp, color = C.blue))
@@ -227,7 +227,7 @@ fun OverlayBody() {
     LaunchedEffect(s.current, s.tab) { rowTops[s.current]?.let { scroll.animateScrollTo(it) } }
     val max = (LocalConfiguration.current.screenHeightDp - 110).coerceAtLeast(160)
     Column(Modifier.padding(end = 4.dp).width(PANEL_WIDTH.dp).heightIn(max = max.dp).clip(shape).background(C.card)
-        .border(2.5.dp, C.ink, shape).verticalScroll(scroll)) {
+        .border(2.5.dp, C.edge, shape).verticalScroll(scroll)) {
         if (s.tab == 0) b.pieces.forEachIndexed { i, p ->
             // a heading each time the hero (pool checklists) or the menu (equip, then modify) changes, so 48 moves read as a few short lists
             fun group(q: OverlayPiece?) = q?.let { it.forHero to it.modStep }
@@ -249,15 +249,15 @@ fun OverlayBody() {
 @Composable
 private fun FooterButton(text: String, onClick: () -> Unit) {
     val shape = RoundedCornerShape(999.dp)
-    Text(text, style = zen(12.sp), modifier = Modifier.hardShadow(C.ink, 2.dp, 2.dp, 14.dp).clip(shape).background(C.pink)
-        .border(2.dp, C.ink, shape).tap(onClick).padding(horizontal = 12.dp, vertical = 4.dp))
+    Text(text, style = zen(12.sp, color = C.onAccent), modifier = Modifier.hardShadow(C.shadow, 2.dp, 2.dp, 14.dp).clip(shape).background(C.pink)
+        .border(2.dp, C.edge, shape).tap(onClick).padding(horizontal = 12.dp, vertical = 4.dp))
 }
 
 @Composable
 private fun Check(on: Boolean) {
     val shape = RoundedCornerShape(6.dp)
-    Box(Modifier.size(22.dp).clip(shape).background(if (on) C.pink else C.card).border(2.5.dp, C.ink, shape),
-        contentAlignment = Alignment.Center) { if (on) CheckMark(12.dp) }
+    Box(Modifier.size(22.dp).clip(shape).background(if (on) C.pink else C.card).border(2.5.dp, C.edge, shape),
+        contentAlignment = Alignment.Center) { if (on) CheckMark(12.dp, C.onAccent) }
 }
 
 @Composable
@@ -315,7 +315,7 @@ private fun StatsTable(b: OverlayBuild) {
             FitText("BUILD", hs, Modifier.width(58.dp), textAlign = TextAlign.End)
             FitText("NOW", hs, Modifier.width(52.dp), textAlign = TextAlign.End)
         }
-        Box(Modifier.fillMaxWidth().height(2.dp).background(C.ink))
+        Box(Modifier.fillMaxWidth().height(2.dp).background(C.edge))
         b.stats.forEach { (st, build, now) ->
             fun f(v: Double) = if (st.pct) "${fmtNum(Math.floor(v))}%" else fmtInt(Math.floor(v))
             Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
