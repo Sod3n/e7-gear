@@ -1,7 +1,25 @@
 package e7.gearscan.overlay
 
 import android.view.MotionEvent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -85,11 +103,59 @@ internal fun Modifier.dragWindow(onMove: (Float, Float) -> Unit, onTap: (() -> U
     }
 }
 
-/** The panel's two parts as one column; the service shows them as two windows (see [OverlayControls]). */
+/** The bubble's gesture: a tap opens it; a drag hands screen deltas and the release speed to [OverlayState.bubbleDrag]. */
+@OptIn(ExperimentalComposeUiApi::class)
+internal fun Modifier.dragBubble(onTap: () -> Unit): Modifier = composed {
+    val slop = LocalViewConfiguration.current.touchSlop
+    // screen positions: the window follows the finger, so positions in it (and VelocityTracker's speed) barely change
+    val g = remember { object { var down = Offset.Zero; var last = Offset.Zero; var moved = false; val trail = ArrayDeque<Pair<Long, Offset>>() } }
+    pointerInteropFilter { e ->
+        val raw = Offset(e.rawX, e.rawY)
+        val drag = OverlayState.bubbleDrag
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> { g.down = raw; g.last = raw; g.moved = false; g.trail.clear(); g.trail.add(e.eventTime to raw); true }
+            MotionEvent.ACTION_MOVE -> {
+                if (!g.moved && (raw - g.down).getDistance() > slop) { g.moved = true; drag?.start() }
+                if (g.moved) drag?.move(raw.x - g.last.x, raw.y - g.last.y)
+                g.last = raw
+                g.trail.add(e.eventTime to raw)
+                while (g.trail.size > 2 && e.eventTime - g.trail.first().first > 80) g.trail.removeFirst()
+                true
+            }
+            MotionEvent.ACTION_UP -> {
+                if (!g.moved) onTap() else releaseSpeed(g.trail, e.eventTime).let { drag?.end(it.x, it.y) }
+                true
+            }
+            MotionEvent.ACTION_CANCEL -> { if (g.moved) drag?.end(0f, 0f); true }
+            else -> false
+        }
+    }
+}
+
+/** px/s over the last moves; none when the finger rested before letting go. */
+private fun releaseSpeed(trail: ArrayDeque<Pair<Long, Offset>>, upAt: Long): Offset {
+    val (t1, p1) = trail.lastOrNull() ?: return Offset.Zero
+    val (t0, p0) = trail.first()
+    if (upAt - t1 > 50 || t1 <= t0) return Offset.Zero
+    return (p1 - p0) * (1000f / (t1 - t0))
+}
+
+/** Opens with a short spring out of the bubble's side, as the phone's own bubbles do. */
+internal fun Modifier.popIn(): Modifier = composed {
+    val k = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { k.animateTo(1f, spring(0.8f, Spring.StiffnessMediumLow)) }
+    val origin = TransformOrigin(if (OverlayState.bubbleLeft) 0f else 1f, 0f)
+    graphicsLayer { alpha = k.value.coerceIn(0f, 1f); scaleX = 0.85f + 0.15f * k.value; scaleY = scaleX; transformOrigin = origin }
+}
+
+/** The panel's two parts as one column; the service shows them as two windows (see [OverlayControls]), and the hint and dismiss target as two more. */
 @Composable
 fun OverlayUi(onMove: (Float, Float) -> Unit, onDock: (Boolean) -> Unit, onClose: () -> Unit) {
-    if (OverlayState.upgrade != null) OverlayTop(onMove, onDock, onClose)
-    else if (!OverlayState.expanded) OverlayTop(onMove, onDock, onClose)
+    if (!OverlayState.expanded) Box(Modifier.fillMaxSize()) {
+        Row(Modifier.align(Alignment.TopEnd), verticalAlignment = Alignment.CenterVertically) { BubbleHint(); OverlayTop(onMove, onDock, onClose) }
+        Box(Modifier.align(Alignment.BottomCenter)) { DismissTarget() }
+    }
+    else if (OverlayState.upgrade != null) OverlayTop(onMove, onDock, onClose)
     else Column(Modifier.width(PANEL_WIDTH.dp), verticalArrangement = Arrangement.spacedBy(PANEL_GAP.dp)) {
         OverlayTop(onMove, onDock, onClose)
         OverlayBody()
@@ -101,14 +167,19 @@ fun OverlayUi(onMove: (Float, Float) -> Unit, onDock: (Boolean) -> Unit, onClose
 fun OverlayTop(onMove: (Float, Float) -> Unit, onDock: (Boolean) -> Unit, onClose: () -> Unit) {
     OverlayState.upgrade?.let { UpgradeOverlay(it, onMove, onDock, onClose); return }
     val b = OverlayState.build ?: return
-    if (!OverlayState.expanded) Bubble(b, onMove, onRelease = { if (OverlayState.closeZone) { OverlayState.closeZone = false; onClose() } }) {
-        OverlayState.expanded = true; onDock(true)
-    }
+    if (!OverlayState.expanded) Bubble(b) { OverlayState.expanded = true; onDock(true) }
     else OverlayControls(b, onMove, { OverlayState.expanded = false; onDock(false) }, onClose)
 }
 
 const val PANEL_WIDTH = 330
 const val PANEL_GAP = 4
+const val BUBBLE = 56
+/** The bubble's window: the bubble with room for its shadow and badge. The hint's window is as tall, so the two line up. */
+const val BUBBLE_BOX = 84
+const val TARGET = 60
+/** The dismiss target's window, with room for the target to grow when it holds the bubble. */
+const val TARGET_BOX = 104
+const val TARGET_MARGIN = 20
 /** Taps pass through an app's overlay only at this opacity or less (Android 12+ blocks them above 0.8); 0 hides the list, keeping the controls. */
 val OPACITY_STEPS = listOf(0.8f, 0.6f, 0.4f, 0f)
 
@@ -127,33 +198,73 @@ private fun nextHint(b: OverlayBuild, i: Int): String {
 }
 
 @Composable
-private fun Bubble(b: OverlayBuild, onMove: (Float, Float) -> Unit, onRelease: () -> Unit, onOpen: () -> Unit) {
+private fun Bubble(b: OverlayBuild, onOpen: () -> Unit) {
+    val doneCount = OverlayState.done.count { it }
+    BubbleShell(doneCount.toFloat() / b.pieces.size.coerceAtLeast(1), C.pink, C.card, "$doneCount/${b.pieces.size}", onOpen) {
+        Face(b.face, BUBBLE.dp, ring = C.card, ringWidth = 3.dp)
+    }
+}
+
+/** The collapsed overlay, shaped like the phone's chat bubbles; the badge sits on the side away from the screen edge. */
+@Composable
+internal fun BubbleShell(progress: Float, ring: Color, track: Color, badge: String?, onTap: () -> Unit, content: @Composable () -> Unit) {
     val s = OverlayState
+    val pop = remember { Animatable(0.4f) }
+    LaunchedEffect(Unit) { pop.animateTo(1f, spring(0.55f, Spring.StiffnessMedium)) }
+    val left by animateFloatAsState(if (s.closing) 0f else 1f, tween(200), label = "bubble-closing")
+    Box(Modifier.size(BUBBLE_BOX.dp).dragBubble(onTap).graphicsLayer { val k = pop.value * left; scaleX = k; scaleY = k; alpha = left },
+        contentAlignment = Alignment.Center) {
+        Box(Modifier.size(BUBBLE.dp).shadow(6.dp, CircleShape).clip(CircleShape).background(C.card).drawWithContent {
+            drawContent()
+            val w = 3.dp.toPx()
+            val inset = Offset(w / 2, w / 2)
+            val arc = Size(size.width - w, size.height - w)
+            drawArc(track, 0f, 360f, false, inset, arc, style = Stroke(w))
+            if (progress > 0f) drawArc(ring, -90f, 360f * progress.coerceAtMost(1f), false, inset, arc, style = Stroke(w, cap = StrokeCap.Round))
+        }, contentAlignment = Alignment.Center) { content() }
+        badge?.let {
+            Text(it, style = dela(10.sp, C.onAccent), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.align(if (s.bubbleLeft) Alignment.TopEnd else Alignment.TopStart).widthIn(max = BUBBLE_BOX.dp).padding(top = 6.dp).clip(RoundedCornerShape(999.dp)).background(C.pink).border(1.5.dp, C.card, RoundedCornerShape(999.dp))
+                .padding(horizontal = 6.dp, vertical = 1.dp))
+        }
+    }
+}
+
+/** The next step, beside the bubble for a few seconds; a window of its own that taps pass through to the game. */
+@Composable
+fun BubbleHint() {
+    val s = OverlayState
+    val b = s.build ?: return
+    if (s.upgrade != null || s.expanded) return
     val doneCount = s.done.count { it }
     val nextAt = s.current.takeIf { it >= 0 }
-    val next = nextAt?.let { b.pieces[it] }
-    // the hint names the next step for a few seconds, then gets out of the game's way
-    var hint by remember { mutableStateOf(true) }
-    LaunchedEffect(next?.item?.id, doneCount) { hint = true; kotlinx.coroutines.delay(5000); hint = false }
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 4.dp, bottom = 8.dp)) {
-        val closing = s.closeZone
-        if (closing || hint) {
-            Text(when {
-                closing -> "Release to close"
-                nextAt != null -> nextHint(b, nextAt)
-                else -> "Tap to record"
-            }, style = zen(12.sp, color = C.card), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 150.dp).clip(RoundedCornerShape(10.dp)).background(if (closing) C.red else C.ink)
-                    .padding(horizontal = 9.dp, vertical = 5.dp))
-            Spacer(Modifier.width(10.dp))
-        }
-        Box(Modifier.dragWindow(onMove, onOpen, onRelease).padding(start = 8.dp, bottom = 6.dp)) {
-            Box(Modifier.size(64.dp).hardShadow(if (closing) C.red else C.pink, 3.dp, 4.dp, 32.dp).clip(CircleShape)
-                .background(if (closing) C.red else C.card).border(3.dp, C.edge, CircleShape),
-                contentAlignment = Alignment.Center) { if (closing) Text("×", style = dela(28.sp, C.card)) else Face(b.face, 48.dp) }
-            Text("$doneCount/${b.pieces.size}", style = dela(11.sp, C.onAccent), modifier = Modifier.align(Alignment.BottomStart).offset((-8).dp, 6.dp)
-                .clip(RoundedCornerShape(999.dp)).background(C.pink).border(2.dp, C.edge, RoundedCornerShape(999.dp))
-                .padding(horizontal = 7.dp, vertical = 1.dp))
+    var shown by remember { mutableStateOf(true) }
+    LaunchedEffect(nextAt?.let { b.pieces[it].item.id }, doneCount) { shown = true; kotlinx.coroutines.delay(5000); shown = false }
+    LaunchedEffect(s.dragging) { if (s.dragging) shown = false }
+    if (!shown) return
+    Box(Modifier.height(BUBBLE_BOX.dp).padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+        Text(nextAt?.let { nextHint(b, it) } ?: "Tap to record", style = zen(12.sp, color = C.card), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 150.dp).shadow(4.dp, RoundedCornerShape(10.dp)).clip(RoundedCornerShape(10.dp)).background(C.ink)
+                .padding(horizontal = 9.dp, vertical = 5.dp))
+    }
+}
+
+/** Rises at the bottom while the bubble is dragged; it pulls the bubble in when close, and dropping it there closes the overlay. */
+@Composable
+fun DismissTarget() {
+    val s = OverlayState
+    val shown by animateFloatAsState(if (s.dragging) 1f else 0f, spring(0.8f, Spring.StiffnessMediumLow), label = "target")
+    val held by animateFloatAsState(if (s.captured) 1f else 0f, spring(0.5f, Spring.StiffnessMedium), label = "target-held")
+    Box(Modifier.size(TARGET_BOX.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(TARGET.dp).graphicsLayer {
+            alpha = shown.coerceIn(0f, 1f); translationY = (1f - shown) * 32.dp.toPx(); scaleX = 1f + 0.3f * held; scaleY = scaleX
+        }.shadow(6.dp, CircleShape).clip(CircleShape).background(lerp(C.ink, C.red, held)).border(2.dp, C.card, CircleShape),
+            contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(18.dp)) {
+                val w = 3.dp.toPx()
+                drawLine(C.card, Offset.Zero, Offset(size.width, size.height), w, StrokeCap.Round)
+                drawLine(C.card, Offset(size.width, 0f), Offset(0f, size.height), w, StrokeCap.Round)
+            }
         }
     }
 }
@@ -164,7 +275,7 @@ private fun OverlayControls(b: OverlayBuild, onMove: (Float, Float) -> Unit, onC
     val s = OverlayState
     LaunchedEffect(s.recorded) { if (s.recorded) { kotlinx.coroutines.delay(1500); onClose() } }
     val shape = RoundedCornerShape(18.dp)
-    Column(Modifier.padding(end = 4.dp).width(PANEL_WIDTH.dp).hardShadow(C.pink, 4.dp, 4.dp, 18.dp).clip(shape).background(C.card)
+    Column(Modifier.popIn().padding(end = 4.dp).width(PANEL_WIDTH.dp).hardShadow(C.pink, 4.dp, 4.dp, 18.dp).clip(shape).background(C.card)
         .border(2.5.dp, C.edge, shape)) {
         Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -233,7 +344,7 @@ fun OverlayBody() {
     // nobody can scroll a window that taps pass through, so the open piece is scrolled into view for them
     LaunchedEffect(s.current, s.tab) { rowTops[s.current]?.let { scroll.animateScrollTo(it) } }
     val max = (LocalConfiguration.current.screenHeightDp - 110).coerceAtLeast(160)
-    Column(Modifier.padding(end = 4.dp).width(PANEL_WIDTH.dp).heightIn(max = max.dp).clip(shape).background(C.card)
+    Column(Modifier.popIn().padding(end = 4.dp).width(PANEL_WIDTH.dp).heightIn(max = max.dp).clip(shape).background(C.card)
         .border(2.5.dp, C.edge, shape).verticalScroll(scroll)) {
         if (s.tab == 0) b.pieces.forEachIndexed { i, p ->
             // a heading each time the hero (pool checklists) or the menu (equip, reforge, modify) changes, so 48 moves read as a few short lists

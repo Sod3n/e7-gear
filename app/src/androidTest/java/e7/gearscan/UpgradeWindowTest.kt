@@ -58,6 +58,8 @@ class UpgradeWindowTest {
         try {
             main { OverlayState.upgrade = tracker; OverlayState.expanded = true; OverlayState.appInFront = false; OverlayService.start(ctx) }
             Thread.sleep(700)
+            // the overlay's compositions run on this rule's clock too: let the panel's opening animation finish
+            rule.mainClock.advanceTimeBy(1000); rule.waitForIdle()
             shell("am start -a android.intent.action.VIEW -d about:blank -p com.android.chrome")
             Thread.sleep(700)
             shot("07-over-browser-portrait")

@@ -666,8 +666,9 @@ class ScreenAudit {
             ui { model.search?.builds?.firstOrNull()?.let { OverlayState.load(model.overlayBuild(hero, it, "Build #1")) } }
             overlay = true
         })
-        steps.add("overlay-bubble-closing" to { ui { OverlayState.closeZone = true } })
-        steps.add("overlay-pieces" to { ui { OverlayState.closeZone = false; OverlayState.expanded = true; OverlayState.tab = 0 } })
+        steps.add("overlay-bubble-dragging" to { ui { OverlayState.dragging = true } })
+        steps.add("overlay-bubble-held" to { ui { OverlayState.captured = true } })
+        steps.add("overlay-pieces" to { ui { OverlayState.dragging = false; OverlayState.captured = false; OverlayState.expanded = true; OverlayState.tab = 0 } })
         steps.add("overlay-list-hidden" to { ui { OverlayState.opacity = 0f } })
         steps.add("overlay-list-shown" to { ui { OverlayState.opacity = 0.8f } })
         steps.add("overlay-done" to { ui { OverlayState.done.indices.take(3).forEach { OverlayState.done[it] = true } } })

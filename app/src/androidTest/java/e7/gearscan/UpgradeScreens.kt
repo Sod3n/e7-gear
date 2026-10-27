@@ -92,6 +92,8 @@ class UpgradeScreens {
         if (Build.VERSION.SDK_INT >= 33) inst.uiAutomation.grantRuntimePermission(ctx.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
         ui { OverlayState.expanded = true; OverlayState.appInFront = false; OverlayService.start(ctx) }
         rule.waitUntil(10_000) { OverlayState.running }
+        // the overlay's compositions run on this rule's clock too: let the panel's opening animation finish
+        rule.mainClock.advanceTimeBy(1000); rule.waitForIdle()
         Thread.sleep(500)
         inst.uiAutomation.takeScreenshot().let { b -> File(shots, "06-system-window.png").outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) } }
         ui { OverlayService.stop(ctx); OverlayState.upgrade = null; OverlayState.appInFront = true }

@@ -14,10 +14,16 @@ import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.spring
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.AndroidUiDispatcher
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -29,6 +35,16 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import e7.gearscan.data.Item
 import e7.gearscan.data.Stat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /** One build to copy in the game, as the floating checklist shows it. */
 class OverlayPiece(
@@ -70,6 +86,13 @@ class OverlayBuild(
     val key get() = pieces.joinToString(",") { "${it.forHero.orEmpty()}:${it.item.id}:${it.mod.orEmpty()}${if (it.reforgeStep) ":reforge" else ""}" }
 }
 
+/** A drag on the bubble, as the bubble reports it: screen deltas, then the finger's speed (px/s) as it lets go. */
+interface BubbleDrag {
+    fun start()
+    fun move(dx: Float, dy: Float)
+    fun end(vx: Float, vy: Float)
+}
+
 /** Shared between the app and the overlay window; both run in the app process. */
 object OverlayState {
     var upgrade: UpgradeTracker? by mutableStateOf(null)
@@ -84,8 +107,18 @@ object OverlayState {
     var opacity by mutableStateOf(0.8f)
     var focus by mutableStateOf(-1)
     var running by mutableStateOf(false)
-    /** The bubble is being dragged over the bottom edge, where letting go closes it. */
-    var closeZone by mutableStateOf(false)
+    /** The bubble is being dragged: the dismiss target shows. */
+    var dragging by mutableStateOf(false)
+    /** The dismiss target holds the dragged bubble; letting go there closes the overlay. */
+    var captured by mutableStateOf(false)
+    /** Dropped on the target: the bubble shrinks away before the overlay closes. */
+    var closing by mutableStateOf(false)
+    /** The bubble rests on the screen's left edge, so its badge and the panel's opening face right. */
+    var bubbleLeft by mutableStateOf(false)
+    /** Moves the bubble's window with the finger; set by the overlay service. */
+    var bubbleDrag: BubbleDrag? = null
+    /** Where the resting bubble is on screen, for tests that drag it. */
+    var bubbleOnScreen: android.graphics.Rect? = null
     /** Records the finished checklist in the app's box; set by whoever loaded the build. */
     var onFinish: (() -> Unit)? = null
     /** E7 Gear itself is on screen: the overlay hides, or it would sit on the app and take its taps. */
@@ -174,8 +207,20 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     /** The panel's list, under the controls: not touchable and at most 80% opaque, so the game gets the taps. */
     private var body: ComposeView? = null
     private lateinit var bodyParams: WindowManager.LayoutParams
-    /** The bubble's place down the right edge (0 top, 1 bottom): low, clear of the game's menus and filter rows, and a share so it stays put when the game turns the screen. */
+    /** The bubble's place down its edge (0 top, 1 bottom): low, clear of the game's menus and filter rows, and a share so it stays put when the game turns the screen. */
     private var bubbleAt = 0.75f
+    /** Shown only while the bubble is dragged; under the bubble's window, so the held bubble sits on top of it. */
+    private var target: ComposeView? = null
+    private lateinit var targetParams: WindowManager.LayoutParams
+    /** The next-step hint beside the bubble, a window of its own so the bubble's window keeps one size wherever it docks. */
+    private var hint: ComposeView? = null
+    private lateinit var hintParams: WindowManager.LayoutParams
+    private val frames = CoroutineScope(SupervisorJob() + AndroidUiDispatcher.Main)
+    private var glide: Job? = null
+    private val glideX = Animatable(0f)
+    private val glideY = Animatable(0f)
+    /** Where the finger would put the bubble's top-left; the bubble leaves it only while the target holds it. */
+    private var finger = Offset.Zero
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -215,6 +260,20 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply { gravity = Gravity.TOP or Gravity.END; alpha = OverlayState.opacity }
+        // not touchable; 0.8 is the most opaque a window can be and still let taps through to the game (Android 12+)
+        fun passThrough() = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply { gravity = Gravity.TOP or Gravity.START; alpha = 0.8f }
+        targetParams = passThrough()
+        hintParams = passThrough()
+        target = composeView { DismissTarget() }.apply { visibility = android.view.View.GONE }
+        hint = composeView { BubbleHint() }
+        OverlayState.closing = false; OverlayState.dragging = false; OverlayState.captured = false
+        OverlayState.bubbleDrag = drag
         body = composeView { OverlayBody() }
         view = composeView {
             OverlayTop(onMove = ::moveBy, onDock = ::dock, onClose = { stopSelf() })
@@ -226,6 +285,8 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         }
         if (OverlayState.expanded) params.width = (338 * d).toInt()
         wm.addView(body, bodyParams)
+        wm.addView(target, targetParams)
+        wm.addView(hint, hintParams)
         wm.addView(view, params)
         OverlayState.onAppInFront = ::hideForApp
         hideForApp(OverlayState.appInFront)
@@ -254,7 +315,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             else params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
         wm.updateViewLayout(v, params)
         // the app may have been in portrait; the game turns the screen while the overlay is hidden
-        if (!hide && !OverlayState.expanded) placeBubble() else placeBody()
+        if (!hide && !OverlayState.expanded) placeBubble() else { placeBody(); placeHint() }
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
@@ -266,10 +327,160 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     private fun placeBubble() {
         val v = view ?: return
-        val h = if (v.height > 0) v.height else (80 * resources.displayMetrics.density).toInt()
+        glide?.cancel()
+        val h = bubbleSize(v)
+        params.gravity = Gravity.TOP or if (OverlayState.bubbleLeft) Gravity.START else Gravity.END
+        params.x = 0
         params.y = ((screen().height() - h) * bubbleAt).toInt().coerceAtLeast(0)
         wm.updateViewLayout(v, params)
         placeBody()
+        placeHint()
+        val o = origin()
+        val left = bubbleLeftEdge(v).toInt()
+        OverlayState.bubbleOnScreen = android.graphics.Rect(o.x + left, o.y + params.y, o.x + left + h, o.y + params.y + h)
+    }
+
+    private fun bubbleSize(v: android.view.View) = if (v.width > 0) v.width else (BUBBLE_BOX * resources.displayMetrics.density).toInt()
+
+    /** The bubble's left edge in [screen] coordinates, whichever edge its gravity counts from. */
+    private fun bubbleLeftEdge(v: android.view.View): Float =
+        if ((params.gravity and Gravity.RELATIVE_HORIZONTAL_GRAVITY_MASK) == Gravity.END) (screen().width() - params.x - bubbleSize(v)).toFloat()
+        else params.x.toFloat()
+
+    /** Puts the bubble's top-left at [x], [y]; while it moves it counts from the left, so it can cross the screen. */
+    private fun putBubble(x: Float, y: Float) {
+        val v = view ?: return
+        params.gravity = Gravity.TOP or Gravity.START
+        params.x = x.roundToInt(); params.y = y.roundToInt()
+        wm.updateViewLayout(v, params)
+    }
+
+    private fun placeHint() {
+        val h = hint ?: return
+        val v = view ?: return
+        h.visibility = if (OverlayState.expanded || OverlayState.appInFront || OverlayState.upgrade != null) android.view.View.GONE else android.view.View.VISIBLE
+        hintParams.gravity = params.gravity
+        hintParams.x = params.x + bubbleSize(v)
+        hintParams.y = params.y
+        wm.updateViewLayout(h, hintParams)
+    }
+
+    private fun targetCenter(): Offset {
+        val r = screen()
+        val d = resources.displayMetrics.density
+        return Offset(r.width() / 2f, r.height() - (TARGET_MARGIN + TARGET_BOX / 2f) * d)
+    }
+
+    /** The bubble's top-left when the target holds it: centred on the target. */
+    private fun targetSpot(v: android.view.View) = targetCenter() - Offset(bubbleSize(v) / 2f, bubbleSize(v) / 2f)
+
+    private fun showTarget(on: Boolean) {
+        val t = target ?: return
+        if (!on) {
+            // after its fade-out; hidden, its window can't keep taps from the game
+            frames.launch { delay(300); if (!OverlayState.dragging) t.visibility = android.view.View.GONE }
+            return
+        }
+        val box = (TARGET_BOX * resources.displayMetrics.density).toInt()
+        val c = targetCenter()
+        targetParams.x = (c.x - box / 2f).roundToInt(); targetParams.y = (c.y - box / 2f).roundToInt()
+        wm.updateViewLayout(t, targetParams)
+        t.visibility = android.view.View.VISIBLE
+    }
+
+    /** Springs the bubble to [x], [y], keeping the speed it has (or [vx], [vy]), then runs [then]. */
+    private fun glideTo(x: Float, y: Float, sx: SpringSpec<Float>, sy: SpringSpec<Float>, vx: Float? = null, vy: Float? = null, then: () -> Unit = {}) {
+        val v = view ?: return
+        val moving = glide?.isActive == true
+        val from = if (moving) Offset(glideX.value, glideY.value) else Offset(bubbleLeftEdge(v), params.y.toFloat())
+        val ivx = vx ?: if (moving) glideX.velocity else 0f
+        val ivy = vy ?: if (moving) glideY.velocity else 0f
+        glide?.cancel()
+        glide = frames.launch {
+            glideX.snapTo(from.x); glideY.snapTo(from.y)
+            coroutineScope {
+                launch { glideX.animateTo(x, sx, ivx) { putBubble(value, glideY.value) } }
+                launch { glideY.animateTo(y, sy, ivy) { putBubble(glideX.value, value) } }
+            }
+            then()
+        }
+    }
+
+    private fun tick(on: Boolean) {
+        val c = if (Build.VERSION.SDK_INT >= 34) {
+            if (on) android.view.HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE else android.view.HapticFeedbackConstants.GESTURE_THRESHOLD_DEACTIVATE
+        } else if (on) android.view.HapticFeedbackConstants.VIRTUAL_KEY else android.view.HapticFeedbackConstants.CLOCK_TICK
+        view?.performHapticFeedback(c)
+    }
+
+    /** Like the phone's chat bubbles: follows the finger, a dismiss target pulls it in, let go it springs to a side edge. */
+    private val drag = object : BubbleDrag {
+        override fun start() {
+            val v = view ?: return
+            finger = if (glide?.isActive == true) Offset(glideX.value, glideY.value) else Offset(bubbleLeftEdge(v), params.y.toFloat())
+            glide?.cancel()
+            putBubble(finger.x, finger.y)
+            OverlayState.dragging = true; OverlayState.captured = false
+            placeHint(); showTarget(true)
+        }
+
+        override fun move(dx: Float, dy: Float) {
+            val v = view ?: return
+            val r = screen()
+            val size = bubbleSize(v)
+            finger = Offset((finger.x + dx).coerceIn(0f, (r.width() - size).toFloat()), (finger.y + dy).coerceIn(0f, (r.height() - size).toFloat()))
+            val held = (finger + Offset(size / 2f, size / 2f) - targetCenter()).getDistance() < MAGNET * resources.displayMetrics.density
+            when {
+                held != OverlayState.captured -> {
+                    OverlayState.captured = held
+                    tick(held)
+                    val to = if (held) targetSpot(v) else finger
+                    glideTo(to.x, to.y, PULL, PULL)
+                }
+                held -> {}
+                // leaving the target, the bubble catches up with the finger
+                glide?.isActive == true -> glideTo(finger.x, finger.y, PULL, PULL)
+                else -> putBubble(finger.x, finger.y)
+            }
+        }
+
+        override fun end(vx: Float, vy: Float) {
+            val v = view ?: return
+            OverlayState.dragging = false
+            showTarget(false)
+            if (OverlayState.captured || flungAtTarget(v, vx, vy)) { dismiss(v); return }
+            val r = screen()
+            val d = resources.displayMetrics.density
+            val size = bubbleSize(v)
+            val x0 = if (glide?.isActive == true) glideX.value else bubbleLeftEdge(v)
+            val y0 = if (glide?.isActive == true) glideY.value else params.y.toFloat()
+            val right = if (abs(vx) > FLING_SIDE * d) vx > 0 else x0 + size / 2f > r.width() / 2f
+            // a critically damped spring stops by itself after v/ω, so that is how far a fling glides
+            val y = (y0 + vy / sqrt(GLIDE.stiffness)).coerceIn(0f, (r.height() - size).toFloat())
+            glideTo(if (right) (r.width() - size).toFloat() else 0f, y, SNAP, GLIDE, vx, vy) {
+                OverlayState.bubbleLeft = !right
+                val maxY = screen().height() - size
+                if (maxY > 0) bubbleAt = (params.y.toFloat() / maxY).coerceIn(0f, 1f)
+                placeBubble()
+            }
+        }
+    }
+
+    /** A hard fling down whose path crosses the target closes, as if dropped on it. */
+    private fun flungAtTarget(v: android.view.View, vx: Float, vy: Float): Boolean {
+        if (vy < FLING_DISMISS * resources.displayMetrics.density) return false
+        val c = Offset(bubbleLeftEdge(v), params.y.toFloat()) + Offset(bubbleSize(v) / 2f, bubbleSize(v) / 2f)
+        val t = targetCenter()
+        if (t.y <= c.y) return false
+        return abs(c.x + vx * (t.y - c.y) / vy - t.x) < MAGNET * resources.displayMetrics.density
+    }
+
+    private fun dismiss(v: android.view.View) {
+        if (!OverlayState.captured) tick(true)
+        OverlayState.closing = true
+        val to = targetSpot(v)
+        glideTo(to.x, to.y, PULL, PULL)
+        frames.launch { delay(260); stopSelf() }
     }
 
     private fun placeBody() {
@@ -296,30 +507,33 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         } else android.util.DisplayMetrics().also { @Suppress("DEPRECATION") wm.defaultDisplay.getMetrics(it) }
             .let { android.graphics.Rect(0, 0, it.widthPixels, it.heightPixels) }
 
-    /** With top-end gravity x grows to the left. */
+    /** Where [screen]'s top-left is on the display. */
+    private fun origin(): android.graphics.Point =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) wm.currentWindowMetrics.windowInsets.getInsetsIgnoringVisibility(
+            android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout()).let { android.graphics.Point(it.left, it.top) }
+        else android.graphics.Point(0, 0)
+
+    /** Drags the open panel. With top-end gravity x grows to the left. */
     private fun moveBy(dx: Float, dy: Float) {
         val v = view ?: return
         val r = screen()
-        val maxY = maxOf(0, r.height() - v.height)
         val fromEnd = (params.gravity and Gravity.RELATIVE_HORIZONTAL_GRAVITY_MASK) == Gravity.END
         params.x = (params.x + if (fromEnd) -dx.toInt() else dx.toInt()).coerceIn(0, maxOf(0, r.width() - v.width))
-        params.y = (params.y + dy.toInt()).coerceIn(0, maxY)
-        if (!OverlayState.expanded && maxY > 0) bubbleAt = params.y.toFloat() / maxY
+        params.y = (params.y + dy.toInt()).coerceIn(0, maxOf(0, r.height() - v.height))
         wm.updateViewLayout(v, params)
         placeBody()
-        // only a bubble pushed against the bottom edge closes; anywhere else on a short landscape screen is a move
-        OverlayState.closeZone = !OverlayState.expanded && params.y >= maxY - (12 * resources.displayMetrics.density).toInt()
     }
 
     private fun dock(expanded: Boolean) {
         val v = view ?: return
+        glide?.cancel()
         val d = resources.displayMetrics.density
         // wrap-content overlays are first measured at dialog width (~320 dp), which would squeeze the panel
         params.width = if (expanded) (338 * d).toInt() else WindowManager.LayoutParams.WRAP_CONTENT
         // open on the left: in the game's gear screens the list to pick from is on the right
         params.gravity = Gravity.TOP or if (expanded) Gravity.START else Gravity.END
         params.x = if (expanded) (14 * d).toInt() else 0
-        if (expanded) { params.y = (6 * d).toInt(); wm.updateViewLayout(v, params); placeBody() } else placeBubble()
+        if (expanded) { params.y = (6 * d).toInt(); wm.updateViewLayout(v, params); placeBody(); placeHint() } else placeBubble()
     }
 
     private fun foreground() {
@@ -342,9 +556,11 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         OverlayState.usableHeightDp = 0f
         OverlayState.onAppInFront = null
         OverlayState.expanded = false
-        view?.let { runCatching { wm.removeView(it) } }
-        body?.let { runCatching { wm.removeView(it) } }
-        view = null; body = null
+        frames.cancel()
+        OverlayState.bubbleDrag = null; OverlayState.bubbleOnScreen = null
+        OverlayState.dragging = false; OverlayState.captured = false; OverlayState.closing = false
+        listOfNotNull(view, body, target, hint).forEach { runCatching { wm.removeView(it) } }
+        view = null; body = null; target = null; hint = null
         OverlayState.running = false
         registry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         super.onDestroy()
@@ -352,6 +568,15 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     companion object {
         const val ACTION_STOP = "e7.gearscan.OVERLAY_STOP"
+        /** dp from the target's centre at which it pulls the bubble in. */
+        private const val MAGNET = 90f
+        /** dp/s: a sideways fling this fast picks the side; slower, the nearer side wins. */
+        private const val FLING_SIDE = 700f
+        /** dp/s: a fling down this fast at the target closes. */
+        private const val FLING_DISMISS = 2500f
+        private val SNAP = spring<Float>(0.75f, 750f)
+        private val GLIDE = spring<Float>(1f, 200f)
+        private val PULL = spring<Float>(0.8f, Spring.StiffnessMedium)
 
         fun start(ctx: Context) { ctx.startForegroundService(Intent(ctx, OverlayService::class.java)) }
         fun stop(ctx: Context) { ctx.stopService(Intent(ctx, OverlayService::class.java)) }

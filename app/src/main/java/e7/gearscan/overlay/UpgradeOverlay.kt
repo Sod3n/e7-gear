@@ -70,12 +70,11 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
     var correction by remember { mutableStateOf(false) }
     val draft = remember(item, t.editing) { if (t.editing) UpgradeDraft(r, correction) else null }
     if (!OverlayState.expanded) {
-        Box(Modifier.dragWindow(onMove, { OverlayState.expanded = true; onDock(true) }, {
-            if (OverlayState.closeZone) { OverlayState.closeZone = false; onClose() }
-        }).padding(4.dp)) {
-            GearTile(item, 64.dp, setIcon = t.setIcon)
-            Box(Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(6.dp)).background(C.pink).padding(horizontal = 5.dp, vertical = 2.dp)) {
-                Text(chanceBadge(t), style = zen(10.sp, color = C.onAccent))
+        // the ring fills with the enhance level, in the piece's rank colour
+        BubbleShell(item.enhance / 15f, rankColor(item.rank), C.onTile.copy(alpha = 0.25f), chanceBadge(t), { OverlayState.expanded = true; onDock(true) }) {
+            Box(Modifier.fillMaxSize().background(C.slate), contentAlignment = Alignment.Center) {
+                GearIcon(item.slot.icon, 30.dp, C.onTile)
+                Text("+${item.enhance}", style = dela(9.sp, C.onTile), modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp))
             }
         }
         return
@@ -85,7 +84,7 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
     val usable = if (OverlayState.usableHeightDp > 0) min(config.screenHeightDp.toFloat(), OverlayState.usableHeightDp) else config.screenHeightDp.toFloat()
     val height = min(280f + (scale - 1f).coerceIn(0f, .5f) * 80, (usable - 12).coerceAtLeast(160f))
     val shape = RoundedCornerShape(16.dp)
-    Column(Modifier.width(PANEL_WIDTH.dp).height(height.dp).clip(shape).background(C.card).border(2.dp, C.edge, shape)
+    Column(Modifier.popIn().width(PANEL_WIDTH.dp).height(height.dp).clip(shape).background(C.card).border(2.dp, C.edge, shape)
         .testTag("gear-tracker-panel").padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.weight(1f).dragWindow(onMove), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
