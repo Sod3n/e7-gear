@@ -45,8 +45,7 @@ fun CleanupScreen(model: AppModel) {
                 PinkButton("Checklist", Modifier.weight(1f), enabled = result.picks.any { it.item.id !in model.cleanupDone }) {
                     // pieces are fed and sold in the game, so the list goes over it; its last step marks them done here
                     if (model.loadCleanupChecklist()) {
-                        if (OverlayState.canDraw(model.getApplication())) { OverlayService.start(model.getApplication()); model.openGame() }
-                        else model.go(Screen.OverlayIntro)
+                        model.startLoadedOverGame()
                     }
                 }
             }

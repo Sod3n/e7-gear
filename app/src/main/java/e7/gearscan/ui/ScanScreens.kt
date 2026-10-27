@@ -235,6 +235,9 @@ fun ScanDataScreen(model: AppModel) {
                 val (uri, name) = model.export("e7gear-backup.json", model.backupText())
                 model.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "application/json") }
             }
+            DataRow("Over the game", if (model.overGameNative) "Phone's floating window · tap to use E7 Gear's panel" else "E7 Gear's panel · tap to use the phone's floating window", true) {
+                model.useOverGameNative(!model.overGameNative)
+            }
             DataRow("Improve heroes", "Pieces worth enhancing for the heroes you've set up", box != null) { model.go(Screen.HeroUpgrades()) }
             DataRow("Gear potential", "Search final substats, sets and slots", box != null) { model.go(Screen.GearPotential) }
             DataRow("Track upgrades", "Record each +3 over the game and check whether to continue", box != null) { model.go(Screen.Upgrade) }

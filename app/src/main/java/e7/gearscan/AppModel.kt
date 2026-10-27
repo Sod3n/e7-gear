@@ -1249,6 +1249,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         configureUpgrade()
         e7.gearscan.overlay.OverlayState.upgrade = upgrades
         e7.gearscan.overlay.OverlayState.expanded = false
+        if (overGameNative) { nativeOverGame(); checkUpgrade(); return }
         if (e7.gearscan.overlay.OverlayState.canDraw(getApplication())) {
             e7.gearscan.overlay.OverlayService.start(getApplication()); checkUpgrade(); openGame()
         } else go(Screen.OverlayIntro)
@@ -1285,7 +1286,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             else upgrades.error = "This piece is no longer in the inventory. Refresh the matches in E7 Gear."
         }
         upgrades.returnToApp = {
-            getApplication<Application>().startActivity(Intent(getApplication(), MainActivity::class.java)
+            // in the phone's floating window the app is already here: show all of it
+            if (floating) floatingPanel = false
+            else getApplication<Application>().startActivity(Intent(getApplication(), MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP))
         }
         upgrades.positionFor = { inventoryPosition(it)?.label() }
@@ -2094,9 +2097,42 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** True when the overlay started; false when the permission screen must come first. */
+    /** Over the game: false = E7 Gear's own overlay (any phone), true = the phone's floating window showing the app's panel. */
+    var overGameNative by mutableStateOf(false)
+    fun useOverGameNative(on: Boolean) { overGameNative = on; if (on) e7.gearscan.overlay.OverlayService.stop(getApplication()); touch() }
+    /** The steps for the phone's floating window were shown once. */
+    var nativeSeen by mutableStateOf(false)
+    /** The app runs in the phone's floating (or split) window. */
+    var floating by mutableStateOf(false)
+    /** In that window with a tracker or checklist loaded: the panel (true) or the whole app. */
+    var floatingPanel by mutableStateOf(true)
+
+    /** The loaded tracker or checklist goes to the phone's floating window: the steps once, then the game. */
+    private fun nativeOverGame() {
+        e7.gearscan.overlay.OverlayService.stop(getApplication())
+        e7.gearscan.overlay.OverlayState.expanded = true
+        floatingPanel = true
+        if (!nativeSeen) { go(Screen.OverlayIntro); return }
+        openGame()
+    }
+
+    /** Opens the loaded checklist over the game the way the player chose, or the intro when the overlay needs its permission. */
+    fun startLoadedOverGame() {
+        val app = getApplication<Application>()
+        if (overGameNative) { nativeOverGame(); return }
+        if (e7.gearscan.overlay.OverlayState.canDraw(app)) { e7.gearscan.overlay.OverlayService.start(app); openGame() } else go(Screen.OverlayIntro)
+    }
+
+    /** Closing the panel in the floating window: the tracker or checklist stays saved, the window shows the app. */
+    fun closeFloatingPanel() {
+        e7.gearscan.overlay.OverlayState.upgrade = null; e7.gearscan.overlay.OverlayState.build = null
+        floatingPanel = true
+    }
+
     fun showOverGame(heroId: Long, b: Build, title: String, flag: String? = null): Boolean {
         val app = getApplication<Application>()
         loadBuildChecklist(heroId, b, title, flag)
+        if (overGameNative) { nativeOverGame(); return true }
         if (!e7.gearscan.overlay.OverlayState.canDraw(app)) return false
         e7.gearscan.overlay.OverlayService.stop(app)
         e7.gearscan.overlay.OverlayService.start(app)
@@ -2213,7 +2249,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         put("tiers", JSONObject().apply { tiers.forEach { (k, v) -> put(k.toString(), v) } }); put("team", JSONArray(team))
         put("configs", JSONObject().apply { configs.forEach { (k, v) -> put(k.toString(), v.toJson()) } })
         put("showRating", showRating.name)
-        put("overlaySeen", overlaySeen)
+        put("overlaySeen", overlaySeen); put("overGameNative", overGameNative); put("nativeSeen", nativeSeen)
         put("poolTiers", JSONArray(poolTiers.toList())); put("poolExtra", JSONArray(poolExtra.toList()))
         put("poolSkip", JSONArray(poolSkip.toList())); put("poolLosses", poolLosses.name); put("poolEffort", poolEffort.name)
         pendingPool?.let { put("pendingPool", it) }
@@ -2262,6 +2298,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         } }
         showRating = runCatching { Rating.valueOf(j.optString("showRating")) }.getOrDefault(Rating.DMG)
         overlaySeen = j.optBoolean("overlaySeen")
+        overGameNative = j.optBoolean("overGameNative"); nativeSeen = j.optBoolean("nativeSeen")
         j.optJSONArray("poolTiers")?.let { a -> poolTiers = (0 until a.length()).map(a::getInt).toSet() }
         poolExtra = longs("poolExtra").toSet()
         poolSkip = longs("poolSkip").toSet()

@@ -96,7 +96,9 @@ object OverlayState {
     /** Ticks of the last few checklists, so closing the checklist or the app doesn't lose them; set by the app. */
     var progressFile: java.io.File? = null
 
-    val listHidden get() = opacity == 0f
+    val listHidden get() = opacity == 0f && !native
+    /** Drawn inside the app's own window (the phone's floating window), not E7 Gear's overlay: the system moves and sizes it. */
+    var native by mutableStateOf(false)
 
     fun load(b: OverlayBuild, onFinish: (() -> Unit)? = null) {
         upgrade = null

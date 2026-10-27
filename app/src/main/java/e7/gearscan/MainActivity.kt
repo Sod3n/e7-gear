@@ -35,11 +35,25 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         setContent { App(model) { finish() } }
+        updateFloating()
+    }
+
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
+        updateFloating()
+    }
+
+    /** In the phone's floating or split window the app follows the window; full screen it stays portrait. */
+    private fun updateFloating() {
+        model.floating = isInMultiWindowMode
+        requestedOrientation = if (isInMultiWindowMode) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
     }
 
     override fun onResume() {
         super.onResume()
         e7.gearscan.overlay.OverlayState.appInFront = true
+        updateFloating()
         model.resumed()
     }
 

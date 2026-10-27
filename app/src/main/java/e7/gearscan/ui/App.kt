@@ -28,7 +28,15 @@ fun App(model: AppModel, onExit: () -> Unit) {
     BackHandler { if (!model.back()) onExit() }
     if (!model.ready) { Box(Modifier.fillMaxSize().background(C.paper)); return }
     if (model.content.heroes.isEmpty()) { GameDataScreen(model); return }
-    Box(Modifier.fillMaxSize()) {
+    // in the phone's floating window, a loaded tracker or checklist is all the window shows
+    val loaded = e7.gearscan.overlay.OverlayState.upgrade != null || e7.gearscan.overlay.OverlayState.build != null
+    if (model.floating && model.floatingPanel && loaded) { FloatingPanel(model); return }
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+    // the whole app in the floating window: a slim bar above it goes back to the panel, covering nothing
+    if (model.floating && loaded) Row(Modifier.fillMaxWidth().background(C.pink).tap { model.floatingPanel = true }.padding(horizontal = 14.dp, vertical = 7.dp)) {
+        Text("‹ Back to the " + if (e7.gearscan.overlay.OverlayState.upgrade != null) "tracker" else "checklist", style = zen(13.sp, color = C.onAccent))
+    }
+    Box(Modifier.fillMaxWidth().weight(1f)) {
         when (val s = model.screen) {
             Screen.ScanIntro -> ScanIntroScreen(model)
             Screen.ScanData -> ScanDataScreen(model)
@@ -54,6 +62,7 @@ fun App(model: AppModel, onExit: () -> Unit) {
         }
         SheetHost(model)
         ToastHost(model, Modifier.align(Alignment.BottomCenter))
+    }
     }
 }
 
