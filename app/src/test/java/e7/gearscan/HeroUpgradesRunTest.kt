@@ -64,6 +64,21 @@ class HeroUpgradesRunTest {
                 b.value?.let { "%.2f".format(it) } ?: "none", if (b.timedOut) " (timed out)" else "", mine.size, top))
         }
 
+        // one tracked piece: first check (every hero's build without it) and a recheck after a recorded step (cached)
+        for (id in listOfNotNull(System.getenv("E7_PIECE")?.toLong(), r.picks.maxByOrNull { it.values.size }?.piece)) {
+            val p = pieces.firstOrNull { it.id == id } ?: continue
+            val without = java.util.concurrent.ConcurrentHashMap<Long, HeroUpgrades.Base>()
+            for (pass in listOf("first", "recheck")) {
+                val t = System.nanoTime()
+                val pr = HeroUpgrades(120).piece(setups, p, without, threads = threads)
+                val union = pr.flatMap { it.hits.keys }.toSet().size
+                println("piece $id +${p.enhance} $pass: ${pr.size} heroes, %.1f s, upgrade in $union/120 finishes; ".format((System.nanoTime() - t) / 1e9) +
+                    pr.filter { it.hits.isNotEmpty() || it.now }.joinToString("; ") { h ->
+                        "${setups.first { it.hero.id == h.hero }.game.name} ${h.hits.size}/120${if (h.now) " now" else ""} min=" +
+                            h.minimal.joinToString(" | ") { q -> q.subs.joinToString(" ") { "${it.type.short}${it.type.format(it.value)}" } } })
+            }
+        }
+
         // spot check: a single-finish search must agree with the fast answer
         val rnd = Random(11)
         val all = HeroUpgrades.finishes(pieces, sims)

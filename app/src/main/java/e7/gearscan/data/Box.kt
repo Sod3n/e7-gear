@@ -45,6 +45,26 @@ class Box(val json: JSONObject) {
         rawItems[item.id]?.put("l", locked)
     }
 
+    /**
+     * Recorded stats (manual upgrades, a reforge) over the scanned ones; a new scan replaces them. Rebuild the box from [json]
+     * to read them. Returns the item's JSON before, for [restore].
+     */
+    fun writeStats(item: Item): JSONObject? {
+        val raw = rawItems[item.id] ?: return null
+        val before = JSONObject(raw.toString())
+        val j = UpgradeRecord.itemJson(item)
+        // gear.txt keeps an unfinished piece's main at its +15 value (op is the base)
+        if (item.enhance < 15 && item.main15.isFinite()) j.getJSONObject("main").put("value", item.main15)
+        for (k in listOf("level", "enhance", "main", "substats", "op")) if (j.has(k)) raw.put(k, j.get(k)) else raw.remove(k)
+        return before
+    }
+
+    fun restore(id: Long, before: JSONObject) {
+        val raw = rawItems[id] ?: return
+        raw.keys().asSequence().toList().forEach { raw.remove(it) }
+        before.keys().forEach { raw.put(it, before.get(it)) }
+    }
+
     /** Unique Lv.85 equipment uses the un-upgradeable main-stat family (Gaveleet); explicit import metadata wins. */
     fun canReforge(id: Long): Boolean {
         val item = itemsById[id] ?: return false

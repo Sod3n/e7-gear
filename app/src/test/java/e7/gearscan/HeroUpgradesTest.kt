@@ -129,6 +129,64 @@ class HeroUpgradesTest {
         assertEquals(first.picks.single().values, again.picks.single().values)
     }
 
+    // ---- one piece being enhanced ----
+
+    @Test fun aTrackedPieceCountsTheFinishesThatBeatWhatTheHeroWearsAndNamesTheWeakestOnes() {
+        val candidate = piece(1, Slot.HELMET, 0, listOf(GearStat.SPD to 9.0, GearStat.ATK_P to 4.0, GearStat.DEF_P to 4.0, GearStat.EFF to 4.0))
+        val s = setup(worn() + candidate, speedGoal())
+        val without = java.util.concurrent.ConcurrentHashMap<Long, HeroUpgrades.Base>()
+        val r = HeroUpgrades(120).piece(listOf(s), candidate, without).single()
+        val finishes = HeroUpgrades.finishes(listOf(candidate), 120)
+        assertFalse(r.now)
+        assertEquals(finishes.indices.filter { speedOf(finishes[it]) > 10.0 }.toSet(), r.hits.keys)
+        assertEquals(120, r.total); assertEquals(0, r.unknown)
+        assertTrue(without.containsKey(hero.id))
+        // every finish that is an upgrade is at least as strong as one of the weakest, in every line
+        fun atLeast(a: Item, b: Item) = a.subs.all { x -> x.value >= (b.subs.firstOrNull { it.type == x.type }?.value ?: 0.0) }
+        val upgrades = r.hits.keys.map { finishes[it] }
+        assertTrue(r.minimal.isNotEmpty() && r.minimal.all { m -> upgrades.any { it.subs.map { s -> s.value } == m.subs.map { s -> s.value } } })
+        val all = HeroUpgrades.minimal(upgrades, n = 1000)
+        assertTrue(upgrades.all { u -> all.any { m -> atLeast(u, m) } })
+        assertTrue(all.none { m -> upgrades.any { u -> u !== m && atLeast(m, u) && !atLeast(u, m) } })
+    }
+
+    @Test fun aRecordedStepThatAlreadyBeatsTheWornPieceRaisesTheBarToItself() {
+        val scanned = piece(1, Slot.HELMET, 0, listOf(GearStat.SPD to 9.0, GearStat.ATK_P to 4.0, GearStat.DEF_P to 4.0, GearStat.EFF to 4.0))
+        val s = setup(worn() + scanned, speedGoal())
+        val recorded = piece(1, Slot.HELMET, 12, listOf(GearStat.SPD to 13.0, GearStat.ATK_P to 4.0, GearStat.DEF_P to 4.0, GearStat.EFF to 4.0))
+        val r = HeroUpgrades(120).piece(listOf(s), recorded, java.util.concurrent.ConcurrentHashMap()).single()
+        assertTrue(r.now)
+        val finishes = HeroUpgrades.finishes(listOf(recorded), 120)
+        // one roll left: only finishes faster than the piece as it is now count
+        assertEquals(finishes.indices.filter { speedOf(finishes[it]) > 13.0 }.toSet(), r.hits.keys)
+        val finished = piece(1, Slot.HELMET, 15, listOf(GearStat.SPD to 13.0, GearStat.ATK_P to 4.0, GearStat.DEF_P to 4.0, GearStat.EFF to 4.0))
+        val done = HeroUpgrades(120).piece(listOf(s), finished, java.util.concurrent.ConcurrentHashMap()).single()
+        assertTrue(done.now); assertEquals(0, done.total); assertTrue(done.hits.isEmpty())
+        assertTrue(done.changes, done.changes.startsWith("Spd +3"))
+    }
+
+    @Test fun aRecordedReforgeUsesTheGamesTablesAndItsGearWritesIntoTheBoxAndBack() {
+        val finished = piece(1, Slot.HELMET, 15, listOf(GearStat.SPD to 14.0, GearStat.HP_P to 9.0, GearStat.CR to 4.0, GearStat.CD to 5.0))
+        val rolls = listOf(4, 2, 1, 1)
+        val withRolls = Item(finished.id, finished.slot, finished.set, finished.rank, 85, 15, finished.mainType, finished.mainValue,
+            finished.subs.mapIndexed { i, s -> Substat(s.type, s.value, rolls[i], false) }, false, null, main15 = finished.mainValue)
+        val r = UpgradeRecord(7, listOf(withRolls)).reforged()
+        val q = r.item
+        assertEquals(90, q.level); assertEquals(2835.0, q.mainValue, 0.0)
+        // Lv85 reforge bonus by rolls: speed 4 rolls +3, hp% 2 rolls +3, crit 1 roll +1, crit damage 1 roll +1
+        assertEquals(listOf(17.0, 12.0, 5.0, 6.0), q.subs.map { it.value })
+        assertFalse(q.reforgeable)
+        assertTrue(runCatching { UpgradeRecord(7, listOf(piece(2, Slot.HELMET, 12, finished.subs.map { it.type to it.value }))).reforged() }.isFailure)
+        assertEquals(withRolls.subs.map { it.value }, r.undo().item.subs.map { it.value })
+
+        val box = Box(JSONObject().put("items", JSONArray(listOf(withRolls).map(UpgradeRecord::itemJson))).put("heroes", JSONArray()))
+        val before = box.writeStats(q)!!
+        val written = Box(box.json).itemsById.getValue(q.id)
+        assertEquals(90, written.level); assertEquals(q.subs.map { it.value }, written.subs.map { it.value }); assertEquals(2835.0, written.mainValue, 0.0)
+        box.restore(q.id, before)
+        assertEquals(withRolls.subs.map { it.value }, Box(box.json).itemsById.getValue(q.id).subs.map { it.value })
+    }
+
     // ---- the engine's distinct slot ----
 
     private val subPool = listOf(GearStat.SPD, GearStat.CR, GearStat.CD, GearStat.ATK_P, GearStat.HP_P, GearStat.DEF_P, GearStat.EFF, GearStat.HP)

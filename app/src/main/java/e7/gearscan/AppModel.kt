@@ -116,6 +116,8 @@ const val HISTORY_BUILDS = 10
 
 /** Time cap per hero in a pool run; top-1 searches usually finish far sooner. */
 const val POOL_HERO_MS = 6_000L
+/** Simulated finishes the tracker checks a piece with: the chance it ends up an upgrade, and its weakest helping finishes. */
+const val PIECE_SIMS = 120
 /** Cleanup keeps this many pieces of each kind for each stat pair. */
 const val CLEANUP_KEEP = 2
 /** Random-finish rounds in which cleanup looks for pieces that help only together. */
@@ -1265,6 +1267,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         upgrades.setIcon = content.set(item.set)?.icon
         upgrades.setName = content.set(item.set)?.name
         upgrades.requestCheck = ::checkUpgrade
+        upgrades.canReforge = { id -> box?.canReforge(id) == true }
+        upgrades.equipOn = ::equipTracked
         upgrades.selectQueue = { index ->
             val entry = upgrades.pendingQueue.getOrNull(index)
             val original = entry?.let { box?.itemsById?.get(it.id) }?.takeIf { it.id !in cleanupDone }
@@ -1331,37 +1335,106 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             val cfg = HeroConfig.fromJson(s.cfg.toJson())
             Setup(s.hero, s.game, cfg, s.req.copy(), b, content, s.canTakeFrom, s.excluded - r.item.id)
         }
-        val raw = "upgrade-v1-current-level|" + b.toText() + content.version + r.toJson().toString() + setups.joinToString { s -> s.hero.id.toString() + s.cfg.toJson() + s.req.toJson() + s.excluded.sorted() }
-        val sig = java.security.MessageDigest.getInstance("SHA-256").digest(raw.toByteArray()).joinToString("") { "%02x".format(java.util.Locale.US, it) }
+        val raw = "upgrade-v2-piece|" + b.toText() + content.version + r.toJson().toString() + setups.joinToString { s -> s.hero.id.toString() + s.cfg.toJson() + s.req.toJson() + s.excluded.sorted() }
+        val sig = sha256(raw)
+        // each hero's best build without the piece holds for every step recorded on it
+        val withoutKey = sha256("without-v1|${r.item.id}|" + JSONArray(b.items.filter { it.id != r.item.id }.map { e7.gearscan.data.UpgradeRecord.itemJson(it) }) +
+            content.version + setups.joinToString { s -> s.hero.id.toString() + s.cfg.toJson() + s.req.toJson() + s.excluded.sorted() })
+        if (pieceWithout?.first != withoutKey) pieceWithout = withoutKey to java.util.concurrent.ConcurrentHashMap()
+        val without = pieceWithout!!.second
         val token = ++upgrades.generation
         upgrades.begin(sig, setups.size)
         if (setups.isEmpty()) return
         val resume = upgrades.results.filter { it.unknown == 0 && !it.provisional }
-        val heroBudget = 3500L shl upgrades.attempt
         if (resume.size == setups.size) { upgrades.busy = false; return }
         PoolService.start(getApplication(), "Checking this upgrade") {
             viewModelScope.launch { upgrades.generation++; upgrades.busy = false; PoolService.stop(getApplication()) }
         }
         viewModelScope.launch {
             try {
-                val result = withContext(Dispatchers.Default) {
-                    e7.gearscan.opt.UpgradeCheck(heroMs = heroBudget).check(r.item, setups, resume, cancelled = { upgrades.generation != token }) { checkpoint ->
-                        kotlinx.coroutines.runBlocking(Dispatchers.Main) {
+                val t0 = System.nanoTime()
+                val done = java.util.Collections.synchronizedList(ArrayList<e7.gearscan.opt.UpgradeCheck.HeroResult>(resume))
+                withContext(Dispatchers.Default) {
+                    e7.gearscan.opt.HeroUpgrades(PIECE_SIMS).piece(setups, r.item, without, upgrades.attempt, resume.map { it.id }.toSet(),
+                        cancelled = { upgrades.generation != token }) { pr ->
+                        done += pieceAdvice(pr)
+                        val now = synchronized(done) { done.toList() }
+                        viewModelScope.launch {
                             if (upgrades.generation == token) {
-                                upgrades.checkpoint(checkpoint)
-                                PoolService.progress(getApplication(), "${checkpoint.size}/${setups.size} heroes", checkpoint.size, setups.size)
-                                android.util.Log.i("E7Upgrade", "checkpoint ${checkpoint.size}/${setups.size} for ${r.item.id} +${r.item.enhance}")
+                                upgrades.checkpoint(now)
+                                PoolService.progress(getApplication(), "${now.size}/${setups.size} heroes", now.size, setups.size)
                             }
                         }
                     }
                 }
                 if (upgrades.generation == token) {
-                    upgrades.checkpoint(result); upgrades.busy = false
-                    android.util.Log.i("E7Upgrade", "checked ${result.size}/${setups.size} heroes, ${upgrades.hitCount}/30 finishes for piece ${r.item.id} +${r.item.enhance}")
+                    upgrades.checkpoint(synchronized(done) { done.toList() }); upgrades.busy = false
+                    android.util.Log.i("E7Upgrade", "checked ${upgrades.results.size}/${setups.size} heroes, ${upgrades.hitCount}/${upgrades.total} finishes for piece " +
+                        "${r.item.id} +${r.item.enhance}, %.1f s".format(java.util.Locale.US, (System.nanoTime() - t0) / 1e9))
                 }
             } catch (e: Exception) {
                 if (upgrades.generation == token) { upgrades.busy = false; upgrades.error = "Check stopped. Recorded steps are saved; tap Recheck to continue." }
             } finally { if (upgrades.generation == token) PoolService.stop(getApplication()) }
+        }
+    }
+
+    private var pieceWithout: Pair<String, java.util.concurrent.ConcurrentHashMap<Long, e7.gearscan.opt.HeroUpgrades.Base>>? = null
+
+    /** One hero's part of the tracker's advice, with its gains and weakest helping finishes as text. */
+    private fun pieceAdvice(pr: e7.gearscan.opt.HeroUpgrades.PieceResult): e7.gearscan.opt.UpgradeCheck.HeroResult {
+        val values = pr.hits.values.sortedDescending()
+        val nowValue = pr.bar.value
+        return e7.gearscan.opt.UpgradeCheck.HeroResult(pr.hero, hero(pr.hero)?.let(::heroName) ?: "", pr.hits.keys.sorted(), pr.now, false, pr.unknown,
+            pr.provisional, if (pr.now && nowValue != null) pr.without.value?.let { (nowValue - it) / pr.without.unit } ?: 1.0 else null, pr.changes, pr.total,
+            pr.minimal.map { q -> q.subs.joinToString(" · ") { "${it.type.short} ${it.type.format(it.value)}" } },
+            values.getOrNull(values.size / 2)?.let { heroGainLabel(pr.hero, pr.bar, it) }.orEmpty(),
+            if (pr.now && nowValue != null) heroGainLabel(pr.hero, pr.without, nowValue) else "")
+    }
+
+    /** A build value over [base] as the player reads it: match points on targets, else the goal's own unit. */
+    fun heroGainLabel(id: Long, base: e7.gearscan.opt.HeroUpgrades.Base, value: Double): String {
+        val v0 = base.value ?: return "makes a build"
+        val req = configs[id]?.request ?: return ""
+        val d = value - v0
+        fun one(x: Double) = fmtNum(Math.round(x * 10) / 10.0)
+        return when (req.goal) {
+            Goal.TARGETS -> mainsOnly(id, req)?.let { floor -> rolls(id)?.let { roll ->
+                e7.gearscan.data.Match.start(floor, req.targets, req.weights, roll).takeIf { it > 0 }?.let { "+${one(100 * d / it)} match" } } }
+                ?: "+${one(d / base.unit)} rolls"
+            Goal.SPEED -> "+${one(d)} speed"
+            Goal.GEAR_SCORE -> "+${one(d)} score"
+            Goal.DAMAGE -> "+${one(100 * d / kotlin.math.abs(v0))}% damage"
+            Goal.EHP -> "+${one(100 * d / kotlin.math.abs(v0))}% EHP"
+            Goal.CP -> "+${one(100 * d / kotlin.math.abs(v0))}% CP"
+        }
+    }
+
+    /**
+     * The tracked piece as recorded, now worn by [heroId]: its stats and owner go into the box (a new scan replaces them), the
+     * hero's piece in that slot goes to the bag. Undo in the tracker puts everything back.
+     */
+    fun equipTracked(heroId: Long) {
+        val b = box ?: return
+        val r = upgrades.record ?: return
+        if (r.scan != lastScan || b.itemsById[r.item.id] == null) { upgrades.error = "Your scan changed. Choose the piece again."; return }
+        val owner = b.itemsById.getValue(r.item.id).equippedOn
+        val displaced = b.gearOf(heroId)[r.item.slot]?.takeIf { it.id != r.item.id }
+        val before = b.writeStats(r.item) ?: return
+        val next = Box(b.json)
+        next.itemsById[r.item.id]?.let { next.setEquipped(it, heroId) }
+        displaced?.let { d -> next.itemsById[d.id]?.let { next.setEquipped(it, null) } }
+        box = next; inventoryKey = null; touch(); saveBox(); save()
+        val name = hero(heroId)?.let(::heroName) ?: "the hero"
+        upgrades.equippedOn = name
+        upgrades.undoEquip = {
+            box?.let { cur ->
+                cur.restore(r.item.id, before)
+                val back = Box(cur.json)
+                back.itemsById[r.item.id]?.let { back.setEquipped(it, owner) }
+                displaced?.let { d -> back.itemsById[d.id]?.let { back.setEquipped(it, heroId) } }
+                box = back; inventoryKey = null; touch(); saveBox(); save()
+            }
+            upgrades.undoEquip = null; upgrades.equippedOn = null
         }
     }
 
@@ -2104,6 +2177,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         e7.gearscan.data.Http.agent = "E7Gear/$appVersion"
         e7.gearscan.overlay.OverlayState.progressFile = File(files, "checklist.json")
         upgrades.requestCheck = ::checkUpgrade
+        upgrades.canReforge = { id -> box?.canReforge(id) == true }
+        upgrades.equipOn = ::equipTracked
         refreshUpgradePosition()
         viewModelScope.launch {
             val loaded = withContext(Dispatchers.IO) { readFiles() }

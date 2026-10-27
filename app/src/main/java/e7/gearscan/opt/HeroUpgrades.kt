@@ -201,6 +201,81 @@ class HeroUpgrades(private val sims: Int = SIMS, private val baseMs: Long = 4000
         return Result(checks.associate { it.s.hero.id to it.base }, picks, unknownSteps, pieces.size, sims)
     }
 
+    /**
+     * One piece being enhanced, for one hero. [bar]: the better of the hero's best build without the piece ([without]) and
+     * its best build with the piece as it is now; [now]: the piece as it is already beats the first. [hits]: finish index ->
+     * build value, finishes from [Finish.of] the piece as it is now; [minimal]: the weakest finishes that still beat the bar.
+     */
+    class PieceResult(val hero: Long, val without: Base, val bar: Base, val now: Boolean, val hits: Map<Int, Double>, val unknown: Int,
+                      val total: Int, val minimal: List<Item>, val changes: String) {
+        val provisional get() = bar.timedOut
+    }
+
+    /**
+     * [current]: the piece as recorded now, whose id is its box id. Each hero with a setup that may wear it gets a [PieceResult],
+     * handed to [done] as soon as it is ready. [without] keeps each hero's best build without the piece between calls: recording
+     * a step changes only the piece, so only its own slot is searched again. Heroes in [skip] are left out.
+     */
+    fun piece(setups: List<Setup>, current: Item, without: MutableMap<Long, Base>, attempt: Int = 0, skip: Set<Long> = emptySet(),
+              threads: Int = Runtime.getRuntime().availableProcessors(), cancelled: () -> Boolean = { false },
+              done: (PieceResult) -> Unit = {}): List<PieceResult> {
+        val baseBudget = baseMs shl attempt
+        val stepBudget = slotMs shl attempt
+        val sl = current.slot
+        // ids no box item has: the piece as it is, and its finishes (-1 - j)
+        val now = Item(-1_000_000L, sl, current.set, current.rank, current.level, current.enhance, current.mainType, current.mainValue,
+            current.subs, current.locked, current.equippedOn, main15 = current.main15)
+        val finishes = if (current.enhance >= 15) emptyList() else finishes(listOf(current), sims)
+        val ex = Executors.newFixedThreadPool(threads.coerceAtLeast(1))
+        try {
+            return ex.invokeAll(setups.filter { it.hero.id !in skip }.map { s0 -> Callable<PieceResult?> {
+                if (cancelled() || stopped) return@Callable null
+                val req = s0.req
+                if (current.id in s0.excluded || (!req.allowLocked && current.locked && current.equippedOn != s0.hero.id) ||
+                    req.mains[sl].let { !it.isNullOrEmpty() && current.mainType !in it } ||
+                    (req.setAlts.isNotEmpty() && req.setAlts.all { it.values.sum() >= 6 } && req.setAlts.none { current.set in it })) {
+                    // a hero that can't wear it is settled too: nothing to gain
+                    val none = Base(s0.hero.id, null, emptyList(), false, 1.0, 0)
+                    return@Callable PieceResult(s0.hero.id, none, none, false, emptyMap(), 0, finishes.size, emptyList(), "").also(done)
+                }
+                // the piece never comes from the box: its old self is excluded, its present self is [now]
+                val s = Setup(s0.hero, s0.game, s0.cfg, req, s0.box, s0.content, s0.canTakeFrom, s0.excluded + current.id)
+                val w = without[s.hero.id]?.takeIf { !it.timedOut || it.budget >= baseBudget } ?: baseline(s, baseBudget).also {
+                    if (!cancelled() && !stopped) without[s.hero.id] = it
+                }
+                val forced = Setup(s.hero, s.game, s.cfg, req, s.box, s.content, s.canTakeFrom, s.excluded + s.box.items.filter { it.slot == sl }.map { it.id })
+                val withNow = SearchRun(forced, 1, extra = listOf(now), startThreshold = w.value ?: Double.NEGATIVE_INFINITY)
+                search(withNow, stepBudget)
+                val c = withNow.builds().firstOrNull()
+                val beats = c != null && (w.value == null || c.value > w.value + MIN_GAIN * w.unit)
+                val top = if (c != null && (w.value == null || c.value > w.value)) c.value else w.value
+                val bar = Base(s.hero.id, top, if (top == c?.value && c != null) c.items.map { it.id } else w.items,
+                    w.timedOut || withNow.engine.timedOut, unit(s, top), baseBudget)
+                val check = Check(s, bar)
+                val step = if (finishes.isEmpty() || bar.unresolved) Step(emptyMap(), emptyMap(), emptyList(), stepBudget)
+                    // the step needs a piece the hero's exclusions don't name; its finishes are the ones above
+                    else check.step(sl, listOf(0), listOf(now), finishes, stepBudget, 1) { cancelled() || stopped }
+                if (cancelled() || stopped) return@Callable null
+                val hits = step.hits.filterValues { it > bar.bar }
+                val barItems = bar.items.map { id -> if (id == now.id) now else s.box.itemsById[id] }.takeIf { it.size == 6 && it.all { x -> x != null } }?.map { it!! }
+                val bestIds = step.best[0] ?: c?.takeIf { beats }?.items?.map { it.id }
+                val bestItems = bestIds?.map { id -> when { id == now.id -> now; id < 0 -> finishes[simIndex(id)]; else -> s.box.itemsById[id] } }
+                    ?.takeIf { it.all { x -> x != null } }?.map { it!! }
+                val compare = if (step.best[0] != null) barItems else w.items.mapNotNull { s.box.itemsById[it] }.takeIf { it.size == 6 }
+                val changes = if (compare != null && bestItems != null) {
+                    val a = s.build(compare).final.stats; val b = s.build(bestItems).final.stats
+                    Stat.entries.filter { it.ordinal in check.cares }.mapNotNull { stat ->
+                        val delta = b[stat.ordinal] - a[stat.ordinal]
+                        if (kotlin.math.abs(delta) < 0.5) null else "${stat.short} ${if (delta > 0) "+" else ""}${e7.gearscan.data.fmtNum(kotlin.math.round(delta))}"
+                    }.joinToString(" · ")
+                } else ""
+                PieceResult(s.hero.id, w, bar, beats, hits, step.unknown.size, finishes.size, minimal(hits.keys.map { finishes[it] }), changes).also(done)
+            } }).mapNotNull { it.get() }
+        } finally {
+            ex.shutdownNow()
+        }
+    }
+
     private fun baseline(s: Setup, budget: Long): Base {
         val r = SearchRun(s, 1)
         search(r, budget)
@@ -345,6 +420,15 @@ class HeroUpgrades(private val sims: Int = SIMS, private val baseMs: Long = 4000
         }
 
         fun simIndex(id: Long) = (-1L - id).toInt()
+
+        /** Of [finishes] (one piece's), those no other one undercuts in every line: the weakest ones, at most [n], weakest first. */
+        fun minimal(finishes: List<Item>, n: Int = 3): List<Item> {
+            fun v(q: Item, t: e7.gearscan.data.GearStat) = q.subs.firstOrNull { it.type == t }?.value ?: 0.0
+            fun atMost(a: Item, b: Item) = (a.subs + b.subs).map { it.type }.toSet().all { v(a, it) <= v(b, it) }
+            return finishes.filter { a -> finishes.none { b -> atMost(b, a) && !atMost(a, b) } }
+                .distinctBy { q -> q.subs.map { it.type to it.value } }
+                .sortedBy { q -> q.subs.sumOf { it.value / Finish.range(it.type, q.level).last } }.take(n)
+        }
 
         /** A piece at least as good in every stat as each of [finishes] (same piece, so same slot, set and main). */
         fun envelope(finishes: List<Item>, id: Long): Item {

@@ -26,7 +26,7 @@ import e7.gearscan.ui.*
 import kotlin.math.floor
 import kotlin.math.min
 
-private enum class UpgradePane { PIECE, LIST, MENU, GOAL, HISTORY, HELP, ADVICE }
+private enum class UpgradePane { PIECE, LIST, MENU, GOAL, HISTORY, HELP, ADVICE, EQUIP }
 private enum class EntryPage { CHOOSE, VALUE, REVIEW, STEP }
 
 /** A draft stays separate from saved observations until the explicit Save action. */
@@ -99,6 +99,7 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                 FitText(chanceBadge(t), dela(12.sp, C.blue))
             }
             if(t.canUndoSold&&!t.sellQueueComplete&&!t.editing)PanelAction("Undo",Modifier.width(38.dp),label="Undo sold mark") { t.undoSold?.invoke();pane=UpgradePane.PIECE }
+            else if (t.undoEquip != null && !t.editing) PanelAction("Undo", Modifier.width(38.dp), label = "Undo equip") { t.undoEquip?.invoke(); pane = UpgradePane.PIECE }
             PanelAction("–", Modifier.width(30.dp), label = "Collapse tracker") { OverlayState.expanded = false; onDock(false) }
             PanelAction("×", Modifier.width(30.dp), label = "Close tracker", click = onClose)
         }
@@ -132,6 +133,9 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                 pane == UpgradePane.HISTORY -> HistoryPage(r, maxHeight.value, t.goal?.minimums?.keys ?: emptySet())
                 pane == UpgradePane.HELP -> PanelTextPages(helpText(t), maxHeight.value)
                 pane == UpgradePane.ADVICE -> PanelTextPages(adviceText(t), maxHeight.value)
+                pane == UpgradePane.EQUIP -> PanelChoices(t.equipHeroes.map { "${it.name} · ${it.nowGain}" }, maxHeight.value, "Equipped on") { i ->
+                    t.equipHeroes.getOrNull(i)?.let { h -> t.equipOn?.invoke(h.id) }; pane = UpgradePane.PIECE
+                }
             }
         }
         Row(Modifier.fillMaxWidth().height(34.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -154,6 +158,11 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                 pane == UpgradePane.PIECE -> {
                     if(t.isSellQueue)PanelAction("Sold → next",Modifier.weight(1.4f),pink=true,enabled=t.canMarkSold,label="Sold and next") { t.markSold?.invoke(item.id);pane=UpgradePane.PIECE }
                     if (item.enhance < 15 && UpgradeRecord.supported(item)) PanelAction("Record +${((item.enhance / 3 + 1) * 3).coerceAtMost(15)}", Modifier.weight(if(t.isSellQueue)1.3f else 1.7f), pink = !t.isSellQueue) { correction = false; t.error = null; t.editing = true }
+                    // a finished piece: record the reforge, then equipping it, as done in the game
+                    if (!t.isSellQueue && item.enhance == 15 && item.level == 85 && t.canReforge?.invoke(item.id) == true)
+                        PanelAction("Reforge", Modifier.weight(1.2f), pink = t.equipHeroes.isEmpty(), label = "Record reforge") { t.reforge() }
+                    if (!t.isSellQueue && item.enhance == 15 && t.equipHeroes.isNotEmpty() && t.equippedOn == null)
+                        PanelAction("Equip", Modifier.weight(1.2f), pink = true, label = "Record equip") { pane = UpgradePane.EQUIP }
                     PanelAction(if (t.notice == null) "More" else "More !", Modifier.weight(if(t.isSellQueue).8f else 1f)) { pane = UpgradePane.MENU }
                 }
                 else -> {
@@ -166,14 +175,16 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
     }
 }
 
-private fun chanceBadge(t: UpgradeTracker) = if(t.sellQueueComplete)"Done" else if(t.isRollReview)if(t.reviewProtected)"Guard" else "Review" else t.goalOutcome?.let { when { !it.supported -> "Unknown"; t.scoreGoal!=null -> if(it.matchesNow) "Above" else if(it.rareOnly) "Rare" else if(!it.possible) "0%" else it.label(); it.matchesNow -> "Ready"; it.rareOnly -> "Rare"; !it.possible -> "Stop"; else -> it.label() } } ?: if (t.busy) "Busy" else "Advice"
+private fun chanceBadge(t: UpgradeTracker) = if (!t.hasTarget && t.results.isNotEmpty() && !t.busy && t.scoreQuery == null)
+    when { t.equippedOn != null -> "Done"; t.record?.item?.enhance == 15 -> if (t.equipHeroes.isNotEmpty()) "Equip" else "None"; else -> t.chance?.let { "$it%" } ?: "Advice" }
+    else if(t.sellQueueComplete)"Done" else if(t.isRollReview)if(t.reviewProtected)"Guard" else "Review" else t.goalOutcome?.let { when { !it.supported -> "Unknown"; t.scoreGoal!=null -> if(it.matchesNow) "Above" else if(it.rareOnly) "Rare" else if(!it.possible) "0%" else it.label(); it.matchesNow -> "Ready"; it.rareOnly -> "Rare"; !it.possible -> "Stop"; else -> it.label() } } ?: if (t.busy) "Busy" else "Advice"
 
 @Composable
 private fun PieceSummary(t: UpgradeTracker, item: Item, height: Float) {
     if (height < 60 * LocalDensity.current.fontScale + 12) {
         PanelTextPages("${item.rank} Lv.${item.level} · ${item.mainType.short} ${item.mainType.format(item.mainValue)}\n" +
             item.subs.joinToString("\n") { "${it.type.short} ${it.type.format(it.value)}" } + "\n${t.inventoryPosition.orEmpty()}" +
-            if (!t.hasTarget||t.isRollReview) "\n${t.title}" else "", height)
+            if (!t.hasTarget||t.isRollReview) "\n${t.title}" + (weakestLine(t)?.let { "\n$it" } ?: "") else "", height)
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -184,6 +195,7 @@ private fun PieceSummary(t: UpgradeTracker, item: Item, height: Float) {
         GearSearchSubs(item, t.goal?.minimums?.keys ?: emptySet())
         t.inventoryPosition?.let { FitText(it, zen(9.sp, color = C.blue)) }
         if (!t.hasTarget) FitText(t.title, zen(10.sp, color = C.blue))
+        if (!t.hasTarget) weakestLine(t)?.let { FitText(it, zen(9.sp, color = C.muted)) }
     }
 }
 
@@ -330,15 +342,31 @@ private fun helpText(t: UpgradeTracker) = listOfNotNull(t.notice,
     if(t.isRollReview) "This is the roll-review list. Low upgrade values alone do not mean a piece should be sold. Review individual stats. New recorded upgrades are appended to the roll history; recompute the sell-filter list to apply its safeguards again."
     else if(t.scoreGoal!=null) "The chance is for reaching the comparison points from your applied sell filters. These use your equipped gear or a custom score. Recorded upgrades refresh the comparison and chances. A filter match does not mean a piece is useless or should be sold. Rare endpoints have no estimated probability."
     else if (t.hasTarget) "The chance is for all targets together, using usual roll ranges. Rare maximum rolls have no estimated percentage. No modification stones are assumed."
-    else "Advice compares complete builds for saved hero setups. Sampled finishes are not guaranteed odds. Pause means stop spending for now; it does not mean sell.",
+    else "Advice compares complete builds for saved hero setups. The bar is the better of each hero's best build without this piece and with it as it is now. The chance is the share of ${e7.gearscan.PIECE_SIMS} simulated finishes from here that beat it; \"from\" lists the weakest finishes that still do, as substats at +15 before reforging. Pause means stop spending for now; it does not mean sell. After +15, Reforge and Equip record what you did in the game; Equip writes the piece into this app's gear until your next scan.",
     "Inventory # uses your latest scan and recorded upgrades. Match Equipment Score direction and bag/all-gear settings; turn off other in-game filters.",
     "Rescan after selling or reforging. ~ marks an estimate until a fresh scan supplies exact experience tie-breaks.").joinToString("\n\n")
 
+/** The weakest finish that still helps the hero it helps most often, for the piece page. */
+private fun weakestLine(t: UpgradeTracker): String? {
+    if (t.busy || t.record?.item?.enhance == 15) return null
+    val h = t.results.filter { it.hits.isNotEmpty() }.maxByOrNull { it.hits.size } ?: return null
+    return if (h.hits.size == h.total) "An upgrade whatever the rolls" else h.minimal.firstOrNull()?.let { "Upgrade at +15 from: $it" }
+}
+
 private fun adviceText(t: UpgradeTracker) = buildList {
     add(t.title)
-    if (t.expected > 0) add("${t.results.size}/${t.expected} saved setups checked. ${t.hitCount}/30 sampled finishes helped a build. Other heroes and future builds are outside this check.")
-    t.results.filter { it.current || it.hits.isNotEmpty() || it.combo }.forEach { h ->
-        add(h.name + when { h.current -> " · helps now"; h.combo -> " · helps with other upgrades"; else -> " · ${h.hits.size}/30 finishes" } + if (h.changes.isNotEmpty()) "\nExample: ${h.changes}" else "")
+    if (t.expected > 0 && t.total > 0) add("${t.results.size}/${t.expected} saved setups checked. ${t.hitCount} of ${t.total} simulated finishes (${t.chance}%) are an upgrade for at least one hero.")
+    else if (t.expected > 0) add("${t.results.size}/${t.expected} saved setups checked.")
+    t.results.filter { it.current || it.hits.isNotEmpty() || it.combo }.sortedByDescending { it.hits.size }.forEach { h ->
+        add(buildString {
+            append(h.name)
+            if (h.current) append(" · an upgrade now${if (h.nowGain.isNotEmpty()) ", ${h.nowGain}" else ""}")
+            if (h.combo) append(" · helps with other upgrades")
+            if (h.hits.isNotEmpty()) append(" · ${h.hits.size}/${h.total} finishes do better${if (h.typical.isNotEmpty()) ", usually ${h.typical}" else ""}")
+            if (h.hits.isNotEmpty() && h.hits.size == h.total) append("\nEvery finish does.")
+            else if (h.minimal.isNotEmpty()) append("\nStill an upgrade at +15 from: " + h.minimal.joinToString("\nor "))
+            if (h.changes.isNotEmpty()) append("\nBest: ${h.changes}")
+        })
     }
     if (t.expected > 0 && !t.busy && t.uncertain) add("Some searches are unfinished. No stop decision is certain; use Recheck builds to continue.")
 }.joinToString("\n\n")

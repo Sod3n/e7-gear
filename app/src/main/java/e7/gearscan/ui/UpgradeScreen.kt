@@ -59,6 +59,20 @@ fun UpgradeScreen(model: AppModel) {
                 }
                 Text(t.title, style = zen(13.sp, color = C.blue))
                 VSpace(6.dp)
+                if (!t.hasTarget && !t.busy) t.results.filter { it.current || it.hits.isNotEmpty() }.sortedByDescending { it.hits.size }.take(4).forEach { h ->
+                    Text(h.name + listOfNotNull(if (h.current) "an upgrade now ${h.nowGain}".trim() else null,
+                        if (h.hits.isNotEmpty()) "${h.hits.size * 100 / h.total}% of finishes do better, usually ${h.typical}" else null).joinToString(" · ", " · "),
+                        style = zen(12.sp))
+                    if (h.hits.isNotEmpty()) Text(if (h.hits.size == h.total) "An upgrade whatever the rolls" else h.minimal.firstOrNull()?.let { "Upgrade at +15 from: $it" }.orEmpty(),
+                        style = zen(11.sp, FontWeight.Medium, C.muted))
+                    VSpace(4.dp)
+                }
+                if (!t.hasTarget && selected.item.enhance == 15) {
+                    if (selected.item.level == 85 && t.canReforge?.invoke(selected.item.id) == true) LinkText("Record the reforge") { t.reforge() }
+                    if (t.equippedOn == null) t.equipHeroes.forEach { h -> LinkText("Record equipped on ${h.name}") { t.equipOn?.invoke(h.id) } }
+                    else LinkText("Undo: equipped on ${t.equippedOn}") { t.undoEquip?.invoke() }
+                    VSpace(6.dp)
+                }
                 Text(if(t.isRollReview)"Record each upgrade to update its actual roll history." else if (t.hasTarget) "Record each upgrade to see your chance change." else "Checks how this piece could help your saved hero builds.", style = zen(12.sp, FontWeight.Medium, C.muted))
                 VSpace(12.dp)
                 if (t.queueSource == "heroes" && !t.hasTarget) LinkText("Back to Improve heroes") { model.go(Screen.HeroUpgrades()) }

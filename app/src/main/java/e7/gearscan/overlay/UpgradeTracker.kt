@@ -96,6 +96,25 @@ class UpgradeTracker(private val file: File) {
     var editing by mutableStateOf(false)
     val complete get() = !busy && results.size == expected && expected > 0
     val hitCount get() = results.flatMap { it.hits }.distinct().size
+    /** Finishes each hero was checked with (the same ones for every hero). */
+    val total get() = results.maxOfOrNull { it.total } ?: 0
+    /** Share of those finishes that are an upgrade for at least one hero, in percent. */
+    val chance get() = if (total > 0) hitCount * 100 / total else null
+    /** Heroes the piece as it is now is an upgrade for, the biggest gain first. */
+    val equipHeroes get() = results.filter { it.current }.sortedByDescending { it.gain ?: 0.0 }
+    var canReforge: ((Long) -> Boolean)? = null
+    var equipOn: ((Long) -> Unit)? = null
+    var undoEquip: (() -> Unit)? by mutableStateOf(null)
+    var equippedOn: String? by mutableStateOf(null)
+
+    /** Records the game's reforge of the finished level 85 piece; Undo in History takes it back. */
+    fun reforge(): Boolean {
+        val r = record ?: return false
+        return runCatching {
+            records = records + (r.item.id to r.reforged())
+            invalidate(); editing = false; persist(); requestCheck?.invoke(); true
+        }.getOrElse { error = it.message ?: "Could not record the reforge."; false }
+    }
     val hasPotential get() = results.any { it.current || it.hits.isNotEmpty() || it.combo }
     val hasFuture get() = results.any { it.hits.isNotEmpty() || it.combo }
     val uncertain get() = !complete || results.any { it.unknown > 0 || it.provisional }
@@ -122,9 +141,10 @@ class UpgradeTracker(private val file: File) {
         error != null -> "Check needs attention"
         expected < 0 -> "Ready to check saved setups"
         expected == 0 -> "Add hero setups to get advice"
-        record?.item?.enhance == 15 -> if (hasPotential) "Finished · potential upgrade" else "Finished · no upgrade found"
+        equippedOn != null -> "Equipped on $equippedOn"
+        record?.item?.enhance == 15 -> if (equipHeroes.isNotEmpty()) "Finished · upgrade for ${equipHeroes.first().name}" else if (hasPotential) "Finished · potential upgrade" else "Finished · no upgrade found"
         hasFuture && results.any { it.provisional && it.hits.isNotEmpty() } -> "Potential upgrade · check incomplete"
-        hasFuture -> "Continue · potential upgrade"
+        hasFuture -> chance?.let { "Continue · $it% chance to upgrade" } ?: "Continue · potential upgrade"
         uncertain -> "Undecided · check incomplete"
         results.any { it.current } -> "Pause · useful as it is"
         else -> "Pause · no upgrade found"
@@ -165,7 +185,7 @@ class UpgradeTracker(private val file: File) {
         invalidate(); editing = false; persist(); requestCheck?.invoke()
     }
 
-    fun invalidate() { generation++; busy = false; results = emptyList(); signature = ""; error = null }
+    fun invalidate() { generation++; busy = false; results = emptyList(); signature = ""; error = null; undoEquip = null; equippedOn = null }
     fun begin(sig: String, total: Int) {
         if (sig != signature) { results = emptyList(); signature = sig; attempt = 0 }
         else if (results.any { it.unknown > 0 || it.provisional }) attempt = (attempt + 1).coerceAtMost(3)

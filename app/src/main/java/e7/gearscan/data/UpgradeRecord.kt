@@ -33,6 +33,15 @@ class UpgradeRecord(val scan: Long, val history: List<Item>) {
         return UpgradeRecord(scan, history + observed)
     }
 
+    /** The game's reforge of a finished level 85 piece: the level 90 main stat, and each substat its bonus for its rolls. */
+    fun reforged(): UpgradeRecord {
+        val old = item
+        require(old.level == 85 && old.enhance == 15) { "Only a finished level 85 piece can be reforged." }
+        val main = e7.gearscan.calc.Reforge.main(old.mainType, old.mainValue)
+        val subs = old.subs.map { Substat(it.type, it.value + e7.gearscan.calc.Reforge.gain(it.type, it.rolls), it.rolls, it.modified) }
+        return UpgradeRecord(scan, history + Item(old.id, old.slot, old.set, old.rank, 90, 15, old.mainType, main, subs, old.locked, old.equippedOn, main15 = main))
+    }
+
     fun undo() = UpgradeRecord(scan, if (history.size > 1) history.dropLast(1) else history)
     fun toJson() = JSONObject().put("scan", scan).put("history", JSONArray(history.map(::itemJson)))
 
