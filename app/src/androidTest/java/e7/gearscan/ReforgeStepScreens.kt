@@ -17,6 +17,8 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onRoot
+import e7.gearscan.data.GearStat
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
@@ -113,6 +115,76 @@ class ReforgeStepScreens {
         rule.waitForIdle()
         check(model.stack.size == depth - 1) { "pinned back didn't go back" }
         File(shots, "result.txt").writeText("hero ${hero.name}: ${toReforge.size} reforge steps of ${steps.size}; pinned back ok\n")
+        ui { OverlayState.build = null }
+    }
+
+    /** A modification step asks what the game rolled; finishing writes that substat into the box, Undo takes it back. */
+    @Test
+    fun modStepRecordsTheRoll() {
+        assumeTrue("replaces the app's box; emulator only", Build.FINGERPRINT.contains("generic") || Build.HARDWARE.contains("ranchu"))
+        val assets = InstrumentationRegistry.getInstrumentation().context.assets
+        File(ctx.filesDir, "content.json").writeText(assets.open("content.json").bufferedReader().use { it.readText() })
+        val backup = assets.open("backup.json").bufferedReader().use { it.readText() }
+        val dir = File(ctx.getExternalFilesDir(null), "mods").also { it.deleteRecursively(); it.mkdirs() }
+        rule.runOnUiThread { model = AppModel(ctx.applicationContext as Application) }
+        rule.waitUntil(20_000) { model.ready }
+        var restored = false
+        ui { restored = model.restore(backup) }
+        check(restored) { "restore failed" }
+        var overlay by mutableStateOf(false)
+        rule.setContent {
+            val d = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(d.density, 1.3f)) {
+                Box(Modifier.width(353.dp).fillMaxHeight()) { if (overlay) OverlayUi({ _, _ -> }, {}, {}) else App(model) {} }
+            }
+        }
+        fun shot(name: String) { rule.waitForIdle(); val bmp = rule.onRoot().captureToImage().asAndroidBitmap()
+            File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+
+        // a worn +15 piece turned into crit damage (or another stat it lacks), the way a search with mods would
+        val box = model.box!!
+        val hero = model.heroUpgradeHeroes().first { h -> box.gearOf(h.id).size == 6 && model.currentBuild(h.id) != null }
+        val cur = model.currentBuild(hero.id)!!
+        val modded = cur.items.firstNotNullOfOrNull { it ->
+            val want = listOf(GearStat.CD, GearStat.CR, GearStat.SPD, GearStat.ATK_P, GearStat.HP_P).filter { t -> it.subs.none { s -> s.type == t } }.toSet()
+            e7.gearscan.opt.Mods.variants(it, want, { true }, 6, true, 0.5, false).firstOrNull()
+        } ?: error("no worn +15 piece of ${hero.name} can be modded")
+        val m = modded.mod!!
+        val build = e7.gearscan.opt.Build(cur.items.map { if (it.id == modded.id) modded else it }, cur.value, cur.final, cur.ratings, cur.fromOthers)
+        val original = box.itemsById.getValue(modded.id).subs[m.index]
+
+        ui { model.loadBuildChecklist(hero.id, build, "Mod check"); OverlayState.expanded = true; overlay = true }
+        val at = OverlayState.build!!.pieces.indexOfFirst { it.modStep }
+        check(at >= 0) { "no mod step" }
+        shot("1-checklist-before-mod-step")
+        ui { OverlayState.focus = at }
+        shot("2-mod-step")
+        rule.onNodeWithContentDescription("Rolled value up").performClick()
+        rule.onNodeWithContentDescription("Rolled value up").performClick()
+        rule.waitForIdle()
+        val range = e7.gearscan.opt.Mods.range(m.to, OverlayState.build!!.pieces[at].orig.subs[m.index].rolls)
+        val want = (m.toValue + 2).coerceAtMost(range.last.toDouble())
+        check(OverlayState.rolledValue(at) == want) { "rolled ${OverlayState.rolledValue(at)}, wanted $want" }
+        shot("3-rolled-set")
+        ui { for (i in OverlayState.done.indices) OverlayState.done[i] = true; OverlayState.finish(); overlay = false }
+        val written = model.box!!.itemsById.getValue(modded.id).subs[m.index]
+        check(written.type == m.to && written.value == want && written.modified) { "box has ${written.type} ${written.value} modified=${written.modified}" }
+        val toast = checkNotNull(model.toast) { "no toast after recording" }
+        check(toast.text.contains("1 modified") && !toast.text.contains("planned")) { "toast: ${toast.text}" }
+        shot("4-recorded")
+        ui { toast.onAction?.invoke() }
+        val undone = model.box!!.itemsById.getValue(modded.id).subs[m.index]
+        check(undone.type == original.type && undone.value == original.value) { "Undo left ${undone.type} ${undone.value}" }
+
+        // Equip in app: no roll was asked, so the planned value goes in and the toast says so
+        ui { model.recordBuild(hero.id, build) }
+        val planned = model.box!!.itemsById.getValue(modded.id).subs[m.index]
+        check(planned.type == m.to && planned.value == m.toValue) { "Equip in app wrote ${planned.type} ${planned.value}" }
+        check(model.toast!!.text.contains("planned values")) { "toast: ${model.toast!!.text}" }
+        ui { model.toast!!.onAction?.invoke() }
+        check(model.box!!.itemsById.getValue(modded.id).subs[m.index].value == original.value) { "Undo after Equip in app" }
+        File(dir, "result.txt").writeText("${hero.name}: ${modded.slot} ${m.from.short} ${m.fromValue} -> ${m.to.short} planned ${m.toValue}, rolled $want; " +
+            "recorded, undone; Equip in app wrote the planned value\n")
         ui { OverlayState.build = null }
     }
 }

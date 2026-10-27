@@ -250,6 +250,20 @@ class HeroUpgradesTest {
         assertEquals(withRolls.subs.map { it.value }, Box(box.json).itemsById.getValue(q.id).subs.map { it.value })
     }
 
+    @Test fun aRecordedModChangesOnlyThatSubstatAndUndoes() {
+        val p = piece(7, Slot.RING, 15, listOf(GearStat.DEF to 33.0, GearStat.SPD to 8.0, GearStat.CR to 9.0, GearStat.HP_P to 12.0))
+        val box = Box(JSONObject().put("items", JSONArray(listOf(UpgradeRecord.itemJson(p)))).put("heroes", JSONArray()))
+        val before = box.writeSubs(Mods.apply(p, Mod(0, GearStat.DEF, 33.0, GearStat.CD, 7.0)))!!
+        val w = Box(box.json).itemsById.getValue(7)
+        assertEquals(GearStat.CD to 7.0, w.subs[0].type to w.subs[0].value); assertTrue(w.subs[0].modified)
+        assertEquals(p.subs.drop(1).map { it.type to it.value }, w.subs.drop(1).map { it.type to it.value })
+        assertEquals(p.mainValue, w.mainValue, 0.0); assertEquals(p.level, w.level); assertEquals(p.enhance, w.enhance)
+        box.restore(7, before)
+        assertEquals(p.subs.map { it.type to it.value }, Box(box.json).itemsById.getValue(7).subs.map { it.type to it.value })
+        // either stone, reforged or not: a substat that rolled once can become crit damage 3-8
+        assertEquals(3..8, Mods.range(GearStat.CD, 1))
+    }
+
     // ---- the engine's distinct slot ----
 
     private val subPool = listOf(GearStat.SPD, GearStat.CR, GearStat.CD, GearStat.ATK_P, GearStat.HP_P, GearStat.DEF_P, GearStat.EFF, GearStat.HP)

@@ -20,6 +20,7 @@ import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -99,6 +100,8 @@ object OverlayState {
     var upgrade: UpgradeTracker? by mutableStateOf(null)
     var build: OverlayBuild? by mutableStateOf(null)
     val done = mutableStateListOf<Boolean>()
+    /** What the game rolled at each modification step, by piece index; the planned value until the player changes it. */
+    private val rolled = mutableStateMapOf<Int, Double>()
     /** Pieces in the order they were ticked, for Undo. */
     private val doneOrder = mutableStateListOf<Int>()
     var expanded by mutableStateOf(false)
@@ -138,7 +141,7 @@ object OverlayState {
         upgrade = null
         build = b
         done.clear(); done.addAll(b.pieces.map { it.onHero && !it.otherMenu })
-        doneOrder.clear()
+        doneOrder.clear(); rolled.clear()
         restoreProgress(b)
         expanded = false; tab = 0; focus = -1
         this.onFinish = onFinish; recorded = false
@@ -166,12 +169,24 @@ object OverlayState {
         for (i in done.indices) done[i] = d.getBoolean(i)
         val order = o.getJSONArray("order")
         for (i in 0 until order.length()) doneOrder.add(order.getInt(i))
+        o.optJSONObject("rolled")?.let { r -> r.keys().forEach { k -> rolled[k.toInt()] = r.getDouble(k) } }
     }
 
     private fun saveProgress() {
         val b = build ?: return
         editProgress { it.put(b.key, org.json.JSONObject().put("at", System.currentTimeMillis())
-            .put("done", org.json.JSONArray(done.toList())).put("order", org.json.JSONArray(doneOrder.toList()))) }
+            .put("done", org.json.JSONArray(done.toList())).put("order", org.json.JSONArray(doneOrder.toList()))
+            .put("rolled", org.json.JSONObject().apply { rolled.forEach { (i, v) -> put(i.toString(), v) } })) }
+    }
+
+    fun rolledValue(i: Int): Double? = rolled[i] ?: build?.pieces?.getOrNull(i)?.item?.mod?.toValue
+
+    fun setRolled(i: Int, v: Double) { rolled[i] = v; saveProgress() }
+
+    /** The modifications done in the game, with what the game rolled: (piece id, mod). */
+    fun rolledMods(): List<Pair<Long, e7.gearscan.data.Mod>> = build?.pieces.orEmpty().mapIndexedNotNull { i, p ->
+        val m = p.item.mod?.takeIf { p.modStep } ?: return@mapIndexedNotNull null
+        p.item.id to e7.gearscan.data.Mod(m.index, m.from, m.fromValue, m.to, rolledValue(i) ?: m.toValue)
     }
 
     val current: Int get() = focus.takeIf { it >= 0 && it < done.size && !done[it] } ?: done.indexOfFirst { !it }

@@ -56,6 +56,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -325,11 +327,46 @@ private fun OverlayControls(b: OverlayBuild, onMove: (Float, Float) -> Unit, onC
                 else -> FooterButton("Done · next") { s.markCurrentDone() }
             }
         }
+        // the game rolls a modification's value; the box gets what was rolled. Kept for the whole checklist, so steps don't move the list
+        if (b.pieces.any { it.modStep }) RolledRow(b, s.current.takeIf { it >= 0 && b.pieces[it].modStep })
         // with the list hidden, the open step is named here instead
         s.current.takeIf { it >= 0 && s.listHidden }?.let { b.pieces[it] }?.let { p ->
             Text((p.forHero?.let { "$it · " } ?: "") + "${p.item.slot.label} · ${p.mainText} · " + (p.mod?.let { "改 Mod: $it" } ?: REFORGE_NOTE.takeIf { p.reforgeStep } ?: p.owner),
                 style = zen(12.sp, color = if (p.otherMenu) C.deepPink else C.ink), modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp))
         }
+    }
+}
+
+@Composable
+private fun RolledRow(b: OverlayBuild, at: Int?) {
+    val s = OverlayState
+    Row(Modifier.fillMaxWidth().height(30.dp).padding(start = 12.dp, end = 10.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        val m = at?.let { b.pieces[it].item.mod }
+        if (at == null || m == null) {
+            FitText("改 Mod steps ask what the game rolled", zen(11.sp, color = C.muted), Modifier.weight(1f))
+            return@Row
+        }
+        val rolls = b.pieces[at].orig.subs.getOrNull(m.index)?.rolls ?: 1
+        val range = e7.gearscan.opt.Mods.range(m.to, rolls)
+        val v = s.rolledValue(at) ?: m.toValue
+        fun set(x: Double) = s.setRolled(at, x.coerceIn(range.first.toDouble(), range.last.toDouble()))
+        FitText("改 Rolled ${m.to.short}", zen(12.sp, color = C.deepPink), Modifier.weight(1f))
+        val big = range.last - range.first > 40
+        if (big) RollStep("−10", "Rolled value down 10") { set(v - 10) }
+        RollStep("−", "Rolled value down") { set(v - 1) }
+        FitText(m.to.format(v), dela(14.sp, C.blue), Modifier.width(52.dp), textAlign = TextAlign.Center)
+        RollStep("+", "Rolled value up") { set(v + 1) }
+        if (big) RollStep("+10", "Rolled value up 10") { set(v + 10) }
+    }
+}
+
+@Composable
+private fun RollStep(text: String, label: String, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(999.dp)
+    Box(Modifier.height(24.dp).widthIn(min = 30.dp).clip(shape).border(2.dp, C.edge, shape).tap(onClick)
+        .semantics { contentDescription = label }.padding(horizontal = 6.dp), contentAlignment = Alignment.Center) {
+        Text(text, style = dela(11.sp), maxLines = 1, overflow = TextOverflow.Clip)
     }
 }
 

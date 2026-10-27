@@ -67,6 +67,13 @@ object Mods {
         GearStat.RES to listOf(4 to 8, 7 to 11, 10 to 14, 13 to 17, 15 to 18, 16 to 19),
     )
 
+    /** What the game can roll into [to] for a substat that rolled [rolls] times, with either stone, reforged or not. */
+    fun range(to: GearStat, rolls: Int): IntRange {
+        val i = (rolls - 1).coerceIn(0, 5)
+        val all = listOf(REFORGED_LESSER, REFORGED_GREATER, PLAIN_LESSER, PLAIN_GREATER).map { it.getValue(to)[i] }
+        return all.minOf { it.first }..all.maxOf { it.second }
+    }
+
     fun value(to: GearStat, rolls: Int, greater: Boolean, reforgedTable: Boolean, quality: Double): Double {
         val t = when { reforgedTable && greater -> REFORGED_GREATER; reforgedTable -> REFORGED_LESSER; greater -> PLAIN_GREATER; else -> PLAIN_LESSER }
         val (lo, hi) = t.getValue(to)[(rolls - 1).coerceIn(0, 5)]

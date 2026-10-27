@@ -675,16 +675,23 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         return prev
     }
 
-    /** Equips [b] in the app's box and keeps it in the hero's saved builds; the toast offers Undo. */
-    fun recordBuild(heroId: Long, b: Build, reforge: List<Long> = emptyList()) {
+    /**
+     * Equips [b] in the app's box and keeps it in the hero's saved builds; the toast offers Undo. [mods]: what the game
+     * rolled (the checklist asks); without them, the build's planned values.
+     */
+    fun recordBuild(heroId: Long, b: Build, reforge: List<Long> = emptyList(), mods: List<Pair<Long, e7.gearscan.data.Mod>>? = null) {
         val prev = equip(heroId, b)
         val before = recordReforges(reforge)
+        val modded = recordMods(mods ?: plannedMods(b))
         val name = request(heroId).presetLabel?.let { "${it.substringAfter("· ").replace("Community ", "Preset ")} build" } ?: "Build ${config(heroId).saved.size + 1}"
         if (config(heroId).saved.none { it.items.toSet() == b.items.filter { i -> !i.ghost }.map { i -> i.id }.toSet() }) saveBuild(heroId, b, name)
-        showToast("Equipped in this app and saved to ${hero(heroId)?.let(::heroName) ?: "the hero"}'s builds" + reforgedNote(before), "Undo") {
-            undoReforges(before); undoEquip(prev)
+        showToast("Equipped in this app and saved to ${hero(heroId)?.let(::heroName) ?: "the hero"}'s builds" + reforgedNote(before) +
+            moddedNote(modded, planned = mods == null), "Undo") {
+            undoWrites(before + modded); undoEquip(prev)
         }
     }
+
+    private fun plannedMods(b: Build) = b.items.mapNotNull { i -> i.mod?.let { i.id to it } }
 
     fun undoEquip(prev: Map<Long, Long?>) {
         val b = box ?: return
@@ -1919,16 +1926,17 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         openUpgradeOverlay()
     }
 
-    fun equipPool(run: PoolState? = pool, reforge: List<Long> = emptyList()) {
+    fun equipPool(run: PoolState? = pool, reforge: List<Long> = emptyList(), mods: List<Pair<Long, e7.gearscan.data.Mod>>? = null) {
         val p = run ?: return
         val prev = LinkedHashMap<Long, Long?>()
         // first owner wins: undo must restore the box as it was before any of these equips
         for ((id, b) in p.builds) b?.let { equip(id, it).forEach { (item, owner) -> prev.putIfAbsent(item, owner) } }
         val before = recordReforges(reforge)
+        val modded = recordMods(mods ?: p.builds.values.filterNotNull().flatMap(::plannedMods))
         // equipping is what makes the run done
         if (pendingPool == p.startedAt) { pendingPool = null; save() }
-        showToast("Equipped ${p.builds.count { it.value != null }} heroes in this app" + reforgedNote(before), "Undo") {
-            undoReforges(before); undoEquip(prev); pendingPool = p.startedAt; save()
+        showToast("Equipped ${p.builds.count { it.value != null }} heroes in this app" + reforgedNote(before) + moddedNote(modded, planned = mods == null), "Undo") {
+            undoWrites(before + modded); undoEquip(prev); pendingPool = p.startedAt; save()
         }
     }
 
@@ -1947,14 +1955,29 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         return before
     }
 
-    fun undoReforges(before: List<Pair<Long, JSONObject>>) {
+    /**
+     * Substat modifications done in the game (checklist mod steps): the rolled substat goes into the box until the next
+     * scan. Returns each piece's JSON before, for Undo.
+     */
+    fun recordMods(mods: List<Pair<Long, e7.gearscan.data.Mod>>): List<Pair<Long, JSONObject>> {
+        val b = box ?: return emptyList()
+        val before = mods.mapNotNull { (id, m) -> b.itemsById[id]?.let { b.writeSubs(e7.gearscan.opt.Mods.apply(it, m)) }?.let { id to it } }
+        if (before.isNotEmpty()) { box = Box(b.json); inventoryKey = null; touch(); saveBox(); save() }
+        return before
+    }
+
+    /** Takes back [recordReforges] and [recordMods], latest first: a piece reforged then modified ends as it was. */
+    fun undoWrites(before: List<Pair<Long, JSONObject>>) {
         val b = box ?: return
         if (before.isEmpty()) return
-        before.forEach { (id, j) -> b.restore(id, j) }
+        before.asReversed().forEach { (id, j) -> b.restore(id, j) }
         box = Box(b.json); inventoryKey = null; touch(); saveBox(); save()
     }
 
     private fun reforgedNote(before: List<Pair<Long, JSONObject>>) = if (before.isEmpty()) "" else " · ${before.size} reforged"
+
+    private fun moddedNote(before: List<Pair<Long, JSONObject>>, planned: Boolean) =
+        if (before.isEmpty()) "" else " · ${before.size} modified" + if (planned) " (planned values; rescan for the rolls)" else ""
 
 
     /** The last pool run, waiting until it is equipped or another run replaces it; its history entry's start time. */
@@ -1984,14 +2007,14 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** Loads one hero's build as the in-game checklist; finishing it records the build. */
     fun loadBuildChecklist(heroId: Long, b: Build, title: String, flag: String? = null) {
         val ob = overlayBuild(heroId, b, title, flag)
-        e7.gearscan.overlay.OverlayState.load(ob) { recordBuild(heroId, b, ob.pieces.filter { it.reforgeStep }.map { it.item.id }) }
+        e7.gearscan.overlay.OverlayState.load(ob) { recordBuild(heroId, b, ob.pieces.filter { it.reforgeStep }.map { it.item.id }, e7.gearscan.overlay.OverlayState.rolledMods()) }
     }
 
     /** Loads the pool's moves as the in-game checklist; finishing it records them all. */
     fun loadPoolChecklist(): Boolean {
         val p = pool ?: return false
         val b = poolOverlay() ?: return false
-        e7.gearscan.overlay.OverlayState.load(b) { equipPool(p, b.pieces.filter { it.reforgeStep }.map { it.item.id }); tab(Screen.Optimize) }
+        e7.gearscan.overlay.OverlayState.load(b) { equipPool(p, b.pieces.filter { it.reforgeStep }.map { it.item.id }, e7.gearscan.overlay.OverlayState.rolledMods()); tab(Screen.Optimize) }
         return true
     }
 

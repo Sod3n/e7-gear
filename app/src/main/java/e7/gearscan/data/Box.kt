@@ -59,6 +59,14 @@ class Box(val json: JSONObject) {
         return before
     }
 
+    /** Writes only [item]'s substats (a modification changes nothing else); the JSON before, for [restore]. */
+    fun writeSubs(item: Item): JSONObject? {
+        val raw = rawItems[item.id] ?: return null
+        val before = JSONObject(raw.toString())
+        raw.put("substats", UpgradeRecord.itemJson(item).get("substats"))
+        return before
+    }
+
     fun restore(id: Long, before: JSONObject) {
         val raw = rawItems[id] ?: return
         raw.keys().asSequence().toList().forEach { raw.remove(it) }
