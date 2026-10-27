@@ -676,11 +676,14 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Equips [b] in the app's box and keeps it in the hero's saved builds; the toast offers Undo. */
-    fun recordBuild(heroId: Long, b: Build) {
+    fun recordBuild(heroId: Long, b: Build, reforge: List<Long> = emptyList()) {
         val prev = equip(heroId, b)
+        val before = recordReforges(reforge)
         val name = request(heroId).presetLabel?.let { "${it.substringAfter("· ").replace("Community ", "Preset ")} build" } ?: "Build ${config(heroId).saved.size + 1}"
         if (config(heroId).saved.none { it.items.toSet() == b.items.filter { i -> !i.ghost }.map { i -> i.id }.toSet() }) saveBuild(heroId, b, name)
-        showToast("Equipped in this app and saved to ${hero(heroId)?.let(::heroName) ?: "the hero"}'s builds", "Undo") { undoEquip(prev) }
+        showToast("Equipped in this app and saved to ${hero(heroId)?.let(::heroName) ?: "the hero"}'s builds" + reforgedNote(before), "Undo") {
+            undoReforges(before); undoEquip(prev)
+        }
     }
 
     fun undoEquip(prev: Map<Long, Long?>) {
@@ -1874,15 +1877,43 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         openUpgradeOverlay()
     }
 
-    fun equipPool(run: PoolState? = pool) {
+    fun equipPool(run: PoolState? = pool, reforge: List<Long> = emptyList()) {
         val p = run ?: return
         val prev = LinkedHashMap<Long, Long?>()
         // first owner wins: undo must restore the box as it was before any of these equips
         for ((id, b) in p.builds) b?.let { equip(id, it).forEach { (item, owner) -> prev.putIfAbsent(item, owner) } }
+        val before = recordReforges(reforge)
         // equipping is what makes the run done
         if (pendingPool == p.startedAt) { pendingPool = null; save() }
-        showToast("Equipped ${p.builds.count { it.value != null }} heroes in this app", "Undo") { undoEquip(prev); pendingPool = p.startedAt; save() }
+        showToast("Equipped ${p.builds.count { it.value != null }} heroes in this app" + reforgedNote(before), "Undo") {
+            undoReforges(before); undoEquip(prev); pendingPool = p.startedAt; save()
+        }
     }
+
+    /**
+     * Finished level 85 pieces reforged in the game (checklist reforge steps): the game's level 90 main and each substat's
+     * bonus for its rolls go into the box until the next scan. Returns each piece's JSON before, for Undo.
+     */
+    fun recordReforges(ids: List<Long>): List<Pair<Long, JSONObject>> {
+        val b = box ?: return emptyList()
+        val before = ids.distinct().mapNotNull { id ->
+            val it = b.itemsById[id]?.takeIf { x -> x.level == 85 && x.enhance == 15 && b.canReforge(x.id) } ?: return@mapNotNull null
+            val reforged = e7.gearscan.data.UpgradeRecord(lastScan, listOf(e7.gearscan.data.UpgradeRecord.fromScan(it))).reforged().item
+            b.writeStats(reforged)?.let { j -> id to j }
+        }
+        if (before.isNotEmpty()) { box = Box(b.json); inventoryKey = null; touch(); saveBox(); save() }
+        return before
+    }
+
+    fun undoReforges(before: List<Pair<Long, JSONObject>>) {
+        val b = box ?: return
+        if (before.isEmpty()) return
+        before.forEach { (id, j) -> b.restore(id, j) }
+        box = Box(b.json); inventoryKey = null; touch(); saveBox(); save()
+    }
+
+    private fun reforgedNote(before: List<Pair<Long, JSONObject>>) = if (before.isEmpty()) "" else " · ${before.size} reforged"
+
 
     /** The last pool run, waiting until it is equipped or another run replaces it; its history entry's start time. */
     var pendingPool: Long? by mutableStateOf(null)
@@ -1909,14 +1940,16 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun editedSinceRun(): List<Long> = pool?.let { p -> p.setups.filter { (id, k) -> setupKey(id) != k }.keys.toList() }.orEmpty()
 
     /** Loads one hero's build as the in-game checklist; finishing it records the build. */
-    fun loadBuildChecklist(heroId: Long, b: Build, title: String, flag: String? = null) =
-        e7.gearscan.overlay.OverlayState.load(overlayBuild(heroId, b, title, flag)) { recordBuild(heroId, b) }
+    fun loadBuildChecklist(heroId: Long, b: Build, title: String, flag: String? = null) {
+        val ob = overlayBuild(heroId, b, title, flag)
+        e7.gearscan.overlay.OverlayState.load(ob) { recordBuild(heroId, b, ob.pieces.filter { it.reforgeStep }.map { it.item.id }) }
+    }
 
     /** Loads the pool's moves as the in-game checklist; finishing it records them all. */
     fun loadPoolChecklist(): Boolean {
         val p = pool ?: return false
         val b = poolOverlay() ?: return false
-        e7.gearscan.overlay.OverlayState.load(b) { equipPool(p); tab(Screen.Optimize) }
+        e7.gearscan.overlay.OverlayState.load(b) { equipPool(p, b.pieces.filter { it.reforgeStep }.map { it.item.id }); tab(Screen.Optimize) }
         return true
     }
 
@@ -1925,9 +1958,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val steps = p.builds.flatMap { (id, b) ->
             val name = hero(id)?.let(::heroName) ?: return@flatMap emptyList()
             val ob = b?.let { overlayBuild(id, it, name) } ?: return@flatMap emptyList()
-            ob.pieces.filter { !it.onHero || it.modStep }.map { it.copyFor(name) }
+            ob.pieces.filter { !it.onHero || it.otherMenu }.map { it.copyFor(name) }
         }
-        val pieces = steps.filter { !it.modStep } + steps.filter { it.modStep }
+        val pieces = steps.filter { it.menu == 0 } + steps.filter { it.menu == 1 } + steps.filter { it.menu == 2 }
         return e7.gearscan.overlay.OverlayBuild("Pool · ${pieces.size} moves", null, pieces, emptyList(), p.takeIf { it.fromHistory }?.let { historyFlag(it.startedAt) })
     }
 
@@ -2001,20 +2034,22 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val reforged = request(heroId).reforged
         val cur = currentBuild(heroId)
         val items = Slot.entries.mapNotNull { s -> b.items.firstOrNull { it.slot == s } }.filter { !it.ghost }
-        fun step(it: Item, modStep: Boolean): e7.gearscan.overlay.OverlayPiece {
-            val ref = reforged && it.reforgeable
-            val main = if (ref) e7.gearscan.calc.Reforge.main(it.mainType, it.mainValue) else it.mainValue
+        // a piece the build counts as reforged that isn't yet: equipped as it is, then reforged in its own step
+        fun needsReforge(it: Item) = reforged && it.reforgeable && box?.canReforge(it.id) == true
+        fun step(it: Item, modStep: Boolean, reforgeStep: Boolean = false): e7.gearscan.overlay.OverlayPiece {
+            val shown = reforged && it.reforgeable && (reforgeStep || modStep || !needsReforge(it))
+            val main = if (shown) e7.gearscan.calc.Reforge.main(it.mainType, it.mainValue) else it.mainValue
             val holder = it.equippedOn
             val set = content.set(it.set)
             return e7.gearscan.overlay.OverlayPiece(it, set?.icon, "${it.mainType.short} ${it.mainType.format(main)}",
                 // the piece as it looks in the game today; a mod is shown as its own step
-                (box?.itemsById?.get(it.id) ?: it).let { orig -> orig.subs.indices.map { i -> orig.subs[i].let { s -> (if (s.modified) "改 " else "") + "${s.type.short} ${s.type.format(e7.gearscan.calc.Calc.subValue(orig, i, reforged))}" } } },
+                (box?.itemsById?.get(it.id) ?: it).let { orig -> orig.subs.indices.map { i -> orig.subs[i].let { s -> (if (s.modified) "改 " else "") + "${s.type.short} ${s.type.format(e7.gearscan.calc.Calc.subValue(orig, i, shown))}" } } },
                 when (holder) { null -> "in bag"; heroId -> "on now"; else -> "on " + (hero(holder)?.let(::heroName) ?: "other") },
                 holder == heroId,
                 it.mod?.takeIf { modStep }?.let { m -> "${m.from.short} ${m.from.format(m.fromValue)} → ${m.to.short} ${m.to.format(m.toValue)}" },
-                box?.itemsById?.get(it.id) ?: it, reforged)
+                box?.itemsById?.get(it.id) ?: it, shown, reforgeStep = reforgeStep)
         }
-        val pieces = items.map { step(it, false) } + items.filter { it.mod != null }.map { step(it, true) }
+        val pieces = items.map { step(it, false) } + items.filter(::needsReforge).map { step(it, false, true) } + items.filter { it.mod != null }.map { step(it, true) }
         val stats = e7.gearscan.data.Stat.entries.map { st -> Triple(st, b.final[st], cur?.final?.get(st) ?: 0.0) }
         return e7.gearscan.overlay.OverlayBuild(title, h?.let(::face), pieces, stats, flag)
     }

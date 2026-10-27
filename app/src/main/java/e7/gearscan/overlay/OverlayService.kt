@@ -46,11 +46,17 @@ class OverlayPiece(
     val reforged: Boolean = false,
     /** Pool checklists: whose piece this is. */
     val forHero: String? = null,
+    /** A reforge step: the build counts this finished level 85 piece as reforged and it isn't yet. */
+    val reforgeStep: Boolean = false,
 ) {
     /** The game modifies gear in another menu than it equips, so a mod is its own step, after all the equipping. */
     val modStep get() = mod != null
+    /** Steps in another menu than equipping: reforge, then modify. */
+    val otherMenu get() = modStep || reforgeStep
+    /** The menu this step happens in: 0 equip, 1 reforge, 2 modify. */
+    val menu get() = when { modStep -> 2; reforgeStep -> 1; else -> 0 }
 
-    fun copyFor(hero: String) = OverlayPiece(item, setIcon, mainText, subs, owner, onHero, mod, orig, reforged, hero)
+    fun copyFor(hero: String) = OverlayPiece(item, setIcon, mainText, subs, owner, onHero, mod, orig, reforged, hero, reforgeStep)
 }
 
 class OverlayBuild(
@@ -61,7 +67,7 @@ class OverlayBuild(
     /** Shown under the title: a checklist from a past run, which may not match the gear any more. */
     val flag: String? = null,
 ) {
-    val key get() = pieces.joinToString(",") { "${it.forHero.orEmpty()}:${it.item.id}:${it.mod.orEmpty()}" }
+    val key get() = pieces.joinToString(",") { "${it.forHero.orEmpty()}:${it.item.id}:${it.mod.orEmpty()}${if (it.reforgeStep) ":reforge" else ""}" }
 }
 
 /** Shared between the app and the overlay window; both run in the app process. */
@@ -95,7 +101,7 @@ object OverlayState {
     fun load(b: OverlayBuild, onFinish: (() -> Unit)? = null) {
         upgrade = null
         build = b
-        done.clear(); done.addAll(b.pieces.map { it.onHero && !it.modStep })
+        done.clear(); done.addAll(b.pieces.map { it.onHero && !it.otherMenu })
         doneOrder.clear()
         restoreProgress(b)
         expanded = false; tab = 0; focus = -1

@@ -112,12 +112,17 @@ const val PANEL_GAP = 4
 /** Taps pass through an app's overlay only at this opacity or less (Android 12+ blocks them above 0.8); 0 hides the list, keeping the controls. */
 val OPACITY_STEPS = listOf(0.8f, 0.6f, 0.4f, 0f)
 
+/** What a reforge step asks for; the values shown are the piece after it. */
+private const val REFORGE_NOTE = "Reforge: Lv.85 → Lv.90"
+
 /** Where the next step happens: in pool runs the hero to open in the game, otherwise the piece. */
 private fun nextHint(b: OverlayBuild, i: Int): String {
     val p = b.pieces[i]
-    val hero = p.forHero ?: return if (p.modStep) "${p.item.slot.label} · modify" else "${p.item.slot.label} · ${p.owner.removePrefix("on ").removePrefix("in ")}"
+    val hero = p.forHero ?: return if (p.modStep) "${p.item.slot.label} · modify" else if (p.reforgeStep) "${p.item.slot.label} · reforge"
+        else "${p.item.slot.label} · ${p.owner.removePrefix("on ").removePrefix("in ")}"
     if (p.modStep) return "Modify · $hero"
-    val left = b.pieces.indices.count { b.pieces[it].forHero == hero && !b.pieces[it].modStep && !OverlayState.done.getOrElse(it) { true } }
+    if (p.reforgeStep) return "Reforge · $hero"
+    val left = b.pieces.indices.count { b.pieces[it].forHero == hero && !b.pieces[it].otherMenu && !OverlayState.done.getOrElse(it) { true } }
     return "$hero · $left ${if (left == 1) "piece" else "pieces"}"
 }
 
@@ -210,8 +215,8 @@ private fun OverlayControls(b: OverlayBuild, onMove: (Float, Float) -> Unit, onC
         }
         // with the list hidden, the open step is named here instead
         s.current.takeIf { it >= 0 && s.listHidden }?.let { b.pieces[it] }?.let { p ->
-            Text((p.forHero?.let { "$it · " } ?: "") + "${p.item.slot.label} · ${p.mainText} · " + (p.mod?.let { "改 Mod: $it" } ?: p.owner),
-                style = zen(12.sp, color = if (p.modStep) C.deepPink else C.ink), modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp))
+            Text((p.forHero?.let { "$it · " } ?: "") + "${p.item.slot.label} · ${p.mainText} · " + (p.mod?.let { "改 Mod: $it" } ?: REFORGE_NOTE.takeIf { p.reforgeStep } ?: p.owner),
+                style = zen(12.sp, color = if (p.otherMenu) C.deepPink else C.ink), modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp))
         }
     }
 }
@@ -231,13 +236,14 @@ fun OverlayBody() {
     Column(Modifier.padding(end = 4.dp).width(PANEL_WIDTH.dp).heightIn(max = max.dp).clip(shape).background(C.card)
         .border(2.5.dp, C.edge, shape).verticalScroll(scroll)) {
         if (s.tab == 0) b.pieces.forEachIndexed { i, p ->
-            // a heading each time the hero (pool checklists) or the menu (equip, then modify) changes, so 48 moves read as a few short lists
-            fun group(q: OverlayPiece?) = q?.let { it.forHero to it.modStep }
-            if ((p.forHero != null || p.modStep) && group(b.pieces.getOrNull(i - 1)) != group(p)) {
+            // a heading each time the hero (pool checklists) or the menu (equip, reforge, modify) changes, so 48 moves read as a few short lists
+            fun group(q: OverlayPiece?) = q?.let { it.forHero to it.menu }
+            if ((p.forHero != null || p.otherMenu) && group(b.pieces.getOrNull(i - 1)) != group(p)) {
                 val members = b.pieces.indices.filter { group(b.pieces[it]) == group(p) }
                 val done = members.count { s.done.getOrElse(it) { false } }
                 Row(Modifier.fillMaxWidth().background(C.paper).padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (p.modStep) "改 Modify" + (p.forHero?.let { " · $it" } ?: "") else p.forHero.orEmpty(), style = dela(12.sp),
+                    Text(when { p.modStep -> "改 Modify" + (p.forHero?.let { " · $it" } ?: ""); p.reforgeStep -> "Reforge" + (p.forHero?.let { " · $it" } ?: "")
+                        else -> p.forHero.orEmpty() }, style = dela(12.sp),
                         modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("$done of ${members.size}", style = zen(11.sp, color = C.muted))
                 }
@@ -284,8 +290,9 @@ private fun PieceRow(i: Int, p: OverlayPiece, open: Boolean) {
                 }
                 SubGrid(p.orig, p.reforged)
                 p.mod?.let { Text("改 Mod: $it", style = zen(11.sp, color = C.deepPink)) }
+                if (p.reforgeStep) Text(REFORGE_NOTE, style = zen(11.sp, color = C.deepPink))
                 // whoever wears the piece is where the game shows it, so the name is never cut
-                if (!p.modStep) Text(p.owner.replaceFirstChar { it.uppercase() }, style = zen(12.sp, color = ownerColor),
+                if (!p.otherMenu) Text(p.owner.replaceFirstChar { it.uppercase() }, style = zen(12.sp, color = ownerColor),
                     modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(C.card).padding(horizontal = 7.dp, vertical = 2.dp))
             }
         }
@@ -298,11 +305,11 @@ private fun PieceRow(i: Int, p: OverlayPiece, open: Boolean) {
             Text("${p.item.slot.label} · ${p.mainText}", style = zen(12.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             // the stamp's room is kept when not done, so ticking a piece doesn't push the owner sideways
             Box(Modifier.alpha(if (done) 1f else 0f)) { Stamp("済") }
-            if (!p.modStep && !worn) Text(p.owner, style = zen(11.sp, color = ownerColor))
+            if (!p.otherMenu && !worn) Text(p.owner, style = zen(11.sp, color = ownerColor))
         }
         // a wearer's name gets a line of its own, so it is never cut
-        val note = p.mod?.let { "改 Mod: $it" } ?: p.owner.takeIf { worn }
-        note?.let { Text(it, style = zen(11.sp, color = if (p.modStep) C.deepPink else ownerColor),
+        val note = p.mod?.let { "改 Mod: $it" } ?: REFORGE_NOTE.takeIf { p.reforgeStep } ?: p.owner.takeIf { worn }
+        note?.let { Text(it, style = zen(11.sp, color = if (p.otherMenu) C.deepPink else ownerColor),
             modifier = Modifier.padding(start = 98.dp, end = 10.dp, bottom = 3.dp)) }
     }
     Box(Modifier.fillMaxWidth().height(1.5.dp).background(C.line))

@@ -57,6 +57,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -274,15 +276,21 @@ const val BACK_TAG = "back-link"
 /** "‹ <the screen back goes to>": screens open from several places (a hero from another hero), so it's never hard-coded. */
 @Composable
 fun BackToPrevious(model: e7.gearscan.AppModel, modifier: Modifier = Modifier) {
-    BackLink(model.backLabel(), modifier) { model.back() }
+    val pinned = LocalPinnedBack.current
+    val label = model.backLabel()
+    androidx.compose.runtime.DisposableEffect(pinned) { onDispose { pinned?.label = null; pinned?.linkBottom = Float.MAX_VALUE } }
+    // where it is tells the frame when to pin a copy to the top
+    BackLink(label, modifier.onGloballyPositioned { c ->
+        pinned?.let { p -> p.label = label; p.onClick = { model.back() }; p.linkBottom = c.boundsInWindow().bottom }
+    }) { model.back() }
 }
 
 @Composable
-fun BackLink(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun BackLink(text: String, modifier: Modifier = Modifier, tag: String = BACK_TAG, onClick: () -> Unit) {
     // a long hero name shrinks rather than pushing the row's other items off; only the words take the tap
     Box(modifier, contentAlignment = Alignment.CenterStart) {
         FitText("‹ $text", zen(14.sp, color = C.blue).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
-            Modifier.testTag(BACK_TAG).tap(onClick).padding(vertical = 2.dp))
+            Modifier.testTag(tag).tap(onClick).padding(vertical = 2.dp))
     }
 }
 
