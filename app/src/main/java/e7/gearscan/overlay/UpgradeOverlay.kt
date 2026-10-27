@@ -118,7 +118,8 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                 pane == UpgradePane.LIST -> QueuePage(t, maxHeight.value) { pane = UpgradePane.PIECE }
                 pane == UpgradePane.MENU -> {
                     val options = listOf(if(t.isRollReview)"Roll review" else if (!t.hasTarget) "Build advice" else "Targets", "History", "Help") + listOfNotNull("Correct".takeIf { UpgradeRecord.supported(item) }) +
-                        listOfNotNull("Final build".takeIf { !t.hasTarget && t.results.any { it.build.isNotEmpty() && (it.hits.isNotEmpty() || it.current) } },
+                        listOfNotNull("Track the better bet".takeIf { t.betterBet != null && t.switchTo != null },
+                            "Final build".takeIf { !t.hasTarget && t.results.any { it.build.isNotEmpty() && (it.hits.isNotEmpty() || it.current) } },
                             (if (t.rebuilds) "This piece only" else "Allow rebuilds").takeIf { !t.hasTarget },
                             "Recheck builds".takeIf { !t.hasTarget }, "Notice".takeIf { t.notice != null })
                     PanelChoices(options, maxHeight.value, "More") { i -> when (options[i]) {
@@ -129,6 +130,7 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                         "Help" -> pane = UpgradePane.HELP
                         "Recheck builds" -> { t.requestCheck?.invoke(); pane = UpgradePane.ADVICE }
                         "Final build" -> pane = UpgradePane.BUILD
+                        "Track the better bet" -> { t.betterBet?.let { t.switchTo?.invoke(it.first) }; pane = UpgradePane.PIECE }
                         "This piece only", "Allow rebuilds" -> { t.setRebuilds?.invoke(!t.rebuilds); pane = UpgradePane.ADVICE }
                         "Notice" -> pane = UpgradePane.HELP
                     } }
@@ -354,6 +356,7 @@ private fun helpText(t: UpgradeTracker) = listOfNotNull(t.notice,
 /** The weakest finish that still helps the hero it helps most often, for the piece page. */
 private fun weakestLine(t: UpgradeTracker): String? {
     if (t.busy || t.record?.item?.enhance == 15) return null
+    t.betterBet?.let { return "Better bet: ${it.second}" }
     val h = t.results.filter { it.hits.isNotEmpty() }.maxByOrNull { it.hits.size } ?: return null
     return if (h.hits.size == h.total) "An upgrade whatever the rolls" else h.minimal.firstOrNull()?.let { "Upgrade at +15 from: $it" }
 }
@@ -381,6 +384,8 @@ private fun adviceText(t: UpgradeTracker) = buildList {
             if (h.hits.isNotEmpty() && h.hits.size == h.total) append("\nEvery finish does.")
             else if (h.minimal.isNotEmpty()) append("\nStill an upgrade at +15 from: " + h.minimal.joinToString("\nor "))
             if (h.changes.isNotEmpty()) append("\nBest: ${h.changes}")
+            if (h.alts.isNotEmpty()) append("\n\n${h.name}'s unfinished ${t.record?.item?.slot?.label?.lowercase() ?: "piece"}s, best bet first (30 finishes each):\n" +
+                h.alts.mapIndexed { i, line -> "${i + 1}. $line" }.joinToString("\n"))
         })
     }
     if (t.expected > 0 && !t.busy && t.uncertain) add("Some searches are unfinished. No stop decision is certain; use Recheck builds to continue.")

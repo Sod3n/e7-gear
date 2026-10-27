@@ -73,6 +73,50 @@ class TrackPieceScreens {
         return advise("recheck after +$next", start = false)
     }
 
+    /** A necklace that helps a hero with other unfinished necklaces: after a weak roll the tracker ranks them all. */
+    @Test
+    fun betterBets() {
+        assumeTrue("replaces the app's box; emulator only", Build.FINGERPRINT.contains("generic") || Build.HARDWARE.contains("ranchu"))
+        val assets = InstrumentationRegistry.getInstrumentation().context.assets
+        File(ctx.filesDir, "content.json").writeText(assets.open("content.json").bufferedReader().use { it.readText() })
+        val backup = assets.open("backup.json").bufferedReader().use { it.readText() }
+        val dir = File(ctx.getExternalFilesDir(null), "bets").also { it.deleteRecursively(); it.mkdirs() }
+        rule.runOnUiThread { model = AppModel(ctx.applicationContext as Application) }
+        rule.waitUntil(20_000) { model.ready }
+        var restored = false
+        ui { restored = model.restore(backup); model.upgrades.clear() }
+        check(restored) { "restore failed" }
+        var overlay by mutableStateOf(false)
+        rule.setContent {
+            val d = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(d.density, 1.3f)) {
+                Box(Modifier.width(353.dp).fillMaxHeight()) { if (overlay) OverlayUi({ _, _ -> }, {}, {}) else e7.gearscan.ui.App(model) {} }
+            }
+        }
+        fun shot(name: String) { rule.waitForIdle(); val bmp = rule.onRoot().captureToImage().asAndroidBitmap()
+            File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+        fun ranked() = model.upgrades.results.any { it.alts.size >= 2 }
+        val necklaces = model.box!!.items.filter { it.slot == e7.gearscan.data.Slot.NECKLACE && it.rank == "Epic" && it.enhance in 3..9 && UpgradeRecord.supported(it) }
+            .sortedByDescending { it.score }.take(30)
+        val piece = necklaces.firstOrNull { p ->
+            ui { model.selectUpgrade(p.id) }
+            advise("necklace +${p.enhance}")
+            rule.waitUntil(120_000) { ranked() || model.upgrades.results.none { it.hits.isNotEmpty() } }
+            ranked()
+        } ?: error("no necklace among ${necklaces.size} helps a hero with other necklaces")
+        ui { OverlayState.upgrade = model.upgrades; OverlayState.expanded = true; overlay = true }
+        shot("1-piece")
+        recordWeakStep()
+        rule.waitUntil(120_000) { ranked() }
+        shot("2-after-weak-roll")
+        rule.onNodeWithText("${model.upgrades.chance}%").performClick()
+        repeat(4) { i -> shot("3-advice-${i + 1}"); runCatching { rule.onNodeWithContentDescription("Next details page").performClick() } }
+        val h = model.upgrades.results.filter { it.alts.isNotEmpty() }.maxBy { it.hits.size }
+        File(dir, "result.txt").writeText("${piece.slot} +${piece.enhance} → +${model.upgrades.record!!.item.enhance}: ${model.upgrades.title}\n" +
+            "${h.name}: better ${h.better.size}\n" + h.alts.joinToString("\n") + "\n")
+        ui { OverlayState.upgrade = null; overlay = false }
+    }
+
     @Test
     fun trackAPiece() {
         assumeTrue("replaces the app's box; emulator only", Build.FINGERPRINT.contains("generic") || Build.HARDWARE.contains("ranchu"))

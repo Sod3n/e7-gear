@@ -106,6 +106,10 @@ class UpgradeTracker(private val file: File) {
     var rebuilds by mutableStateOf(false)
     var setRebuilds: ((Boolean) -> Unit)? = null
     var canReforge: ((Long) -> Boolean)? = null
+    var switchTo: ((Long) -> Unit)? = null
+    /** For the hero this piece helps most: another unfinished piece for the slot that is a better bet, and its line. */
+    val betterBet: Pair<Long, String>? get() = results.filter { it.hits.isNotEmpty() || it.swapNow }.maxByOrNull { it.hits.size }
+        ?.takeIf { it.better.isNotEmpty() }?.let { it.better.first() to it.betterText }
     var equipOn: ((Long) -> Unit)? = null
     var undoEquip: (() -> Unit)? by mutableStateOf(null)
     var equippedOn: String? by mutableStateOf(null)
@@ -147,7 +151,8 @@ class UpgradeTracker(private val file: File) {
         equippedOn != null -> "Equipped on $equippedOn"
         record?.item?.enhance == 15 -> if (equipHeroes.isNotEmpty()) "Finished · upgrade for ${equipHeroes.first().name}" else if (hasPotential) "Finished · potential upgrade" else "Finished · no upgrade found"
         hasFuture && results.any { it.provisional && it.hits.isNotEmpty() } -> "Potential upgrade · check incomplete"
-        hasFuture -> chance?.let { "Continue · $it% chance to upgrade" } ?: "Continue · potential upgrade"
+        hasFuture -> (chance?.let { "Continue · $it% chance to upgrade" } ?: "Continue · potential upgrade") +
+            (results.filter { it.hits.isNotEmpty() }.maxByOrNull { it.hits.size }?.better?.size?.takeIf { it > 0 }?.let { " · $it better ${if (it == 1) "bet" else "bets"}" } ?: "")
         uncertain -> "Undecided · check incomplete"
         results.any { it.current } -> "Pause · useful as it is"
         else -> "Pause · no upgrade found"

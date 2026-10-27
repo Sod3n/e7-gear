@@ -1274,6 +1274,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         upgrades.requestCheck = ::checkUpgrade
         upgrades.canReforge = { id -> box?.canReforge(id) == true }
         upgrades.equipOn = ::equipTracked
+        upgrades.switchTo = { id -> selectUpgrade(id); checkUpgrade() }
         upgrades.rebuilds = heroUpgradeRebuilds
         upgrades.setRebuilds = { on -> useHeroUpgradeRebuilds(on); upgrades.rebuilds = on; checkUpgrade() }
         upgrades.selectQueue = { index ->
@@ -1380,6 +1381,14 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                     android.util.Log.i("E7Upgrade", "checked ${upgrades.results.size}/${setups.size} heroes, ${upgrades.hitCount}/${upgrades.total} finishes for piece " +
                         "${r.item.id} +${r.item.enhance}, %.1f s".format(java.util.Locale.US, (System.nanoTime() - t0) / 1e9))
                 }
+                // still the best bet? the same heroes' other unfinished pieces for this slot, through the same check
+                val tops = upgrades.results.filter { it.hits.isNotEmpty() || it.swapNow }.sortedByDescending { it.hits.size }.take(3)
+                if (upgrades.generation == token && r.item.enhance < 15 && tops.isNotEmpty()) {
+                    val alts = withContext(Dispatchers.Default) { compareSlot(setups.filter { s -> tops.any { it.id == s.hero.id } }, r.item, b, rebuilds) }
+                    if (upgrades.generation == token) upgrades.checkpoint(upgrades.results.map { h ->
+                        alts[h.id]?.let { (lines, better) -> h.copy(alts = lines.map { it.second }, better = better,
+                            betterText = lines.firstOrNull { it.first == better.firstOrNull() }?.second.orEmpty()) } ?: h })
+                }
             } catch (e: Exception) {
                 if (upgrades.generation == token) { upgrades.busy = false; upgrades.error = "Check stopped. Recorded steps are saved; tap Recheck to continue." }
             } finally { if (upgrades.generation == token) PoolService.stop(getApplication()) }
@@ -1387,6 +1396,36 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     private var pieceWithout: Pair<String, java.util.concurrent.ConcurrentHashMap<Long, e7.gearscan.opt.HeroUpgrades.Base>>? = null
+
+    /**
+     * [current] and the hero's other unfinished pieces for its slot, through one check with the same finishes count and
+     * reference (what it wears, or with rebuilds its best build now), ranked by expected gain: the share of finishes that
+     * help times how much. Lines (piece id, text) best first, and the ids ranked ahead of [current].
+     */
+    private fun compareSlot(heroes: List<Setup>, current: Item, b: Box, rebuilds: Boolean): Map<Long, Pair<List<Pair<Long, String>>, List<Long>>> {
+        val others = b.items.filter { it.slot == current.slot && it.id != current.id && it.enhance < 15 && it.id !in cleanupDone &&
+            e7.gearscan.data.UpgradeRecord.supported(it) }
+        val res = e7.gearscan.opt.HeroUpgrades().run(heroes, (listOf(current) + others).sortedBy { it.id })
+        return heroes.mapNotNull { s -> rankSlot(s, current, b, rebuilds, res)?.let { s.hero.id to it } }.toMap()
+    }
+
+    private fun rankSlot(s: Setup, current: Item, b: Box, rebuilds: Boolean, res: e7.gearscan.opt.HeroUpgrades.Result): Pair<List<Pair<Long, String>>, List<Long>>? {
+        val base = res.bases[s.hero.id] ?: return null
+        val ref = (if (rebuilds) base.value else base.worn) ?: return null
+        val refBase = e7.gearscan.opt.HeroUpgrades.Base(base.id, ref, emptyList(), false, base.unit, 0)
+        fun counted(p: e7.gearscan.opt.HeroUpgrades.Pick) = (if (rebuilds) p.values else p.swaps.map { it.second })
+            .filter { it > ref + e7.gearscan.opt.HeroUpgrades.MIN_GAIN * base.unit }.sortedDescending()
+        val ranked = res.picks.filter { it.hero == s.hero.id }.map { p -> p to counted(p) }.map { (p, v) -> Triple(p, v, v.sumOf { (it - ref) / base.unit } / res.sims) }
+            .filter { it.third > 0 || it.first.piece == current.id }.sortedByDescending { it.third }
+        val mine = ranked.firstOrNull { it.first.piece == current.id }?.third ?: 0.0
+        val lines = ranked.take(5).map { (p, v, _) ->
+            val q = if (p.piece == current.id) current else b.itemsById.getValue(p.piece)
+            val name = "${content.set(q.set)?.name ?: q.set.removeSuffix("Set")} ${q.slot.label} +${q.enhance}"
+            val where = if (p.piece == current.id) " (this one)" else inventoryPosition(p.piece)?.label()?.substringBefore(" ·")?.let { " · $it" }.orEmpty()
+            p.piece to "$name$where · ${v.size * 100 / res.sims}%" + (v.getOrNull(v.size / 2)?.let { " · usually ${heroGainLabel(s.hero.id, refBase, it)}" } ?: "")
+        }
+        return lines to ranked.filter { it.first.piece != current.id && it.third > mine }.map { it.first.piece }
+    }
 
     /** One hero's part of the tracker's advice, with its gains and weakest helping finishes as text. */
     private fun pieceAdvice(pr: e7.gearscan.opt.HeroUpgrades.PieceResult, rebuilds: Boolean): e7.gearscan.opt.UpgradeCheck.HeroResult {
@@ -2298,6 +2337,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         upgrades.requestCheck = ::checkUpgrade
         upgrades.canReforge = { id -> box?.canReforge(id) == true }
         upgrades.equipOn = ::equipTracked
+        upgrades.switchTo = { id -> selectUpgrade(id); checkUpgrade() }
         upgrades.rebuilds = heroUpgradeRebuilds
         upgrades.setRebuilds = { on -> useHeroUpgradeRebuilds(on); upgrades.rebuilds = on; checkUpgrade() }
         refreshUpgradePosition()
