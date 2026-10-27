@@ -78,7 +78,7 @@ sealed class Screen {
     data class PoolHero(val id: Long, val setup: Boolean) : Screen()
 }
 
-enum class SheetKind { PRESET, TARGETS, ADVANCED, BONUS, SETS, MAINS, GOALS, SHOW, HERO_PICK, ARTIFACT, POOL_PICK, POOL_WORSE, POOL_LOW, POOL_HEROES, POOL_LIST, POOL_TRADES, SCAN_RESTART, POTENTIAL_HELP, POTENTIAL_TARGETS, POTENTIAL_SLOTS, POTENTIAL_SETS, POTENTIAL_MAINS, POTENTIAL_OPTIONS, POTENTIAL_PIECE, INVENTORY_ORDER, SELL_SCORE, SELL_WEIGHTS, SELL_FLOORS, SELL_CUSTOMS, SELL_HEROES, SELL_INVENTORY, SELL_SLOTS, SELL_SETS, SELL_MAINS, SELL_LEVELS, SELL_QUALITY, SELL_DETAILS, SELL_HELP, SELL_SAFEGUARDS, SELL_EXTRA, HERO_UPGRADE_PIECE, HERO_UPGRADE_HELP }
+enum class SheetKind { PRESET, TARGETS, ADVANCED, BONUS, SETS, MAINS, GOALS, SHOW, HERO_PICK, ARTIFACT, POOL_PICK, POOL_WORSE, POOL_LOW, POOL_HEROES, POOL_LIST, POOL_TRADES, SCAN_RESTART, POTENTIAL_HELP, POTENTIAL_TARGETS, POTENTIAL_SLOTS, POTENTIAL_SETS, POTENTIAL_MAINS, POTENTIAL_OPTIONS, POTENTIAL_PIECE, INVENTORY_ORDER, SELL_SCORE, SELL_WEIGHTS, SELL_FLOORS, SELL_CUSTOMS, SELL_HEROES, SELL_INVENTORY, SELL_SLOTS, SELL_SETS, SELL_MAINS, SELL_LEVELS, SELL_QUALITY, SELL_DETAILS, SELL_HELP, SELL_SAFEGUARDS, SELL_EXTRA, HERO_UPGRADE_PIECE, HERO_UPGRADE_HELP, HERO_UPGRADE_BUILD }
 
 /** [back] is the sheet to return to when this one finishes; null closes. */
 data class Sheet(val kind: SheetKind, val heroId: Long, val back: SheetKind? = null)
@@ -116,6 +116,8 @@ const val HISTORY_BUILDS = 10
 
 /** Time cap per hero in a pool run; top-1 searches usually finish far sooner. */
 const val POOL_HERO_MS = 6_000L
+/** Saved Improve heroes results of another format are dropped on load. */
+const val HERO_UPGRADES_FORMAT = 2
 /** Simulated finishes the tracker checks a piece with: the chance it ends up an upgrade, and its weakest helping finishes. */
 const val PIECE_SIMS = 120
 /** Cleanup keeps this many pieces of each kind for each stat pair. */
@@ -1269,6 +1271,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         upgrades.requestCheck = ::checkUpgrade
         upgrades.canReforge = { id -> box?.canReforge(id) == true }
         upgrades.equipOn = ::equipTracked
+        upgrades.rebuilds = heroUpgradeRebuilds
+        upgrades.setRebuilds = { on -> useHeroUpgradeRebuilds(on); upgrades.rebuilds = on; checkUpgrade() }
         upgrades.selectQueue = { index ->
             val entry = upgrades.pendingQueue.getOrNull(index)
             val original = entry?.let { box?.itemsById?.get(it.id) }?.takeIf { it.id !in cleanupDone }
@@ -1335,7 +1339,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             val cfg = HeroConfig.fromJson(s.cfg.toJson())
             Setup(s.hero, s.game, cfg, s.req.copy(), b, content, s.canTakeFrom, s.excluded - r.item.id)
         }
-        val raw = "upgrade-v2-piece|" + b.toText() + content.version + r.toJson().toString() + setups.joinToString { s -> s.hero.id.toString() + s.cfg.toJson() + s.req.toJson() + s.excluded.sorted() }
+        val rebuilds = heroUpgradeRebuilds
+        val raw = "upgrade-v3-piece|$rebuilds|" + b.toText() + content.version + r.toJson().toString() + setups.joinToString { s -> s.hero.id.toString() + s.cfg.toJson() + s.req.toJson() + s.excluded.sorted() }
         val sig = sha256(raw)
         // each hero's best build without the piece holds for every step recorded on it
         val withoutKey = sha256("without-v1|${r.item.id}|" + JSONArray(b.items.filter { it.id != r.item.id }.map { e7.gearscan.data.UpgradeRecord.itemJson(it) }) +
@@ -1357,7 +1362,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.Default) {
                     e7.gearscan.opt.HeroUpgrades(PIECE_SIMS).piece(setups, r.item, without, upgrades.attempt, resume.map { it.id }.toSet(),
                         cancelled = { upgrades.generation != token }) { pr ->
-                        done += pieceAdvice(pr)
+                        done += pieceAdvice(pr, rebuilds)
                         val now = synchronized(done) { done.toList() }
                         viewModelScope.launch {
                             if (upgrades.generation == token) {
@@ -1381,14 +1386,25 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     private var pieceWithout: Pair<String, java.util.concurrent.ConcurrentHashMap<Long, e7.gearscan.opt.HeroUpgrades.Base>>? = null
 
     /** One hero's part of the tracker's advice, with its gains and weakest helping finishes as text. */
-    private fun pieceAdvice(pr: e7.gearscan.opt.HeroUpgrades.PieceResult): e7.gearscan.opt.UpgradeCheck.HeroResult {
-        val values = pr.hits.values.sortedDescending()
-        val nowValue = pr.bar.value
-        return e7.gearscan.opt.UpgradeCheck.HeroResult(pr.hero, hero(pr.hero)?.let(::heroName) ?: "", pr.hits.keys.sorted(), pr.now, false, pr.unknown,
-            pr.provisional, if (pr.now && nowValue != null) pr.without.value?.let { (nowValue - it) / pr.without.unit } ?: 1.0 else null, pr.changes, pr.total,
-            pr.minimal.map { q -> q.subs.joinToString(" · ") { "${it.type.short} ${it.type.format(it.value)}" } },
-            values.getOrNull(values.size / 2)?.let { heroGainLabel(pr.hero, pr.bar, it) }.orEmpty(),
-            if (pr.now && nowValue != null) heroGainLabel(pr.hero, pr.without, nowValue) else "")
+    private fun pieceAdvice(pr: e7.gearscan.opt.HeroUpgrades.PieceResult, rebuilds: Boolean): e7.gearscan.opt.UpgradeCheck.HeroResult {
+        val hits = if (rebuilds) pr.hits else pr.swapHits
+        val values = hits.values.sortedDescending()
+        val now = if (rebuilds) pr.now else pr.swapNow
+        val nowValue = if (rebuilds) pr.bar.value else pr.swapNowValue
+        val build = (if (rebuilds) pr.rebuildBuild else pr.swapBuild)?.sortedBy { it.slot.ordinal }
+        val lines = build?.let { b ->
+            // the check's own ids for the piece are negative
+            val from = buildFrom(pr.hero, b, Long.MIN_VALUE)
+            b.mapIndexed { i, q -> "${q.slot.label}: ${content.set(q.set)?.name ?: q.set.removeSuffix("Set")} ${q.mainType.short} · ${from[i]}" } +
+                "Sets: ${e7.gearscan.opt.HeroUpgrades.setsLabel(b, content)}"
+        }.orEmpty()
+        return e7.gearscan.opt.UpgradeCheck.HeroResult(pr.hero, hero(pr.hero)?.let(::heroName) ?: "", hits.keys.sorted(), now, false, pr.unknown,
+            pr.provisional, if (now && nowValue != null) (if (rebuilds) pr.without else pr.worn ?: pr.without).let { b -> b.value?.let { (nowValue - it) / b.unit } } ?: 1.0 else null,
+            if (rebuilds) pr.changes else pr.swapChanges, pr.total,
+            (if (rebuilds) pr.minimal else pr.swapMinimal).map { q -> q.subs.joinToString(" · ") { "${it.type.short} ${it.type.format(it.value)}" } },
+            values.getOrNull(values.size / 2)?.let { v -> heroGainLabel(pr.hero, if (rebuilds) pr.bar else pr.worn?.let { w ->
+                e7.gearscan.opt.HeroUpgrades.Base(w.id, pr.swapRef, w.items, false, w.unit, 0, w.worn) } ?: pr.bar, v) }.orEmpty(),
+            if (now && nowValue != null) heroGainLabel(pr.hero, if (rebuilds) pr.without else pr.worn ?: pr.without, nowValue) else "", pr.swapNow, lines)
     }
 
     /** A build value over [base] as the player reads it: match points on targets, else the goal's own unit. */
@@ -1606,6 +1622,65 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun useHeroUpgradeMinGain(rolls: Double) { heroUpgradeMinGain = rolls; touch() }
 
+    /** Off: a finish counts only put in place of the hero's piece in that slot, nothing else moving. On: any build the search finds. */
+    var heroUpgradeRebuilds by mutableStateOf(false)
+        private set
+    fun useHeroUpgradeRebuilds(on: Boolean) { heroUpgradeRebuilds = on; touch() }
+
+    /** A hero's final build with a piece upgraded: six slots, where each piece comes from, and the stats against what it wears. */
+    class FinalBuild(val hero: OwnedHero, val pieceId: Long, val items: List<Item>, val from: List<String>, val sets: Pair<String, String>,
+                     val stats: List<Triple<Stat, Double, Double>>, val gain: String, val note: String)
+    var finalBuild: FinalBuild? by mutableStateOf(null)
+        private set
+    var finalBuildBusy by mutableStateOf(false)
+        private set
+
+    /** Where each piece of [items] comes from for [heroId]: this piece, stays, from the bag, or from another hero. */
+    fun buildFrom(heroId: Long, items: List<Item>, pieceId: Long): List<String> {
+        val worn = box?.gearOf(heroId).orEmpty()
+        return items.map { when {
+            it.id == pieceId || it.id < 0 -> "This piece, upgraded"
+            worn[it.slot]?.id == it.id -> "Stays"
+            it.equippedOn == null -> "From the bag"
+            else -> "From ${hero(it.equippedOn!!)?.let(::heroName) ?: "a hero not in the scan"}"
+        } }
+    }
+
+    /** The stats the hero's setup scores, now (worn) and with [items]. */
+    private fun scoredStats(s: Setup, items: List<Item>): List<Triple<Stat, Double, Double>> {
+        val now = s.build(s.current().values.toList()).final.stats
+        val after = s.build(items).final.stats
+        val obj = e7.gearscan.opt.Objectives.of(s.req, s.hb)
+        val cares = (obj.uses.filter { it < 8 } + (0 until 8).filter { !s.req.mins[it].isNaN() }).distinct()
+        return Stat.entries.filter { it.ordinal in cares }.map { Triple(it, now[it.ordinal], after[it.ordinal]) }
+    }
+
+    /** Opens the final build of [row]'s usual finish for [heroId], worked out off the main thread. */
+    fun openFinalBuild(heroId: Long, row: HeroUpgradeRow) {
+        val r = heroUpgrades?.result ?: return
+        val h = hero(heroId) ?: return
+        finalBuild = null; finalBuildBusy = true
+        val rebuilds = heroUpgradeRebuilds
+        viewModelScope.launch {
+            val fb = withContext(Dispatchers.Default) {
+                val (setups, pieces, _) = heroUpgradeInputs() ?: return@withContext null
+                val s = setups.firstOrNull { it.hero.id == heroId } ?: return@withContext null
+                val piece = pieces.firstOrNull { it.id == row.pick.piece } ?: return@withContext null
+                val j = row.usual.takeIf { it >= 0 } ?: 0
+                val f = e7.gearscan.opt.Finish.of(piece, r.sims)[j]
+                val finish = Item(piece.id, f.slot, f.set, f.rank, f.level, 15, f.mainType, f.mainValue, f.subs, piece.locked, piece.equippedOn, main15 = f.main15)
+                val worn = s.current().values.toList().takeIf { it.size == 6 }
+                val items = if (rebuilds) e7.gearscan.opt.HeroUpgrades.rebuild(s, finish)?.items
+                    else worn?.map { if (it.slot == piece.slot) finish else it }
+                items ?: return@withContext null
+                FinalBuild(h, piece.id, items.sortedBy { it.slot.ordinal }, buildFrom(heroId, items.sortedBy { it.slot.ordinal }, piece.id),
+                    e7.gearscan.opt.HeroUpgrades.setsLabel(s.current().values, content) to e7.gearscan.opt.HeroUpgrades.setsLabel(items, content),
+                    scoredStats(s, items), row.typical, if (rebuilds) "The best build with a usual finish of this piece" else "What the hero wears, with a usual finish of this piece in its slot")
+            }
+            finalBuild = fb; finalBuildBusy = false
+        }
+    }
+
     /** The heroes the check covers: every hero with a setup, as in [cleanupSetups]. */
     fun heroUpgradeHeroes(): List<OwnedHero> = box?.heroes.orEmpty().filter { h ->
         gameHero(h) != null && configs[h.id]?.request?.let { r -> r.goal != Goal.TARGETS || r.targets.any { !it.isNaN() } } == true
@@ -1618,7 +1693,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun heroUpgradeKey(): String {
         val memoKey = listOf(box, lastScan, upgrades.records, cleanupDone, poolTiers, poolExtra, tiers, rev, content.version)
         heroKeyMemo?.takeIf { it.first == memoKey }?.let { return it.second }
-        val raw = "hero-upgrades-v1|$lastScan|" + upgrades.records.values.filter { it.scan == lastScan }.sortedBy { it.item.id }.joinToString { it.toJson().toString() } +
+        val raw = "hero-upgrades-v2|$lastScan|" + upgrades.records.values.filter { it.scan == lastScan }.sortedBy { it.item.id }.joinToString { it.toJson().toString() } +
             "|${cleanupDone.sorted()}|${poolMembers().map { it.id }.sorted()}|${content.version}|" +
             heroUpgradeHeroes().joinToString(",") { "${it.id}=${setupKey(it.id)}" }
         return sha256(raw).also { heroKeyMemo = memoKey to it }
@@ -1636,7 +1711,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         })))
         val setups = cleanupSetups(b, inUse(b))
         val pieces = b.items.filter { it.enhance < 15 && e7.gearscan.data.UpgradeRecord.supported(it) }.sortedBy { it.id }
-        val full = sha256("hero-upgrades-v1|${e7.gearscan.opt.HeroUpgrades.SIMS}|" + b.toText() + content.version +
+        val full = sha256("hero-upgrades-v2|${e7.gearscan.opt.HeroUpgrades.SIMS}|" + b.toText() + content.version +
             setups.joinToString { s -> s.hero.id.toString() + s.cfg.toJson() + s.req.toJson() + s.excluded.sorted() })
         return Triple(setups, pieces, full)
     }
@@ -1687,7 +1762,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             val state = r?.takeIf { finished }?.let { HeroUpgradeState(scan, light, it, running = false, finishedAt = System.currentTimeMillis(), attempt = attempt) }
             if (state != null) {
                 runCatching {
-                    val text = JSONObject().put("scan", scan).put("key", light).put("finishedAt", state.finishedAt).put("attempt", attempt).put("result", r.toJson()).toString()
+                    val text = JSONObject().put("format", HERO_UPGRADES_FORMAT).put("scan", scan).put("key", light).put("finishedAt", state.finishedAt).put("attempt", attempt).put("result", r.toJson()).toString()
                     File(heroUpgradesFile.path + ".tmp").also { it.writeText(text) }.renameTo(heroUpgradesFile)
                 }
                 android.util.Log.i("E7Heroes", "hero upgrades: ${setups.size} heroes, ${pieces.size} pieces, ${r.picks.size} picks, " +
@@ -1725,7 +1800,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** A piece for a hero as listed: [hits] of [sims] finishes gain at least the minimum; [expected] = their gains summed over all finishes, in rolls. */
-    class HeroUpgradeRow(val pick: e7.gearscan.opt.HeroUpgrades.Pick, val hits: Int, val sims: Int, val typical: String, val best: String, val expected: Double) {
+    /** [usual]: the finish (index among its piece's) behind [typical], for the final build; [changes] of the best one. */
+    class HeroUpgradeRow(val pick: e7.gearscan.opt.HeroUpgrades.Pick, val hits: Int, val sims: Int, val typical: String, val best: String, val expected: Double,
+                         val usual: Int = -1, val changes: String = "") {
         val chance get() = hits * 100 / sims
     }
 
@@ -1733,15 +1810,17 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     class HeroUpgradeHero(val hero: OwnedHero, val base: e7.gearscan.opt.HeroUpgrades.Base, val rows: List<HeroUpgradeRow>, val bestNow: Int?, val open: Int)
 
     /** Every checked hero (higher tiers first, then by what its best piece is worth), each with the pieces that gain at least [minGain] rolls. */
-    fun heroUpgradeView(r: e7.gearscan.opt.HeroUpgrades.Result, minGain: Double = heroUpgradeMinGain): List<HeroUpgradeHero> {
+    fun heroUpgradeView(r: e7.gearscan.opt.HeroUpgrades.Result, minGain: Double = heroUpgradeMinGain, rebuilds: Boolean = heroUpgradeRebuilds): List<HeroUpgradeHero> {
         val byHero = r.picks.groupBy { it.hero }
         return r.bases.values.mapNotNull { base ->
             val h = hero(base.id) ?: return@mapNotNull null
             val req = configs[h.id]?.request ?: return@mapNotNull null
             val scale = if (req.goal == Goal.TARGETS) mainsOnly(h.id, req)?.let { floor -> rolls(h.id)?.let { roll ->
                 e7.gearscan.data.Match.start(floor, req.targets, req.weights, roll).takeIf { it > 0 }?.let { 100 / it } } } else null
+            // the starting value: the best build now, or (nothing else moving) what the hero wears
+            val ref = if (rebuilds) base.value else base.worn
             fun label(v: Double): String {
-                val v0 = base.value ?: return "makes a build"
+                val v0 = ref ?: return "makes a build"
                 val d = v - v0
                 fun one(x: Double) = fmtNum(Math.round(x * 10) / 10.0)
                 return when (req.goal) {
@@ -1755,13 +1834,16 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             }
             val picks = byHero[h.id].orEmpty()
             val rows = picks.mapNotNull { p ->
-                val gains = if (base.value == null) p.values.map { 1.0 } else p.values.map { (it - base.value) / base.unit }.filter { it >= minGain }
+                // nothing else moving, or the best build however it is made
+                val ranked = if (rebuilds) p.values.indices.map { p.hitIdx.getOrElse(it) { -1 } to p.values[it] } else p.swaps
+                val gains = if (ref == null) ranked.map { 1.0 } else ranked.map { (it.second - ref) / base.unit }.filter { it >= minGain }
                 if (gains.isEmpty()) return@mapNotNull null
-                val kept = p.values.take(gains.size)
-                HeroUpgradeRow(p, gains.size, r.sims, label(kept[kept.size / 2]), label(kept.first()), gains.sum() / r.sims)
+                val kept = ranked.take(gains.size)
+                HeroUpgradeRow(p, gains.size, r.sims, label(kept[kept.size / 2].second), label(kept.first().second), gains.sum() / r.sims,
+                    kept[kept.size / 2].first, if (rebuilds) p.changes else p.swapChanges)
             }.sortedWith(compareByDescending<HeroUpgradeRow> { it.expected }.thenByDescending { it.hits }.thenBy { it.pick.piece })
             val baseBuild = setup(h.id)?.let { s -> base.items.mapNotNull { box?.itemsById?.get(it) }.takeIf { it.size == 6 }?.let { s.build(it) } }
-            HeroUpgradeHero(h, base, rows, baseBuild?.let { matchOf(h.id, it)?.pct }, picks.count { it.unknown > 0 })
+            HeroUpgradeHero(h, base, rows, if (rebuilds) baseBuild?.let { matchOf(h.id, it)?.pct } else matchFor(h.id)?.pct, picks.count { it.unknown > 0 })
         }.sortedWith(compareByDescending<HeroUpgradeHero> { tier(it.hero.id) }.thenByDescending { it.rows.firstOrNull()?.expected ?: -1.0 }
             .thenBy { heroName(it.hero) })
     }
@@ -2068,7 +2150,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         put("cleanupDone", JSONArray(cleanupDone.toList()))
         put("overlaySales",JSONArray(overlaySales.map { JSONObject().put("id",it.id).put("scan",it.scan) }))
         put("potentialQuery", potentialQuery.toJson())
-        put("heroUpgradeMinGain", heroUpgradeMinGain)
+        put("heroUpgradeMinGain", heroUpgradeMinGain); put("heroUpgradeRebuilds", heroUpgradeRebuilds)
         put("sellQuery", sellQuery.toJson())
         put("inventoryAscending", inventoryAscending).put("inventoryBagOnly", inventoryBagOnly)
     }
@@ -2128,7 +2210,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         syncClearedUpgradeQueue()
         upgrades.canUndoSold=overlaySales.any { mark->upgrades.queue.any { it.id==mark.id } }
         heroUpgradeMinGain = j.optDouble("heroUpgradeMinGain", 0.5)
-        heroUpgrades = runCatching { JSONObject(heroUpgradesFile.readText()) }.getOrNull()?.let { o -> l.box?.let { b -> runCatching {
+        heroUpgradeRebuilds = j.optBoolean("heroUpgradeRebuilds", false)
+        // results saved before the swap fields existed can't answer "this piece only": they are dropped
+        heroUpgrades = runCatching { JSONObject(heroUpgradesFile.readText()) }.getOrNull()?.takeIf { it.optInt("format") == HERO_UPGRADES_FORMAT }?.let { o -> l.box?.let { b -> runCatching {
             HeroUpgradeState(o.getLong("scan"), o.getString("key"), e7.gearscan.opt.HeroUpgrades.Result.of(o.getJSONObject("result"), b.itemsById),
                 running = false, finishedAt = o.getLong("finishedAt"), attempt = o.optInt("attempt"))
         }.getOrNull() } }
@@ -2179,6 +2263,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         upgrades.requestCheck = ::checkUpgrade
         upgrades.canReforge = { id -> box?.canReforge(id) == true }
         upgrades.equipOn = ::equipTracked
+        upgrades.rebuilds = heroUpgradeRebuilds
+        upgrades.setRebuilds = { on -> useHeroUpgradeRebuilds(on); upgrades.rebuilds = on; checkUpgrade() }
         refreshUpgradePosition()
         viewModelScope.launch {
             val loaded = withContext(Dispatchers.IO) { readFiles() }

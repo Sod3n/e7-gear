@@ -137,11 +137,29 @@ class HeroUpgradeScreens {
             rule.onAllNodesWithText("By hero", useUnmergedTree = true)[0].performTouchInput { click() }
             rule.waitForIdle()
         }
-        val hero = view.first { it.rows.isNotEmpty() }
+        ui { model.useHeroUpgradeRebuilds(true) }
+        each("3e-rebuilds")
+        val rebuildView = model.heroUpgradeView(r)
+        val rebuildHero = rebuildView.first { h -> h.rows.any { it.pick.sets.isNotEmpty() } }
+        ui { model.go(Screen.HeroUpgrades(rebuildHero.hero.id)) }
+        each("3f-rebuild-hero")
+        val rebuildRow = rebuildHero.rows.first { it.pick.sets.isNotEmpty() }
+        ui { model.openFinalBuild(rebuildHero.hero.id, rebuildRow); model.sheet = Sheet(SheetKind.HERO_UPGRADE_BUILD, rebuildRow.pick.piece) }
+        rule.waitUntil(60_000) { !model.finalBuildBusy }
+        check(model.finalBuild != null) { "no final build for a rebuild pick" }
+        each("3g-final-build-rebuild", sheet = true)
+        ui { model.sheet = null; model.useHeroUpgradeRebuilds(false); model.go(Screen.HeroUpgrades()) }
+        val hero = model.heroUpgradeView(r).first { it.rows.isNotEmpty() }
         ui { model.go(Screen.HeroUpgrades(hero.hero.id)) }
         each("4-hero")
         ui { model.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, hero.rows.first().pick.piece) }
         each("5-piece", sheet = true)
+        ui { model.openFinalBuild(hero.hero.id, hero.rows.first()); model.sheet = Sheet(SheetKind.HERO_UPGRADE_BUILD, hero.rows.first().pick.piece) }
+        rule.waitUntil(60_000) { !model.finalBuildBusy }
+        val fb = checkNotNull(model.finalBuild) { "no final build" }
+        // this piece only: every other piece is the one the hero's best build already has
+        check(fb.from.count { it == "This piece, upgraded" } == 1) { "final build: ${fb.from}" }
+        each("5b-final-build", sheet = true)
         ui { model.sheet = Sheet(SheetKind.HERO_UPGRADE_HELP, 0) }
         each("6-help", sheet = true)
         ui { model.sheet = null; model.go(Screen.HeroDetail(hero.hero.id)) }

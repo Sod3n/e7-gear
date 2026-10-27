@@ -11,15 +11,19 @@ class UpgradeCheck(private val samples: Int = 30, private val heroMs: Long = 350
     /** [total]: finishes tried; [minimal]: the weakest finishes that still help, as text; [typical]/[nowGain]: gains as text. */
     data class HeroResult(val id: Long, val name: String, val hits: List<Int>, val current: Boolean, val combo: Boolean,
                           val unknown: Int, val provisional: Boolean, val gain: Double?, val changes: String,
-                          val total: Int = 30, val minimal: List<String> = emptyList(), val typical: String = "", val nowGain: String = "") {
+                          val total: Int = 30, val minimal: List<String> = emptyList(), val typical: String = "", val nowGain: String = "",
+                          /** Equipping the piece as it is, nothing else moving, helps; [build]: the final build to show, as lines. */
+                          val swapNow: Boolean = false, val build: List<String> = emptyList()) {
         fun toJson() = JSONObject().put("id", id).put("name", name).put("hits", JSONArray(hits)).put("current", current)
             .put("combo", combo).put("unknown", unknown).put("provisional", provisional).put("gain", gain ?: JSONObject.NULL).put("changes", changes)
             .put("total", total).put("minimal", JSONArray(minimal)).put("typical", typical).put("nowGain", nowGain)
+            .put("swapNow", swapNow).put("build", JSONArray(build))
         companion object {
             fun of(j: JSONObject) = HeroResult(j.getLong("id"), j.getString("name"), j.getJSONArray("hits").let { a -> (0 until a.length()).map(a::getInt) },
                 j.getBoolean("current"), j.getBoolean("combo"), j.getInt("unknown"), j.getBoolean("provisional"),
                 if (j.isNull("gain")) null else j.getDouble("gain"), j.getString("changes"), j.optInt("total", 30),
-                j.optJSONArray("minimal")?.let { a -> (0 until a.length()).map(a::getString) }.orEmpty(), j.optString("typical"), j.optString("nowGain"))
+                j.optJSONArray("minimal")?.let { a -> (0 until a.length()).map(a::getString) }.orEmpty(), j.optString("typical"), j.optString("nowGain"),
+                j.optBoolean("swapNow"), j.optJSONArray("build")?.let { a -> (0 until a.length()).map(a::getString) }.orEmpty())
         }
     }
 

@@ -26,7 +26,7 @@ import e7.gearscan.ui.*
 import kotlin.math.floor
 import kotlin.math.min
 
-private enum class UpgradePane { PIECE, LIST, MENU, GOAL, HISTORY, HELP, ADVICE, EQUIP }
+private enum class UpgradePane { PIECE, LIST, MENU, GOAL, HISTORY, HELP, ADVICE, EQUIP, BUILD }
 private enum class EntryPage { CHOOSE, VALUE, REVIEW, STEP }
 
 /** A draft stays separate from saved observations until the explicit Save action. */
@@ -118,7 +118,9 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                 pane == UpgradePane.LIST -> QueuePage(t, maxHeight.value) { pane = UpgradePane.PIECE }
                 pane == UpgradePane.MENU -> {
                     val options = listOf(if(t.isRollReview)"Roll review" else if (!t.hasTarget) "Build advice" else "Targets", "History", "Help") + listOfNotNull("Correct".takeIf { UpgradeRecord.supported(item) }) +
-                        listOfNotNull("Recheck builds".takeIf { !t.hasTarget }, "Notice".takeIf { t.notice != null })
+                        listOfNotNull("Final build".takeIf { !t.hasTarget && t.results.any { it.build.isNotEmpty() && (it.hits.isNotEmpty() || it.current) } },
+                            (if (t.rebuilds) "This piece only" else "Allow rebuilds").takeIf { !t.hasTarget },
+                            "Recheck builds".takeIf { !t.hasTarget }, "Notice".takeIf { t.notice != null })
                     PanelChoices(options, maxHeight.value, "More") { i -> when (options[i]) {
                         "Targets", "Roll review" -> pane = UpgradePane.GOAL
                         "Build advice" -> pane = UpgradePane.ADVICE
@@ -126,6 +128,8 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                         "Correct" -> if (UpgradeRecord.supported(item)) { correction = true; t.error = null; t.editing = true }
                         "Help" -> pane = UpgradePane.HELP
                         "Recheck builds" -> { t.requestCheck?.invoke(); pane = UpgradePane.ADVICE }
+                        "Final build" -> pane = UpgradePane.BUILD
+                        "This piece only", "Allow rebuilds" -> { t.setRebuilds?.invoke(!t.rebuilds); pane = UpgradePane.ADVICE }
                         "Notice" -> pane = UpgradePane.HELP
                     } }
                 }
@@ -133,6 +137,7 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                 pane == UpgradePane.HISTORY -> HistoryPage(r, maxHeight.value, t.goal?.minimums?.keys ?: emptySet())
                 pane == UpgradePane.HELP -> PanelTextPages(helpText(t), maxHeight.value)
                 pane == UpgradePane.ADVICE -> PanelTextPages(adviceText(t), maxHeight.value)
+                pane == UpgradePane.BUILD -> PanelTextPages(buildText(t), maxHeight.value)
                 pane == UpgradePane.EQUIP -> PanelChoices(t.equipHeroes.map { "${it.name} · ${it.nowGain}" }, maxHeight.value, "Equipped on") { i ->
                     t.equipHeroes.getOrNull(i)?.let { h -> t.equipOn?.invoke(h.id) }; pane = UpgradePane.PIECE
                 }
@@ -353,8 +358,18 @@ private fun weakestLine(t: UpgradeTracker): String? {
     return if (h.hits.size == h.total) "An upgrade whatever the rolls" else h.minimal.firstOrNull()?.let { "Upgrade at +15 from: $it" }
 }
 
+/** The final build for the hero the piece helps most (or can be equipped on), as lines. */
+private fun buildText(t: UpgradeTracker): String {
+    val h = t.equipHeroes.firstOrNull()?.takeIf { t.record?.item?.enhance == 15 }
+        ?: t.results.filter { it.build.isNotEmpty() && (it.hits.isNotEmpty() || it.current) }.maxByOrNull { it.hits.size } ?: return "No build to show yet."
+    val with = if (t.record?.item?.enhance == 15 || h.hits.isEmpty()) "this piece as it is" else "a usual finish of this piece"
+    return "Final build for ${h.name}, with $with" + (if (h.typical.isNotEmpty() && h.hits.isNotEmpty()) " (usually ${h.typical})" else if (h.nowGain.isNotEmpty()) " (${h.nowGain})" else "") +
+        "\n\n" + h.build.joinToString("\n") + if (h.changes.isNotEmpty()) "\n\nBest finish: ${h.changes}" else ""
+}
+
 private fun adviceText(t: UpgradeTracker) = buildList {
     add(t.title)
+    add(if (t.rebuilds) "Counting any rebuild: other pieces and sets may change." else "Counting this piece only: it goes into the hero's slot, nothing else moves.")
     if (t.expected > 0 && t.total > 0) add("${t.results.size}/${t.expected} saved setups checked. ${t.hitCount} of ${t.total} simulated finishes (${t.chance}%) are an upgrade for at least one hero.")
     else if (t.expected > 0) add("${t.results.size}/${t.expected} saved setups checked.")
     t.results.filter { it.current || it.hits.isNotEmpty() || it.combo }.sortedByDescending { it.hits.size }.forEach { h ->

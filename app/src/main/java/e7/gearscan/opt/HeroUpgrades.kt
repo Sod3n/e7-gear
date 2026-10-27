@@ -28,29 +28,32 @@ import java.util.concurrent.atomic.AtomicInteger
 class HeroUpgrades(private val sims: Int = SIMS, private val baseMs: Long = 4000, private val slotMs: Long = 4000,
                    private val log: ((String) -> Unit)? = null) {
     /** A hero's best build before any upgrade. [value] null: no build meets the setup ([timedOut]: not proven). */
-    class Base(val id: Long, val value: Double?, val items: List<Long>, val timedOut: Boolean, val unit: Double, val budget: Long) {
+    /** [worn]: the value of what the hero wears, when that is a complete build that meets its setup. */
+    class Base(val id: Long, val value: Double?, val items: List<Long>, val timedOut: Boolean, val unit: Double, val budget: Long, val worn: Double? = null) {
         val bar get() = value?.let { it + MIN_GAIN * unit } ?: Double.NEGATIVE_INFINITY
         /** Couldn't even find the starting build: nothing about this hero is known. */
         val unresolved get() = value == null && timedOut
         fun toJson(): JSONObject = JSONObject().put("id", id).put("value", value ?: JSONObject.NULL).put("items", JSONArray(items))
-            .put("timedOut", timedOut).put("unit", unit).put("budget", budget)
+            .put("timedOut", timedOut).put("unit", unit).put("budget", budget).put("worn", worn ?: JSONObject.NULL)
         companion object {
             fun of(j: JSONObject) = Base(j.getLong("id"), if (j.isNull("value")) null else j.getDouble("value"), longs(j.getJSONArray("items")),
-                j.getBoolean("timedOut"), j.getDouble("unit"), j.getLong("budget"))
+                j.getBoolean("timedOut"), j.getDouble("unit"), j.getLong("budget"), if (!j.has("worn") || j.isNull("worn")) null else j.getDouble("worn"))
         }
     }
 
-    /** One hero-slot search: finishes (indexes into [finishes]) that beat the bar with the build's value, and the unsettled ones. */
-    class Step(val hits: Map<Int, Double>, val best: Map<Int, List<Long>>, val unknown: List<Int>, val budget: Long) {
-        fun toJson(): JSONObject = JSONObject().put("hits", JSONArray(hits.entries.map { (k, v) -> JSONArray().put(k).put(v) }))
+    /**
+     * One hero-slot search: finishes (indexes into [finishes]) whose best build beats the bar, with its value; [swaps]: those
+     * that beat it just put in place of the bar build's piece in that slot (nothing else moves); and the unsettled ones.
+     */
+    class Step(val hits: Map<Int, Double>, val best: Map<Int, List<Long>>, val unknown: List<Int>, val budget: Long, val swaps: Map<Int, Double> = emptyMap()) {
+        fun toJson(): JSONObject = JSONObject().put("hits", pairs(hits)).put("swaps", pairs(swaps))
             .put("best", JSONArray(best.entries.map { (k, v) -> JSONArray().put(k).put(JSONArray(v)) }))
             .put("unknown", JSONArray(unknown)).put("budget", budget)
         companion object {
             fun of(j: JSONObject): Step {
-                val h = j.getJSONArray("hits"); val b = j.getJSONArray("best")
-                return Step((0 until h.length()).associate { h.getJSONArray(it).let { e -> e.getInt(0) to e.getDouble(1) } },
-                    (0 until b.length()).associate { b.getJSONArray(it).let { e -> e.getInt(0) to longs(e.getJSONArray(1)) } },
-                    j.getJSONArray("unknown").let { a -> (0 until a.length()).map(a::getInt) }, j.getLong("budget"))
+                val b = j.getJSONArray("best")
+                return Step(pairsOf(j.getJSONArray("hits")), (0 until b.length()).associate { b.getJSONArray(it).let { e -> e.getInt(0) to longs(e.getJSONArray(1)) } },
+                    j.getJSONArray("unknown").let { a -> (0 until a.length()).map(a::getInt) }, j.getLong("budget"), j.optJSONArray("swaps")?.let(::pairsOf).orEmpty())
             }
         }
     }
@@ -75,12 +78,25 @@ class HeroUpgrades(private val sims: Int = SIMS, private val baseMs: Long = 4000
      * = value - the base value; with no base build, the value of the first build it makes possible). [example] is the
      * build behind the best one, with [finish] in the piece's slot; [changes] its final-stat differences from the base build.
      */
-    class Pick(val piece: Long, val hero: Long, val values: List<Double>, val unknown: Int, val example: List<Long>, val finish: Item?, val changes: String) {
+    class Pick(val piece: Long, val hero: Long, val values: List<Double>, val unknown: Int, val example: List<Long>, val finish: Item?, val changes: String,
+               /** Finish (index in its piece's [sims]) behind each of [values]. */
+               val hitIdx: List<Int> = emptyList(),
+               /** Finishes that beat the bar put in place of the bar build's piece, nothing else moving: (finish, value), best first. */
+               val swaps: List<Pair<Int, Double>> = emptyList(),
+               /** The best of [swaps]' final-stat differences from the base build. */
+               val swapChanges: String = "",
+               /** [example] against the base build: other pieces it moves, and its sets when they differ ("" when the same). */
+               val moved: Int = 0, val sets: String = "") {
         fun toJson(): JSONObject = JSONObject().put("piece", piece).put("hero", hero).put("values", JSONArray(values)).put("unknown", unknown)
             .put("example", JSONArray(example)).put("finish", finish?.let(UpgradeRecord::itemJson) ?: JSONObject.NULL).put("changes", changes)
+            .put("hitIdx", JSONArray(hitIdx)).put("swaps", JSONArray(swaps.map { (i, v) -> JSONArray().put(i).put(v) })).put("swapChanges", swapChanges)
+            .put("moved", moved).put("sets", sets)
         companion object {
             fun of(j: JSONObject) = Pick(j.getLong("piece"), j.getLong("hero"), j.getJSONArray("values").let { a -> (0 until a.length()).map(a::getDouble) },
-                j.getInt("unknown"), longs(j.getJSONArray("example")), j.optJSONObject("finish")?.let { e7.gearscan.data.Box.parseItem(it) }, j.getString("changes"))
+                j.getInt("unknown"), longs(j.getJSONArray("example")), j.optJSONObject("finish")?.let { e7.gearscan.data.Box.parseItem(it) }, j.getString("changes"),
+                j.optJSONArray("hitIdx")?.let { a -> (0 until a.length()).map(a::getInt) }.orEmpty(),
+                j.optJSONArray("swaps")?.let { a -> (0 until a.length()).map { a.getJSONArray(it).let { e -> e.getInt(0) to e.getDouble(1) } } }.orEmpty(),
+                j.optString("swapChanges"), j.optInt("moved"), j.optString("sets"))
         }
     }
 
@@ -170,6 +186,12 @@ class HeroUpgrades(private val sims: Int = SIMS, private val baseMs: Long = 4000
         }
     }
 
+    /** Final-stat differences of [build] from [base], only for what the hero's goal scores: other stats moving says nothing about the gain. */
+    private fun changes(c: Check, base: Build, build: Build) = Stat.entries.filter { it.ordinal in c.cares }.mapNotNull { stat ->
+        val delta = build.final.stats[stat.ordinal] - base.final.stats[stat.ordinal]
+        if (kotlin.math.abs(delta) < 0.5) null else "${stat.short} ${if (delta > 0) "+" else ""}${e7.gearscan.data.fmtNum(kotlin.math.round(delta))}"
+    }.joinToString(" · ")
+
     private fun result(checks: List<Check>, pieces: List<Item>, all: List<Item>, p: Progress): Result {
         val picks = ArrayList<Pick>()
         var unknownSteps = 0
@@ -181,20 +203,26 @@ class HeroUpgrades(private val sims: Int = SIMS, private val baseMs: Long = 4000
                 if (step == null) { if (!c.base.unresolved) unknownSteps++; continue }
                 if (step.unknown.isNotEmpty()) unknownSteps++
                 val hitsBy = step.hits.entries.groupBy { it.key / sims }
+                val swapsBy = step.swaps.entries.groupBy { it.key / sims }
                 val unknownBy = step.unknown.groupingBy { it / sims }.eachCount()
-                for (pi in (hitsBy.keys + unknownBy.keys).toSortedSet()) {
-                    val values = hitsBy[pi].orEmpty().map { it.value }.sortedDescending()
+                // a piece can beat what the hero wears without beating its best build: it is listed for that alone
+                for (pi in (hitsBy.keys + unknownBy.keys + swapsBy.keys).toSortedSet()) {
+                    val ranked = hitsBy[pi].orEmpty().sortedByDescending { it.value }
+                    val values = ranked.map { it.value }
+                    val swaps = swapsBy[pi].orEmpty().sortedByDescending { it.value }.map { it.key % sims to it.value }
                     val ids = step.best[pi].orEmpty()
                     val finish = ids.firstOrNull { it < 0 }?.let { all[simIndex(it)] }
                     val example = ids.map { if (it < 0) pieces[pi].id else it }
                     val build = finish?.let { f -> ids.map { id -> if (id < 0) f else c.s.box.itemsById[id] } }
                         ?.takeIf { b -> b.all { it != null } }?.let { b -> c.s.build(b.map { it!! }) }
-                    // only what the hero's goal scores: other stats moving says nothing about the gain
-                    val changes = if (baseBuild != null && build != null) Stat.entries.filter { it.ordinal in c.cares }.mapNotNull { stat ->
-                        val delta = build.final.stats[stat.ordinal] - baseBuild.final.stats[stat.ordinal]
-                        if (kotlin.math.abs(delta) < 0.5) null else "${stat.short} ${if (delta > 0) "+" else ""}${e7.gearscan.data.fmtNum(kotlin.math.round(delta))}"
-                    }.joinToString(" · ") else ""
-                    picks += Pick(pieces[pi].id, c.s.hero.id, values, unknownBy[pi] ?: 0, example, finish?.let { asPiece(it, pieces[pi]) }, changes)
+                    val changes = if (baseBuild != null && build != null) changes(c, baseBuild, build) else ""
+                    val worn = c.s.current().values.toList().takeIf { it.size == 6 }?.let { c.s.build(it) }
+                    val swapBuild = swaps.firstOrNull()?.let { (j, _) -> worn?.items?.map { if (it.slot == sl) all[pi * sims + j] else it } }?.let { c.s.build(it) }
+                    val swapChanges = if (worn != null && swapBuild != null) changes(c, worn, swapBuild) else ""
+                    val moved = if (baseBuild != null && build != null) build.items.count { it.slot != sl && baseBuild.items.first { b -> b.slot == it.slot }.id != it.id } else 0
+                    val sets = if (baseBuild != null && build != null) setsLabel(build.items, c.s.content).takeIf { it != setsLabel(baseBuild.items, c.s.content) }.orEmpty() else ""
+                    picks += Pick(pieces[pi].id, c.s.hero.id, values, unknownBy[pi] ?: 0, example, finish?.let { asPiece(it, pieces[pi]) }, changes,
+                        ranked.map { it.key % sims }, swaps, swapChanges, moved, sets)
                 }
             }
         }
@@ -205,9 +233,18 @@ class HeroUpgrades(private val sims: Int = SIMS, private val baseMs: Long = 4000
      * One piece being enhanced, for one hero. [bar]: the better of the hero's best build without the piece ([without]) and
      * its best build with the piece as it is now; [now]: the piece as it is already beats the first. [hits]: finish index ->
      * build value, finishes from [Finish.of] the piece as it is now; [minimal]: the weakest finishes that still beat the bar.
+     * The swap fields ask the same with nothing else moving: what the hero wears, the piece put in its slot.
      */
     class PieceResult(val hero: Long, val without: Base, val bar: Base, val now: Boolean, val hits: Map<Int, Double>, val unknown: Int,
-                      val total: Int, val minimal: List<Item>, val changes: String) {
+                      val total: Int, val minimal: List<Item>, val changes: String,
+                      /** The same with nothing else moving: finishes put in place of the piece in the bar build's slot. */
+                      val swapHits: Map<Int, Double> = emptyMap(), val swapMinimal: List<Item> = emptyList(), val swapChanges: String = "",
+                      /** The piece as it is, put into the best build without it, beats that build: equipping it alone helps. */
+                      val swapNow: Boolean = false, val swapNowValue: Double? = null,
+                      /** Builds to show: the bar build with the piece's usual helping finish (or the piece as it is), and the best rebuild. */
+                      val swapBuild: List<Item>? = null, val rebuildBuild: List<Item>? = null,
+                      /** What the hero wears, and the value the swap fields must beat (the better of that and the piece as it is in it). */
+                      val worn: Base? = null, val swapRef: Double? = null) {
         val provisional get() = bar.timedOut
     }
 
@@ -261,15 +298,25 @@ class HeroUpgrades(private val sims: Int = SIMS, private val baseMs: Long = 4000
                 val bestIds = step.best[0] ?: c?.takeIf { beats }?.items?.map { it.id }
                 val bestItems = bestIds?.map { id -> when { id == now.id -> now; id < 0 -> finishes[simIndex(id)]; else -> s.box.itemsById[id] } }
                     ?.takeIf { it.all { x -> x != null } }?.map { it!! }
-                val compare = if (step.best[0] != null) barItems else w.items.mapNotNull { s.box.itemsById[it] }.takeIf { it.size == 6 }
-                val changes = if (compare != null && bestItems != null) {
-                    val a = s.build(compare).final.stats; val b = s.build(bestItems).final.stats
-                    Stat.entries.filter { it.ordinal in check.cares }.mapNotNull { stat ->
-                        val delta = b[stat.ordinal] - a[stat.ordinal]
-                        if (kotlin.math.abs(delta) < 0.5) null else "${stat.short} ${if (delta > 0) "+" else ""}${e7.gearscan.data.fmtNum(kotlin.math.round(delta))}"
-                    }.joinToString(" · ")
-                } else ""
-                PieceResult(s.hero.id, w, bar, beats, hits, step.unknown.size, finishes.size, minimal(hits.keys.map { finishes[it] }), changes).also(done)
+                val wItems = w.items.mapNotNull { s.box.itemsById[it] }.takeIf { it.size == 6 }
+                val compare = if (step.best[0] != null) barItems else wItems
+                val changes = if (compare != null && bestItems != null) changes(check, s.build(compare), s.build(bestItems)) else ""
+                // nothing else moving: what the hero wears, with the piece (as it is, or a finish) in its slot
+                fun into(items: List<Item>, q: Item) = items.map { if (it.slot == sl) q else it }
+                val wornItems = s.current().values.toList().takeIf { it.size == 6 }
+                val wornValue = wornItems?.let { check.value(it) }?.takeIf { it.isFinite() }
+                val swapNowValue = if (wornItems != null && wornValue != null) check.value(into(wornItems, now)) else null
+                val swapNow = swapNowValue != null && wornValue != null && swapNowValue > wornValue + MIN_GAIN * unit(s, wornValue)
+                val swapRef = if (swapNow) swapNowValue!! else wornValue
+                val swapHits = if (wornItems == null || swapRef == null) emptyMap() else
+                    finishes.indices.associateWith { j -> check.value(into(wornItems, finishes[j])) }.filterValues { it > swapRef + MIN_GAIN * unit(s, swapRef) }
+                val usual = swapHits.entries.sortedByDescending { it.value }.let { e -> e.getOrNull(e.size / 2)?.key }
+                val swapBuild = wornItems?.let { b -> into(b, usual?.let { finishes[it] } ?: now) }
+                val swapChanges = if (wornItems != null && swapHits.isNotEmpty()) changes(check, s.build(into(wornItems, now)),
+                    s.build(into(wornItems, finishes[swapHits.maxBy { it.value }.key]))) else ""
+                val wornBase = wornValue?.let { Base(s.hero.id, it, wornItems!!.map { x -> x.id }, false, unit(s, it), 0, it) }
+                PieceResult(s.hero.id, w, bar, beats, hits, step.unknown.size, finishes.size, minimal(hits.keys.map { finishes[it] }), changes,
+                    swapHits, minimal(swapHits.keys.map { finishes[it] }), swapChanges, swapNow, swapNowValue, swapBuild, bestItems ?: c?.items, wornBase, swapRef).also(done)
             } }).mapNotNull { it.get() }
         } finally {
             ex.shutdownNow()
@@ -280,10 +327,10 @@ class HeroUpgrades(private val sims: Int = SIMS, private val baseMs: Long = 4000
         val r = SearchRun(s, 1)
         search(r, budget)
         val b = r.builds().firstOrNull()
-        return Base(s.hero.id, b?.value, b?.items?.map { it.id }.orEmpty(), r.engine.stopped, unit(s, b?.value), budget)
+        return Base(s.hero.id, b?.value, b?.items?.map { it.id }.orEmpty(), r.engine.stopped, unit(s, b?.value), budget, wornValue(s))
     }
 
-    private inner class Check(val s: Setup, val base: Base) {
+    private inner class Check(val s: Setup, val base: Base, resolved: List<Item>? = null) {
         val req = s.req
         val obj = Objectives.of(req, s.hb)
         val maxs = s.maxs()
@@ -299,21 +346,10 @@ class HeroUpgrades(private val sims: Int = SIMS, private val baseMs: Long = 4000
             for (it in s.box.items) if (s.eligible(it)) m.getOrPut(it.slot to it.set) { ArrayList() }.add(Calc.itemVec(it, s.hb, req.reforged))
         }
 
-        val baseItems: List<Item>? = base.items.mapNotNull { s.box.itemsById[it] }.takeIf { it.size == 6 && base.value != null }
+        val baseItems: List<Item>? = resolved ?: base.items.mapNotNull { s.box.itemsById[it] }.takeIf { it.size == 6 && base.value != null }
 
         /** The search's value of a complete build, or minus infinity when it breaks the setup's rules. */
-        fun value(items: List<Item>): Double {
-            if (req.setAlts.isNotEmpty()) {
-                val cnt = items.groupingBy { it.set }.eachCount()
-                if (req.setAlts.none { alt -> alt.all { (k, m) -> (cnt[k] ?: 0) >= m } }) return Double.NEGATIVE_INFINITY
-            }
-            val f = Calc.final(s.hb, items, req.reforged, s.content)
-            for (x in 0 until 8) {
-                if (!req.mins[x].isNaN() && f.stats[x] < req.mins[x]) return Double.NEGATIVE_INFINITY
-                if (!maxs[x].isNaN() && f.stats[x] > maxs[x]) return Double.NEGATIVE_INFINITY
-            }
-            return obj.eval(f.stats + doubleArrayOf(f.gs), f.dmgMult, f.pen)
-        }
+        fun value(items: List<Item>): Double = buildValue(s, items)
 
         /** Whether this hero may wear [piece] at all: not another protected hero's, the lock rule, the main, a set its build has room for. */
         fun allowed(piece: Item): Boolean {
@@ -347,13 +383,19 @@ class HeroUpgrades(private val sims: Int = SIMS, private val baseMs: Long = 4000
         }
 
         fun step(sl: Slot, candidates: List<Int>, pieces: List<Item>, all: List<Item>, budget: Long, threads: Int, cancelled: () -> Boolean): Step {
+            // nothing else moving: each finish in place of the piece the hero wears in this slot
+            val worn = s.current().values.toList().takeIf { it.size == 6 && base.worn != null }
+            val swapBar = base.worn?.let { it + MIN_GAIN * unit(s, it) }
+            val swaps = HashMap<Int, Double>()
             val byPiece = LinkedHashMap<Int, List<Item>>()
             for (pi in candidates) {
                 if (cancelled()) break
                 if (!allowed(pieces[pi])) continue
-                (0 until sims).map { all[pi * sims + it] }.filter { !rejects(it) }.takeIf { it.isNotEmpty() }?.let { byPiece[pi] = it }
+                val qs = (0 until sims).map { all[pi * sims + it] }
+                if (worn != null && swapBar != null) for (q in qs) buildValue(s, worn.map { if (it.slot == sl) q else it }).takeIf { it > swapBar }?.let { swaps[simIndex(q.id)] = it }
+                qs.filter { !rejects(it) }.takeIf { it.isNotEmpty() }?.let { byPiece[pi] = it }
             }
-            if (byPiece.isEmpty()) return Step(emptyMap(), emptyMap(), emptyList(), budget)
+            if (byPiece.isEmpty()) return Step(emptyMap(), emptyMap(), emptyList(), budget, swaps)
             val inSlot = s.box.items.filter { it.slot == sl }.map { it.id }
             val forced = Setup(s.hero, s.game, s.cfg, req, s.box, s.content, s.canTakeFrom, s.excluded + inSlot)
             val t0 = System.nanoTime()
@@ -396,7 +438,7 @@ class HeroUpgrades(private val sims: Int = SIMS, private val baseMs: Long = 4000
             for ((qid, sw) in swapped) hit(qid, sw.first, sw.second)
             for (b in run.builds()) hit(b.items.first { it.slot == sl }.id, b.value, b.items)
             val unknown = run.unsettled().map { simIndex(it.id) }.filter { it !in hits }
-            return Step(hits, best, unknown, budget)
+            return Step(hits, best, unknown, budget, swaps)
         }
     }
 
@@ -420,6 +462,41 @@ class HeroUpgrades(private val sims: Int = SIMS, private val baseMs: Long = 4000
         }
 
         fun simIndex(id: Long) = (-1L - id).toInt()
+
+        /** The search's value of a complete build for [s], or minus infinity when it breaks the setup's rules. */
+        fun buildValue(s: Setup, items: List<Item>): Double {
+            val req = s.req
+            if (req.setAlts.isNotEmpty()) {
+                val cnt = items.groupingBy { it.set }.eachCount()
+                if (req.setAlts.none { alt -> alt.all { (k, m) -> (cnt[k] ?: 0) >= m } }) return Double.NEGATIVE_INFINITY
+            }
+            val f = Calc.final(s.hb, items, req.reforged, s.content)
+            val maxs = s.maxs()
+            for (x in 0 until 8) {
+                if (!req.mins[x].isNaN() && f.stats[x] < req.mins[x]) return Double.NEGATIVE_INFINITY
+                if (!maxs[x].isNaN() && f.stats[x] > maxs[x]) return Double.NEGATIVE_INFINITY
+            }
+            return Objectives.of(req, s.hb).eval(f.stats + doubleArrayOf(f.gs), f.dmgMult, f.pen)
+        }
+
+        /** The value of what the hero wears, when that is a complete build meeting its setup. */
+        fun wornValue(s: Setup): Double? = s.current().values.toList().takeIf { it.size == 6 }?.let { buildValue(s, it) }?.takeIf { it.isFinite() }
+
+        /** Complete sets of a build, e.g. "Speed 4 + Hit 2". */
+        fun setsLabel(items: Collection<Item>, content: e7.gearscan.data.Content): String =
+            e7.gearscan.calc.Calc.setCounts(items, content).joinToString(" + ") { (d, n) -> "${d.name} $n" }.ifEmpty { "No set" }
+
+        /** The hero's best build with [finish] in its slot, from its own gear and spares, or null when none meets the setup in [ms]. */
+        fun rebuild(s: Setup, finish: Item, ms: Long = 3000): Build? {
+            val forced = Setup(s.hero, s.game, s.cfg, s.req, s.box, s.content, s.canTakeFrom, s.excluded + finish.id + s.box.items.filter { it.slot == finish.slot }.map { it.id })
+            val probe = Item(-2_000_000L, finish.slot, finish.set, finish.rank, finish.level, finish.enhance, finish.mainType, finish.mainValue, finish.subs,
+                finish.locked, finish.equippedOn, main15 = finish.main15)
+            val r = SearchRun(forced, 1, extra = listOf(probe)).also { it.run(1, ms) }
+            return r.builds().firstOrNull()?.let { b -> s.build(b.items.map { if (it.id == probe.id) finish else it }, b.value) }
+        }
+
+        private fun pairs(m: Map<Int, Double>) = JSONArray(m.entries.map { (k, v) -> JSONArray().put(k).put(v) })
+        private fun pairsOf(a: JSONArray) = (0 until a.length()).associate { a.getJSONArray(it).let { e -> e.getInt(0) to e.getDouble(1) } }
 
         /** Of [finishes] (one piece's), those no other one undercuts in every line: the weakest ones, at most [n], weakest first. */
         fun minimal(finishes: List<Item>, n: Int = 3): List<Item> {

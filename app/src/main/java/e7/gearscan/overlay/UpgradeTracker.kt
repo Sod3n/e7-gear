@@ -100,8 +100,11 @@ class UpgradeTracker(private val file: File) {
     val total get() = results.maxOfOrNull { it.total } ?: 0
     /** Share of those finishes that are an upgrade for at least one hero, in percent. */
     val chance get() = if (total > 0) hitCount * 100 / total else null
-    /** Heroes the piece as it is now is an upgrade for, the biggest gain first. */
-    val equipHeroes get() = results.filter { it.current }.sortedByDescending { it.gain ?: 0.0 }
+    /** Heroes the piece as it is now is an upgrade for with nothing else moving, the biggest gain first: equipping it alone is right. */
+    val equipHeroes get() = results.filter { it.swapNow }.sortedByDescending { it.gain ?: 0.0 }
+    /** Rebuilds counted (else only this piece in the hero's slot), and the switch, which rechecks. */
+    var rebuilds by mutableStateOf(false)
+    var setRebuilds: ((Boolean) -> Unit)? = null
     var canReforge: ((Long) -> Boolean)? = null
     var equipOn: ((Long) -> Unit)? = null
     var undoEquip: (() -> Unit)? by mutableStateOf(null)

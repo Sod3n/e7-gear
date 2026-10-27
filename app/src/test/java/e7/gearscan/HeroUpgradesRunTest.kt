@@ -51,7 +51,8 @@ class HeroUpgradesRunTest {
         val secs = (System.nanoTime() - t0) / 1e9
         val unknownPairs = r.picks.count { it.unknown > 0 }
         println("hero upgrades: ${setups.size} heroes, ${pieces.size} pieces x $sims finishes, %.1f s on $threads threads; ".format(secs) +
-            "${r.picks.count { it.values.isNotEmpty() }} piece/hero pairs with a better finish, $unknownPairs with unknowns, ${r.unknownSteps} unsettled steps")
+            "${r.picks.count { it.values.isNotEmpty() }} piece/hero pairs with a better finish (${r.picks.count { it.swaps.isNotEmpty() }} with nothing else moving, " +
+            "${r.bases.values.count { b -> r.picks.any { it.hero == b.id && it.swaps.isNotEmpty() } }} heroes), $unknownPairs with unknowns, ${r.unknownSteps} unsettled steps")
         val ms = Regex("finish (\\d+) ms")
         log.sortedByDescending { ms.find(it)!!.groupValues[1].toLong() }.take(25).forEach { println("  $it") }
         println("  steps: ${log.size}, total search ms ${log.sumOf { ms.find(it)!!.groupValues[1].toLong() }}")
@@ -62,6 +63,31 @@ class HeroUpgradesRunTest {
             val top = mine.take(3).joinToString("; ") { p -> "${p.piece} ${p.values.size}/$sims +%.2f".format((p.values[p.values.size / 2] - (b.value ?: 0.0)) / b.unit) }
             println("  t${tiers[s.hero.id] ?: 1} %-24s %-8s base %s%s · %d pieces · %s".format(s.game.name ?: s.hero.code, s.req.goal.name,
                 b.value?.let { "%.2f".format(it) } ?: "none", if (b.timedOut) " (timed out)" else "", mine.size, top))
+        }
+
+        // how the best build with a piece's best finish differs from the hero's bar build: sets and other slots
+        if (System.getenv("E7_SETS") != null) {
+            var same = 0; var otherSlots = 0; var setChange = 0; var setSwitch = 0
+            val examples = ArrayList<String>()
+            for (s in setups) {
+                val b = r.bases.getValue(s.hero.id)
+                val base = b.items.mapNotNull { box.itemsById[it] }.takeIf { it.size == 6 } ?: continue
+                fun sets(items: List<e7.gearscan.data.Item>) = e7.gearscan.calc.Calc.setCounts(items, content).joinToString("+") { (d, n) -> "${d.name}${n * d.pieces}" }
+                for (p in r.picks.filter { it.hero == s.hero.id && it.values.isNotEmpty() }) {
+                    val piece = pieces.first { it.id == p.piece }
+                    val best = p.example.map { id -> if (id == p.piece) piece else box.itemsById.getValue(id) }
+                    val moved = best.count { it.slot != piece.slot && base.first { b0 -> b0.slot == it.slot }.id != it.id }
+                    val baseSets = sets(base); val bestSets = sets(best.map { if (it.id == p.piece) p.finish!! else it })
+                    val slotSet = base.first { it.slot == piece.slot }.set
+                    when { moved == 0 && baseSets == bestSets -> same++; baseSets != bestSets -> setChange++; else -> otherSlots++ }
+                    if (piece.set != slotSet) setSwitch++
+                    if (piece.set != slotSet && examples.size < 12) examples += "${s.game.name}: ${piece.set} ${piece.slot} replaces ${slotSet}; sets $baseSets -> $bestSets; " +
+                        "$moved other slots move; rule ${s.req.setAlts}"
+                }
+            }
+            println("sets: $same picks are a plain swap, $otherSlots also move other pieces (same sets), $setChange change the set combination; " +
+                "$setSwitch put a different set in the piece's slot")
+            examples.forEach { println("  $it") }
         }
 
         // one tracked piece: first check (every hero's build without it) and a recheck after a recorded step (cached)

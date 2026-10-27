@@ -66,11 +66,15 @@ class HeroUpgradesTest {
         assertTrue(pick.changes, pick.changes.startsWith("Spd +") && !pick.changes.contains("·"))
     }
 
-    @Test fun aPieceASameSetSpareAlwaysBeatsIsNotListed() {
+    @Test fun aPieceASameSetSpareAlwaysBeatsGainsNothingOverTheBestBuild() {
         val spare = piece(2, Slot.HELMET, 15, listOf(GearStat.SPD to 40.0, GearStat.ATK_P to 4.0, GearStat.DEF_P to 4.0, GearStat.EFF to 4.0))
         val candidate = piece(1, Slot.HELMET, 0, listOf(GearStat.SPD to 3.0, GearStat.ATK_P to 4.0, GearStat.DEF_P to 4.0, GearStat.EFF to 4.0))
         val r = HeroUpgrades().run(listOf(setup(worn() + spare + candidate, speedGoal())), listOf(candidate))
-        assertTrue(r.picks.isEmpty())
+        // the spare is in the best build; only against the worn 10-speed helmet do the faster finishes count
+        val pick = r.picks.single()
+        assertTrue(pick.values.isEmpty())
+        val finishes = HeroUpgrades.finishes(listOf(candidate), HeroUpgrades.SIMS)
+        assertEquals(finishes.indices.filter { speedOf(finishes[it]) > 10.0 }.toSet(), pick.swaps.map { it.first }.toSet())
         assertEquals(0, r.unknownSteps)
     }
 
@@ -127,6 +131,65 @@ class HeroUpgradesTest {
         val again = HeroUpgrades().run(listOf(s), listOf(candidate), resume = restored, saved = { saves++ })
         assertEquals(0, saves)
         assertEquals(first.picks.single().values, again.picks.single().values)
+    }
+
+    @Test fun aFinishThatOnlyHelpsByMovingOtherPiecesCountsOnlyWithRebuilds() {
+        // Speed 4 is required: four Speed pieces (weapon, helmet, armor, necklace) and two Hit pieces
+        val gear = Slot.entries.mapIndexed { i, slot ->
+            piece(10L + i, slot, 15, listOf(GearStat.SPD to 10.0, GearStat.CR to 5.0) + filler(slot).take(2).map { it to 4.0 },
+                set = if (slot == Slot.RING || slot == Slot.BOOTS) "HitSet" else "SpeedSet", worn = true)
+        }
+        // a spare Speed ring one speed slower than the worn Hit ring, so the starting build is the worn one
+        val spareRing = piece(30, Slot.RING, 15, listOf(GearStat.SPD to 9.0, GearStat.CR to 5.0, GearStat.ATK_P to 4.0, GearStat.DEF_P to 4.0))
+        val hitHelmet = piece(1, Slot.HELMET, 0, listOf(GearStat.SPD to 12.0, GearStat.ATK_P to 4.0, GearStat.DEF_P to 4.0, GearStat.EFF to 4.0), set = "HitSet")
+        val req = speedGoal().apply { minEnhance = 12; setAlts = listOf(mapOf("SpeedSet" to 4)) }
+        val s = setup(gear + spareRing + hitHelmet, req)
+        val r = HeroUpgrades().run(listOf(s), listOf(hitHelmet))
+        val pick = r.picks.single()
+        // in its slot it breaks Speed 4; with the spare Speed ring moved in it is faster
+        assertEquals(HeroUpgrades.SIMS, pick.values.size)
+        assertTrue(pick.swaps.isEmpty())
+        assertEquals(1, pick.moved)
+        // tracked as it is (+0, speed 12): the rebuild with the spare ring already beats the worn build, so finishes must beat that
+        val tracked = HeroUpgrades(120).piece(listOf(s), hitHelmet, java.util.concurrent.ConcurrentHashMap()).single()
+        val finishes = HeroUpgrades.finishes(listOf(hitHelmet), 120)
+        assertTrue(tracked.now)
+        assertEquals(finishes.indices.filter { speedOf(finishes[it]) > 12.0 }.toSet(), tracked.hits.keys)
+        assertTrue(tracked.swapHits.isEmpty()); assertFalse(tracked.swapNow)
+        assertTrue(tracked.rebuildBuild!!.any { it.id == spareRing.id })
+
+        // a Speed helmet with the same rolls fits the slot: it counts both ways, and the swap is the same build
+        val speedHelmet = piece(2, Slot.HELMET, 0, hitHelmet.subs.map { it.type to it.value })
+        val both = HeroUpgrades().run(listOf(setup(gear + speedHelmet, req)), listOf(speedHelmet)).picks.single()
+        assertEquals(both.values.size, both.swaps.size)
+        assertEquals(both.values, both.swaps.map { it.second })
+    }
+
+    @Test fun thisPieceOnlyIsMeasuredAgainstWhatTheHeroWearsNotTheBestBuild() {
+        // the hero wears a 5-speed helmet; a 10-speed one waits in the bag, so the best build is faster than what it wears
+        val gear = worn().map { if (it.slot == Slot.HELMET) piece(it.id, Slot.HELMET, 15, listOf(GearStat.SPD to 5.0, GearStat.CR to 5.0, GearStat.ATK_P to 4.0, GearStat.DEF_P to 4.0), worn = true) else it }
+        val spare = piece(30, Slot.HELMET, 15, listOf(GearStat.SPD to 10.0, GearStat.CR to 5.0, GearStat.ATK_P to 4.0, GearStat.DEF_P to 4.0))
+        val candidate = piece(1, Slot.HELMET, 0, listOf(GearStat.SPD to 7.0, GearStat.ATK_P to 4.0, GearStat.DEF_P to 4.0, GearStat.EFF to 4.0))
+        val s = setup(gear + spare + candidate, speedGoal().apply { minEnhance = 12 })
+        val r = HeroUpgrades().run(listOf(s), listOf(candidate))
+        val pick = r.picks.single()
+        val finishes = HeroUpgrades.finishes(listOf(candidate), HeroUpgrades.SIMS)
+        assertEquals(HeroUpgrades.SIMS, pick.swaps.size)
+        assertEquals(finishes.count { speedOf(it) > 10.0 }, pick.values.size)
+        val base = r.bases.getValue(hero.id)
+        assertEquals(5.0, base.value!! - base.worn!!, 0.01)
+
+        // one roll left and at most 10 speed: never better than the spare, always better than the worn helmet
+        val almost = piece(2, Slot.HELMET, 12, listOf(GearStat.SPD to 6.0, GearStat.ATK_P to 4.0, GearStat.DEF_P to 4.0, GearStat.EFF to 4.0))
+        val onlyWorn = HeroUpgrades().run(listOf(setup(gear + spare + almost, speedGoal().apply { minEnhance = 12 })), listOf(almost)).picks.single()
+        assertTrue(onlyWorn.values.isEmpty()); assertEquals(HeroUpgrades.SIMS, onlyWorn.swaps.size)
+
+        val tracked = HeroUpgrades(120).piece(listOf(s), candidate, java.util.concurrent.ConcurrentHashMap()).single()
+        // as it is (7) it already beats the worn helmet: equipping it alone helps, and finishes must beat it in that build
+        assertTrue(tracked.swapNow)
+        val more = HeroUpgrades.finishes(listOf(candidate), 120)
+        assertEquals(more.indices.filter { speedOf(more[it]) > 7.0 }.toSet(), tracked.swapHits.keys)
+        assertTrue(tracked.swapBuild!!.filter { it.slot != Slot.HELMET }.all { it.equippedOn == hero.id })
     }
 
     // ---- one piece being enhanced ----

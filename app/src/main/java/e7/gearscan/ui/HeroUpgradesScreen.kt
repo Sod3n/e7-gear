@@ -29,6 +29,7 @@ import e7.gearscan.Screen
 import e7.gearscan.Sheet
 import e7.gearscan.SheetKind
 import e7.gearscan.data.Item
+import e7.gearscan.data.fmtNum
 import e7.gearscan.opt.HeroUpgrades
 
 /** The smallest-gain choices, in rolls; the first is the check's own floor. */
@@ -46,7 +47,7 @@ fun HeroUpgradesScreen(model: AppModel, heroId: Long?) {
     val result = st?.result
     val running = st?.running == true
     val minGain = model.heroUpgradeMinGain
-    val view = remember(result, minGain, model.rev, model.box, model.cleanupDone) { result?.let { model.heroUpgradeView(it, minGain) } }
+    val view = remember(result, minGain, model.heroUpgradeRebuilds, model.rev, model.box, model.cleanupDone) { result?.let { model.heroUpgradeView(it, minGain) } }
     val one = heroId?.let { id -> view?.firstOrNull { it.hero.id == id } }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val listed = when {
@@ -89,6 +90,10 @@ fun HeroUpgradesScreen(model: AppModel, heroId: Long?) {
         Notices(model, result)
         SectionTitle("Smallest gain")
         Segmented(GAINS.map { it.second }, GAINS.indexOfFirst { it.first == minGain }.coerceAtLeast(0)) { model.useHeroUpgradeMinGain(GAINS[it].first) }
+        SectionTitle("Builds")
+        Segmented(listOf("This piece only", "Allow rebuilds"), if (model.heroUpgradeRebuilds) 1 else 0) { model.useHeroUpgradeRebuilds(it == 1) }
+        Text(if (model.heroUpgradeRebuilds) "The best build with the finished piece, even if other pieces or sets change."
+            else "The finished piece goes into the hero's slot; everything else the hero wears stays.", style = zen(11.sp, FontWeight.Medium, C.muted))
         if (one != null || heroId != null) {
             if (one == null) Text("This hero has no saved setup in this check.", style = zen(12.sp, FontWeight.Medium, C.muted))
             else HeroPage(model, one)
@@ -135,6 +140,7 @@ private fun Notice(text: String) {
 private fun reason(h: AppModel.HeroUpgradeHero) = when {
     h.base.unresolved -> "Its starting build took too long to find"
     h.base.value == null -> "No build meets its setup, and no single finish makes one"
+    h.base.worn == null -> "What it wears doesn't meet its setup"
     h.bestNow == 100 -> "Already meets every target"
     else -> "No finish gains this much"
 }
@@ -231,16 +237,27 @@ private fun HeroPage(model: AppModel, h: AppModel.HeroUpgradeHero) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Face(model.face(h.hero), 52.dp)
             Column(Modifier.weight(1f)) {
+                val rebuilds = model.heroUpgradeRebuilds
                 Text(when {
-                    h.base.value == null && !h.base.unresolved -> "No build meets the setup yet"
-                    h.bestNow != null -> "Best build now: ${h.bestNow}% match"
-                    else -> "Best build now is the bar"
+                    rebuilds && h.base.value == null && !h.base.unresolved -> "No build meets the setup yet"
+                    !rebuilds && h.base.worn == null -> "What it wears doesn't meet its setup"
+                    h.bestNow != null -> if (rebuilds) "Best build now: ${h.bestNow}% match" else "Wearing now: ${h.bestNow}% match"
+                    else -> if (rebuilds) "Best build now is the bar" else "What it wears is the bar"
                 }, style = zen(13.sp))
-                Text("Gains are over the best build this hero can make now, from its own gear and spares.", style = zen(11.sp, FontWeight.Medium, C.muted))
+                Text(if (rebuilds) "Gains are over the best build this hero can make now, from its own gear and spares."
+                    else "Gains are over what this hero wears now, with only this piece changed.", style = zen(11.sp, FontWeight.Medium, C.muted))
             }
         }
         VSpace(6.dp)
         LinkText("Hero details") { model.go(Screen.HeroDetail(h.hero.id)) }
+    }
+    // what it wears is behind its best build: optimizing comes before any upgrade
+    val best = h.base.value; val worn = h.base.worn
+    if (!model.heroUpgradeRebuilds && best != null && worn != null && best > worn + HeroUpgrades.MIN_GAIN * h.base.unit) Card(shadow = null, padding = PaddingValues(12.dp)) {
+        Text("Your best build now is ${model.heroGainLabel(h.hero.id, HeroUpgrades.Base(h.hero.id, worn, emptyList(), false, h.base.unit, 0), best)} better than what it wears.",
+            style = zen(12.sp))
+        Text("Optimize it first: that needs no upgrade.", style = zen(11.sp, FontWeight.Medium, C.muted))
+        LinkText("Optimize ${model.heroName(h.hero)}") { model.pickHero(h.hero.id); model.team = listOf(h.hero.id); model.tab(Screen.Optimize) }
     }
     if (h.rows.isEmpty()) {
         Text(reason(h), style = zen(12.sp, FontWeight.Medium, C.muted))
@@ -262,7 +279,8 @@ private fun HeroPage(model: AppModel, h: AppModel.HeroUpgradeHero) {
             }
             VSpace(8.dp)
             Text(if (h.base.value == null) "Makes a build possible" else "Usually ${r.typical} · up to ${r.best}", style = zen(12.sp, color = C.blue))
-            if (r.pick.changes.isNotEmpty()) Text("Best finish: ${r.pick.changes}", style = zen(10.sp, FontWeight.Medium, C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            RebuildLine(model, r)
+            if (r.changes.isNotEmpty()) Text("Best finish: ${r.changes}", style = zen(10.sp, FontWeight.Medium, C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
             VSpace(4.dp)
             OwnerLine(model, item)
         }
@@ -299,11 +317,75 @@ internal fun HeroUpgradePieceSheet(model: AppModel, id: Long) {
                     }
                     ChevronSlot(true)
                 }
-                if (r.pick.changes.isNotEmpty()) Text("Best finish: ${r.pick.changes}", style = zen(10.sp, FontWeight.Medium, C.muted))
+                RebuildLine(model, r)
+                if (r.changes.isNotEmpty()) Text("Best finish: ${r.changes}", style = zen(10.sp, FontWeight.Medium, C.muted))
+                LinkText("Final build") { model.openFinalBuild(h.hero.id, r); model.sheet = Sheet(SheetKind.HERO_UPGRADE_BUILD, id, back = SheetKind.HERO_UPGRADE_PIECE) }
             }
         }
         Text(gearOwner(model, item), style = zen(11.sp, FontWeight.Medium, C.muted))
         Text("Track over game records each +3 and rechecks whether to keep going.", style = zen(11.sp, FontWeight.Medium, C.muted))
+    }
+}
+
+/** With rebuilds on, what else the best build changes: other pieces it moves, and its sets when they differ. */
+@Composable
+private fun RebuildLine(model: AppModel, r: AppModel.HeroUpgradeRow) {
+    if (!model.heroUpgradeRebuilds) return
+    val p = r.pick
+    val text = when {
+        p.moved == 0 && p.sets.isEmpty() -> "Best finish: only this piece changes"
+        p.sets.isEmpty() -> "Best finish rebuilds: moves ${p.moved} other ${if (p.moved == 1) "piece" else "pieces"}"
+        else -> "Best finish rebuilds: moves ${p.moved} other ${if (p.moved == 1) "piece" else "pieces"} · sets ${p.sets}"
+    }
+    Text(text, style = zen(10.sp, color = if (p.moved == 0 && p.sets.isEmpty()) C.muted else C.deepPink), maxLines = 2, overflow = TextOverflow.Ellipsis)
+}
+
+/** The hero's final build with the piece's usual finish: every slot, where it comes from, sets and the stats its setup scores. */
+@Composable
+internal fun HeroUpgradeBuildSheet(model: AppModel) {
+    val fb = model.finalBuild
+    SheetBody("Final build", button = "Done", onButton = { model.sheet = null }) {
+        if (fb == null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (model.finalBuildBusy) { Spinner(); Text("Working out the build", style = zen(12.sp)) }
+                else Text("No build meets this hero's setup with that finish.", style = zen(12.sp, FontWeight.Medium, C.muted))
+            }
+            return@SheetBody
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Face(model.face(fb.hero), 40.dp)
+            Column(Modifier.weight(1f)) {
+                Text(model.heroName(fb.hero), style = zen(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(fb.note + " · usually ${fb.gain}", style = zen(11.sp, FontWeight.Medium, C.muted))
+            }
+        }
+        fb.items.forEachIndexed { i, it ->
+            val mine = it.id == fb.pieceId
+            Card(shadow = if (mine) C.pink else null, radius = 12.dp, border = 2.dp, padding = PaddingValues(10.dp)) {
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    GearTile(it, 40.dp, setIcon = model.content.set(it.set)?.icon)
+                    Column(Modifier.weight(1f)) {
+                        Text("${model.content.set(it.set)?.name ?: it.set.removeSuffix("Set")} ${it.slot.label} · ${it.mainType.short} ${it.mainType.format(it.mainValue)}",
+                            style = zen(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(fb.from[i], style = zen(11.sp, color = if (mine) C.deepPink else if (fb.from[i] == "Stays") C.muted else C.blue))
+                        if (mine) GearSearchSubs(it)
+                    }
+                }
+            }
+        }
+        Card(shadow = null, padding = PaddingValues(12.dp)) {
+            Text(if (fb.sets.first == fb.sets.second) "Sets stay: ${fb.sets.second}" else "Sets: ${fb.sets.first} → ${fb.sets.second}", style = zen(12.sp))
+            VSpace(6.dp)
+            fb.stats.forEach { (stat, now, after) ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatIcon(stat, 14.dp)
+                    Text(stat.label, style = zen(12.sp), modifier = Modifier.weight(1f))
+                    Text("${fmtNum(Math.floor(now))} → ${fmtNum(Math.floor(after))}", style = zen(12.sp, color = if (after > now + 0.5) C.blue else if (after < now - 0.5) C.deepPink else C.ink))
+                }
+            }
+            VSpace(4.dp)
+            Text("Now is what the hero wears in your scan.", style = zen(10.sp, FontWeight.Medium, C.muted))
+        }
     }
 }
 
@@ -319,7 +401,8 @@ internal fun HeroUpgradeHelpSheet(model: AppModel) {
         SectionTitle("The chance")
         Text("Each piece gets ${HeroUpgrades.SIMS} simulated finishes with the game's roll rules. The chance is the share of finishes " +
             "whose best complete build beats the bar by at least the smallest gain. Whole builds are searched, so a finish can " +
-            "also change other slots or sets.", style = zen(12.sp, FontWeight.Medium))
+            "also change other slots or sets when Allow rebuilds is on; with This piece only, the finish just takes the hero's " +
+            "piece in that slot and nothing else moves.", style = zen(12.sp, FontWeight.Medium))
         SectionTitle("Gains")
         Text("Heroes with targets show match points: 1 point is 1% of the way from mains-only gear to every target met. Other " +
             "goals show their own stat. One roll is an average substat roll toward the hero's targets, such as 4 speed.",
