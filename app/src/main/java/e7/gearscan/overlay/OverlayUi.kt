@@ -241,8 +241,9 @@ fun BubbleHint() {
     var shown by remember { mutableStateOf(true) }
     LaunchedEffect(nextAt?.let { b.pieces[it].item.id }, doneCount) { shown = true; kotlinx.coroutines.delay(5000); shown = false }
     LaunchedEffect(s.dragging) { if (s.dragging) shown = false }
-    if (!shown) return
-    Box(Modifier.height(BUBBLE_BOX.dp).padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+    // faded, not removed: a window that shrinks to nothing is never redrawn and keeps showing its last frame
+    val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(200), label = "hint")
+    Box(Modifier.height(BUBBLE_BOX.dp).padding(horizontal = 10.dp).graphicsLayer { this.alpha = alpha }, contentAlignment = Alignment.Center) {
         Text(nextAt?.let { nextHint(b, it) } ?: "Tap to record", style = zen(12.sp, color = C.card), maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.widthIn(max = 150.dp).shadow(4.dp, RoundedCornerShape(10.dp)).clip(RoundedCornerShape(10.dp)).background(C.ink)
                 .padding(horizontal = 9.dp, vertical = 5.dp))
