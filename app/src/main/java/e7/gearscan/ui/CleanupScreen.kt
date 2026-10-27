@@ -55,6 +55,7 @@ fun CleanupScreen(model: AppModel) {
         BackToPrevious(model)
         ScreenTitle("Make room", "セイリ")
         LinkText("Sell filters") { model.go(Screen.SellFilters) }
+        LinkText("Pieces that could improve your heroes") { model.go(Screen.HeroUpgrades()) }
         LinkText("Search gear by final stats") { model.go(Screen.GearPotential) }
         LinkText("Track an upgrade over the game") { model.go(Screen.Upgrade) }
         when {
@@ -164,7 +165,7 @@ private fun PickRow(model: AppModel, p: Cleanup.Pick, reason: String) {
 }
 
 @Composable
-private fun Bar(f: Float) {
+internal fun Bar(f: Float) {
     val shape = RoundedCornerShape(999.dp)
     Box(Modifier.fillMaxWidth().height(8.dp).clip(shape).background(C.line)) {
         Box(Modifier.fillMaxWidth(f.coerceIn(0f, 1f)).height(8.dp).clip(shape).background(C.pink))

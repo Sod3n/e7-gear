@@ -70,13 +70,15 @@ sealed class Screen {
     data object Upgrade : Screen()
     data object GearPotential : Screen()
     data object SellFilters : Screen()
+    /** Pieces that could make heroes with a setup better once finished: every hero, or the pieces for [heroId]. */
+    data class HeroUpgrades(val heroId: Long? = null) : Screen()
     /** A pool run's results walked hero by hero, with reviewed marks. */
     data class PoolReview(val id: Long) : Screen()
     /** One pool hero's full setup; [setup]: walk the heroes with no build, else the ready ones. */
     data class PoolHero(val id: Long, val setup: Boolean) : Screen()
 }
 
-enum class SheetKind { PRESET, TARGETS, ADVANCED, BONUS, SETS, MAINS, GOALS, SHOW, HERO_PICK, ARTIFACT, POOL_PICK, POOL_WORSE, POOL_LOW, POOL_HEROES, POOL_LIST, POOL_TRADES, SCAN_RESTART, POTENTIAL_HELP, POTENTIAL_TARGETS, POTENTIAL_SLOTS, POTENTIAL_SETS, POTENTIAL_MAINS, POTENTIAL_OPTIONS, POTENTIAL_PIECE, INVENTORY_ORDER, SELL_SCORE, SELL_WEIGHTS, SELL_FLOORS, SELL_CUSTOMS, SELL_HEROES, SELL_INVENTORY, SELL_SLOTS, SELL_SETS, SELL_MAINS, SELL_LEVELS, SELL_QUALITY, SELL_DETAILS, SELL_HELP, SELL_SAFEGUARDS, SELL_EXTRA }
+enum class SheetKind { PRESET, TARGETS, ADVANCED, BONUS, SETS, MAINS, GOALS, SHOW, HERO_PICK, ARTIFACT, POOL_PICK, POOL_WORSE, POOL_LOW, POOL_HEROES, POOL_LIST, POOL_TRADES, SCAN_RESTART, POTENTIAL_HELP, POTENTIAL_TARGETS, POTENTIAL_SLOTS, POTENTIAL_SETS, POTENTIAL_MAINS, POTENTIAL_OPTIONS, POTENTIAL_PIECE, INVENTORY_ORDER, SELL_SCORE, SELL_WEIGHTS, SELL_FLOORS, SELL_CUSTOMS, SELL_HEROES, SELL_INVENTORY, SELL_SLOTS, SELL_SETS, SELL_MAINS, SELL_LEVELS, SELL_QUALITY, SELL_DETAILS, SELL_HELP, SELL_SAFEGUARDS, SELL_EXTRA, HERO_UPGRADE_PIECE, HERO_UPGRADE_HELP }
 
 /** [back] is the sheet to return to when this one finishes; null closes. */
 data class Sheet(val kind: SheetKind, val heroId: Long, val back: SheetKind? = null)
@@ -154,6 +156,19 @@ data class PoolState(
 ) {
     val moves get() = builds.entries.sumOf { (id, b) -> b?.items?.count { it.equippedOn != id && !it.ghost } ?: 0 }
 }
+
+/** The hero-upgrade check for the inputs behind [key] (see AppModel.heroUpgradeKey); [result] null until one finished. */
+data class HeroUpgradeState(
+    val scan: Long,
+    val key: String,
+    val result: e7.gearscan.opt.HeroUpgrades.Result?,
+    val running: Boolean,
+    val done: Int = 0,
+    val total: Int = 0,
+    val finishedAt: Long = 0,
+    /** Each "check the rest" doubles the time per search. */
+    val attempt: Int = 0,
+)
 
 /** The cleanup check: pieces that can go to make room, for the gear scanned at [scan]. */
 data class CleanupState(
@@ -259,6 +274,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         Screen.Upgrade -> "Track upgrades"
         Screen.GearPotential -> "Gear potential"
         Screen.SellFilters -> "Sell filters"
+        is Screen.HeroUpgrades -> s.heroId?.let { id -> hero(id)?.let(::heroName) } ?: "Improve heroes"
     }
 
     /** Where back goes from the current screen, by name. */
@@ -1384,7 +1400,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         if(sellBusy)stopSellSearch()
         if (upgrades.busy) { upgrades.generation++; upgrades.busy = false; PoolService.stop(getApplication()) }
         val b = box ?: return
-        if (pool?.running == true || cleanup?.running == true) return
+        if (pool?.running == true || cleanup?.running == true || heroUpgrades?.running == true) return
         val inUse = inUse(b)
         val dups = e7.gearscan.opt.Cleanup.duplicates(b, inUse)
         val stock = e7.gearscan.opt.Cleanup.stock(b, inUse, CLEANUP_KEEP)
@@ -1498,6 +1514,209 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 o.optJSONArray("better")?.let { p -> (0 until p.length()).mapNotNull { k -> byId[p.getLong(k)] } }.orEmpty())
         }
         return CleanupState(j.optLong("scan"), picks, running = false, finishedAt = j.optLong("finishedAt"), unknown = j.optInt("unknown"))
+    }
+
+    // ---- improve heroes: pieces below +15 that could make heroes with a setup better once finished ----
+    var heroUpgrades: HeroUpgradeState? by mutableStateOf(null)
+        internal set
+    /** A stopped or killed check for the current gear and setups waits in its progress file. */
+    var heroUpgradesResumable by mutableStateOf(false)
+        private set
+    /** Smallest gain a finish must bring to be listed, in rolls ([e7.gearscan.opt.HeroUpgrades.unit]). */
+    var heroUpgradeMinGain by mutableStateOf(0.5)
+        private set
+    private val heroUpgradesFile = File(files, "hero_upgrades.json")
+    private val heroUpgradesProgressFile = File(files, "hero_upgrades_progress.json")
+    @Volatile private var heroUpgradesToken: Any? = null
+    @Volatile private var heroUpgradesRun: e7.gearscan.opt.HeroUpgrades? = null
+    private var heroKeyMemo: Pair<List<Any?>, String>? = null
+
+    fun useHeroUpgradeMinGain(rolls: Double) { heroUpgradeMinGain = rolls; touch() }
+
+    /** The heroes the check covers: every hero with a setup, as in [cleanupSetups]. */
+    fun heroUpgradeHeroes(): List<OwnedHero> = box?.heroes.orEmpty().filter { h ->
+        gameHero(h) != null && configs[h.id]?.request?.let { r -> r.goal != Goal.TARGETS || r.targets.any { !it.isNaN() } } == true
+    }
+
+    private fun sha256(raw: String) = java.security.MessageDigest.getInstance("SHA-256").digest(raw.toByteArray())
+        .joinToString("") { "%02x".format(java.util.Locale.US, it) }
+
+    /** What the answer depends on: scan, recorded upgrades, cleared pieces, the pool's protected gear, setups, content. */
+    fun heroUpgradeKey(): String {
+        val memoKey = listOf(box, lastScan, upgrades.records, cleanupDone, poolTiers, poolExtra, tiers, rev, content.version)
+        heroKeyMemo?.takeIf { it.first == memoKey }?.let { return it.second }
+        val raw = "hero-upgrades-v1|$lastScan|" + upgrades.records.values.filter { it.scan == lastScan }.sortedBy { it.item.id }.joinToString { it.toJson().toString() } +
+            "|${cleanupDone.sorted()}|${poolMembers().map { it.id }.sorted()}|${content.version}|" +
+            heroUpgradeHeroes().joinToString(",") { "${it.id}=${setupKey(it.id)}" }
+        return sha256(raw).also { heroKeyMemo = memoKey to it }
+    }
+
+    /** The shown result was made for other gear or setups: still readable, but "Check again" gives the current answer. */
+    val heroUpgradesStale: Boolean get() = heroUpgrades?.let { !it.running && it.result != null && it.key != heroUpgradeKey() } == true
+
+    /** The box as recorded (manual upgrades of this scan applied, cleared pieces out), the heroes, the pieces to try, and a full fingerprint. */
+    private fun heroUpgradeInputs(): Triple<List<Setup>, List<Item>, String>? {
+        val b0 = box ?: return null
+        val observed = upgrades.records.values.filter { it.scan == lastScan }.associate { it.item.id to it.item }
+        val b = Box(JSONObject(b0.toText()).put("items", JSONArray(b0.items.filter { it.id !in cleanupDone }.map { item ->
+            e7.gearscan.data.UpgradeRecord.itemJson(observed[item.id] ?: item)
+        })))
+        val setups = cleanupSetups(b, inUse(b))
+        val pieces = b.items.filter { it.enhance < 15 && e7.gearscan.data.UpgradeRecord.supported(it) }.sortedBy { it.id }
+        val full = sha256("hero-upgrades-v1|${e7.gearscan.opt.HeroUpgrades.SIMS}|" + b.toText() + content.version +
+            setups.joinToString { s -> s.hero.id.toString() + s.cfg.toJson() + s.req.toJson() + s.excluded.sorted() })
+        return Triple(setups, pieces, full)
+    }
+
+    private fun writeHeroProgress(token: Any, full: String, light: String, attempt: Int, p: e7.gearscan.opt.HeroUpgrades.Progress, finished: Boolean) =
+        synchronized(heroUpgradesProgressFile) {
+            // a newer check owns the file
+            if (heroUpgradesToken != null && heroUpgradesToken !== token) return@synchronized
+            val text = JSONObject().put("full", full).put("light", light).put("attempt", attempt).put("finished", finished).put("progress", p.toJson()).toString()
+            File(heroUpgradesProgressFile.path + ".tmp").also { it.writeText(text) }.renameTo(heroUpgradesProgressFile)
+        }
+
+    /** [more]: another pass over the searches that ran out of time, with twice the time each; everything settled is kept. */
+    fun startHeroUpgrades(more: Boolean = false) {
+        if (sellBusy) stopSellSearch()
+        if (upgrades.busy) { upgrades.generation++; upgrades.busy = false; PoolService.stop(getApplication()) }
+        if (pool?.running == true || cleanup?.running == true || heroUpgrades?.running == true) return
+        val (setups, pieces, full) = heroUpgradeInputs() ?: return
+        val light = heroUpgradeKey()
+        val saved = runCatching { JSONObject(heroUpgradesProgressFile.readText()) }.getOrNull()?.takeIf { it.optString("full") == full }
+        val resume = saved?.optJSONObject("progress")?.let { runCatching { e7.gearscan.opt.HeroUpgrades.Progress.of(it) }.getOrNull() }
+            ?: e7.gearscan.opt.HeroUpgrades.Progress()
+        val attempt = (saved?.optInt("attempt") ?: 0) + if (more && saved != null) 1 else 0
+        val token = Any(); heroUpgradesToken = token
+        val scan = lastScan
+        heroUpgrades = HeroUpgradeState(scan, light, heroUpgrades?.result?.takeIf { heroUpgrades?.key == light }, running = true, attempt = attempt)
+        heroUpgradesResumable = false
+        PoolService.start(getApplication(), "Finding upgrades for your heroes") { viewModelScope.launch { if (heroUpgradesToken === token) stopHeroUpgrades() } }
+        val run = e7.gearscan.opt.HeroUpgrades(); heroUpgradesRun = run
+        var shown = 0L
+        var written = 0L
+        thread(name = "hero-upgrades") {
+            val t0 = System.nanoTime()
+            val r = runCatching {
+                run.run(setups, pieces, attempt, cancelled = { heroUpgradesToken !== token }, progress = { done, total ->
+                    viewModelScope.launch { if (heroUpgradesToken === token) heroUpgrades = heroUpgrades?.copy(done = done, total = total) }
+                    if (System.currentTimeMillis() - shown > 1000 && heroUpgradesToken === token) {
+                        shown = System.currentTimeMillis()
+                        PoolService.progress(getApplication(), "${done * 100 / total.coerceAtLeast(1)}%", done, total)
+                    }
+                }, resume = resume) {
+                    // a few seconds of work at most is lost if the app is killed
+                    if (System.currentTimeMillis() - written > 3000) { written = System.currentTimeMillis(); writeHeroProgress(token, full, light, attempt, it, false) }
+                }
+            }.onFailure { android.util.Log.e("E7Heroes", "hero upgrade check failed", it) }.getOrNull()
+            val finished = r != null && heroUpgradesToken === token
+            writeHeroProgress(token, full, light, attempt, resume, finished)
+            val state = r?.takeIf { finished }?.let { HeroUpgradeState(scan, light, it, running = false, finishedAt = System.currentTimeMillis(), attempt = attempt) }
+            if (state != null) {
+                runCatching {
+                    val text = JSONObject().put("scan", scan).put("key", light).put("finishedAt", state.finishedAt).put("attempt", attempt).put("result", r.toJson()).toString()
+                    File(heroUpgradesFile.path + ".tmp").also { it.writeText(text) }.renameTo(heroUpgradesFile)
+                }
+                android.util.Log.i("E7Heroes", "hero upgrades: ${setups.size} heroes, ${pieces.size} pieces, ${r.picks.size} picks, " +
+                    "${r.unknownSteps} open steps, attempt $attempt, %.1f s".format(java.util.Locale.US, (System.nanoTime() - t0) / 1e9))
+            }
+            viewModelScope.launch {
+                if (heroUpgradesToken !== token) return@launch
+                heroUpgradesToken = null; heroUpgradesRun = null
+                PoolService.stop(getApplication())
+                if (state == null) { heroUpgrades = heroUpgrades?.copy(running = false); heroUpgradesResumable = true; return@launch }
+                heroUpgrades = state
+                notifyHeroUpgradesDone()
+            }
+        }
+    }
+
+    fun stopHeroUpgrades() {
+        heroUpgradesToken = null
+        heroUpgradesRun?.cancel(); heroUpgradesRun = null
+        PoolService.stop(getApplication())
+        heroUpgrades = heroUpgrades?.copy(running = false)?.takeIf { it.result != null }
+        heroUpgradesResumable = true
+    }
+
+    private fun notifyHeroUpgradesDone() {
+        val app = getApplication<Application>()
+        val nm = app.getSystemService(android.app.NotificationManager::class.java)
+        nm.createNotificationChannel(android.app.NotificationChannel("pool", "Pool optimize", android.app.NotificationManager.IMPORTANCE_DEFAULT))
+        val open = android.app.PendingIntent.getActivity(app, 11, Intent(app, MainActivity::class.java).setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            android.app.PendingIntent.FLAG_IMMUTABLE)
+        val n = heroUpgrades?.result?.let { r -> heroUpgradeView(r).count { it.rows.isNotEmpty() } } ?: 0
+        nm.notify(11, android.app.Notification.Builder(app, "pool").setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentTitle("Hero upgrade check done").setContentText("$n heroes can get better · open to see the pieces")
+            .setContentIntent(open).setAutoCancel(true).build())
+    }
+
+    /** A piece for a hero as listed: [hits] of [sims] finishes gain at least the minimum; [expected] = their gains summed over all finishes, in rolls. */
+    class HeroUpgradeRow(val pick: e7.gearscan.opt.HeroUpgrades.Pick, val hits: Int, val sims: Int, val typical: String, val best: String, val expected: Double) {
+        val chance get() = hits * 100 / sims
+    }
+
+    /** [bestNow]: match % of the best build the hero can make now (targets goal), the bar every finish is measured against. */
+    class HeroUpgradeHero(val hero: OwnedHero, val base: e7.gearscan.opt.HeroUpgrades.Base, val rows: List<HeroUpgradeRow>, val bestNow: Int?, val open: Int)
+
+    /** Every checked hero (higher tiers first, then by what its best piece is worth), each with the pieces that gain at least [minGain] rolls. */
+    fun heroUpgradeView(r: e7.gearscan.opt.HeroUpgrades.Result, minGain: Double = heroUpgradeMinGain): List<HeroUpgradeHero> {
+        val byHero = r.picks.groupBy { it.hero }
+        return r.bases.values.mapNotNull { base ->
+            val h = hero(base.id) ?: return@mapNotNull null
+            val req = configs[h.id]?.request ?: return@mapNotNull null
+            val scale = if (req.goal == Goal.TARGETS) mainsOnly(h.id, req)?.let { floor -> rolls(h.id)?.let { roll ->
+                e7.gearscan.data.Match.start(floor, req.targets, req.weights, roll).takeIf { it > 0 }?.let { 100 / it } } } else null
+            fun label(v: Double): String {
+                val v0 = base.value ?: return "makes a build"
+                val d = v - v0
+                fun one(x: Double) = fmtNum(Math.round(x * 10) / 10.0)
+                return when (req.goal) {
+                    Goal.TARGETS -> scale?.let { "+${one(d * it)} match" } ?: "+${one(d / base.unit)} rolls"
+                    Goal.SPEED -> "+${one(d)} speed"
+                    Goal.GEAR_SCORE -> "+${one(d)} score"
+                    Goal.DAMAGE -> "+${one(100 * d / kotlin.math.abs(v0))}% damage"
+                    Goal.EHP -> "+${one(100 * d / kotlin.math.abs(v0))}% EHP"
+                    Goal.CP -> "+${one(100 * d / kotlin.math.abs(v0))}% CP"
+                }
+            }
+            val picks = byHero[h.id].orEmpty()
+            val rows = picks.mapNotNull { p ->
+                val gains = if (base.value == null) p.values.map { 1.0 } else p.values.map { (it - base.value) / base.unit }.filter { it >= minGain }
+                if (gains.isEmpty()) return@mapNotNull null
+                val kept = p.values.take(gains.size)
+                HeroUpgradeRow(p, gains.size, r.sims, label(kept[kept.size / 2]), label(kept.first()), gains.sum() / r.sims)
+            }.sortedWith(compareByDescending<HeroUpgradeRow> { it.expected }.thenByDescending { it.hits }.thenBy { it.pick.piece })
+            val baseBuild = setup(h.id)?.let { s -> base.items.mapNotNull { box?.itemsById?.get(it) }.takeIf { it.size == 6 }?.let { s.build(it) } }
+            HeroUpgradeHero(h, base, rows, baseBuild?.let { matchOf(h.id, it)?.pct }, picks.count { it.unknown > 0 })
+        }.sortedWith(compareByDescending<HeroUpgradeHero> { tier(it.hero.id) }.thenByDescending { it.rows.firstOrNull()?.expected ?: -1.0 }
+            .thenBy { heroName(it.hero) })
+    }
+
+    /** One piece in the tracker over the game; its advice checks every hero with a setup. */
+    fun trackHeroUpgrade(id: Long) {
+        val original = box?.itemsById?.get(id)?.takeIf { it.id !in cleanupDone && e7.gearscan.data.UpgradeRecord.supported(it) } ?: return
+        if (upgrades.busy) { upgrades.generation++; upgrades.busy = false; PoolService.stop(getApplication()) }
+        upgrades.select(original, lastScan)
+        configureUpgrade()
+        go(Screen.Upgrade)
+        openUpgradeOverlay()
+    }
+
+    /** These pieces, in order, as the tracker's list over the game. */
+    fun trackHeroUpgrades(ids: List<Long>) {
+        val b = box ?: return
+        val items = ids.distinct().mapNotNull { id ->
+            val o = b.itemsById[id]?.takeIf { it.id !in cleanupDone && e7.gearscan.data.UpgradeRecord.supported(it) } ?: return@mapNotNull null
+            val set = content.set(o.set)
+            o to e7.gearscan.overlay.UpgradeTracker.QueueEntry(o.id, null, set?.name ?: o.set.removeSuffix("Set"), set?.icon)
+        }
+        if (items.isEmpty()) return
+        if (upgrades.busy) { upgrades.generation++; upgrades.busy = false; PoolService.stop(getApplication()) }
+        upgrades.startQueue(items, lastScan, source = "heroes")
+        configureUpgrade()
+        go(Screen.Upgrade)
+        openUpgradeOverlay()
     }
 
     fun equipPool(run: PoolState? = pool) {
@@ -1744,6 +1963,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         boxFile.delete(); stateFile.delete(); buildsDir.deleteRecursively()
         potentialGeneration++; potentialJob?.cancel(); potentialBusy = false; potentialResult = null; potentialQuery = e7.gearscan.data.PotentialQuery()
         inventoryAscending = true; inventoryBagOnly = false; inventoryKey = null
+        if (heroUpgrades?.running == true) stopHeroUpgrades()
+        heroUpgrades = null; heroUpgradesResumable = false; heroUpgradesFile.delete(); heroUpgradesProgressFile.delete()
         overlaySales=emptyList();cleanupDone=emptySet();upgrades.clear(); e7.gearscan.overlay.OverlayService.stop(getApplication()); e7.gearscan.overlay.OverlayState.upgrade = null
         configs.clear(); box = null; tiers = emptyMap(); team = emptyList(); lastScan = 0; lastDiff = null
         consent = false; search = null; presets.clear()
@@ -1774,6 +1995,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         put("cleanupDone", JSONArray(cleanupDone.toList()))
         put("overlaySales",JSONArray(overlaySales.map { JSONObject().put("id",it.id).put("scan",it.scan) }))
         put("potentialQuery", potentialQuery.toJson())
+        put("heroUpgradeMinGain", heroUpgradeMinGain)
         put("sellQuery", sellQuery.toJson())
         put("inventoryAscending", inventoryAscending).put("inventoryBagOnly", inventoryBagOnly)
     }
@@ -1832,6 +2054,13 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         overlaySales=(0 until sales.length()).mapNotNull { i->runCatching { val mark=sales.getJSONObject(i);OverlaySale(mark.getLong("id"),mark.getLong("scan")) }.getOrNull() }.filter { it.id in cleanupDone&&it.scan==lastScan }.distinctBy { it.id }
         syncClearedUpgradeQueue()
         upgrades.canUndoSold=overlaySales.any { mark->upgrades.queue.any { it.id==mark.id } }
+        heroUpgradeMinGain = j.optDouble("heroUpgradeMinGain", 0.5)
+        heroUpgrades = runCatching { JSONObject(heroUpgradesFile.readText()) }.getOrNull()?.let { o -> l.box?.let { b -> runCatching {
+            HeroUpgradeState(o.getLong("scan"), o.getString("key"), e7.gearscan.opt.HeroUpgrades.Result.of(o.getJSONObject("result"), b.itemsById),
+                running = false, finishedAt = o.getLong("finishedAt"), attempt = o.optInt("attempt"))
+        }.getOrNull() } }
+        heroUpgradesResumable = runCatching { JSONObject(heroUpgradesProgressFile.readText()).let { !it.getBoolean("finished") && it.getString("light") == heroUpgradeKey() } }
+            .getOrDefault(false)
 
     }
 

@@ -235,6 +235,7 @@ fun ScanDataScreen(model: AppModel) {
                 val (uri, name) = model.export("e7gear-backup.json", model.backupText())
                 model.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "application/json") }
             }
+            DataRow("Improve heroes", "Pieces worth enhancing for the heroes you've set up", box != null) { model.go(Screen.HeroUpgrades()) }
             DataRow("Gear potential", "Search final substats, sets and slots", box != null) { model.go(Screen.GearPotential) }
             DataRow("Track upgrades", "Record each +3 over the game and check whether to continue", box != null) { model.go(Screen.Upgrade) }
             DataRow("Sell filters", "Score floors, chance and editable scoring", box != null) { model.go(Screen.SellFilters) }
@@ -411,6 +412,8 @@ fun ScanResultScreen(model: AppModel) {
         }
         Card(shadow = null, radius = 14.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
             DiffRow("Sell filters", "Editable score & chance", C.ink) { model.go(Screen.SellFilters) }
+            DiffRow("Improve heroes", model.heroUpgrades?.takeIf { !it.running && it.result != null && !model.heroUpgradesStale }?.result
+                ?.let { r -> "${model.heroUpgradeView(r).count { it.rows.isNotEmpty() }} can get better" } ?: "Pieces worth enhancing", C.ink) { model.go(Screen.HeroUpgrades()) }
             DiffRow("Gear potential", "Find possible upgrades", C.ink) { model.go(Screen.GearPotential) }
             DiffRow("Track upgrades", "Over the game", C.ink) { model.go(Screen.Upgrade) }
             DiffRow("Make room", model.cleanup?.takeIf { !it.running && it.finishedAt > 0 && it.scan == model.lastScan }

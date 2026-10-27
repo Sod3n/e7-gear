@@ -19,6 +19,8 @@ class UpgradeTracker(private val file: File) {
     }
     var queue: List<QueueEntry> by mutableStateOf(emptyList()); private set
     var queueBasis:String by mutableStateOf(e7.gearscan.opt.RollReview.BASIS);private set
+    /** The list the queue came from, for the way back to it: "heroes" (Improve heroes), else Gear potential or Sell filters. */
+    var queueSource: String by mutableStateOf(""); private set
     val needsRollRefresh get()=isSellQueue&&queueBasis!=e7.gearscan.opt.RollReview.BASIS&&(scoreQuery?.scoreFilter==false||scoreQuery?.sort==SellSort.QUALITY)
     var queueScan:Long by mutableStateOf(0);private set
     var cleared: Set<Long> by mutableStateOf(emptySet())
@@ -35,8 +37,8 @@ class UpgradeTracker(private val file: File) {
     var positionFor: ((Long) -> String?)? = null
 
     var scoreQuery: SellQuery? by mutableStateOf(null);private set
-    fun startQueue(items: List<Pair<Item, QueueEntry>>, scan: Long, scoreQuery:SellQuery?=null) {
-        this.scoreQuery=scoreQuery;queueScan=scan;queueBasis=e7.gearscan.opt.RollReview.BASIS
+    fun startQueue(items: List<Pair<Item, QueueEntry>>, scan: Long, scoreQuery:SellQuery?=null, source: String = "") {
+        this.scoreQuery=scoreQuery;queueScan=scan;queueBasis=e7.gearscan.opt.RollReview.BASIS;queueSource=source
         val unique = items.distinctBy { it.first.id }
         if (unique.isEmpty()) return
         records = records + unique.associate { (item, _) -> item.id to
@@ -170,7 +172,7 @@ class UpgradeTracker(private val file: File) {
         expected = total; busy = total > 0; error = null; persist()
     }
     fun checkpoint(value: List<UpgradeCheck.HeroResult>) { results = value; persist() }
-    fun toJson() = JSONObject().put("queueBasis",queueBasis).put("queueScan",queueScan).put("scoreGoal",scoreGoal?.toJson()?:JSONObject.NULL).put("scoreQuery",scoreQuery?.toJson()?:JSONObject.NULL).put("queue", JSONArray(queue.map { it.toJson() })).put("goal", goal?.toJson() ?: JSONObject.NULL).put("records", JSONArray(records.values.map { it.toJson() })).put("selected", selected ?: JSONObject.NULL)
+    fun toJson() = JSONObject().put("queueBasis",queueBasis).put("queueSource",queueSource).put("queueScan",queueScan).put("scoreGoal",scoreGoal?.toJson()?:JSONObject.NULL).put("scoreQuery",scoreQuery?.toJson()?:JSONObject.NULL).put("queue", JSONArray(queue.map { it.toJson() })).put("goal", goal?.toJson() ?: JSONObject.NULL).put("records", JSONArray(records.values.map { it.toJson() })).put("selected", selected ?: JSONObject.NULL)
         .put("signature", signature).put("attempt", attempt).put("expected", expected).put("results", JSONArray(results.map { it.toJson() }))
     fun restore(j: JSONObject, write: Boolean = true) {
         generation++; busy = false; editing = false;cleared=emptySet();canUndoSold=false
@@ -187,6 +189,7 @@ class UpgradeTracker(private val file: File) {
                 if (e.isNull("setIcon")) null else e.optString("setIcon"),e.optJSONObject("scoreGoal")?.let(e7.gearscan.opt.GearScore.Goal::of),e7.gearscan.opt.RollReview.rollsOf(e.optJSONArray("reviewRolls")),e.optInt("reviewHistory",1),e.optBoolean("reviewAllowed",false),e.optBoolean("reviewCoverage",false))
         }.getOrNull()?.takeIf { it.id in records } }.distinctBy { it.id }
         queueBasis=j.optString("queueBasis",j.optJSONObject("scoreQuery")?.optString("rollBasis","UPGRADES")?:e7.gearscan.opt.RollReview.BASIS)
+        queueSource=j.optString("queueSource")
         queueScan=j.optLong("queueScan",queue.mapNotNull { records[it.id]?.scan }.minOrNull()?:0L)
         signature = j.optString("signature"); attempt = j.optInt("attempt"); expected = j.optInt("expected", -1)
         val r = j.optJSONArray("results") ?: JSONArray()

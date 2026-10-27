@@ -20,6 +20,12 @@ object Match {
         setAlts.map { alt -> alt.filter { (k, n) -> (have[k] ?: 0) < n }.keys.mapNotNull(set).filter { !it.showsInStats } }
             .minByOrNull { m -> m.sumOf { it.pieces } } ?: emptyList()
 
+    /** The shortfall of the 0% build: one match point is 1% of it, in the search's own units. */
+    fun start(floor: (Stat) -> Double, targets: DoubleArray, weights: IntArray, roll: (Stat) -> Double): Double =
+        Stat.entries.filter { !targets[it.ordinal].isNaN() }.sumOf { s ->
+            weights[s.ordinal].coerceAtLeast(1) * maxOf(0.0, targets[s.ordinal] - floor(s)) / roll(s)
+        }
+
     fun of(now: (Stat) -> Double, floor: (Stat) -> Double, targets: DoubleArray, weights: IntArray, label: String,
            roll: (Stat) -> Double = { 1.0 }, missing: List<SetDef> = emptyList()): Result? {
         val rows = Stat.entries.filter { !targets[it.ordinal].isNaN() }

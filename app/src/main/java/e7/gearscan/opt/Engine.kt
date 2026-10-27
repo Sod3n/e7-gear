@@ -25,7 +25,7 @@ class TargetSpec(val idx: IntArray, val t: DoubleArray, val k: DoubleArray, val 
 /** [changed]: not the hero's current piece in that slot (or a modded one), counted against maxChanged. [cost]: taken off the value, >= 0. */
 class Candidate(val ref: Int, val vec: DoubleArray, val set: Int, val ghost: Boolean, val changed: Boolean = false, val cost: Double = 0.0)
 
-class Entry(val value: Double, val picks: IntArray)
+class Entry(val value: Double, val picks: IntArray, val root: Int = -1)
 
 /**
  * Exact top-K gear search by branch and bound. Bounds: per-slot stat maxima, every legal final
@@ -46,6 +46,12 @@ class Engine(
     startThreshold: Double = Double.NEGATIVE_INFINITY,
     private val maxChanged: Int = 6,
     private val setDamage: Boolean = false,
+    /** A slot (0..5) whose pieces each get their own best build, instead of the top K builds overall; searched first. */
+    private val distinctSlot: Int = -1,
+    /** Distinct slot: any build above the threshold is enough, so each piece stops at its first one. */
+    private val distinctFirst: Boolean = false,
+    /** Distinct slot: a value each piece (by ref) is already known to reach; only better builds are looked for. */
+    rootSeeds: Map<Int, Double> = emptyMap(),
 ) {
     private val nSets = sets.size
     private val st: Array<Array<Candidate>>
@@ -62,6 +68,9 @@ class Engine(
     @Volatile var stopAtFirst = false
     var deadline = Long.MAX_VALUE
     val keptPerSlot: IntArray
+    private var rootBest: java.util.concurrent.atomic.AtomicLongArray? = null
+    private var rootEntry: Array<Entry?> = emptyArray()
+    private var settled = BooleanArray(0)
 
     private val hasMin = mins.any { !it.isNaN() }
     private val hasMax = maxs.any { !it.isNaN() }
@@ -102,11 +111,20 @@ class Engine(
         pairs(IntArray(nSets), 0, 0)
         for (f in four) { val p = IntArray(nSets); p[f] = 4; pairs(p, 4, 0) }
 
-        val filtered = slots.map { li -> filterDominated(li) }
-        val ord = (0 until 6).sortedBy { filtered[it].size }
+        // one best build per piece of the distinct slot: elsewhere a dominated piece is never needed (K = 1)
+        val filtered = slots.mapIndexed { s, li -> if (s == distinctSlot) li else filterDominated(li, if (distinctSlot >= 0) 1 else k) }
+        val rest = (0 until 6).filter { it != distinctSlot }.sortedBy { filtered[it].size }
+        val ord = if (distinctSlot >= 0) listOf(distinctSlot) + rest else rest
         order = ord.toIntArray()
         st = Array(6) { d -> filtered[ord[d]].toTypedArray() }
         keptPerSlot = IntArray(6) { d -> st[d].size }
+        if (distinctSlot >= 0) {
+            rootBest = java.util.concurrent.atomic.AtomicLongArray(st[0].size).also { a ->
+                for (i in st[0].indices) a.set(i, (rootSeeds[st[0][i].ref] ?: Double.NEGATIVE_INFINITY).toRawBits())
+            }
+            rootEntry = arrayOfNulls(st[0].size)
+            settled = BooleanArray(st[0].size)
+        }
         supply = Array(setAlts.size) { a -> IntArray(6) { d ->
             var m = 0
             for ((p, set) in altSets[a].withIndex()) if (st[d].any { it.set == set }) m = m or (1 shl p)
@@ -150,7 +168,7 @@ class Engine(
     }
 
     /** Drop an item when k others of the same slot and set are at least as good in every stat that matters. */
-    private fun filterDominated(li: List<Candidate>): List<Candidate> {
+    private fun filterDominated(li: List<Candidate>, k: Int): List<Candidate> {
         val rel = (obj.uses.toList() + mins.indices.filter { !mins[it].isNaN() }).distinct()
         val eq = maxs.indices.filter { !maxs[it].isNaN() }
         // with a change cap, a new piece must not knock out the hero's own one, so they compete only among themselves
@@ -251,6 +269,21 @@ class Engine(
         return false
     }
 
+    @Synchronized private fun offerDistinct(v: Double, picks: IntArray, root: Int) {
+        val best = rootBest!!
+        if (v <= thr || v <= Double.fromBits(best.get(root))) return
+        rootEntry[root]?.let { heap.remove(it) }
+        val e = Entry(v, picks, root)
+        heap.add(e); rootEntry[root] = e; best.set(root, (if (distinctFirst) Double.POSITIVE_INFINITY else v).toRawBits())
+        if (stopAtFirst) cancelled = true
+        if (heap.size > k) heap.poll()!!.let { rootEntry[it.root] = null }
+        if (heap.size >= k) thr = maxOf(thr, heap.peek()!!.value)
+    }
+
+    /** Distinct-slot refs whose best build the search may not have seen (it stopped before finishing them). */
+    @Synchronized fun unsettled(): List<Int> =
+        if (distinctSlot < 0 || (done && !stopped)) emptyList() else st[0].indices.filter { !settled[it] }.map { st[0][it].ref }
+
     @Synchronized private fun offer(v: Double, picks: IntArray) {
         if (v <= thr) return
         heap.add(Entry(v, picks))
@@ -271,6 +304,12 @@ class Engine(
         var ghosts = 0
         var changes = 0
         var cost = 0.0
+
+        /** The value a build must beat: in distinct mode also its own piece's best so far. */
+        fun lim(): Double {
+            val rb = rootBest ?: return thr
+            return maxOf(thr, Double.fromBits(rb.get(pick[0])))
+        }
 
         fun minsOk(s: DoubleArray): Boolean {
             if (!hasMin) return true
@@ -296,7 +335,7 @@ class Engine(
                 if (!minsOk(sa) || !minsJointly(d, v)) continue
                 best = maxOf(best, obj.eval(sa, v[8], v[9]))
             }
-            if (best == Double.NEGATIVE_INFINITY || best <= thr) return best
+            if (best == Double.NEGATIVE_INFINITY || best <= lim()) return best
             if (spec != null) return minOf(best, targetBound(d, rem))
             if (obj.product == 0) return best
             return minOf(best, productBound(d, rem))
@@ -386,10 +425,10 @@ class Engine(
                 if (!ok) return
             }
             val v = obj.eval(sa, bon[8], bon[9]) - cost
-            if (v > thr) {
+            if (v > lim()) {
                 val p = IntArray(6)
                 for (dd in 0 until 6) p[order[dd]] = st[dd][pick[dd]].ref
-                offer(v, p)
+                if (rootBest != null) offerDistinct(v, p, pick[0]) else offer(v, p)
             }
         }
 
@@ -426,7 +465,7 @@ class Engine(
 
         fun visit(d: Int, i: Int) {
             if (!push(d, i)) return
-            if (d == 5) leaf() else if (childBound(d) > thr) dfs(d + 1)
+            if (d == 5) leaf() else if (childBound(d) > lim()) dfs(d + 1)
             pop(d, i)
         }
 
@@ -444,11 +483,11 @@ class Engine(
                 if (!push(d, i)) continue
                 val b = childBound(d)
                 pop(d, i)
-                if (b > thr) { bs[n] = b; ix[n] = i; n++ }
+                if (b > lim()) { bs[n] = b; ix[n] = i; n++ }
             }
             sortDesc(bs, ix, n)
             for (t in 0 until n) {
-                if (cancelled || timedOut || bs[t] <= thr) return
+                if (cancelled || timedOut || bs[t] <= lim()) return
                 val i = ix[t]
                 push(d, i); dfs(d + 1); pop(d, i)
             }
@@ -479,14 +518,14 @@ class Engine(
     }
 
     private fun runAll(threads: Int) {
-        if (st.any { it.isEmpty() }) return
+        if (st.any { it.isEmpty() }) { settled.fill(true); return }
         // first pieces in order of their bounds, the same as every depth below
         val rootB = DoubleArray(st[0].size)
         val root = IntArray(st[0].size)
         var n = 0
         Worker().run {
             for (i in st[0].indices) {
-                if (!push(0, i)) continue
+                if (!push(0, i)) { if (settled.isNotEmpty()) settled[i] = true; continue }
                 rootB[n] = childBound(0); root[n] = i; n++
                 pop(0, i)
             }
@@ -499,14 +538,17 @@ class Engine(
                 val t = next.getAndIncrement()
                 if (t >= n || rootB[t] <= thr) break
                 w.visit(0, root[t])
+                if (settled.isNotEmpty() && !stopped) settled[root[t]] = true
             }
         }
-        if (threads <= 1) { task.run(); return }
-        val ex = Executors.newFixedThreadPool(threads)
-        try {
-            (0 until threads).map { ex.submit(task) }.forEach { it.get() }
-        } finally {
-            ex.shutdownNow()
+        if (threads <= 1) task.run() else {
+            val ex = Executors.newFixedThreadPool(threads)
+            try {
+                (0 until threads).map { ex.submit(task) }.forEach { it.get() }
+            } finally {
+                ex.shutdownNow()
+            }
         }
+        if (settled.isNotEmpty()) synchronized(this) { for (t in 0 until n) if (rootB[t] <= thr) settled[root[t]] = true }
     }
 }

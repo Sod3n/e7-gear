@@ -213,6 +213,11 @@ class SearchRun(
     private val startThreshold: Double = Double.NEGATIVE_INFINITY,
     /** Taken off a build's value for each piece, in the objective's units; >= 0. One-hero searches pay for modifications. */
     private val cost: (Item) -> Double = { if (it.mod != null) setup.modCost else 0.0 },
+    /** Each piece in this slot gets its own best build (see [Engine]); [k] must cover them all. */
+    private val distinctSlot: Slot? = null,
+    private val distinctFirst: Boolean = false,
+    /** Values the [extra] pieces (by id) already reach in the distinct slot. */
+    private val seeds: Map<Long, Double> = emptyMap(),
 ) {
     private val pool: List<Item>
     val engine: Engine
@@ -238,7 +243,9 @@ class SearchRun(
             IntArray(content.sets.size).also { a -> alt.forEach { (key, n) -> content.setIndex(key).takeIf { it >= 0 }?.let { a[it] = n } } }
         }
         objective = Objectives.of(req, hb)
-        engine = Engine(slots, hb.fixed, setBase, content.sets, objective, req.mins, setup.maxs(), alts, maxGhost, k, startThreshold, req.maxChanges, hb.setDamage)
+        engine = Engine(slots, hb.fixed, setBase, content.sets, objective, req.mins, setup.maxs(), alts, maxGhost, k, startThreshold, req.maxChanges, hb.setDamage,
+            distinctSlot?.ordinal ?: -1, distinctFirst,
+            if (seeds.isEmpty()) emptyMap() else pool.withIndex().filter { it.value.id in seeds }.associate { (i, it) -> i to seeds.getValue(it.id) })
     }
 
     fun run(threads: Int, limitMs: Long) {
@@ -256,6 +263,9 @@ class SearchRun(
     }
 
     fun builds(): List<Build> = engine.results().map { e -> setup.build(e.picks.map { pool[it] }, e.value) }
+
+    /** Distinct-slot pieces the search stopped before settling. */
+    fun unsettled(): List<Item> = engine.unsettled().map { pool[it] }
 }
 
 object Team {

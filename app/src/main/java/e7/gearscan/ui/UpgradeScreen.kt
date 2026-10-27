@@ -29,7 +29,7 @@ fun UpgradeScreen(model: AppModel) {
     }) {
         BackToPrevious(model)
         ScreenTitle("Track upgrades")
-        if (t.queue.isNotEmpty()) RowCard("Gear list", { model.go(if(t.scoreQuery!=null)Screen.SellFilters else Screen.GearPotential) }) {
+        if (t.queue.isNotEmpty()) RowCard("Gear list", { model.go(when { t.scoreQuery!=null -> Screen.SellFilters; t.queueSource == "heroes" -> Screen.HeroUpgrades(); else -> Screen.GearPotential }) }) {
             Text(if(t.sellQueueComplete)"List complete" else "${t.queueIndex + 1} of ${t.pendingQueue.size} ${if(t.isSellQueue)"remaining" else "matches"}", style = zen(12.sp))
         }
         if(t.needsRollRefresh)Card(shadow=null,padding=PaddingValues(12.dp)) {
@@ -61,7 +61,8 @@ fun UpgradeScreen(model: AppModel) {
                 VSpace(6.dp)
                 Text(if(t.isRollReview)"Record each upgrade to update its actual roll history." else if (t.hasTarget) "Record each upgrade to see your chance change." else "Checks how this piece could help your saved hero builds.", style = zen(12.sp, FontWeight.Medium, C.muted))
                 VSpace(12.dp)
-                LinkText(if(t.scoreQuery!=null) "Change filters" else "Change targets") { model.go(if(t.scoreQuery!=null)Screen.SellFilters else Screen.GearPotential) }
+                if (t.queueSource == "heroes" && !t.hasTarget) LinkText("Back to Improve heroes") { model.go(Screen.HeroUpgrades()) }
+                else LinkText(if(t.scoreQuery!=null) "Change filters" else "Change targets") { model.go(if(t.scoreQuery!=null)Screen.SellFilters else Screen.GearPotential) }
             }
             SectionTitle("Progress", trailing = "${selected.history.size - 1} steps")
             Card(shadow = null, padding = PaddingValues(12.dp)) {

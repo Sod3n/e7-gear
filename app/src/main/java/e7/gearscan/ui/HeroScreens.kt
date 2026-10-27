@@ -247,6 +247,18 @@ fun HeroDetailScreen(model: AppModel, id: Long) {
                 }
             }
         } else Text("No game data for this hero yet.", style = zen(12.sp, color = C.red))
+        if (model.heroUpgradeHeroes().any { it.id == id }) {
+            val st = model.heroUpgrades
+            val rows = remember(st?.result, model.heroUpgradeMinGain, model.rev) { st?.result?.let { r -> model.heroUpgradeView(r).firstOrNull { it.hero.id == id }?.rows } }
+            RowCard("Upgrades", { model.go(Screen.HeroUpgrades(id)) }) {
+                Text(when {
+                    st?.running == true -> "Checking your gear"
+                    rows == null -> "Find pieces that could improve this hero"
+                    rows.isEmpty() -> "No piece to enhance gains enough now"
+                    else -> "${rows.size} ${if (rows.size == 1) "piece" else "pieces"} could improve this hero · best ${rows.first().chance}%"
+                }, style = zen(12.sp))
+            }
+        }
         Card(shadow = null, radius = 14.dp, border = 2.5.dp, padding = PaddingValues(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Gear priority", style = zen(13.sp), modifier = Modifier.weight(1f))

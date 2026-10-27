@@ -48,6 +48,7 @@ fun App(model: AppModel, onExit: () -> Unit) {
             Screen.Upgrade -> UpgradeScreen(model)
             Screen.GearPotential -> GearPotentialScreen(model)
             Screen.SellFilters -> SellFiltersScreen(model)
+            is Screen.HeroUpgrades -> HeroUpgradesScreen(model, s.heroId)
             is Screen.PoolHero -> PoolHeroScreen(model, s.id, s.setup)
             is Screen.PoolReview -> CompareScreen(model, 0, s.id, review = true)
         }
