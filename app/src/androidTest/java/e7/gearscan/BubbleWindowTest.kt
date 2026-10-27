@@ -52,6 +52,8 @@ class BubbleWindowTest {
         inject(down, MotionEvent.ACTION_UP, b, at + 8)
     }
 
+    private var lastFinger: PointF? = null
+
     private fun bubble() = checkNotNull(OverlayState.bubbleOnScreen) { "the bubble isn't on screen" }
     private fun center() = bubble().let { PointF(it.exactCenterX(), it.exactCenterY()) }
     /** The usable area (between the system bars) in display coordinates. */
@@ -60,6 +62,22 @@ class BubbleWindowTest {
         android.graphics.Rect(i.left, i.top, m.bounds.width() - i.right, m.bounds.height() - i.bottom)
     }
     private fun settle() = Thread.sleep(1200)
+
+    /** Until the tracker's bubble is drawn: a cold debug build takes ~2 s for the overlay's first frame on the emulator. */
+    private fun waitForTrackerBubble() {
+        val end = SystemClock.uptimeMillis() + 10_000
+        while (SystemClock.uptimeMillis() < end) {
+            OverlayState.bubbleOnScreen?.let { r ->
+                val shot = inst.uiAutomation.takeScreenshot()
+                // the slate face left of the gear glyph (the badge covers the top)
+                val px = shot.getPixel((r.centerX() - 18 * d).toInt(), r.centerY())
+                shot.recycle()
+                if (android.graphics.Color.luminance(px) < 0.3f) { Thread.sleep(400); return }
+            }
+            Thread.sleep(200)
+        }
+        fail("the tracker bubble never showed: ${OverlayState.bubbleOnScreen}")
+    }
     private fun onRight() = bubble().right == area().right
     private fun onLeft() = bubble().left == area().left
 
@@ -74,11 +92,14 @@ class BubbleWindowTest {
         shell("appops set e7.gearscan SYSTEM_ALERT_WINDOW allow")
         if (Build.VERSION.SDK_INT >= 33) inst.uiAutomation.grantRuntimePermission(ctx.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
         dir.deleteRecursively()
+        // ends a touch an earlier, failed run left down; rejected (and ignored) when there is none
+        MotionEvent.obtain(SystemClock.uptimeMillis(), SystemClock.uptimeMillis(), MotionEvent.ACTION_CANCEL, 0f, 0f, 0).also {
+            it.source = InputDevice.SOURCE_TOUCHSCREEN; inst.uiAutomation.injectInputEvent(it, true); it.recycle() }
         val log = StringBuilder()
         try {
             main { OverlayState.bubbleLeft = false; OverlayState.upgrade = tracker; OverlayState.expanded = false; OverlayState.appInFront = false; OverlayService.start(ctx) }
             shell("am start -a android.intent.action.VIEW -d about:blank -p com.android.chrome")
-            settle()
+            waitForTrackerBubble()
             assertTrue("the bubble starts on the right: ${bubble()} in ${area()}", onRight())
             shot("1-tracker-bubble")
 
@@ -90,7 +111,7 @@ class BubbleWindowTest {
             log.appendLine("slow drop at ${drop}: ${bubble()}")
             assertTrue("a slow drop left of the middle didn't go left: ${bubble()}", onLeft())
             assertEquals("the bubble moved up or down after a slow drop", drop.y, center().y, 40 * d)
-            assertTrue(OverlayState.bubbleLeft)
+            assertTrue("the bubble rests left but doesn't know it", OverlayState.bubbleLeft)
             shot("2-snapped-left")
 
             // a short quick fling right, still left of the middle: the fling picks the side
@@ -101,8 +122,42 @@ class BubbleWindowTest {
             assertTrue("a fling right didn't go right: ${bubble()}", onRight())
             shot("3-flung-right")
 
-            // onto the dismiss target: it holds the bubble, letting go closes the overlay
+            // into the target and out again without letting go: once out, the bubble is back under the moving finger
             val target = PointF(a.exactCenterX(), a.bottom - (TARGET_MARGIN + TARGET_BOX / 2f) * d)
+            run {
+                val start = center()
+                val down = SystemClock.uptimeMillis()
+                var at = down
+                inject(down, MotionEvent.ACTION_DOWN, start, at)
+                fun moveTo(p: PointF, ms: Long) {
+                    val from = lastFinger ?: start
+                    val steps = (ms / 16).toInt()
+                    for (i in 1..steps) {
+                        at += 16
+                        val q = PointF(from.x + (p.x - from.x) * i / steps, from.y + (p.y - from.y) * i / steps)
+                        inject(down, MotionEvent.ACTION_MOVE, q, at); lastFinger = q
+                    }
+                }
+                moveTo(target, 500)
+                Thread.sleep(300)
+                assertTrue("the target didn't take the bubble", OverlayState.captured)
+                // out and up at a steady pace; the finger is still moving when the bubble is measured
+                moveTo(PointF(target.x, target.y - a.height() * 0.35f), 700)
+                val finger = lastFinger!!
+                val lag = Math.hypot((center().x - finger.x).toDouble(), (center().y - finger.y).toDouble()) / d
+                val held = OverlayState.captured
+                log.appendLine("out of the target: bubble ${center()} finger $finger, lag ${"%.1f".format(lag)} dp")
+                shot("3b-out-of-target")
+                // lifted before asserting: a finger left down makes the next run's touches inconsistent
+                repeat(10) { at += 16; inject(down, MotionEvent.ACTION_MOVE, finger, at); Thread.sleep(16) }
+                inject(down, MotionEvent.ACTION_UP, finger, at + 8)
+                lastFinger = null
+                assertFalse("still held after leaving the target", held)
+                assertTrue("the bubble trails the finger by ${"%.0f".format(lag)} dp after leaving the target", lag < 12)
+                settle()
+            }
+
+            // onto the dismiss target: it holds the bubble, letting go closes the overlay
             drag(center(), PointF(target.x + 30 * d, target.y - 40 * d), 700, hold = 400) {
                 assertTrue("the target didn't take the bubble", OverlayState.captured)
                 shot("4-held-by-target")
@@ -141,11 +196,12 @@ class BubbleWindowTest {
                 OverlayPiece(gear(2, Slot.RING), null, "Atk 65%", emptyList(), "on Silk", false),
                 OverlayPiece(gear(3, Slot.BOOTS), null, "Spd 45", emptyList(), "on now", true)), emptyList())
             main { OverlayState.load(build); OverlayState.appInFront = false; OverlayState.bubbleLeft = false; OverlayService.start(ctx) }
-            settle()
+            // a new service composes its windows anew: give its first frame time on a slow emulator
+            Thread.sleep(2500)
             shot("8-checklist-bubble-hint")
             drag(center(), PointF(area().left + area().width() * 0.2f, area().top + area().height() * 0.5f), 500, hold = 200)
             settle()
-            assertTrue(onLeft())
+            assertTrue("the checklist bubble didn't go left: ${bubble()}", onLeft())
             shot("9-checklist-bubble-left")
         } finally {
             File(dir, "result.txt").writeText(log.toString())

@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.AndroidUiDispatcher
 import androidx.compose.ui.platform.ComposeView
@@ -117,7 +118,7 @@ object OverlayState {
     var bubbleLeft by mutableStateOf(false)
     /** Moves the bubble's window with the finger; set by the overlay service. */
     var bubbleDrag: BubbleDrag? = null
-    /** Where the resting bubble is on screen, for tests that drag it. */
+    /** Where the bubble is on screen now, for tests that drag it. */
     var bubbleOnScreen: android.graphics.Rect? = null
     /** Records the finished checklist in the app's box; set by whoever loaded the build. */
     var onFinish: (() -> Unit)? = null
@@ -335,9 +336,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         wm.updateViewLayout(v, params)
         placeBody()
         placeHint()
-        val o = origin()
-        val left = bubbleLeftEdge(v).toInt()
-        OverlayState.bubbleOnScreen = android.graphics.Rect(o.x + left, o.y + params.y, o.x + left + h, o.y + params.y + h)
+        reportBubble(v)
     }
 
     private fun bubbleSize(v: android.view.View) = if (v.width > 0) v.width else (BUBBLE_BOX * resources.displayMetrics.density).toInt()
@@ -353,6 +352,14 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         params.gravity = Gravity.TOP or Gravity.START
         params.x = x.roundToInt(); params.y = y.roundToInt()
         wm.updateViewLayout(v, params)
+        reportBubble(v)
+    }
+
+    private fun reportBubble(v: android.view.View) {
+        val o = origin()
+        val size = bubbleSize(v)
+        val left = bubbleLeftEdge(v).toInt()
+        OverlayState.bubbleOnScreen = android.graphics.Rect(o.x + left, o.y + params.y, o.x + left + size, o.y + params.y + size)
     }
 
     private fun placeHint() {
@@ -391,10 +398,9 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     /** Springs the bubble to [x], [y], keeping the speed it has (or [vx], [vy]), then runs [then]. */
     private fun glideTo(x: Float, y: Float, sx: SpringSpec<Float>, sy: SpringSpec<Float>, vx: Float? = null, vy: Float? = null, then: () -> Unit = {}) {
         val v = view ?: return
-        val moving = glide?.isActive == true
-        val from = if (moving) Offset(glideX.value, glideY.value) else Offset(bubbleLeftEdge(v), params.y.toFloat())
-        val ivx = vx ?: if (moving) glideX.velocity else 0f
-        val ivy = vy ?: if (moving) glideY.velocity else 0f
+        val from = Offset(bubbleLeftEdge(v), params.y.toFloat())
+        val ivx = vx ?: if (glideX.isRunning) glideX.velocity else 0f
+        val ivy = vy ?: if (glideY.isRunning) glideY.velocity else 0f
         glide?.cancel()
         glide = frames.launch {
             glideX.snapTo(from.x); glideY.snapTo(from.y)
@@ -403,6 +409,24 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                 launch { glideY.animateTo(y, sy, ivy) { putBubble(glideX.value, value) } }
             }
             then()
+        }
+    }
+
+    /**
+     * Leaving the target, the bubble closes the gap to the moving finger in a fixed time, then follows it exactly. A spring
+     * restarted on every move lagged: each restart spends its first frame only taking the start time.
+     */
+    private fun catchUp() {
+        val v = view ?: return
+        val from = Offset(bubbleLeftEdge(v), params.y.toFloat())
+        glide?.cancel()
+        glide = frames.launch {
+            val t0 = withFrameNanos { it }
+            do {
+                val t = ((withFrameNanos { it } - t0) / 1e6f / CATCH_UP_MS).coerceAtMost(1f)
+                val k = 1f - (1f - t) * (1f - t) * (1f - t)
+                putBubble(from.x + (finger.x - from.x) * k, from.y + (finger.y - from.y) * k)
+            } while (t < 1f)
         }
     }
 
@@ -417,7 +441,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private val drag = object : BubbleDrag {
         override fun start() {
             val v = view ?: return
-            finger = if (glide?.isActive == true) Offset(glideX.value, glideY.value) else Offset(bubbleLeftEdge(v), params.y.toFloat())
+            finger = Offset(bubbleLeftEdge(v), params.y.toFloat())
             glide?.cancel()
             putBubble(finger.x, finger.y)
             OverlayState.dragging = true; OverlayState.captured = false
@@ -434,12 +458,11 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                 held != OverlayState.captured -> {
                     OverlayState.captured = held
                     tick(held)
-                    val to = if (held) targetSpot(v) else finger
-                    glideTo(to.x, to.y, PULL, PULL)
+                    if (held) targetSpot(v).let { glideTo(it.x, it.y, PULL, PULL) } else catchUp()
                 }
                 held -> {}
-                // leaving the target, the bubble catches up with the finger
-                glide?.isActive == true -> glideTo(finger.x, finger.y, PULL, PULL)
+                // catching up: it reads the finger every frame
+                glide?.isActive == true -> {}
                 else -> putBubble(finger.x, finger.y)
             }
         }
@@ -452,8 +475,8 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             val r = screen()
             val d = resources.displayMetrics.density
             val size = bubbleSize(v)
-            val x0 = if (glide?.isActive == true) glideX.value else bubbleLeftEdge(v)
-            val y0 = if (glide?.isActive == true) glideY.value else params.y.toFloat()
+            val x0 = bubbleLeftEdge(v)
+            val y0 = params.y.toFloat()
             val right = if (abs(vx) > FLING_SIDE * d) vx > 0 else x0 + size / 2f > r.width() / 2f
             // a critically damped spring stops by itself after v/ω, so that is how far a fling glides
             val y = (y0 + vy / sqrt(GLIDE.stiffness)).coerceIn(0f, (r.height() - size).toFloat())
@@ -577,6 +600,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         private val SNAP = spring<Float>(0.75f, 750f)
         private val GLIDE = spring<Float>(1f, 200f)
         private val PULL = spring<Float>(0.8f, Spring.StiffnessMedium)
+        private const val CATCH_UP_MS = 120f
 
         fun start(ctx: Context) { ctx.startForegroundService(Intent(ctx, OverlayService::class.java)) }
         fun stop(ctx: Context) { ctx.stopService(Intent(ctx, OverlayService::class.java)) }
