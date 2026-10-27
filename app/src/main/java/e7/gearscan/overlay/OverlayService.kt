@@ -66,11 +66,14 @@ class OverlayBuild(
 
 /** Shared between the app and the overlay window; both run in the app process. */
 object OverlayState {
+    var upgrade: UpgradeTracker? by mutableStateOf(null)
     var build: OverlayBuild? by mutableStateOf(null)
     val done = mutableStateListOf<Boolean>()
     /** Pieces in the order they were ticked, for Undo. */
     private val doneOrder = mutableStateListOf<Int>()
     var expanded by mutableStateOf(false)
+    /** Usable window height after system bars/cutouts, supplied by the overlay service. */
+    var usableHeightDp by mutableStateOf(0f)
     var tab by mutableStateOf(0)
     var opacity by mutableStateOf(0.8f)
     var focus by mutableStateOf(-1)
@@ -90,6 +93,7 @@ object OverlayState {
     val listHidden get() = opacity == 0f
 
     fun load(b: OverlayBuild, onFinish: (() -> Unit)? = null) {
+        upgrade = null
         build = b
         done.clear(); done.addAll(b.pieces.map { it.onHero && !it.modStep })
         doneOrder.clear()
@@ -176,14 +180,15 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP || OverlayState.build == null) { stopSelf(); return START_NOT_STICKY }
+        if (intent?.action == ACTION_STOP || (OverlayState.build == null && OverlayState.upgrade == null)) { stopSelf(); return START_NOT_STICKY }
         foreground()
         show()
         return START_NOT_STICKY
     }
 
     private fun show() {
-        if (view != null) return
+        OverlayState.usableHeightDp = screen().height() / resources.displayMetrics.density
+        if (view != null) { dock(OverlayState.expanded); return }
         val d = resources.displayMetrics.density
         params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
@@ -247,6 +252,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         e7.gearscan.ui.Themes.load(this)
+        OverlayState.usableHeightDp = screen().height() / resources.displayMetrics.density
         if (!OverlayState.expanded) placeBubble()
     }
 
@@ -261,7 +267,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private fun placeBody() {
         val v = view ?: return
         val b = body ?: return
-        b.visibility = if (OverlayState.expanded && !OverlayState.appInFront && !OverlayState.listHidden) android.view.View.VISIBLE else android.view.View.GONE
+        b.visibility = if (OverlayState.upgrade == null && OverlayState.expanded && !OverlayState.appInFront && !OverlayState.listHidden) android.view.View.VISIBLE else android.view.View.GONE
         bodyParams.width = params.width
         bodyParams.gravity = params.gravity
         bodyParams.x = params.x
@@ -315,7 +321,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         val stop = PendingIntent.getService(this, 2, Intent(this, OverlayService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE)
         val n = Notification.Builder(this, channel)
-            .setContentTitle("Build checklist over the game")
+            .setContentTitle(if (OverlayState.upgrade != null) "Upgrade tracker over the game" else "Build checklist over the game")
             .setContentText("Tap to close it.")
             .setSmallIcon(android.R.drawable.ic_menu_view)
             .setContentIntent(stop)
@@ -325,7 +331,9 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     }
 
     override fun onDestroy() {
+        OverlayState.usableHeightDp = 0f
         OverlayState.onAppInFront = null
+        OverlayState.expanded = false
         view?.let { runCatching { wm.removeView(it) } }
         body?.let { runCatching { wm.removeView(it) } }
         view = null; body = null

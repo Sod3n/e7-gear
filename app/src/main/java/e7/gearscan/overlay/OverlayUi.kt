@@ -63,7 +63,7 @@ import kotlin.math.abs
 
 /** Moves the overlay window by raw screen deltas; window-local deltas would shift as the window moves. */
 @OptIn(ExperimentalComposeUiApi::class)
-private fun Modifier.dragWindow(onMove: (Float, Float) -> Unit, onTap: (() -> Unit)? = null, onRelease: (() -> Unit)? = null): Modifier = composed {
+internal fun Modifier.dragWindow(onMove: (Float, Float) -> Unit, onTap: (() -> Unit)? = null, onRelease: (() -> Unit)? = null): Modifier = composed {
     var lastX by remember { mutableFloatStateOf(0f) }
     var lastY by remember { mutableFloatStateOf(0f) }
     var downX by remember { mutableFloatStateOf(0f) }
@@ -88,7 +88,8 @@ private fun Modifier.dragWindow(onMove: (Float, Float) -> Unit, onTap: (() -> Un
 /** The panel's two parts as one column; the service shows them as two windows (see [OverlayControls]). */
 @Composable
 fun OverlayUi(onMove: (Float, Float) -> Unit, onDock: (Boolean) -> Unit, onClose: () -> Unit) {
-    if (!OverlayState.expanded) OverlayTop(onMove, onDock, onClose)
+    if (OverlayState.upgrade != null) OverlayTop(onMove, onDock, onClose)
+    else if (!OverlayState.expanded) OverlayTop(onMove, onDock, onClose)
     else Column(Modifier.width(PANEL_WIDTH.dp), verticalArrangement = Arrangement.spacedBy(PANEL_GAP.dp)) {
         OverlayTop(onMove, onDock, onClose)
         OverlayBody()
@@ -98,6 +99,7 @@ fun OverlayUi(onMove: (Float, Float) -> Unit, onDock: (Boolean) -> Unit, onClose
 /** The touchable window: the bubble, or the panel's controls. */
 @Composable
 fun OverlayTop(onMove: (Float, Float) -> Unit, onDock: (Boolean) -> Unit, onClose: () -> Unit) {
+    OverlayState.upgrade?.let { UpgradeOverlay(it, onMove, onDock, onClose); return }
     val b = OverlayState.build ?: return
     if (!OverlayState.expanded) Bubble(b, onMove, onRelease = { if (OverlayState.closeZone) { OverlayState.closeZone = false; onClose() } }) {
         OverlayState.expanded = true; onDock(true)
@@ -185,7 +187,7 @@ private fun OverlayControls(b: OverlayBuild, onMove: (Float, Float) -> Unit, onC
         Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val n = s.done.count { it }
-            Text("$n of ${b.pieces.size} done", style = zen(12.sp, color = C.muted), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            FitText("$n of ${b.pieces.size} done", zen(12.sp, color = C.muted), Modifier.weight(1f), short = "$n/${b.pieces.size}")
             // the list below lets taps through to the game; its opacity is the one thing worth changing mid-game
             Row(Modifier.width(64.dp).clip(RoundedCornerShape(999.dp)).border(2.dp, C.edge, RoundedCornerShape(999.dp)).tap {
                 s.opacity = OPACITY_STEPS[(OPACITY_STEPS.indexOf(s.opacity) + 1).mod(OPACITY_STEPS.size)]
@@ -219,7 +221,7 @@ private fun OverlayControls(b: OverlayBuild, onMove: (Float, Float) -> Unit, onC
 fun OverlayBody() {
     val s = OverlayState
     val b = s.build ?: return
-    if (!s.expanded || s.listHidden) return
+    if (s.upgrade != null || !s.expanded || s.listHidden) return
     val shape = RoundedCornerShape(18.dp)
     val scroll = rememberScrollState()
     val rowTops = remember { mutableMapOf<Int, Int>() }

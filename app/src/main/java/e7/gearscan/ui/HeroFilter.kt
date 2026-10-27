@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,7 +42,7 @@ class HeroFilter {
     val active get() = query.isNotBlank() || element != null || role != null
 
     fun matches(model: AppModel, h: OwnedHero): Boolean {
-        if (query.isNotBlank() && !model.heroName(h).contains(query.trim(), true)) return false
+        if (query.isNotBlank() && !nameMatches(model.heroName(h), query)) return false
         val g = model.gameHero(h)
         return (element == null || g?.element == element) && (role == null || g?.role == role)
     }
@@ -56,18 +55,7 @@ private val CLASSES = listOf("warrior" to "Warrior", "knight" to "Knight", "assa
 @Composable
 fun HeroFilterBar(f: HeroFilter) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Find hero", style = zen(13.sp))
-            val shape = RoundedCornerShape(999.dp)
-            Row(Modifier.weight(1f).height(40.dp).clip(shape).background(C.field).border(2.dp, C.ink, shape).padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SearchGlyph()
-                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                    if (f.query.isEmpty()) Text("Search by name", style = zen(13.sp, FontWeight.Medium, C.faint))
-                    BasicTextField(f.query, { f.query = it }, textStyle = zen(13.sp), singleLine = true, modifier = Modifier.fillMaxWidth())
-                }
-            }
-        }
+        NameFilter(f.query, "Name") { f.query = it }
         TraitRow("Element", ELEMENTS, f.element, { "icons/elements/element-$it.png" }) { f.element = it }
         TraitRow("Class", CLASSES, f.role, { "icons/classes/class-$it.png" }) { f.role = it }
         val any = f.element != null || f.role != null

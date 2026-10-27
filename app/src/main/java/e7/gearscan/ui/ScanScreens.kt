@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -220,12 +219,7 @@ fun ScanDataScreen(model: AppModel) {
             }
             if (model.proxyOn) {
                 VSpace(8.dp)
-                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).border(2.dp, C.ink, RoundedCornerShape(10.dp))
-                    .background(C.paper).padding(horizontal = 10.dp, vertical = 8.dp)) {
-                    if (model.proxy.isEmpty()) Text("host:port, e.g. 127.0.0.1:10808", style = zen(13.sp, FontWeight.Medium, C.faint))
-                    BasicTextField(model.proxy, { model.proxy = it; model.save() }, textStyle = zen(13.sp), singleLine = true,
-                        modifier = Modifier.fillMaxWidth())
-                }
+                PasteField(model.proxy, "SOCKS5 host:port", 240) { model.proxy = it.trim(); model.save() }
                 VSpace(4.dp)
                 Text("Switch your VPN app to SOCKS5 proxy mode first; Android runs one VPN at a time.",
                     style = zen(11.sp, FontWeight.Medium, C.muted))
@@ -241,6 +235,10 @@ fun ScanDataScreen(model: AppModel) {
                 val (uri, name) = model.export("e7gear-backup.json", model.backupText())
                 model.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "application/json") }
             }
+            DataRow("Gear potential", "Search final substats, sets and slots", box != null) { model.go(Screen.GearPotential) }
+            DataRow("Track upgrades", "Record each +3 over the game and check whether to continue", box != null) { model.go(Screen.Upgrade) }
+            DataRow("Sell filters", "Score floors, chance and editable scoring", box != null) { model.go(Screen.SellFilters) }
+            DataRow("Make room", "Pieces you can feed or sell without losing gear a hero could use", box != null) { model.go(Screen.Cleanup) }
             DataRow("Restore from a backup", null, true) { restore.launch(arrayOf("application/json", "text/plain", "*/*")) }
             DataRow("Import a gear.txt file", null, true) { importGear.launch(arrayOf("text/plain", "application/json", "*/*")) }
             DataRow("Game content", model.contentStatus ?: ("Version ${model.content.version}" +
@@ -411,6 +409,13 @@ fun ScanResultScreen(model: AppModel) {
             Text(if (model.decodeSec > 0) "Decoded in ${model.decodeSec} s · saved on this phone" else "Saved on this phone",
                 style = zen(11.sp, FontWeight.Medium, C.muted))
         }
+        Card(shadow = null, radius = 14.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+            DiffRow("Sell filters", "Editable score & chance", C.ink) { model.go(Screen.SellFilters) }
+            DiffRow("Gear potential", "Find possible upgrades", C.ink) { model.go(Screen.GearPotential) }
+            DiffRow("Track upgrades", "Over the game", C.ink) { model.go(Screen.Upgrade) }
+            DiffRow("Make room", model.cleanup?.takeIf { !it.running && it.finishedAt > 0 && it.scan == model.lastScan }
+                ?.let { c -> "${c.picks.count { it.item.id !in model.cleanupDone }} can go" } ?: "Find pieces to feed", C.ink) { model.go(Screen.Cleanup) }
+        }
         SectionTitle("Since last scan")
         if (d == null || (d.newItems + d.removedItems + d.enhanced + d.moved).isEmpty() && d.newHeroes.isEmpty()) {
             Text(if (d == null) "This is your first scan." else "Nothing changed since the last scan.", style = zen(13.sp, FontWeight.Medium, C.muted))
@@ -461,11 +466,13 @@ fun ItemRow(model: AppModel, it: Item, owner: String? = null) {
             Column(Modifier.weight(1f)) {
                 Row {
                     Text("${it.mainType.short} ${it.mainType.format(it.mainValue)}", style = zen(13.sp), modifier = Modifier.weight(1f))
-                    val who = owner ?: it.equippedOn?.let { id -> model.hero(id)?.let(model::heroName) }
+                    // a hero missing from the scan's hero list still wears the piece in the game
+                    val who = owner ?: it.equippedOn?.let { id -> model.hero(id)?.let(model::heroName) ?: "hero not in scan" }
                     Text(who ?: "free", style = zen(11.sp, color = if (who != null) C.blue else C.muted))
                 }
                 VSpace(3.dp)
                 SubGrid(it, reforged = false)
+                GearPositionLabel(model, it)
             }
         }
     }

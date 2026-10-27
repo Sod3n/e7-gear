@@ -13,6 +13,24 @@ class SourceRulesTest {
     private val assets = File("src/main/assets")
 
     @Test
+    fun upgradeTrackerHasNoScrollContainers() {
+        val overlay = File(src, "e7/gearscan/overlay/UpgradeOverlay.kt").readText()
+        val forbidden = listOf("verticalScroll(", "horizontalScroll(", "LazyColumn(", "LazyRow(", ".scrollable(")
+        assertTrue("The gear overlay must use fitted pages, never scrolling", forbidden.none { it in overlay })
+    }
+
+    @Test
+    fun keyboardInputIsLimitedToLegacyStatControls() {
+        val forbidden = Regex("""\b(?:BasicTextField|TextField|OutlinedTextField|EditText|AutoCompleteTextView)\b""")
+        val hits = src.walk().filter { it.extension == "kt" && it.name != "LegacyStatInput.kt" }.flatMap { f ->
+            f.readLines().withIndex().filter { forbidden.containsMatchIn(it.value) }.map { "${f.name}:${it.index + 1}" }
+        }.toList()
+        val callers = src.walk().filter { it.extension == "kt" && it.name !in setOf("LegacyStatInput.kt", "Sheets.kt") }.filter { "LegacyStatField(" in it.readText() }.toList()
+        assertTrue("Legacy stat keyboard reused elsewhere: $callers", callers.isEmpty())
+        assertTrue("Keyboard input is allowed only in the existing optimizer stat controls: " + hits.joinToString(), hits.isEmpty())
+    }
+
+    @Test
     fun numberFormattingIgnoresPhoneLanguage() {
         // "%,d" on a Russian phone gives "2 466"; "%.1f" gives "4,4"
         val bad = Regex(""""[^"\n]*%[^"\n]*"\.format\((?!java\.util\.Locale|Locale)|String\.format\((?!java\.util\.Locale|Locale)|SimpleDateFormat\("[^"]*"\)""")

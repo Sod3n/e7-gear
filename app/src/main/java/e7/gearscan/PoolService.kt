@@ -13,7 +13,7 @@ import android.os.IBinder
 import android.os.PowerManager
 
 /**
- * Keeps a pool run going while the player is in the game or the screen is off: a foreground service with a progress
+ * Keeps a pool run (or the cleanup check) going while the player is in the game or the screen is off: a foreground service with a progress
  * notification, and a wake lock so the CPU doesn't sleep mid-run. The run itself stays in [AppModel].
  */
 class PoolService : Service() {
@@ -46,9 +46,11 @@ class PoolService : Service() {
 
         /** What Stop in the notification does; set by the model that started the run. */
         @Volatile var onStop: (() -> Unit)? = null
+        @Volatile private var title = "Optimizing pool"
 
-        fun start(ctx: Context, stop: () -> Unit) {
+        fun start(ctx: Context, title: String = "Optimizing pool", stop: () -> Unit) {
             onStop = stop
+            this.title = title
             ctx.startForegroundService(Intent(ctx, PoolService::class.java))
         }
 
@@ -70,7 +72,7 @@ class PoolService : Service() {
             val stop = PendingIntent.getService(ctx, 8, Intent(ctx, PoolService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
             return Notification.Builder(ctx, CHANNEL)
                 .setSmallIcon(android.R.drawable.stat_sys_download)
-                .setContentTitle("Optimizing pool")
+                .setContentTitle(title)
                 .setContentText(text)
                 .setProgress(total, done, total == 0)
                 .setOngoing(true)

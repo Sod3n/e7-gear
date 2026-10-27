@@ -20,8 +20,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -57,6 +54,7 @@ fun OverlayIntroScreen(model: AppModel) {
         model.overlaySeen = true
         model.save()
         model.back()
+        if (OverlayState.upgrade != null) model.checkUpgrade()
         model.openGame()
     }
     LifecycleResumeEffect(waiting) {
@@ -73,14 +71,16 @@ fun OverlayIntroScreen(model: AppModel) {
         }
     }) {
         BackToPrevious(model)
-        Text("Show this build over the game", style = TitleStyle.copy(fontSize = 24.sp, lineHeight = 28.sp))
-        Text("A small panel floats on top of Epic Seven, so you can equip each piece without switching apps.",
+        val upgrade = OverlayState.upgrade != null
+        Text(if (upgrade) "Track upgrades over the game" else "Show this build over the game", style = TitleStyle.copy(fontSize = 24.sp, lineHeight = 28.sp))
+        Text(if (upgrade) "Record each +3 in a small floating panel and check whether the piece could improve a hero build." else "A small panel floats on top of Epic Seven, so you can equip each piece without switching apps.",
             style = zen(13.sp, FontWeight.Medium, C.muted))
         Card(padding = PaddingValues(12.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 IntroStep(1, "Allow “Display over other apps”", "Android opens its settings page once. Turn it on, then come back.")
                 IntroStep(2, "Open the game's gear screen", "The bubble stays at the edge; tap it to open the checklist.")
-                IntroStep(3, "Tap Done as you equip each piece", "The list lets taps through to the game. When all are done, record the build.")
+                if (upgrade) IntroStep(3, "Record the totals after each +3", "Tap Record, enter the stats shown in the game, then save. Your history stays on this phone.")
+                else IntroStep(3, "Tap Done as you equip each piece", "The list lets taps through to the game. When all are done, record the build.")
             }
         }
         DashedBox(Modifier.fillMaxWidth(), color = C.edge, padding = PaddingValues(12.dp)) {
@@ -158,24 +158,14 @@ fun FeedbackScreen(model: AppModel, error: String?) {
             null -> {
                 Segmented(listOf("Bug", "Idea", "Other"), topic) { topic = it }
                 Text("What happened?", style = zen(13.sp))
-                val shape = RoundedCornerShape(12.dp)
-                Box(Modifier.fillMaxWidth().height(116.dp).clip(shape).background(C.card).border(2.5.dp, C.ink, shape).padding(10.dp)) {
-                    if (text.isEmpty()) Text(if (topic == 0) "What did you do, and what went wrong?" else "Tell us more", style = zen(13.sp, FontWeight.Medium, C.faint))
-                    BasicTextField(text, { text = it.take(2000) }, textStyle = zen(13.sp, FontWeight.Medium), modifier = Modifier.fillMaxWidth().height(80.dp))
-                    Text("${text.length} / 2000", style = zen(10.sp, FontWeight.Medium, C.muted), modifier = Modifier.align(Alignment.BottomEnd))
-                }
+                PasteField(text, if (topic == 0) "Paste what happened and what went wrong" else "Paste your message", 2000, multiline = true) { text = it }
                 CheckRow("Include what I was doing", "Hero, preset, targets and rules of the last search", withContext) { withContext = it }
                 CheckRow("Include device info", model.deviceInfo(), withDevice) { withDevice = it }
                 CheckRow("Include the last scan log", "Connection log only. No login data.", withLog) { withLog = it }
                 CheckRow("Add a screenshot", if (shot != null) "Screenshot attached · tap to remove" else "Pick one from the gallery", shot != null) {
                     if (shot != null) shot = null else pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 }
-                Box(Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(10.dp)).background(C.card)
-                    .border(2.dp, C.ink, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp), contentAlignment = Alignment.CenterStart) {
-                    if (email.isEmpty()) Text("Email for a reply (optional)", style = zen(12.sp, FontWeight.Medium, C.faint))
-                    BasicTextField(email, { email = it.take(120) }, textStyle = zen(12.sp, FontWeight.Medium), singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth())
-                }
+                PasteField(email, "Email for a reply (optional)", 120) { email = it.trim() }
                 Text("Only what is ticked is sent. Your gear and account id are never included.", style = zen(11.sp, FontWeight.Medium, C.muted))
             }
         }

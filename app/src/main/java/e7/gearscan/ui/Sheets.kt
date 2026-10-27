@@ -1,10 +1,13 @@
 package e7.gearscan.ui
 
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
+
 import e7.gearscan.POOL_RULES
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.draw.alpha
 import e7.gearscan.data.SetChoice
@@ -54,8 +57,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,7 +69,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -158,6 +158,15 @@ fun SheetHost(model: AppModel) {
                 SheetKind.POOL_LOW -> PoolLowSheet(model)
                 SheetKind.POOL_TRADES -> PoolTradesSheet(model)
                 SheetKind.SCAN_RESTART -> ScanRestartSheet(model)
+                SheetKind.POTENTIAL_TARGETS -> PotentialTargetsSheet(model)
+                SheetKind.POTENTIAL_SLOTS -> PotentialSlotsSheet(model)
+                SheetKind.POTENTIAL_SETS -> PotentialSetsSheet(model)
+                SheetKind.POTENTIAL_MAINS -> PotentialMainsSheet(model)
+                SheetKind.POTENTIAL_OPTIONS -> PotentialOptionsSheet(model)
+                SheetKind.POTENTIAL_HELP -> PotentialHelpSheet(model)
+                SheetKind.POTENTIAL_PIECE -> PotentialPieceSheet(model, sheet.heroId)
+                SheetKind.INVENTORY_ORDER -> InventoryOrderSheet(model)
+                SheetKind.SELL_SAFEGUARDS,SheetKind.SELL_EXTRA,SheetKind.SELL_SCORE,SheetKind.SELL_WEIGHTS,SheetKind.SELL_FLOORS,SheetKind.SELL_CUSTOMS,SheetKind.SELL_HEROES,SheetKind.SELL_INVENTORY,SheetKind.SELL_SLOTS,SheetKind.SELL_SETS,SheetKind.SELL_MAINS,SheetKind.SELL_LEVELS,SheetKind.SELL_QUALITY,SheetKind.SELL_DETAILS,SheetKind.SELL_HELP -> SellSheet(model,sheet)
             }
         }
     }
@@ -263,7 +272,7 @@ private fun NumBox(value: Double, pink: Boolean, modifier: Modifier = Modifier, 
     Box(modifier.height(30.dp).clip(shape).background(C.card).border(2.dp, if (pink) C.pink else C.edge, shape).padding(horizontal = 3.dp),
         contentAlignment = Alignment.Center) {
         if (text.isEmpty()) Text("—", style = zen(12.sp, color = C.faint))
-        BasicTextField(text, { t ->
+        LegacyStatField(text, { t ->
             text = t.filter { it.isDigit() || it == '.' }.take(6)
             onChange(text.toDoubleOrNull() ?: Double.NaN)
         }, textStyle = dela(11.sp).copy(textAlign = TextAlign.Center), singleLine = true,
@@ -396,7 +405,7 @@ private fun Stepper(label: String, value: Double, step: Double, start: Double, m
                 contentAlignment = Alignment.Center) { Text("−", style = dela(16.sp)) }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 if (text.isEmpty()) Text("—", style = dela(15.sp, C.faint))
-                BasicTextField(text, { t ->
+                LegacyStatField(text, { t ->
                     text = t.filter { it.isDigit() || it == '.' }.take(6)
                     onChange(text.toDoubleOrNull() ?: Double.NaN)
                 }, textStyle = dela(15.sp).copy(textAlign = TextAlign.Center), singleLine = true,
@@ -575,7 +584,7 @@ private fun BonusSheet(model: AppModel, heroId: Long) {
             Column(cell.clip(RoundedCornerShape(10.dp)).border(2.dp, C.edge, RoundedCornerShape(10.dp)).padding(8.dp)) {
                 FitText(b.label, zen(9.sp, color = C.muted))
                 var t by remember(b, cfg.bonus[b.ordinal]) { mutableStateOf(fmtNum(cfg.bonus[b.ordinal])) }
-                BasicTextField(t, { s -> t = s.filter { it.isDigit() || it == '.' || it == '-' }.take(6); cfg.bonus[b.ordinal] = t.toDoubleOrNull() ?: 0.0; model.touch() },
+                LegacyStatField(t, { s -> t = s.filter { it.isDigit() || it == '.' || it == '-' }.take(6); cfg.bonus[b.ordinal] = t.toDoubleOrNull() ?: 0.0; model.touch() },
                     textStyle = dela(14.sp), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
             }
         }
@@ -600,12 +609,12 @@ private fun ArtifactSheet(model: AppModel, sheet: Sheet) {
     val fromPreset = model.content.artifact(model.request(heroId).artifact)
     fun pick(code: String?) { cfg.artifact = code; model.touch(); model.save(); model.sheet = sheet.back?.let { Sheet(it, heroId) } }
     SheetBody("Artifact", trailing = { Text(model.heroName(h), style = zen(12.sp, color = C.muted)) }) {
-        SearchField(q, "Find artifact") { q = it }
+        NameFilter(q, "Name") { q = it }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(0 to "All", 5 to "5★", 4 to "4★", 3 to "3★ and lower").forEach { (n, label) -> Pill(label, selected = stars == n, onClick = { stars = n }) }
         }
         // only what this hero's class can wear: its own class's artifacts and the ones for every class
-        val list = model.content.artifacts.filter { (role == null || it.role == null || it.role == role) && (q.isBlank() || it.name.contains(q, true)) &&
+        val list = model.content.artifacts.filter { (role == null || it.role == null || it.role == role) && (q.isBlank() || nameMatches(it.name, q)) &&
             (stars == 0 || if (stars == 3) it.rarity <= 3 else it.rarity == stars) }
             .sortedBy { if (it.role == role) 0 else 1 }
         Row(Modifier.fillMaxWidth().tap { pick(null) }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically,
@@ -632,16 +641,6 @@ private fun ArtifactSheet(model: AppModel, sheet: Sheet) {
                 Box(Modifier.size(16.dp)) { if (on) CheckMark(16.dp, C.deepPink) }
             }
         }
-    }
-}
-
-@Composable
-fun SearchField(value: String, hint: String, onChange: (String) -> Unit) {
-    val shape = RoundedCornerShape(999.dp)
-    Box(Modifier.fillMaxWidth().height(40.dp).clip(shape).background(C.card).border(2.dp, C.ink, shape).padding(horizontal = 14.dp),
-        contentAlignment = Alignment.CenterStart) {
-        if (value.isEmpty()) Text(hint, style = zen(13.sp, FontWeight.Medium, C.faint))
-        BasicTextField(value, onChange, textStyle = zen(13.sp), singleLine = true, modifier = Modifier.fillMaxWidth())
     }
 }
 

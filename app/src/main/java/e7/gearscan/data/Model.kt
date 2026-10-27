@@ -76,6 +76,8 @@ class Item(
     val odds: Double = 0.0,
     /** Set when this is a search variant with one substat changed by a modification stone. */
     val mod: Mod? = null,
+    /** The main stat at +15 (five times its +0 value), NaN when the scan didn't carry the +0 value. */
+    val main15: Double = Double.NaN,
 ) {
     val reforgeable get() = level == 85 && enhance == 15 && !ghost
 

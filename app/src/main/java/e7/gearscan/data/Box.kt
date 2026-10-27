@@ -45,6 +45,15 @@ class Box(val json: JSONObject) {
         rawItems[item.id]?.put("l", locked)
     }
 
+    /** Unique Lv.85 equipment uses the un-upgradeable main-stat family (Gaveleet); explicit import metadata wins. */
+    fun canReforge(id: Long): Boolean {
+        val item = itemsById[id] ?: return false
+        if (item.level != 85) return false
+        val raw = rawItems[id] ?: return false
+        return raw.optBoolean("reforgeable", true) && !raw.optString("mainStatId").startsWith("un") &&
+            !raw.optString("name").contains("Gaveleet", ignoreCase = true)
+    }
+
     fun toText(): String = json.toString()
 
     companion object {
@@ -62,9 +71,12 @@ class Box(val json: JSONObject) {
                 }
             }
             val eq = o.optString("ingameEquippedId", "None").toLongOrNull()?.takeIf { it != 0L }
+            // op[0] is the main stat at +0 (percent stats as fractions); it grows to five times that by +15
+            val main0 = o.optJSONArray("op")?.optJSONArray(0)?.optDouble(1, Double.NaN) ?: Double.NaN
+            val main15 = if (main0.isNaN()) Double.NaN else if (mainType.showsPercent) main0 * 500 else Math.floor(main0 * 5)
             return Item(o.optLong("id", o.optLong("ingameId")), slot, o.optString("set"), o.optString("rank", "Epic"),
                 o.optInt("level", 85), o.optInt("enhance", 0), mainType, main.optDouble("value", 0.0), subs,
-                o.optBoolean("l", false), eq)
+                o.optBoolean("l", false), eq, main15 = main15)
         }
     }
 }

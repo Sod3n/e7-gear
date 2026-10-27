@@ -45,7 +45,9 @@ class ThemeScreens {
         rule.setContent { Box(Modifier.width(411.dp).fillMaxHeight()) { App(model) {} } }
         val hero = model.box!!.heroes.first { model.gameHero(it) != null && model.box!!.gearOf(it.id).size == 6 }.id
         val screens = listOf("optimize" to Screen.Optimize, "heroes" to Screen.Heroes, "hero" to Screen.HeroDetail(hero),
-            "scan-data" to Screen.ScanData, "overlay-intro" to Screen.OverlayIntro, "feedback" to Screen.Feedback())
+            "scan-data" to Screen.ScanData, "cleanup" to Screen.Cleanup, "sell-filters" to Screen.SellFilters,
+            "gear-potential" to Screen.GearPotential, "upgrade" to Screen.Upgrade, "overlay-intro" to Screen.OverlayIntro,
+            "feedback" to Screen.Feedback())
         for (dark in listOf(false, true)) {
             ui { Themes.set(ctx, dark) }
             for ((name, screen) in screens) {
