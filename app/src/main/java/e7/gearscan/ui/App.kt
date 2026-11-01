@@ -78,9 +78,11 @@ private fun ConfirmHost(model: AppModel) {
             Text(c.title, style = dela(18.sp))
             VSpace(6.dp); Text(c.body, style = zen(13.sp, color = C.muted))
             VSpace(14.dp)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val run = c.run
+            if (run == null) PinkButton("Got it", Modifier.fillMaxWidth()) { model.confirm = null }
+            else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlineButton("Cancel", Modifier.weight(1f), height = 46.dp) { model.confirm = null }
-                PinkButton("Reset", Modifier.weight(1f)) { model.confirm = null; c.run() }
+                PinkButton("Reset", Modifier.weight(1f)) { model.confirm = null; c.run?.invoke() }
             }
         }
     }

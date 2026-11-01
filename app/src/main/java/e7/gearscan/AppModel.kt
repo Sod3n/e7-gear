@@ -711,9 +711,11 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     class Toast(val text: String, val action: String?, val onAction: (() -> Unit)?) { val id = System.nanoTime() }
     var toast: Toast? by mutableStateOf(null)
     /** A reset waiting for the player's yes; every reset button goes through [askReset]. */
-    class Confirm(val title: String, val body: String, val run: () -> Unit)
+    class Confirm(val title: String, val body: String, val run: (() -> Unit)?)
     var confirm: Confirm? by mutableStateOf(null)
     fun askReset(title: String, body: String, run: () -> Unit) { confirm = Confirm(title, body, run) }
+    /** The same window with one button: what a number means. */
+    fun explain(title: String, body: String) { confirm = Confirm(title, body, null) }
 
     fun showToast(text: String, action: String? = null, onAction: (() -> Unit)? = null) { toast = Toast(text, action, onAction) }
 

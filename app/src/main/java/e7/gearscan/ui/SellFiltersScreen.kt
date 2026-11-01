@@ -362,7 +362,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 OutlineButton("Reset all Sell review settings",Modifier.fillMaxWidth(),height=40.dp) { model.askReset("Reset Sell review?","Every Sell review setting goes back to its default. Sold and kept marks stay.") { update(SellQuery()) } }
             }
             SheetKind.SELL_WORTH->{
-                KeepRollingSlider(q.rollOn,model.sellCurve,model.sellCurveBusy||model.sellBusy,{ model.findSellGear() }) { update(q.copy(rollOn=it)) }
+                KeepRollingSlider(q.rollOn,model.sellCurve,model.sellCurveBusy||model.sellBusy,{ model.findSellGear() },{ t,b->model.explain(t,b) }) { update(q.copy(rollOn=it)) }
                 SellToggle("Count reforging",q.reforge) { update(q.copy(reforge=it)) }
                 SectionTitle("ES bar")
                 val auto=model.sellAutoEsBars()

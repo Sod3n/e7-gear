@@ -144,7 +144,7 @@ internal fun KeptRow(label: String, good: Int, of: Int, total: String, extra: St
 }
 
 @Composable
-internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.Result?, busy: Boolean, find: () -> Unit, commit: (Double) -> Unit) {
+internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.Result?, busy: Boolean, find: () -> Unit, explain: (String, String) -> Unit, commit: (Double) -> Unit) {
     val ts = e7.gearscan.opt.KeepCurve.THRESHOLDS
     var index by remember(value) { mutableIntStateOf(ts.indices.minByOrNull { kotlin.math.abs(kotlin.math.ln(ts[it] * 100 / value.coerceAtLeast(1e-4))) } ?: 0) }
     val pct = ts[index] * 100
@@ -175,19 +175,35 @@ internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.R
         } else {
             val good = curve.good[index]; val gold = curve.gold[index]
             val extra = if (index + 1 < ts.size) (gold - curve.gold[index + 1]) / (good - curve.good[index + 1]).coerceAtLeast(1e-6) else null
-            StatTile("Good pieces kept", "${kotlin.math.round(good).toInt()} of ${kotlin.math.round(curve.possible).toInt()}", (good / curve.possible.coerceAtLeast(1e-9)).toFloat(), C.blue, Modifier.weight(1f).fillMaxHeight())
-            StatTile("Total gold", EsForecast.goldText(gold), (gold / curve.allGold.coerceAtLeast(1.0)).toFloat(), C.deepPink, Modifier.weight(1f).fillMaxHeight())
-            StatTile("Each extra piece", extra?.takeIf { it.isFinite() && good - curve.good[index + 1] > 1e-3 }?.let { EsForecast.goldText(it) } ?: "—", null, C.ink, Modifier.weight(1f).fillMaxHeight())
+            val at = if (pct < 1) String.format(java.util.Locale.US, "%.2g%%", pct) else "${fmtNum(pct)}%"
+            val g = kotlin.math.round(good).toInt(); val all = kotlin.math.round(curve.possible).toInt()
+            val extraText = extra?.takeIf { it.isFinite() && good - curve.good[index + 1] > 1e-3 }?.let { EsForecast.goldText(it) }
+            StatTile("Good pieces kept", "$g of $all", (good / curve.possible.coerceAtLeast(1e-9)).toFloat(), C.blue, Modifier.weight(1f).fillMaxHeight()) {
+                explain("Good pieces kept", "Pieces from your list (${curve.pieces}) that end at or above your ES bar. If every one were taken to +15, about $all would make it. " +
+                    "At $at, a piece stops after any +3 that leaves it below a $at chance, so about $g still make it. Counted over every way the remaining rolls can land, weighted by how likely each is.")
+            }
+            StatTile("Total gold", EsForecast.goldText(gold), (gold / curve.allGold.coerceAtLeast(1.0)).toFloat(), C.deepPink, Modifier.weight(1f).fillMaxHeight()) {
+                explain("Total gold", "Enhance gold for the pieces in your list, from their current level. Each +3 is paid only while a piece is still being rolled; " +
+                    "it stops once its chance drops below $at. Finishing every piece to +15 would cost ${EsForecast.goldText(curve.allGold)}. " +
+                    "Uses the enhancement-stone price; gold already spent and gold from selling are not counted.")
+            }
+            StatTile("Each extra piece", extraText ?: "—", null, C.ink, Modifier.weight(1f).fillMaxHeight()) {
+                explain("Each extra piece", "What one more good piece costs when you roll a little longer: the gold at $at minus the gold one step stricter on the slider, " +
+                    "divided by how many more good pieces that buys." + (extraText?.let { " Here about $it per piece." } ?: " At the strictest setting there is no step to compare with."))
+            }
         }
     }
 }
 
 @Composable
-private fun StatTile(label: String, value: String, fill: Float?, color: androidx.compose.ui.graphics.Color, modifier: Modifier) {
+private fun StatTile(label: String, value: String, fill: Float?, color: androidx.compose.ui.graphics.Color, modifier: Modifier, explain: (() -> Unit)? = null) {
     val shape = RoundedCornerShape(12.dp)
-    Column(modifier.padding(bottom = 3.dp).hardShadow(C.shadow, 0.dp, 3.dp, 12.dp).clip(shape).background(C.card).border(1.5.dp, C.edge, shape).padding(horizontal = 9.dp, vertical = 8.dp),
+    Column(modifier.padding(bottom = 3.dp).hardShadow(C.shadow, 0.dp, 3.dp, 12.dp).clip(shape).background(C.card).border(1.5.dp, C.edge, shape).tap(explain).padding(horizontal = 9.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(label, style = zen(10.sp, color = C.muted), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = zen(10.sp, color = C.muted), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            if (explain != null) Text("?", style = dela(11.sp, C.muted))
+        }
         FitText(value, dela(16.sp, color))
         if (fill != null) Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)).background(C.line)) {
             Box(Modifier.fillMaxWidth(fill.coerceIn(0f, 1f)).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(color))

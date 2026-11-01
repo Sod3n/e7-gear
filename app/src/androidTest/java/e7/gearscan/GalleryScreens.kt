@@ -94,6 +94,7 @@ class GalleryScreens {
             val first = m.sellResult?.matches?.firstOrNull { it.item.id !in m.reviewedIds }
             if (first != null) { ui { m.sheet = Sheet(SheetKind.SELL_DETAILS, first.item.id) }; shot("sell-04-details"); ui { m.sheet = null } }
             ui { m.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; shot("sell-05-worth-rolling")
+            rule.onAllNodesWithText("Total gold").onFirst().performClick(); rule.waitForIdle(); shot("sell-05i-explain"); ui { m.confirm = null }
             rule.onNodeWithContentDescription("Keep-rolling chance").performTouchInput { down(center); moveBy(androidx.compose.ui.geometry.Offset(40f, 0f)); moveBy(androidx.compose.ui.geometry.Offset(40f, 0f)) }; rule.mainClock.advanceTimeBy(300); shot("sell-05e-dragging")
             rule.onNodeWithContentDescription("Keep-rolling chance").performTouchInput { up() }; rule.waitForIdle()
             rule.onAllNodesWithContentDescription("Type a value")[1].performClick(); rule.waitForIdle(); shot("sell-05f-typing")
