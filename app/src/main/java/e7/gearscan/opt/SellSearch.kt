@@ -86,7 +86,7 @@ object SellSearch {
             return Quality(procs.takeIf { it.isNotEmpty() }?.map { it.fraction*100 }?.average(),events.map { it.fraction*100 }.average(),procs.size)
         }
         fun signature():String {
-            val text=RollReview.VERSION+GearScore.VERSION+EsForecast.VERSION+autoEsBars.toSortedMap()+query.toJson()+box.toText()+records.values.filter { it.scan==scan }.sortedBy { it.item.id }.joinToString { it.toJson().toString() }+
+            val text=RollReview.VERSION+GearScore.VERSION+EsForecast.VERSION+autoEsBars.toSortedMap()+query.copy(rollOn=0.0).toJson()+box.toText()+records.values.filter { it.scan==scan }.sortedBy { it.item.id }.joinToString { it.toJson().toString() }+
                 removed.filter { original[it]?.equippedOn!=null }.sorted()+pool.sorted()+names.toSortedMap()+scan+contentVersion
             return MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(java.util.Locale.US,it) }
         }
