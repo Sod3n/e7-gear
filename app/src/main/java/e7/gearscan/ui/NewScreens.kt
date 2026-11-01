@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -186,30 +187,34 @@ fun FeedbackScreen(model: AppModel, error: String?) {
 fun KnownIssuesCard(issues: List<e7.gearscan.data.KnownIssue>, startOpen: Boolean = false) {
     var open by remember { mutableStateOf(startOpen) }
     var all by remember { mutableStateOf(false) }
-    Card(shadow = null, radius = 14.dp, border = 2.dp) {
+    Card(radius = 14.dp, border = 2.dp, shadowOffset = 3.dp) {
         Row(Modifier.fillMaxWidth().tap { open = !open }, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Already known", style = dela(14.sp))
+            Text("Already known", style = dela(15.sp).pinkShadow(2.5f))
             Text("${issues.size}", maxLines = 1, softWrap = false, style = zen(11.sp, FontWeight.Black, C.card),
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(C.ink).padding(horizontal = 7.dp))
             Box(Modifier.weight(1f))
             Text(if (open) "Hide" else "Show", style = zen(12.sp, FontWeight.Bold, C.muted))
+            Text("›", style = dela(16.sp, C.muted), modifier = Modifier.rotate(if (open) -90f else 90f))
         }
         if (!open) return@Card
         val shown = if (all) issues else issues.take(5)
         for (issue in shown) {
-            VSpace(8.dp)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-                val working = issue.status == "working"
-                Text(issue.label, maxLines = 1, softWrap = false, style = zen(10.sp, FontWeight.Black, if (working) C.onAccent else C.muted),
-                    modifier = Modifier.clip(RoundedCornerShape(50)).background(if (working) C.pink else C.field).padding(horizontal = 7.dp, vertical = 1.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(issue.title, style = zen(13.sp))
-                    if (issue.detail.isNotEmpty()) Text(issue.detail, style = zen(11.sp, FontWeight.Medium, C.muted))
+            VSpace(10.dp)
+            val tile = RoundedCornerShape(10.dp)
+            Column(Modifier.fillMaxWidth().hardShadow(C.shadow, 2.dp, 2.dp, 10.dp).clip(tile).background(C.field)
+                .border(2.dp, C.edge, tile).padding(horizontal = 10.dp, vertical = 8.dp)) {
+                when (issue.status) {
+                    "working" -> Tag(issue.label, bg = C.pink, size = 10)
+                    "fixed" -> Tag(issue.label, bg = C.blue, fg = C.card, size = 10)
+                    else -> Tag(issue.label, bg = C.card, size = 10)
                 }
+                VSpace(5.dp)
+                Text(issue.title, style = zen(13.sp, FontWeight.Bold))
+                if (issue.detail.isNotEmpty()) Text(issue.detail, style = zen(11.sp, FontWeight.Medium, C.muted))
             }
         }
         if (shown.size < issues.size) {
-            VSpace(8.dp)
+            VSpace(10.dp)
             Text("Show all ${issues.size}", style = zen(12.sp, FontWeight.Bold, C.pink), modifier = Modifier.tap { all = true }.padding(vertical = 4.dp))
         }
     }
