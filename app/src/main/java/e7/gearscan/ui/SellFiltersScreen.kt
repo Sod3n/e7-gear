@@ -224,13 +224,15 @@ fun SellFiltersScreen(model:AppModel) {
     var tab by remember { mutableIntStateOf(if(result==null)0 else 1) }
     var count by remember(result) { mutableIntStateOf(20) }
     var category by remember(result) { mutableIntStateOf(0) }
-    LaunchedEffect(result) { if(result!=null)tab=1 }
+    // only the main button moves to Matches; Show my numbers in a sheet keeps the player on Set up
+    var jump by remember { mutableStateOf(false) }
+    LaunchedEffect(result) { if(result!=null&&jump) { tab=1;jump=false } }
     Frame(null,null,actions={
         if(model.sellBusy)OutlineButton("Stop",Modifier.weight(1f)) { model.stopSellSearch() }
         else if(tab==1&&result!=null&&result.matches.any { it.item.id !in model.reviewedIds }&&model.sellFresh&&category==0) {
             OutlineButton("Edit filters",Modifier.weight(1f)) { tab=0 }
             PinkButton("Review over game",Modifier.weight(1f),short="Over game") { model.trackSellMatches() }
-        }else PinkButton(if(result!=null&&!model.sellFresh)"Update matches" else "Find matches",Modifier.weight(1f)) { model.findSellGear() }
+        }else PinkButton(if(result!=null&&!model.sellFresh)"Update matches" else "Find matches",Modifier.weight(1f)) { jump=true;model.findSellGear() }
     }) {
         BackToPrevious(model);ScreenTitle("Sell review")
         Segmented(listOf("Set up","Matches"),tab) { tab=it }
@@ -239,7 +241,6 @@ fun SellFiltersScreen(model:AppModel) {
         }
         model.sellError?.let { Text(it,style=zen(12.sp,color=C.deepPink)) }
         if(tab==0) {
-            RowCard("Worth rolling",{openSell(model,SheetKind.SELL_WORTH)},labelWidth=112.dp) { Text("1 in ${if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt().toString() else "–"} reach ${if(q.esBars.isEmpty())"your usual +15 ES" else "your ES bars"}",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("Stat safeguards",{openSell(model,SheetKind.SELL_SAFEGUARDS)},labelWidth=112.dp) { Text(when { q.keepStats.isEmpty()->"Off";q.keepStats==SellQuery.DEFAULT_GUARDS->"Default · ${q.keepStats.size} stats";else->"${q.keepStats.size} stats" },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("Gear to review",{openSell(model,SheetKind.SELL_INVENTORY)},labelWidth=112.dp) { Text("${if(q.bagOnly)"Bag" else "All gear"} · +${q.minimumEnhance/3*3} to +${if(q.maximumEnhance>=15)15 else q.maximumEnhance/3*3}",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("Slots",{openSell(model,SheetKind.SELL_SLOTS)},labelWidth=112.dp) { Text(if(q.slots.size==6)"Any slot" else q.slots.joinToString { it.label },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
@@ -249,6 +250,10 @@ fun SellFiltersScreen(model:AppModel) {
             if(false)RowCard("Levels",{openSell(model,SheetKind.SELL_LEVELS)},labelWidth=112.dp) { Text(if(q.levels.isEmpty())"Any level" else q.levels.sorted().joinToString(),style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("More filters",{openSell(model,SheetKind.SELL_EXTRA)},labelWidth=112.dp) { Text(if(q.scoreFilter)"Combined score on" else "Off",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("Kept pieces",{model.go(Screen.SellKept)},labelWidth=112.dp) { Text("${model.sellKept.size} kept",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            SectionTitle("Final step")
+            Box(Modifier.fillMaxWidth().hardShadow(C.pink,4.dp,4.dp,14.dp)) {
+                RowCard("Worth rolling",{openSell(model,SheetKind.SELL_WORTH)},labelWidth=112.dp) { Text("1 in ${if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt().toString() else "–"} reach ${if(q.esBars.isEmpty())"your usual +15 ES" else "your ES bars"}",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            }
         }else if(result==null)Card {
             Text("Tap Find matches",style=dela(17.sp))
         }else {

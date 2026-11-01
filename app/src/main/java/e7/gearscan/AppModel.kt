@@ -1122,6 +1122,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun updateSellQuery(q:e7.gearscan.data.SellQuery) {
         // the keep-rolling chance only relabels rows; it must not stale the list or restart a search
         if(q.copy(rollOn=0.0)==sellQuery.copy(rollOn=0.0)) { sellQuery=q;upgrades.rollOn=q.rollOn;saveSoon();return }
+        // any other change alters the list the keep-rolling numbers describe
+        sellCurve=null
         stopSellSearch();sellQuery=if(!q.scoreFilter&&q.sort in listOf(e7.gearscan.data.SellSort.SCORE,e7.gearscan.data.SellSort.CHANCE))q.copy(sort=e7.gearscan.data.SellSort.QUALITY) else q;sellError=null;touch() }
     fun stopSellSearch() {
         sellGeneration++;sellJob?.cancel();sellJob=null
