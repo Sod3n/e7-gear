@@ -301,7 +301,7 @@ private fun TargetsSheet(model: AppModel, heroId: Long) {
     val rows = first + sorted.filter { it !in first }
     SheetBody("Stat targets", trailing = {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            model.presetReset(heroId)?.let { reset -> LinkText("Reset to preset") { reset(); open = null } }
+            model.presetReset(heroId)?.let { reset -> LinkText("Reset to preset") { model.askReset("Reset to the preset?", "Your target changes for this hero are replaced by the preset's.") { reset(); open = null } } }
             LinkText("Clear") {
                 req.targets.fill(Double.NaN); req.mins.fill(Double.NaN); req.maxs.fill(Double.NaN); req.weights.fill(0); req.fromPreset.fill(false)
                 model.touch(); model.save()

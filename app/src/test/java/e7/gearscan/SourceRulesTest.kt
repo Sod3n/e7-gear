@@ -133,4 +133,11 @@ class SourceRulesTest {
         val missing = wanted.filterNot { File(store, it).exists() }
         assertTrue("missing icons:\n" + missing.joinToString("\n"), missing.isEmpty())
     }
+    @Test fun resetButtonsAskFirst() {
+        // user, 2026-11-01: every reset button asks for confirmation
+        val src = File("src/main/java")
+        val bad = src.walk().filter { it.extension == "kt" }.flatMap { f -> f.readLines().mapIndexedNotNull { i, l ->
+            if (Regex("""(LinkText|OutlineButton|PinkButton|PanelAction)\("Reset""").containsMatchIn(l) && "askReset(" !in l && "c.run()" !in l) "${f.name}:${i + 1}" else null } }.toList()
+        assertTrue("Reset without confirmation: $bad", bad.isEmpty())
+    }
 }

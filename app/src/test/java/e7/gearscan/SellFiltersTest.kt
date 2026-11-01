@@ -87,7 +87,7 @@ class SellFiltersTest {
     @Test fun allEditableSettingsRoundTripWithoutAKeyboardOrHiddenDefaults() {
         val q=SellQuery(score=GearScore.Model(GearScore.weights+(GearStat.ATK to .1234),175,37),maximumChance=12.5,reforge=false,
             reference=SellReference.SELECTED,referenceHeroes=setOf(77,88),referenceMinimum=15,matchMain=true,floorPercent=125.0,floors=mapOf(Slot.HELMET to 123.4567),
-            slots=setOf(Slot.HELMET),sets=setOf("SpeedSet"),mains=setOf(GearStat.HP),levels=setOf(85,88),minimumEnhance=6,maximumEnhance=15,
+            slots=setOf(Slot.HELMET),sets=setOf("SpeedSet"),mains=setOf(GearStat.HP),minimumEnhance=6,maximumEnhance=15,
             bagOnly=false,includeLocked=true,protectPool=false,includeRare=true,includeUnknown=true,standardOnly=false,maximumCurrentScore=100.01,
             maximumProcQuality=25.0,maximumTotalQuality=50.0,minimumProcs=3,forecastMs=1500,sort=SellSort.SCORE,descending=true,scoreFilter=true,keepStats=mapOf(GearStat.SPD to 20.0),keepChance=5.0)
         assertEquals(q,SellQuery.of(JSONObject(q.toJson().toString())))

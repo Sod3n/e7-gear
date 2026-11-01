@@ -279,7 +279,7 @@ internal fun PotentialOptionsSheet(model: AppModel) {
             Text("Include rare-roll possibilities", style = zen(12.sp), modifier = Modifier.weight(1f))
             Toggle(q.rareOnly) { model.updatePotentialQuery(q.copy(rareOnly = it)) }
         }
-        LinkText("Reset to Speed 20, no boots") { model.updatePotentialQuery(PotentialQuery()) }
+        LinkText("Reset to Speed 20, no boots") { model.askReset("Reset the search?", "Targets and filters go back to Speed 20, no boots.") { model.updatePotentialQuery(PotentialQuery()) } }
     }
 }
 

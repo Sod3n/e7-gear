@@ -96,7 +96,7 @@ data class SellQuery(
                 matchMain=j.optBoolean("matchMain",false),floorPercent=j.optDouble("floorPercent",100.0),
                 floors=f?.keys()?.asSequence()?.mapNotNull { k->Slot.of(k)?.let { it to f.getDouble(k) } }?.toMap().orEmpty(),
                 slots=if(j.has("slots")) strings("slots").mapNotNull(Slot::of).toSet() else Slot.entries.toSet(),
-                sets=strings("sets").toSet(),mains=strings("mains").mapNotNull(GearStat::of).toSet(),levels=strings("levels").map(String::toInt).toSet(),
+                sets=strings("sets").toSet(),mains=strings("mains").mapNotNull(GearStat::of).toSet(),levels=emptySet(),
                 minimumEnhance=j.optInt("minimumEnhance",0),maximumEnhance=j.optInt("maximumEnhance",14),
                 bagOnly=j.optBoolean("bagOnly",true),includeLocked=j.optBoolean("includeLocked",true),protectPool=j.optBoolean("protectPool",true),
                 includeRare=j.optBoolean("includeRare",false),includeUnknown=j.optBoolean("includeUnknown",false),standardOnly=j.optBoolean("standardOnly",true),

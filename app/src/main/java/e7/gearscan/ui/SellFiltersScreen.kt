@@ -121,7 +121,7 @@ private fun ScoringControls(model:AppModel) {
         VSpace(6.dp);LinkText(if(calculation)"Hide point calculation" else "Show point calculation") { calculation=!calculation }
     }
     LinkText("Edit stat weights & main") { openSell(model,SheetKind.SELL_WEIGHTS) }
-    LinkText("Reset score model") { model.updateSellQuery(q.copy(score=GearScore.Model())) }
+    LinkText("Reset score model") { model.askReset("Reset the score model?","Weights and diversity go back to the game's values.") { model.updateSellQuery(q.copy(score=GearScore.Model())) } }
 }
 
 internal fun esVerdict(es:EsForecast.Es,rollOn:Double):Pair<String,Boolean>? = when {
@@ -245,7 +245,8 @@ fun SellFiltersScreen(model:AppModel) {
             RowCard("Slots",{openSell(model,SheetKind.SELL_SLOTS)},labelWidth=112.dp) { Text(if(q.slots.size==6)"Any slot" else q.slots.joinToString { it.label },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("Sets",{openSell(model,SheetKind.SELL_SETS)},labelWidth=112.dp) { Text(if(q.sets.isEmpty())"Any set" else "${q.sets.size} selected",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("Main stats",{openSell(model,SheetKind.SELL_MAINS)},labelWidth=112.dp) { Text(if(q.mains.isEmpty())"Any main" else q.mains.joinToString { it.short },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
-            RowCard("Levels",{openSell(model,SheetKind.SELL_LEVELS)},labelWidth=112.dp) { Text(if(q.levels.isEmpty())"Any level" else q.levels.sorted().joinToString(),style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            //levels filter removed (user 2026-11-01: useless in the current game)
+            if(false)RowCard("Levels",{openSell(model,SheetKind.SELL_LEVELS)},labelWidth=112.dp) { Text(if(q.levels.isEmpty())"Any level" else q.levels.sorted().joinToString(),style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("More filters",{openSell(model,SheetKind.SELL_EXTRA)},labelWidth=112.dp) { Text(if(q.scoreFilter)"Combined score on" else "Off",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("Kept pieces",{model.go(Screen.SellKept)},labelWidth=112.dp) { Text("${model.sellKept.size} kept",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
         }else if(result==null)Card {
@@ -351,7 +352,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                     SellNumber("Maximum current score",q.maximumCurrentScore,0.0,model.sellScoreLimit,4,true) { update(q.copy(maximumCurrentScore=it)) }
                     SellToggle("Include rare-only possibilities",q.includeRare) { update(q.copy(includeRare=it)) }
                 }
-                OutlineButton("Reset all Sell review settings",Modifier.fillMaxWidth(),height=40.dp) { update(SellQuery()) }
+                OutlineButton("Reset all Sell review settings",Modifier.fillMaxWidth(),height=40.dp) { model.askReset("Reset Sell review?","Every Sell review setting goes back to its default. Sold and kept marks stay.") { update(SellQuery()) } }
             }
             SheetKind.SELL_WORTH->{
                 KeepRollingSlider(q.rollOn,model.sellCurve,model.sellCurveBusy||model.sellBusy,{ model.findSellGear() }) { update(q.copy(rollOn=it)) }
@@ -360,7 +361,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 val auto=model.sellAutoEsBars()
                 Slot.entries.forEach { slot->ValueSlider(slot.label,{ GearIcon(slot.icon,18.dp,C.ink) },(q.esBars[slot]?:auto[slot]?:80).toDouble(),EsForecast.esRange.first.toDouble(),EsForecast.esRange.last.toDouble(),1.0,{ "${it.toInt()}" }) { v->
                     update(q.copy(esBars=q.esBars+(slot to v.toInt()))) } }
-                OutlineButton("Reset all to your +15 medians",Modifier.fillMaxWidth(),height=40.dp,enabled=q.esBars.isNotEmpty()) { update(q.copy(esBars=emptyMap())) }
+                OutlineButton("Reset all to your +15 medians",Modifier.fillMaxWidth(),height=40.dp,enabled=q.esBars.isNotEmpty()) { model.askReset("Reset the ES bars?","Every slot goes back to the middle ES of your own +15 pieces.") { update(q.copy(esBars=emptyMap())) } }
             }
             SheetKind.SELL_SAFEGUARDS->{
                 Text("Pieces that can still reach one of these stay out of Sell review.",style=zen(13.sp))
@@ -368,16 +369,17 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                     val bound=GearBounds.target(stat,q.reforge,true);val on=stat in q.keepStats
                     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         Box(Modifier.weight(1f)) {
-                            if(on)ValueSlider(stat.short,{ StatIcon(stat.stat,16.dp,C.ink) },q.keepStats.getValue(stat),bound.minimum,maxOf(bound.maximum,q.keepStats.getValue(stat)),if(stat.showsPercent||stat==GearStat.SPD)1.0 else 10.0,{ stat.format(it) }) { v->
+                            // the slider stays when off (greyed), so switching never moves the rows below
+                            val shown=q.keepStats[stat]?:SellQuery.DEFAULT_GUARDS[stat]?:bound.minimum
+                            ValueSlider(stat.short,{ StatIcon(stat.stat,16.dp,if(on)C.ink else C.muted) },shown,bound.minimum,maxOf(bound.maximum,shown),if(stat.showsPercent||stat==GearStat.SPD)1.0 else 10.0,{ if(on)stat.format(it) else "off" },enabled=on) { v->
                                 update(q.copy(keepStats=q.keepStats+(stat to v))) }
-                            else Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) { StatIcon(stat.stat,16.dp,C.muted);Text("${stat.short} · off",style=zen(13.sp,color=C.muted)) }
                         }
                         Toggle(on) { v->update(q.copy(keepStats=if(v)q.keepStats+(stat to (SellQuery.DEFAULT_GUARDS[stat]?:bound.minimum)) else q.keepStats-stat)) }
                     }
                 }
                 Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     OutlineButton("Turn all off",Modifier.weight(1f),height=40.dp,enabled=q.keepStats.isNotEmpty()) { update(q.copy(keepStats=emptyMap())) }
-                    OutlineButton("Reset to defaults",Modifier.weight(1f),height=40.dp,enabled=q.keepStats!=SellQuery.DEFAULT_GUARDS||q.keepChance!=1.0) { update(q.copy(keepStats=SellQuery.DEFAULT_GUARDS,keepChance=1.0)) }
+                    OutlineButton("Reset to defaults",Modifier.weight(1f),height=40.dp,enabled=q.keepStats!=SellQuery.DEFAULT_GUARDS||q.keepChance!=1.0) { model.askReset("Reset the safeguards?","Spd 20, Cr 25%, Cd 35% and 40% for every % stat; flat stats off.") { update(q.copy(keepStats=SellQuery.DEFAULT_GUARDS,keepChance=1.0)) } }
                 }
             }
             SheetKind.SELL_SCORE->ScoringControls(model)
@@ -385,7 +387,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 Text("Points for 1 stat unit. For example, Speed ×2 gives 20 points for 10 Speed. Both candidate and comparison pieces use these weights.",style=zen(12.sp))
                 SellNumber("Main contribution %",q.score.mainPercent.toDouble(),0.0,500.0,0) { update(q.copy(score=q.score.copy(mainPercent=(it?:100.0).toInt()))) }
                 GearStat.entries.forEach { stat->SellNumber("Weight ${stat.short}",q.score.weight(stat),0.0,10.0,4) { value->update(q.copy(score=q.score.copy(weights=q.score.weights+(stat to (value?:GearScore.weights.getValue(stat)))))) } }
-                LinkText("Reset score model") { update(q.copy(score=GearScore.Model())) }
+                LinkText("Reset score model") { model.askReset("Reset the score model?","Weights and diversity go back to the game's values.") { update(q.copy(score=GearScore.Model())) } }
             }
             SheetKind.SELL_FLOORS->{
                 Text("For each slot, start with the lowest-point piece equipped on your selected heroes. Any custom scores replace those comparisons below.",style=zen(12.sp))

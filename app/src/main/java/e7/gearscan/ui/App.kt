@@ -64,7 +64,25 @@ fun App(model: AppModel, onExit: () -> Unit) {
         }
         SheetHost(model)
         ToastHost(model, Modifier.align(Alignment.BottomCenter))
+        ConfirmHost(model)
     }
+    }
+}
+
+/** Asks before a reset; Cancel, back or a tap outside keeps everything as it is. */
+@Composable
+private fun ConfirmHost(model: AppModel) {
+    val c = model.confirm ?: return
+    Box(Modifier.fillMaxSize().background(C.scrim).tap { model.confirm = null }, contentAlignment = Alignment.Center) {
+        Card(Modifier.padding(horizontal = 28.dp).tap { }, padding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
+            Text(c.title, style = dela(18.sp))
+            VSpace(6.dp); Text(c.body, style = zen(13.sp, color = C.muted))
+            VSpace(14.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlineButton("Cancel", Modifier.weight(1f), height = 46.dp) { model.confirm = null }
+                PinkButton("Reset", Modifier.weight(1f)) { model.confirm = null; c.run() }
+            }
+        }
     }
 }
 

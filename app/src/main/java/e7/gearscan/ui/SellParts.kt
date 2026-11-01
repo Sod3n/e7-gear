@@ -197,19 +197,19 @@ private fun StatTile(label: String, value: String, fill: Float?, color: androidx
 
 /** Label, live value and a slider; saved when the finger lifts. The row lights up while dragging; tap the value to type it. */
 @Composable
-internal fun ValueSlider(label: String, icon: @Composable () -> Unit, value: Double, min: Double, max: Double, step: Double, text: (Double) -> String, commit: (Double) -> Unit) {
+internal fun ValueSlider(label: String, icon: @Composable () -> Unit, value: Double, min: Double, max: Double, step: Double, text: (Double) -> String, enabled: Boolean = true, commit: (Double) -> Unit) {
     var v by remember(value) { mutableStateOf(value.coerceIn(min, max)) }
     val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val active = source.collectIsDraggedAsState().value || source.collectIsPressedAsState().value
     fun snap(x: Double) = (min + kotlin.math.round((x - min) / step) * step).coerceIn(min, max)
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (active) C.lightPink else androidx.compose.ui.graphics.Color.Transparent).padding(horizontal = 6.dp, vertical = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            icon(); Text(label, style = zen(13.sp), modifier = Modifier.weight(1f))
-            TypedNumber(text(v), v, active) { typed -> v = snap(typed); commit(v) }
+            icon(); Text(label, style = zen(13.sp, color = if (enabled) C.ink else C.muted), modifier = Modifier.weight(1f))
+            if (enabled) TypedNumber(text(v), v, active) { typed -> v = snap(typed); commit(v) } else Text(text(v), style = dela(15.sp, C.faint))
         }
         val n = ((max - min) / step).toInt().coerceAtLeast(1)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SliderTrack(v.toFloat(), { v = snap(it.toDouble()) }, { commit(v) }, min.toFloat()..max.toFloat(), if (n <= 200) n - 1 else 0, source, active, label, Modifier.weight(1f))
+            SliderTrack(v.toFloat(), { v = snap(it.toDouble()) }, { commit(v) }, min.toFloat()..max.toFloat(), if (n <= 200) n - 1 else 0, source, active, label, Modifier.weight(1f), enabled)
         }
     }
 }
@@ -217,12 +217,14 @@ internal fun ValueSlider(label: String, icon: @Composable () -> Unit, value: Dou
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 internal fun SliderTrack(value: Float, change: (Float) -> Unit, done: () -> Unit, range: ClosedFloatingPointRange<Float>, steps: Int,
-                         source: androidx.compose.foundation.interaction.MutableInteractionSource, active: Boolean, label: String, modifier: Modifier) {
+                         source: androidx.compose.foundation.interaction.MutableInteractionSource, active: Boolean, label: String, modifier: Modifier, enabled: Boolean = true) {
+    val none = androidx.compose.ui.graphics.Color.Transparent
     val colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = C.pink, activeTrackColor = C.pink, inactiveTrackColor = C.line,
-        activeTickColor = androidx.compose.ui.graphics.Color.Transparent, inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent)
+        activeTickColor = none, inactiveTickColor = none, disabledThumbColor = C.faint, disabledActiveTrackColor = C.line,
+        disabledInactiveTrackColor = C.line, disabledActiveTickColor = none, disabledInactiveTickColor = none)
     androidx.compose.material3.Slider(value = value, onValueChange = change, onValueChangeFinished = done, valueRange = range, steps = steps,
-        interactionSource = source, colors = colors,
-        thumb = { androidx.compose.material3.SliderDefaults.Thumb(source, colors = colors, thumbSize = if (active) androidx.compose.ui.unit.DpSize(8.dp, 52.dp) else androidx.compose.ui.unit.DpSize(4.dp, 44.dp)) },
+        interactionSource = source, colors = colors, enabled = enabled,
+        thumb = { androidx.compose.material3.SliderDefaults.Thumb(source, colors = colors, enabled = enabled, thumbSize = if (active) androidx.compose.ui.unit.DpSize(8.dp, 52.dp) else androidx.compose.ui.unit.DpSize(4.dp, 44.dp)) },
         modifier = modifier.height(48.dp).semantics { contentDescription = label })
 }
 

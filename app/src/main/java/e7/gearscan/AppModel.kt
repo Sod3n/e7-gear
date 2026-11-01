@@ -292,6 +292,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun backLabel(): String = stack.getOrNull(stack.size - 2)?.let(::screenLabel) ?: "Back"
 
     fun back(): Boolean {
+        if (confirm != null) { confirm = null; return true }
         if (sheet != null) { sheet = null; return true }
         if (stack.size <= 1) return false
         stack = stack.dropLast(1)
@@ -709,6 +710,10 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** A short message over the bottom of the screen, with an optional action such as Undo. */
     class Toast(val text: String, val action: String?, val onAction: (() -> Unit)?) { val id = System.nanoTime() }
     var toast: Toast? by mutableStateOf(null)
+    /** A reset waiting for the player's yes; every reset button goes through [askReset]. */
+    class Confirm(val title: String, val body: String, val run: () -> Unit)
+    var confirm: Confirm? by mutableStateOf(null)
+    fun askReset(title: String, body: String, run: () -> Unit) { confirm = Confirm(title, body, run) }
 
     fun showToast(text: String, action: String? = null, onAction: (() -> Unit)? = null) { toast = Toast(text, action, onAction) }
 
