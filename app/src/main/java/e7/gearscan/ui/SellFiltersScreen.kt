@@ -146,6 +146,40 @@ internal fun EsSummary(es:EsForecast.Es?,rollOn:Double) {
 }
 
 @Composable
+private fun RollTable(rolls:List<RollReview.Roll>?) {
+    if(rolls==null) { Text("No reliable roll history for this piece.",style=zen(11.sp,color=C.muted));return }
+    Column(verticalArrangement=Arrangement.spacedBy(5.dp)) {
+        rolls.forEach { roll->
+            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                Text(if(roll.enhance==0)"Start" else "+${roll.enhance}${if(roll.reveal)" new" else ""}",style=zen(10.sp,color=C.muted),modifier=Modifier.width(48.dp))
+                StatIcon(roll.stat.stat,12.dp,C.ink)
+                Text("${roll.stat.short} +${roll.stat.format(roll.value)}",style=zen(12.sp),modifier=Modifier.weight(1f))
+                val f=roll.fraction.toFloat().coerceIn(0f,1f);val low=roll.fraction<.5
+                Box(Modifier.width(72.dp).height(6.dp).clip(RoundedCornerShape(3.dp)).background(C.line)) {
+                    Box(Modifier.fillMaxWidth(maxOf(f,.06f)).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(if(low)C.deepPink else C.blue))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SellCardHead(model:AppModel,row:SellSearch.Row) {
+    val item=if(row.item.enhance<15)UpgradeRecord.fromScan(row.item) else row.item
+    Row(verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.padding(top=4.dp)) { GearTile(item,46.dp,setIcon=model.content.set(item.set)?.icon) }
+        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
+            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                Text("${model.content.set(item.set)?.name?:item.set.removeSuffix("Set")} ${item.slot.label}",style=zen(13.sp),modifier=Modifier.weight(1f),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                row.rolls?.let { Text("${RollReview.overallWeakCount(it)}/${it.size} low rolls",style=zen(10.sp,color=C.muted)) }
+            }
+            MainStatLine(item)
+            GearSearchSubs(item)
+        }
+    }
+}
+
+@Composable
 private fun OverallRollSummary(rolls:List<RollReview.Roll>?) {
     if(rolls==null)Text("Roll history unavailable",style=zen(12.sp,color=C.muted)) else {
         Text("${RollReview.overallWeakCount(rolls)} of ${rolls.size} rolls below midrange",style=zen(12.sp,color=C.blue))
@@ -225,7 +259,7 @@ fun SellFiltersScreen(model:AppModel) {
             Segmented(listOf("Lowest rolls","Game order"),if(q.sort==SellSort.INVENTORY)1 else 0) { model.updateSellQuery(q.copy(sort=if(it==0)SellSort.QUALITY else SellSort.INVENTORY,descending=false)) }
             Text(if(q.scoreFilter)"Additional combined-value filter is on. Its settings and score are in details." else "Starting and upgrade rolls both determine the order. Combined-value filtering is off.",style=zen(11.sp,color=C.muted))
             LinkText("Additional filters") { openSell(model,SheetKind.SELL_EXTRA) }
-            LinkText("Kept pieces (${model.sellKept.size})") { openSell(model,SheetKind.SELL_KEPT) }
+            LinkText("Kept pieces (${model.sellKept.size})") { model.go(Screen.SellKept) }
         }else if(result==null)Card {
             Text("Find gear to review",style=dela(17.sp));VSpace(7.dp)
             Text("No minimum combined score is needed. Upgrade values are compared with that stat's own roll range.",style=zen(12.sp,color=C.muted))
@@ -242,6 +276,7 @@ fun SellFiltersScreen(model:AppModel) {
                 if(guarded.isNotEmpty())LinkText("${guarded.size} left out by stat safeguards") { category=if(category==1)0 else 1;count=20 }
                 if(unknown.isNotEmpty())LinkText("${unknown.size} unknown") { category=if(category==2)0 else 2;count=20 }
                 if(category!=0)LinkText("Show review list") { category=0;count=20 }
+                if(model.sellKept.isNotEmpty())LinkText("${model.sellKept.size} kept") { model.go(Screen.SellKept) }
             }
             if(!model.sellFresh&&!model.sellBusy)Text("Inventory or settings changed. Update before starting a list.",style=zen(12.sp,color=C.deepPink))
             val shown=when(category) { 1->guarded;2->unknown;else->pending }
@@ -251,15 +286,17 @@ fun SellFiltersScreen(model:AppModel) {
             }
             shown.take(count).forEach { row->Card(shadow=null,radius=14.dp,border=2.dp,padding=PaddingValues(12.dp)) {
                 Column(Modifier.tap { openSell(model,SheetKind.SELL_DETAILS,row.item.id) }) {
-                    GearSearchIdentity(model,row.item,explicitGameScore=true)
-                    VSpace(7.dp);EsSummary(row.es,result.query.rollOn)
-                    VSpace(5.dp);OverallRollSummary(row.rolls)
+                    SellCardHead(model,row)
+                    VSpace(10.dp)
+                    row.es?.let { es->
+                        Row(verticalAlignment=Alignment.CenterVertically) {
+                            Text("ES ${es.now}",style=dela(17.sp))
+                            if(es.finishShare>0)es.typical?.let { Text("  → ${it.toInt()}",style=zen(14.sp,color=C.muted)) }
+                            Spacer(Modifier.weight(1f));EsChip(es,result.query.rollOn)
+                        }
+                        VSpace(6.dp);EsBar(es)
+                    }?:Text("Update the list to see ES",style=zen(11.sp,color=C.muted))
                     if(row.protected)row.safeguards.filter { it.active(row.keepChance) }.forEach { SafeguardReason(it,true) }
-                    else {
-                        val focus=RollReview.focus(row.rolls)?.key
-                        row.lines.sortedBy { if(it.stat==GearStat.SPD)0 else if(it.stat==focus)1 else 2 }.take(2).forEach { StatFinish(it,result.query.reforge,true) }
-                    }
-                    if(row.qualityUnknown)Text("Roll-quality history unavailable",style=zen(10.sp,color=C.deepPink))
                 }
                 if(category==0) {
                     VSpace(9.dp)
@@ -270,7 +307,7 @@ fun SellFiltersScreen(model:AppModel) {
                 }
             } }
             if(count<shown.size)OutlineButton("Show 20 more",Modifier.fillMaxWidth(),height=42.dp) { count+=20 }
-            Text("Sell the piece in Epic Seven, then tap Sold here. Below midrange means below halfway between that stat's usual minimum and maximum roll.",style=zen(11.sp,color=C.muted))
+            Text("Sell in Epic Seven first, then tap Sold.",style=zen(11.sp,color=C.muted))
         }
         LinkText("Find gear in game") { model.sheet=Sheet(SheetKind.INVENTORY_ORDER,0) }
     }
@@ -304,7 +341,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
     val title=when(sheet.kind) {
         SheetKind.SELL_SCORE->"How points work";SheetKind.SELL_WEIGHTS->"Stat weights";SheetKind.SELL_FLOORS->"Your comparison gear";SheetKind.SELL_CUSTOMS->"Custom comparisons";SheetKind.SELL_HEROES->"Comparison heroes"
         SheetKind.SELL_INVENTORY->"Chance & gear";SheetKind.SELL_SLOTS->"Slots";SheetKind.SELL_SETS->"Sets";SheetKind.SELL_MAINS->"Main stats"
-        SheetKind.SELL_LEVELS->"Equipment levels";SheetKind.SELL_QUALITY->"Low roll values";SheetKind.SELL_DETAILS->"Rolls & stat potential";SheetKind.SELL_SAFEGUARDS->"Stat safeguards";SheetKind.SELL_EXTRA->"Additional filters";SheetKind.SELL_WORTH->"Worth rolling";SheetKind.SELL_KEPT->"Kept pieces";else->"How gear is compared"
+        SheetKind.SELL_LEVELS->"Equipment levels";SheetKind.SELL_QUALITY->"Low roll values";SheetKind.SELL_DETAILS->"Rolls & stat potential";SheetKind.SELL_SAFEGUARDS->"Stat safeguards";SheetKind.SELL_EXTRA->"Additional filters";SheetKind.SELL_WORTH->"When to keep rolling";else->"How gear is compared"
     }
     key(sheet.kind) {
     SheetBody(title,button=when(sheet.kind) { SheetKind.SELL_WEIGHTS->"Back to scoring";SheetKind.SELL_CUSTOMS->"Back to comparisons";else->"Done" },onButton={when(sheet.kind) { SheetKind.SELL_HEROES,SheetKind.SELL_CUSTOMS->openSell(model,SheetKind.SELL_FLOORS);SheetKind.SELL_WEIGHTS->openSell(model,SheetKind.SELL_SCORE);else->model.sheet=null }}) {
@@ -321,27 +358,21 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 if(q.scoreFilter)CardGrid(SellSort.entries,columns=2) { key,m->SellChoice(when(key){SellSort.QUALITY->"Roll values";SellSort.INVENTORY->"Game order";SellSort.CHANCE->"Combined chance";SellSort.SCORE->"Combined score"},m,q.sort==key) { update(q.copy(sort=key)) } }
             }
             SheetKind.SELL_WORTH->{
-                Text("A piece is worth rolling when its chance to reach the ES bar at +15 is at least this. The bar is per slot; by default it is the median Equipment Score of your own +15 pieces in that slot.",style=zen(12.sp))
-                SellNumber("Keep rolling at %",q.rollOn,0.0,100.0,1) { update(q.copy(rollOn=it?:5.0)) }
+                Text("Keep rolling a piece when at least this share of its finishes reach the ES bar.",style=zen(13.sp))
                 CardGrid(listOf(2.0,5.0,10.0,20.0),columns=4) { n,m->SellChoice("${fmtNum(n)}%",m,q.rollOn==n) { update(q.copy(rollOn=n)) } }
-                Text("Tested on a real inventory: stopping below 5% kept about 93% of the pieces that reach the bar, for about a sixth of the enhance cost of finishing everything. The same chance at every step did as well as rules that weigh the cost of each +3.",style=zen(11.sp,color=C.muted))
-                SectionTitle("ES bar per slot")
+                Text("${fmtNum(q.rollOn)}% = about 1 in ${if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt().toString() else "∞"} finishes",style=dela(15.sp,C.blue))
+                SellNumber("Other %",q.rollOn,0.0,100.0,1) { update(q.copy(rollOn=it?:5.0)) }
+                SectionTitle("ES bar")
+                Text("Default: the middle ES of your own +15 pieces in that slot.",style=zen(11.sp,color=C.muted))
                 val auto=model.sellAutoEsBars()
                 Slot.entries.forEach { slot->
-                    SellNumber("${slot.label}${if(slot !in q.esBars)" · median" else ""}",(q.esBars[slot]?:auto[slot])?.toDouble(),0.0,300.0,0,true) { v->
-                        update(q.copy(esBars=if(v==null)q.esBars-slot else q.esBars+(slot to v.toInt()))) }
+                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                        GearIcon(slot.icon,18.dp,C.ink)
+                        Box(Modifier.weight(1f)) { SellNumber("${slot.label}${if(slot in q.esBars)" · yours" else ""}",(q.esBars[slot]?:auto[slot])?.toDouble(),0.0,300.0,0,true) { v->
+                            update(q.copy(esBars=if(v==null)q.esBars-slot else q.esBars+(slot to v.toInt()))) } }
+                    }
                 }
-                if(q.esBars.isNotEmpty())LinkText("Use the medians for every slot") { update(q.copy(esBars=emptyMap())) }
-            }
-            SheetKind.SELL_KEPT->{
-                val kept=model.sellKept.mapNotNull { model.box?.itemsById?.get(it) }.sortedBy { it.slot.ordinal }
-                Text("Pieces you kept never come back into Sell review until you unlock them here.",style=zen(12.sp))
-                if(kept.isEmpty())Text("Nothing kept yet.",style=zen(12.sp,color=C.muted))
-                kept.forEach { item->Card(shadow=null,padding=PaddingValues(12.dp)) {
-                    GearSearchIdentity(model,item,explicitGameScore=false)
-                    VSpace(6.dp)
-                    OutlineButton("Unlock",Modifier.fillMaxWidth(),height=38.dp) { model.unmarkSellReview(item.id) }
-                } }
+                if(q.esBars.isNotEmpty())LinkText("Use the defaults for every slot") { update(q.copy(esBars=emptyMap())) }
             }
             SheetKind.SELL_SAFEGUARDS->{
                 Text("Leave a piece out of the review list if ANY substat can reach a target you choose. Main stats do not count.",style=zen(12.sp))
@@ -464,31 +495,26 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
             SheetKind.SELL_DETAILS->{
                 val row=model.sellResult?.rows?.firstOrNull { it.item.id==sheet.heroId }
                 if(row==null)Text("Update the search to see this piece.",style=zen(12.sp)) else {
-                    GearSearchIdentity(model,row.item,explicitGameScore=true)
-                    SectionTitle("Equipment Score")
-                    EsSummary(row.es,model.sellResult!!.query.rollOn)
-                    SectionTitle("Overall roll quality")
-                    OverallRollSummary(row.rolls)
-                    SectionTitle("Upgrade-only breakdown")
-                    val upgrades=RollReview.upgrades(row.rolls)
-                    if(upgrades!=null)Text("${RollReview.weakCount(row.rolls)} of ${upgrades.size} upgrade rolls below midrange",style=zen(11.sp,color=C.muted))
-                    Text("Compare each increase with that stat's own ordinary roll range.",style=zen(11.sp,color=C.muted))
-                    RawRolls(row.rolls)
-                    var starting by remember { mutableStateOf(false) }
-                    LinkText(if(starting)"Hide starting values" else "Show starting values & new lines") { starting=!starting }
-                    if(starting)RawRolls(row.rolls,true)
-                    SectionTitle("Stats worth checking")
-                    Text("These are substat totals, not a combined score.",style=zen(11.sp,color=C.muted))
-                    row.lines.sortedBy { if(it.stat==GearStat.SPD)0 else 1 }.forEach { StatFinish(it,model.sellResult!!.query.reforge) }
-                    if(row.safeguards.isNotEmpty()) {
-                        SectionTitle("Your stat safeguards")
-                        row.safeguards.forEach { SafeguardReason(it,it.active(row.keepChance)) }
+                    SellCardHead(model,row)
+                    row.es?.let { es->
+                        VSpace(4.dp)
+                        Card(shadow=null,padding=PaddingValues(12.dp)) {
+                            val open=es.finishShare>0&&es.bar!=null&&!es.reached&&es.supported
+                            Row(verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                                val rare=open&&es.chance==0.0&&es.possible
+                                Text(if(rare)"Rare" else if(open)chanceText(es.chance) else "ES ${es.now}",style=dela(28.sp,if(!open)C.ink else if(es.worthRolling(model.sellResult!!.query.rollOn))C.blue else C.deepPink))
+                                Text(when { es.bar==null->"no bar for this slot";rare->"only rare rolls reach ES ${es.bar}";open->"of finishes reach ES ${es.bar}";es.reached->"at or above your bar ${es.bar}";else->"finished · below bar ${es.bar}" },style=zen(12.sp,color=C.muted),modifier=Modifier.padding(bottom=5.dp))
+                            }
+                            VSpace(8.dp);EsBar(es);VSpace(3.dp);EsLegend(es)
+                            if(es.finishShare>0) { VSpace(4.dp);Text("Finishing costs ${(es.finishShare*100).toInt()}% of a full +0 → +15",style=zen(10.sp,color=C.muted)) }
+                        }
                     }
-                    val current=if(row.item.enhance<15)UpgradeRecord.fromScan(row.item) else row.item
-                    val end=if(row.item.enhance<15)Finish.main15(row.item) else row.item.mainValue
-                    val main=if(model.sellResult!!.query.reforge&&row.goal.reforgeAllowed&&row.item.level==85)e7.gearscan.calc.Reforge.main(row.item.mainType,end) else end
-                    Text("Main ${current.mainType.short}: ${current.mainType.format(current.mainValue)} now → ${current.mainType.format(main)} when finished",style=zen(11.sp))
-                    Text("Each stat is forecast separately; the maxima may need different upgrade rolls. Rare limits have no estimated probability.",style=zen(10.sp,color=C.muted))
+                    SectionTitle("Rolls",trailing=row.rolls?.let { "${RollReview.overallWeakCount(it)} of ${it.size} low" })
+                    RollTable(row.rolls)
+                    var stats by remember(row.item.id) { mutableStateOf(false) }
+                    LinkText(if(stats)"Hide each stat at +15" else "Each stat at +15") { stats=!stats }
+                    if(stats)row.lines.sortedBy { if(it.stat==GearStat.SPD)0 else 1 }.forEach { StatFinish(it,model.sellResult!!.query.reforge) }
+                    if(row.safeguards.isNotEmpty()) { SectionTitle("Your stat safeguards");row.safeguards.forEach { SafeguardReason(it,it.active(row.keepChance)) } }
                     if(!model.sellFresh)Text("Inventory or settings changed; update before tracking.",style=zen(12.sp,color=C.deepPink))
                     if(model.sellResult?.matches?.any { it.item.id==row.item.id }==true)PinkButton("Track this piece",Modifier.fillMaxWidth(),enabled=model.sellFresh) { model.trackSellMatches(row.item.id) }
                     var combined by remember(row.item.id) { mutableStateOf(false) }

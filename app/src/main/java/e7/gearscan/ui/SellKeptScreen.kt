@@ -1,0 +1,68 @@
+package e7.gearscan.ui
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import e7.gearscan.AppModel
+import e7.gearscan.data.*
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+fun SellKeptScreen(model: AppModel) {
+    var slots by remember { mutableStateOf(emptySet<Slot>()) }
+    var sets by remember { mutableStateOf(emptySet<String>()) }
+    var sort by remember { mutableIntStateOf(0) }
+    var count by remember { mutableIntStateOf(30) }
+    val box = model.box
+    // sellKept keeps the order pieces were kept in
+    val all = model.sellKept.toList().mapNotNull { box?.itemsById?.get(it) }
+    fun es(item: Item) = model.inventoryPosition(item.id)?.score ?: InventoryOrder.score(item)
+    val shown = all.filter { (slots.isEmpty() || it.slot in slots) && (sets.isEmpty() || it.set in sets) }.let { list ->
+        when (sort) { 0 -> list.asReversed(); 1 -> list.sortedBy(::es); else -> list.sortedByDescending(::es) }
+    }
+    Frame(model, null) {
+        BackToPrevious(model); ScreenTitle("Kept pieces")
+        Text("${all.size} kept · they stay out of Sell review until you unlock them", style = zen(12.sp, color = C.muted))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Slot.entries.forEach { s ->
+                Pill(s.label, selected = s in slots, onClick = { slots = if (s in slots) slots - s else slots + s; count = 30 },
+                    leading = { GearIcon(s.icon, 14.dp, if (s in slots) C.onAccent else C.ink) })
+            }
+        }
+        val keptSets = all.map { it.set }.distinct().sortedBy { model.content.set(it)?.name ?: it }
+        if (keptSets.size > 1) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            keptSets.forEach { k ->
+                val set = model.content.set(k)
+                Pill(set?.name ?: k.removeSuffix("Set"), selected = k in sets, onClick = { sets = if (k in sets) sets - k else sets + k; count = 30 },
+                    leading = { SetIcon(set?.icon, 14.dp) })
+            }
+        }
+        Segmented(listOf("Newest", "Lowest ES", "Highest ES"), sort) { sort = it }
+        if (shown.isEmpty()) Card { Text(if (all.isEmpty()) "Nothing kept yet. Tap Keep in Sell review." else "No kept piece matches these filters.", style = zen(13.sp)) }
+        shown.take(count).forEach { item ->
+            val view = if (item.enhance < 15) UpgradeRecord.fromScan(item) else item
+            Card(shadow = null, padding = PaddingValues(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    GearTile(view, 40.dp, setIcon = model.content.set(view.set)?.icon)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("${model.content.set(view.set)?.name ?: view.set.removeSuffix("Set")} ${view.slot.label}", style = zen(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f))
+                            Text("ES ${es(item)}", style = dela(13.sp))
+                        }
+                        MainStatLine(view)
+                        GearSearchSubs(view)
+                    }
+                }
+                VSpace(6.dp)
+                OutlineButton("Unlock", Modifier.fillMaxWidth(), height = 36.dp) { model.unmarkSellReview(item.id) }
+            }
+        }
+        if (count < shown.size) OutlineButton("Show 30 more", Modifier.fillMaxWidth(), height = 42.dp) { count += 30 }
+    }
+}

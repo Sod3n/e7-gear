@@ -85,10 +85,12 @@ class GalleryScreens {
             val first = m.sellResult?.matches?.firstOrNull { it.item.id !in m.reviewedIds }
             if (first != null) { ui { m.sheet = Sheet(SheetKind.SELL_DETAILS, first.item.id) }; shot("sell-04-details"); ui { m.sheet = null } }
             ui { m.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; shot("sell-05-worth-rolling")
-            if (first != null && theme == only.split(",").first()) ui { m.sheet = null; m.markSellReview(first.item.id, keep = true) }
-            ui { m.sheet = Sheet(SheetKind.SELL_KEPT, 0) }; shot("sell-06-kept"); ui { m.sheet = null }
+            if (theme == only.split(",").first()) ui { m.sheet = null; m.sellResult?.matches?.take(6)?.forEach { m.markSellReview(it.item.id, keep = true) } }
+            ui { m.sheet = null; m.go(Screen.SellKept) }; shot("sell-06-kept"); ui { m.go(Screen.SellFilters) }
             ui { m.trackSellMatches(openOverlay = false) }
             ui { OverlayState.expanded = true; OverlayState.usableHeightDp = 260f; overlay = true }; rule.mainClock.advanceTimeBy(2000); Thread.sleep(2000); rule.mainClock.advanceTimeBy(500); shot("sell-07-overlay")
+            rule.onNodeWithContentDescription("More").performClick(); rule.mainClock.advanceTimeBy(500); shot("sell-08-overlay-more")
+            rule.onNodeWithContentDescription("More").performClick()
             ui { overlay = false }
         }
     }

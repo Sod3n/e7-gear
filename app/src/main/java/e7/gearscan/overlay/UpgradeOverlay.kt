@@ -94,18 +94,19 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                     FitText(if(t.sellQueueComplete)"All pieces marked" else t.setName ?: item.set.removeSuffix("Set"), zen((if (scale > 1.3f) 8 else 9).sp, color = C.muted))
                 }
             }
-            Box(Modifier.width(48.dp).tap { if (!t.editing) pane = if (!t.hasTarget) UpgradePane.ADVICE else UpgradePane.GOAL }, contentAlignment = Alignment.Center) {
+            if (!t.isSellQueue) Box(Modifier.width(48.dp).tap { if (!t.editing) pane = if (!t.hasTarget) UpgradePane.ADVICE else UpgradePane.GOAL }, contentAlignment = Alignment.Center) {
                 FitText(chanceBadge(t), dela(12.sp, C.blue))
             }
             if(t.canUndoSold&&!t.sellQueueComplete&&!t.editing)PanelAction("Undo",Modifier.width(38.dp),label="Undo last mark") { t.undoSold?.invoke();pane=UpgradePane.PIECE }
             else if (t.undoEquip != null && !t.editing) PanelAction("Undo", Modifier.width(38.dp), label = "Undo equip") { t.undoEquip?.invoke(); pane = UpgradePane.PIECE }
+            PanelAction(if (t.notice == null) "···" else "···!", Modifier.width(34.dp), enabled = !t.editing, label = "More") { pane = if (pane == UpgradePane.MENU) UpgradePane.PIECE else UpgradePane.MENU }
             PanelAction("–", Modifier.width(30.dp), label = "Collapse tracker") { OverlayState.expanded = false; onDock(false) }
             PanelAction("×", Modifier.width(30.dp), label = "Close tracker", click = onClose)
         }
         if (t.queue.isNotEmpty()) Row(Modifier.fillMaxWidth().height(30.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
             PanelAction("‹", Modifier.width(30.dp), enabled = t.queueIndex > 0 && !t.editing, label = "Previous gear") { t.selectQueue?.invoke(t.queueIndex - 1); pane = UpgradePane.PIECE }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { FitText(if(t.sellQueueComplete)"0 remaining" else if(t.needsRollRefresh)"Refresh list for overall ranking" else if(t.isSellQueue)"${t.queueIndex + 1} / ${t.pendingQueue.size} · sell in E7 first" else "${t.queueIndex + 1} / ${t.pendingQueue.size} matches", zen(10.sp, color = C.blue)) }
-            PanelAction(if (pane == UpgradePane.LIST) "Piece" else "List", Modifier.width(46.dp), enabled = !t.editing&&!t.sellQueueComplete) { pane = if (pane == UpgradePane.LIST) UpgradePane.PIECE else UpgradePane.LIST }
+            if (!t.isSellQueue) PanelAction(if (pane == UpgradePane.LIST) "Piece" else "List", Modifier.width(46.dp), enabled = !t.editing&&!t.sellQueueComplete) { pane = if (pane == UpgradePane.LIST) UpgradePane.PIECE else UpgradePane.LIST }
             PanelAction("›", Modifier.width(30.dp), enabled = t.queueIndex < t.pendingQueue.lastIndex && !t.editing, label = "Next gear") { t.selectQueue?.invoke(t.queueIndex + 1); pane = UpgradePane.PIECE }
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 2.dp).testTag("gear-tracker-body")) {
@@ -116,12 +117,13 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                 pane == UpgradePane.PIECE -> PieceSummary(t, item, maxHeight.value)
                 pane == UpgradePane.LIST -> QueuePage(t, maxHeight.value) { pane = UpgradePane.PIECE }
                 pane == UpgradePane.MENU -> {
-                    val options = listOf(if(t.isRollReview)"Roll review" else if (!t.hasTarget) "Build advice" else "Targets", "History", "Help") + listOfNotNull("Correct".takeIf { UpgradeRecord.supported(item) }) +
+                    val options = listOfNotNull("Open E7 Gear".takeIf { t.returnToApp != null }, if(t.isRollReview)"Roll review" else if (!t.hasTarget) "Build advice" else "Targets", "History", "Help") + listOfNotNull("Correct".takeIf { UpgradeRecord.supported(item) }) +
                         listOfNotNull("Track the better bet".takeIf { t.betterBet != null && t.switchTo != null },
                             "Final build".takeIf { !t.hasTarget && t.results.any { it.build.isNotEmpty() && (it.hits.isNotEmpty() || it.current) } },
                             (if (t.rebuilds) "This piece only" else "Allow rebuilds").takeIf { !t.hasTarget },
                             "Recheck builds".takeIf { !t.hasTarget }, "Notice".takeIf { t.notice != null })
                     PanelChoices(options, maxHeight.value, "More") { i -> when (options[i]) {
+                        "Open E7 Gear" -> { pane = UpgradePane.PIECE; t.returnToApp?.invoke() }
                         "Targets", "Roll review" -> pane = UpgradePane.GOAL
                         "Build advice" -> pane = UpgradePane.ADVICE
                         "History" -> pane = UpgradePane.HISTORY
@@ -166,20 +168,18 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                         PanelAction("Sold ›",Modifier.weight(1f),pink=true,enabled=t.canMarkSold,label="Sold and next") { t.markSold?.invoke(item.id);pane=UpgradePane.PIECE }
                         PanelAction("Keep ›",Modifier.weight(1f),enabled=t.canMarkSold&&t.markKept!=null,label="Keep and next") { t.markKept?.invoke(item.id);pane=UpgradePane.PIECE }
                     }
-                    if (item.enhance < 15 && UpgradeRecord.supported(item)) PanelAction("Record +${((item.enhance / 3 + 1) * 3).coerceAtMost(15)}", Modifier.weight(if(t.isSellQueue)1.3f else 1.7f), pink = !t.isSellQueue) { correction = false; t.error = null; t.editing = true }
+                    if (item.enhance < 15 && UpgradeRecord.supported(item)) PanelAction("Record +${((item.enhance / 3 + 1) * 3).coerceAtMost(15)}", Modifier.weight(if(t.isSellQueue)1.2f else 1.7f), pink = !t.isSellQueue) { correction = false; t.error = null; t.editing = true }
                     // a finished piece: record the reforge, then equipping it, as done in the game
                     if (!t.isSellQueue && item.enhance == 15 && item.level == 85 && t.canReforge?.invoke(item.id) == true)
                         PanelAction("Reforge", Modifier.weight(1.2f), pink = t.equipHeroes.isEmpty(), label = "Record reforge") { t.reforge() }
                     if (!t.isSellQueue && item.enhance == 15 && t.equipHeroes.isNotEmpty() && t.equippedOn == null)
                         PanelAction("Equip", Modifier.weight(1.2f), pink = true, label = "Record equip") { pane = UpgradePane.EQUIP }
-                    PanelAction(if (t.notice == null) "More" else "More !", Modifier.weight(if(t.isSellQueue).8f else 1f)) { pane = UpgradePane.MENU }
                 }
                 else -> {
                     PanelAction("Back", Modifier.weight(1f)) { pane = UpgradePane.PIECE }
                     if (pane == UpgradePane.HISTORY && r.history.size > 1) PanelAction("Undo last entry", Modifier.weight(1.5f)) { t.undo(); pane = UpgradePane.PIECE }
                 }
             }
-            PanelAction("E7 Gear", Modifier.weight(if(t.isSellQueue)1.1f else 1.3f), enabled = t.returnToApp != null) { t.returnToApp?.invoke() }
         }
     }
 }
@@ -198,14 +198,18 @@ private fun PieceSummary(t: UpgradeTracker, item: Item, height: Float) {
     }
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            FitText("${item.mainType.short} ${item.mainType.format(item.mainValue)}", zen(11.sp), Modifier.weight(1f))
+            StatIcon(item.mainType.stat, 13.dp, C.ink); Spacer(Modifier.width(4.dp))
+            FitText(item.mainType.format(item.mainValue), zen(11.sp), Modifier.weight(1f))
             FitText(if(t.isRollReview)t.reviewRolls?.let { "${e7.gearscan.opt.RollReview.overallWeakCount(it)}/${it.size} low" }?:"History unknown" else "${item.rank} · Lv.${item.level}", zen(9.sp, color = C.muted))
         }
         GearSearchSubs(item, t.goal?.minimums?.keys ?: emptySet())
         val es by produceState<e7.gearscan.opt.EsForecast.Es?>(null, item, t.esFor) { value = t.esFor?.let { f -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { f(item) } } }
         if (t.esFor != null) es?.let { e ->
-            FitText("ES ${e.now}${e.typical?.takeIf { e.finishShare > 0 }?.let { " → usually ${it.toInt()} at +15" } ?: ""}", zen(11.sp))
-            e7.gearscan.ui.esVerdict(e, t.rollOn)?.let { (text, good) -> FitText(text, zen(10.sp, color = if (good) C.blue else C.deepPink)) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                FitText("ES ${e.now}${e.typical?.takeIf { e.finishShare > 0 }?.let { " → ${it.toInt()}" } ?: ""}", dela(13.sp), Modifier.weight(1f))
+                EsChip(e, t.rollOn)
+            }
+            EsBar(e)
         } else t.inventoryPosition?.let { FitText(it, zen(9.sp, color = C.blue)) }
         if (!t.hasTarget && t.esFor == null) FitText(t.title, zen(10.sp, color = C.blue))
         if (!t.hasTarget) weakestLine(t)?.let { FitText(it, zen(9.sp, color = C.muted)) }
