@@ -1792,6 +1792,21 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     private var usualInputs: Pair<List<Any?>, Pair<List<Setup>, List<Item>>>? = null
+    /** Stat changes per (hero, piece, rebuilds), filled ahead in the background so rows draw with them. */
+    val heroUpgradeChanges = mutableStateMapOf<Triple<Long, Long, Boolean>, List<Pair<Stat, Double>>>()
+    private var changesFor: Any? = null
+
+    /** Works out [rows]' stat changes off the main thread, top rows first; rows already known are skipped. */
+    suspend fun warmHeroUpgradeChanges(rows: List<Pair<Long, HeroUpgradeRow>>) {
+        val r = heroUpgrades?.result ?: return
+        val key = listOf(r, lastScan, rev, cleanupDone)
+        if (changesFor != key) { heroUpgradeChanges.clear(); changesFor = key }
+        val rebuilds = heroUpgradeRebuilds
+        for ((hero, row) in rows) {
+            val k = Triple(hero, row.pick.piece, rebuilds)
+            if (k !in heroUpgradeChanges) heroUpgradeChanges[k] = heroUpgradeStatChanges(hero, row)
+        }
+    }
 
     /**
      * The hero's stat changes from [row], for cards: with This piece only, the row's usual finish put in the hero's slot

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import e7.gearscan.data.Stat
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -97,6 +97,12 @@ fun HeroUpgradesScreen(model: AppModel, heroId: Long?) {
                     style = zen(12.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Segmented(listOf("By hero", "By piece"), tab) { tab = it }
+            // hero rows first, then every listed piece: the chips are ready before most rows are seen
+            LaunchedEffect(view, model.heroUpgradeRebuilds) {
+                val v = view ?: return@LaunchedEffect
+                model.warmHeroUpgradeChanges(v.mapNotNull { h -> h.rows.firstOrNull()?.let { h.hero.id to it } } +
+                    v.flatMap { h -> h.rows.map { h.hero.id to it } })
+            }
             Summary(model, view!!, st, result)
             if (tab == 0) ByHero(model, view) else ByPiece(model, view)
         }
@@ -193,8 +199,8 @@ private fun ByHero(model: AppModel, view: List<AppModel.HeroUpgradeHero>) {
 
 @Composable
 private fun HeroRow(model: AppModel, h: AppModel.HeroUpgradeHero) {
-    val top = h.rows.maxByOrNull { it.hits }
-    // one number per row: the best piece's chance; how close the hero already is lives on its own page
+    // the piece with the most to gain (chance x size, the hero page's order): its chance on the right, what it gives below
+    val top = h.rows.firstOrNull()
     ListRow({ model.go(Screen.HeroUpgrades(h.hero.id)) }, leading = { Face(model.face(h.hero), 40.dp) }, trailing = {
         Slot(64.dp) { if (top != null && h.base.value != null) Column(horizontalAlignment = Alignment.End) {
             FitText("~${top.chance}%", dela(16.sp, C.blue))
@@ -202,13 +208,12 @@ private fun HeroRow(model: AppModel, h: AppModel.HeroUpgradeHero) {
         } }
     }) {
         Text(model.heroName(h.hero), style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        val likely = h.rows.count { it.hits > LONG_SHOT }
-        Text(when {
-            top == null -> reason(h)
-            h.base.value == null -> "${h.rows.size} ${if (h.rows.size == 1) "piece" else "pieces"} could make a build"
-            likely == 0 -> "only long shots"
-            else -> "$likely ${if (likely == 1) "piece" else "pieces"} could help"
-        }, style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        when {
+            top == null -> Text(reason(h), style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            h.base.value == null -> Text("${h.rows.size} ${if (h.rows.size == 1) "piece" else "pieces"} could make a build",
+                style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            else -> StatChanges(model, h, top, short = true)
+        }
     }
 }
 
@@ -259,13 +264,18 @@ private fun HeroLine(model: AppModel, h: AppModel.HeroUpgradeHero, r: AppModel.H
 }
 
 /** The hero's stat changes from a usual finish (or the best one, with rebuilds), marked as an estimate; space kept while they load. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun StatChanges(model: AppModel, h: AppModel.HeroUpgradeHero, r: AppModel.HeroUpgradeRow) {
-    val changes by produceState<List<Pair<Stat, Double>>?>(null, r, model.heroUpgradeRebuilds) { value = model.heroUpgradeStatChanges(h.hero.id, r) }
-    Row(Modifier.fillMaxWidth().heightIn(min = 26.dp).padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        val list = changes ?: return@Row
-        Text(if (model.heroUpgradeRebuilds) "best finish ~" else "usual finish ~", style = zen(10.sp, FontWeight.Medium, C.muted))
-        if (list.isEmpty()) Text("no stat change", style = zen(10.sp, FontWeight.Medium, C.muted))
+private fun StatChanges(model: AppModel, h: AppModel.HeroUpgradeHero, r: AppModel.HeroUpgradeRow, short: Boolean = false) {
+    val key = Triple(h.hero.id, r.pick.piece, model.heroUpgradeRebuilds)
+    LaunchedEffect(key) { model.warmHeroUpgradeChanges(listOf(h.hero.id to r)) }
+    val list = model.heroUpgradeChanges[key]
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().heightIn(min = 26.dp).padding(top = 3.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        if (list == null) return@FlowRow
+        val label = if (model.heroUpgradeRebuilds) (if (short) "best ~" else "best finish ~") else (if (short) "usually ~" else "usual finish ~")
+        Text(label, style = zen(10.sp, FontWeight.Medium, C.muted), modifier = Modifier.align(Alignment.CenterVertically))
+        if (list.isEmpty()) Text("no stat change", style = zen(10.sp, FontWeight.Medium, C.muted), modifier = Modifier.align(Alignment.CenterVertically))
         list.take(4).forEach { (stat, d) -> StatChangeChip(stat, d) }
     }
 }

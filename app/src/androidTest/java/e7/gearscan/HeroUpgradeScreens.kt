@@ -83,6 +83,10 @@ class HeroUpgradeScreens {
         }
         val hero = model.heroUpgradeView(r).first { it.rows.isNotEmpty() }
         val row = hero.rows.first()
+        // the stat chips are worked out in the background: shoot once they are in
+        ui { model.sheet = null; model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) }
+        val tops = model.heroUpgradeView(r).mapNotNull { h -> h.rows.firstOrNull()?.let { Triple(h.hero.id, it.pick.piece, model.heroUpgradeRebuilds) } }
+        rule.waitUntil(60_000) { tops.all { it in model.heroUpgradeChanges } }
         for ((w, f) in listOf(411 to 1f, 353 to 1.3f)) {
             ui { width = w; font = f }
             val tag = "$w-${if (f > 1f) "big" else "1x"}"
