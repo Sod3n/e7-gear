@@ -131,6 +131,7 @@ fun FeedbackScreen(model: AppModel, error: String?) {
     var email by remember { mutableStateOf("") }
     var outcome by remember { mutableStateOf<Pair<Reports.Outcome, String>?>(null) }
     var sending by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { model.refreshKnownIssues() }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         shot = uri?.let { u -> runCatching { jpegBase64(ctx.contentResolver.openInputStream(u)!!.use { it.readBytes() }) }.getOrNull() }
     }
@@ -164,6 +165,7 @@ fun FeedbackScreen(model: AppModel, error: String?) {
             Reports.Outcome.NO_ENDPOINT -> StateCard("Saved on the phone",
                 "Report #${outcome!!.second} is kept on the phone. Reports can't be sent from this version yet; it goes out by itself once they can.")
             null -> {
+                if (model.knownIssues.isNotEmpty()) KnownIssuesCard(model.knownIssues)
                 Segmented(listOf("Bug", "Idea", "Other"), topic) { topic = it }
                 Text("What happened?", style = zen(13.sp))
                 PasteField(text, if (topic == 0) "Paste what happened and what went wrong" else "Paste your message", 2000, multiline = true) { text = it }
@@ -175,6 +177,26 @@ fun FeedbackScreen(model: AppModel, error: String?) {
                 }
                 PasteField(email, "Email for a reply (optional)", 120) { email = it.trim() }
                 Text("Only what is ticked is sent. Your gear and account id are never included.", style = zen(11.sp, FontWeight.Medium, C.muted))
+            }
+        }
+    }
+}
+
+@Composable
+fun KnownIssuesCard(issues: List<e7.gearscan.data.KnownIssue>) {
+    Card(shadow = null, radius = 14.dp, border = 2.dp) {
+        Text("Already known", style = dela(14.sp))
+        Text("No need to report these. We update this list as they're fixed.", style = zen(11.sp, FontWeight.Medium, C.muted))
+        for (issue in issues) {
+            VSpace(8.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+                val working = issue.status == "working"
+                Text(issue.label, maxLines = 1, softWrap = false, style = zen(10.sp, FontWeight.Black, if (working) C.onAccent else C.muted),
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(if (working) C.pink else C.field).padding(horizontal = 7.dp, vertical = 1.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(issue.title, style = zen(13.sp))
+                    if (issue.detail.isNotEmpty()) Text(issue.detail, style = zen(11.sp, FontWeight.Medium, C.muted))
+                }
             }
         }
     }

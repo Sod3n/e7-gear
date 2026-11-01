@@ -2187,6 +2187,16 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             .put("ghost", s.ghost != null).put("team", s.team.size)
     }
 
+    var knownIssues by mutableStateOf(e7.gearscan.data.KnownIssues.cached(files))
+        private set
+
+    fun refreshKnownIssues() {
+        val url = e7.gearscan.data.KnownIssues.url(content.feedbackUrl) ?: return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { e7.gearscan.data.KnownIssues.fetch(url, files) }?.let { knownIssues = it }
+        }
+    }
+
     fun sendReport(report: JSONObject, done: (Reports.Outcome) -> Unit) {
         viewModelScope.launch {
             val r = withContext(Dispatchers.IO) {
