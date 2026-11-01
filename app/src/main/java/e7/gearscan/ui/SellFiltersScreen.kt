@@ -262,6 +262,8 @@ fun SellFiltersScreen(model:AppModel) {
             val guarded=result.rows.filter { it.protected&&it.item.id !in done };val unknown=result.rows.filter { it.unknown&&!it.protected&&it.item.id !in done }
             Card(shadow=null,padding=PaddingValues(12.dp)) {
                 Text("${pending.size} pieces to review",style=dela(19.sp))
+                val rolling=pending.mapNotNull { it.es }.filter { it.finishShare>0&&it.worthRolling(result.query.rollOn)&&!it.reached }
+                if(rolling.isNotEmpty())Text("${rolling.size} worth rolling now",style=zen(12.sp,color=C.blue))
                 Text("${if(result.query.sort==SellSort.INVENTORY)"Game order" else if(result.query.descending)"Best rolls first" else "Worst rolls first"} · keep rolling at 1 in ${if(result.query.rollOn>0)kotlin.math.round(100/result.query.rollOn).toInt().toString() else "–"}${if(result.query.reforge)" · reforge counted" else ""}",style=zen(11.sp,color=C.muted))
                 if(result.query.minimumProcs>0||result.query.maximumTotalQuality!=null)Text("${if(result.query.minimumProcs>0)"${result.query.minimumProcs}+ upgrades · " else ""}${rollLimitText(result.query)}",style=zen(11.sp,color=C.blue))
                 if(result.query.maximumProcQuality!=null)Text("An additional upgrade-only limit is active",style=zen(11.sp,color=C.muted))
@@ -376,13 +378,16 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                         Spacer(Modifier.width(66.dp))
                         Text("Good pieces kept",style=zen(11.sp,color=C.blue),modifier=Modifier.weight(1f))
-                        Text("Each extra one costs",style=zen(11.sp,color=C.deepPink),modifier=Modifier.width(118.dp))
+                        Text("Total",style=zen(11.sp,color=C.ink),modifier=Modifier.width(44.dp))
+                        Text("Each extra one",style=zen(11.sp,color=C.deepPink),modifier=Modifier.width(76.dp))
                     }
                     // stop-rule test (gear_cleanup/stop_rules): full +0->+15 enhances per extra good piece vs the row above
-                    listOf(Triple("1 in 5",64,0.0),Triple("1 in 20",79,3.6),Triple("1 in 100",84,8.8),Triple("1 in 1000",85,23.6),Triple("Finish all",85,8000.0)).forEach { (k,good,extra)->
-                        KeptRow(k,good,85,if(extra==0.0)"—" else "~${EsForecast.goldText(extra*EsForecast.FULL_GOLD)} gold",k=="1 in ${n}")
+                    // (label, good pieces, total full enhances, full enhances per extra good piece)
+                    listOf(listOf("1 in 5",64,83.4,0.0),listOf("1 in 20",79,139.3,3.6),listOf("1 in 100",84,182.5,8.8),listOf("1 in 1000",85,204.2,23.6),listOf("Finish all",85,846.1,8000.0)).forEach { r->
+                        val k=r[0] as String;val total=r[2] as Double;val extra=r[3] as Double
+                        KeptRow(k,r[1] as Int,85,EsForecast.goldText(total*EsForecast.FULL_GOLD),if(extra==0.0)"—" else EsForecast.goldText(extra*EsForecast.FULL_GOLD),k=="1 in ${n}")
                     }
-                    Text("From a real inventory: 921 unfinished pieces, 85 of which can reach the bar. “Each extra one” is the enhance gold spent per good piece this choice keeps beyond the row above, at the enhancement-stone price.",style=zen(11.sp,color=C.muted))
+                    Text("From a real inventory: 921 unfinished pieces, 85 of which can reach the bar (tested without reforge). Each choice stops pieces along the way once their odds drop. Total is the gold that choice spends on all of them; each extra one is the gold per good piece it keeps beyond the row above. Gold at the enhancement-stone price.",style=zen(11.sp,color=C.muted))
                 }
                 SellNumber("Exact %",q.rollOn,0.0,100.0,1) { update(q.copy(rollOn=it?:1.0)) }
                 SellToggle("Count reforging",q.reforge,"Lv85 gear reaches higher ES after reforge") { update(q.copy(reforge=it)) }
