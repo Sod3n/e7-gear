@@ -240,7 +240,7 @@ fun SellFiltersScreen(model:AppModel) {
         model.sellError?.let { Text(it,style=zen(12.sp,color=C.deepPink)) }
         if(tab==0) {
             RowCard("Worth rolling",{openSell(model,SheetKind.SELL_WORTH)}) { Text("1 in ${if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt().toString() else "–"} reach ${if(q.esBars.isEmpty())"your usual +15 ES" else "your ES bars"}",style=zen(11.sp)) }
-            RowCard("Stat safeguards",{openSell(model,SheetKind.SELL_SAFEGUARDS)}) { Text(when { q.keepStats.isEmpty()->"Off";q.keepStats==SellQuery.DEFAULT_GUARDS->"Default · Spd 20 and 5 max rolls of any stat";else->"${q.keepStats.size} stats" },style=zen(11.sp)) }
+            RowCard("Stat safeguards",{openSell(model,SheetKind.SELL_SAFEGUARDS)}) { Text(when { q.keepStats.isEmpty()->"Off";q.keepStats==SellQuery.DEFAULT_GUARDS->"Default · Spd 20, Cr 25, Cd 35, % stats 40";else->"${q.keepStats.size} stats" },style=zen(11.sp)) }
             RowCard("Gear to review",{openSell(model,SheetKind.SELL_INVENTORY)}) { Text("${if(q.bagOnly)"Bag" else "All gear"} · +${q.minimumEnhance} to +${q.maximumEnhance}",style=zen(12.sp)) }
             RowCard("Slots",{openSell(model,SheetKind.SELL_SLOTS)}) { Text(if(q.slots.size==6)"Any slot" else q.slots.joinToString { it.label },style=zen(11.sp)) }
             RowCard("Sets",{openSell(model,SheetKind.SELL_SETS)}) { Text(if(q.sets.isEmpty())"Any set" else "${q.sets.size} selected",style=zen(12.sp)) }

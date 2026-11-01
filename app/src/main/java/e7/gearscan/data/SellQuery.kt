@@ -76,11 +76,12 @@ data class SellQuery(
         .put("includeUnknown", includeUnknown).put("standardOnly", standardOnly).put("maximumCurrentScore", maximumCurrentScore ?: JSONObject.NULL)
         .put("maximumProcQuality", maximumProcQuality ?: JSONObject.NULL).put("maximumTotalQuality", maximumTotalQuality ?: JSONObject.NULL)
         .put("scoreFilter",scoreFilter).put("keepStats",JSONObject().apply { keepStats.forEach { (s,v)->put(s.key,v) } }).put("keepChance",keepChance)
-        .put("esBars",JSONObject().apply { esBars.forEach { (s,v)->put(s.key,v) } }).put("rollOn",rollOn).put("guardsV",1)
+        .put("esBars",JSONObject().apply { esBars.forEach { (s,v)->put(s.key,v) } }).put("rollOn",rollOn).put("guardsV",2)
         .put("minimumProcs", minimumProcs).put("forecastMs", forecastMs).put("sort", sort.name).put("descending", descending)
     companion object {
-        /** Five maximum Lv85 rolls of each stat: Spd 20, Cr 25, Cd 35, % stats 40, Atk 230, Hp 1010, Def 170. */
-        val DEFAULT_GUARDS: Map<GearStat,Double> = GearStat.entries.associateWith { 5.0*e7.gearscan.opt.Finish.range(it,85).last }
+        private val FLAT = setOf(GearStat.ATK,GearStat.HP,GearStat.DEF)
+        /** Five maximum Lv85 rolls of each non-flat stat: Spd 20, Cr 25, Cd 35, % stats 40. */
+        val DEFAULT_GUARDS: Map<GearStat,Double> = GearStat.entries.filter { it !in FLAT }.associateWith { 5.0*e7.gearscan.opt.Finish.range(it,85).last }
         fun of(j: JSONObject): SellQuery {
             fun strings(k: String) = j.optJSONArray(k)?.let { a->(0 until a.length()).map { a.get(it).toString() } }.orEmpty()
             fun optional(k: String) = if(j.isNull(k) || !j.has(k)) null else j.getDouble(k)
@@ -102,7 +103,9 @@ data class SellQuery(
                 maximumCurrentScore=optional("maximumCurrentScore"),maximumProcQuality=if(legacyPrimary)null else procLimit,
                 minimumProcs=j.optInt("minimumProcs",0),forecastMs=j.optInt("forecastMs",250),
                 sort=(if(!j.has("guardsV"))SellSort.QUALITY else runCatching { SellSort.valueOf(j.optString("sort")) }.getOrDefault(SellSort.QUALITY)).let { if(!j.optBoolean("scoreFilter",false)&&it in listOf(SellSort.SCORE,SellSort.CHANCE))SellSort.QUALITY else it },descending=j.has("guardsV")&&j.optBoolean("descending",false),maximumTotalQuality=if(!j.has("guardsV"))null else (if(legacyPrimary)procLimit else totalLimit),
-                scoreFilter=j.optBoolean("scoreFilter",false),keepStats=if(!j.has("guardsV"))DEFAULT_GUARDS else ks?.keys()?.asSequence()?.mapNotNull { k->GearStat.of(k)?.let { it to ks.getDouble(k) } }?.toMap().orEmpty(),keepChance=if(!j.has("guardsV"))1.0 else j.optDouble("keepChance",1.0),
+                scoreFilter=j.optBoolean("scoreFilter",false),keepStats=if(!j.has("guardsV"))DEFAULT_GUARDS else (ks?.keys()?.asSequence()?.mapNotNull { k->GearStat.of(k)?.let { it to ks.getDouble(k) } }?.toMap().orEmpty()).let { saved->
+                    // guardsV 1 shipped flat defaults (Atk 230, Hp 1010, Def 170); drop only those untouched values
+                    if(j.optInt("guardsV")<2)saved.filterNot { (t,v)->t in FLAT&&v==5.0*e7.gearscan.opt.Finish.range(t,85).last } else saved },keepChance=if(!j.has("guardsV"))1.0 else j.optDouble("keepChance",1.0),
                 esBars=eb?.keys()?.asSequence()?.mapNotNull { k->Slot.of(k)?.let { it to eb.getInt(k) } }?.toMap().orEmpty(),rollOn=j.optDouble("rollOn",1.0))
             require(q.error()==null) { q.error().orEmpty() };return q
         }

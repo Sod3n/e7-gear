@@ -150,4 +150,11 @@ class SellFiltersTest {
             }
         }
     }
+    @Test fun defaultSafeguardsSkipFlatStatsAndOldFlatDefaultsMigrate() {
+        assertEquals(setOf(GearStat.SPD,GearStat.CR,GearStat.CD,GearStat.ATK_P,GearStat.HP_P,GearStat.DEF_P,GearStat.EFF,GearStat.RES),SellQuery.DEFAULT_GUARDS.keys)
+        assertEquals(20.0,SellQuery.DEFAULT_GUARDS.getValue(GearStat.SPD),0.0)
+        val v1=SellQuery().toJson().put("guardsV",1).put("keepStats",JSONObject().put(GearStat.SPD.key,20.0).put(GearStat.ATK.key,230.0).put(GearStat.HP.key,1500.0))
+        val back=SellQuery.of(v1).keepStats
+        assertFalse(GearStat.ATK in back);assertEquals(1500.0,back.getValue(GearStat.HP),0.0);assertEquals(20.0,back.getValue(GearStat.SPD),0.0)
+    }
 }
