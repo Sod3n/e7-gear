@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -131,6 +132,7 @@ fun FeedbackScreen(model: AppModel, error: String?) {
     var email by remember { mutableStateOf("") }
     var outcome by remember { mutableStateOf<Pair<Reports.Outcome, String>?>(null) }
     var sending by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { model.refreshKnownIssues() }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         shot = uri?.let { u -> runCatching { jpegBase64(ctx.contentResolver.openInputStream(u)!!.use { it.readBytes() }) }.getOrNull() }
     }
@@ -164,6 +166,7 @@ fun FeedbackScreen(model: AppModel, error: String?) {
             Reports.Outcome.NO_ENDPOINT -> StateCard("Saved on the phone",
                 "Report #${outcome!!.second} is kept on the phone. Reports can't be sent from this version yet; it goes out by itself once they can.")
             null -> {
+                if (model.knownIssues.isNotEmpty()) KnownIssuesCard(model.knownIssues)
                 Segmented(listOf("Bug", "Idea", "Other"), topic) { topic = it }
                 Text("What happened?", style = zen(13.sp))
                 PasteField(text, if (topic == 0) "Paste what happened and what went wrong" else "Paste your message", 2000, multiline = true) { text = it }
@@ -176,6 +179,44 @@ fun FeedbackScreen(model: AppModel, error: String?) {
                 PasteField(email, "Email for a reply (optional)", 120) { email = it.trim() }
                 Text("Only what is ticked is sent. Your gear and account id are never included.", style = zen(11.sp, FontWeight.Medium, C.muted))
             }
+        }
+    }
+}
+
+@Composable
+fun KnownIssuesCard(issues: List<e7.gearscan.data.KnownIssue>, startOpen: Boolean = false) {
+    var open by remember { mutableStateOf(startOpen) }
+    var all by remember { mutableStateOf(false) }
+    Card(radius = 14.dp, border = 2.dp, shadowOffset = 3.dp) {
+        Row(Modifier.fillMaxWidth().tap { open = !open }, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Dela's tall ascent makes centre alignment put the badge visibly high; baselines line the digits up with the title
+            Text("Already known", style = dela(15.sp).pinkShadow(2.5f), modifier = Modifier.alignByBaseline())
+            Text("${issues.size}", maxLines = 1, softWrap = false, style = zen(11.sp, FontWeight.Black, C.card),
+                modifier = Modifier.alignByBaseline().clip(RoundedCornerShape(50)).background(C.ink).padding(horizontal = 7.dp))
+            Box(Modifier.weight(1f))
+            Text(if (open) "Hide" else "Show", style = zen(12.sp, FontWeight.Bold, C.muted), modifier = Modifier.alignByBaseline())
+            Text("›", style = dela(16.sp, C.muted), modifier = Modifier.rotate(if (open) -90f else 90f))
+        }
+        if (!open) return@Card
+        val shown = if (all) issues else issues.take(5)
+        for (issue in shown) {
+            VSpace(10.dp)
+            val tile = RoundedCornerShape(10.dp)
+            Column(Modifier.fillMaxWidth().hardShadow(C.shadow, 2.dp, 2.dp, 10.dp).clip(tile).background(C.field)
+                .border(2.dp, C.edge, tile).padding(horizontal = 10.dp, vertical = 8.dp)) {
+                when (issue.status) {
+                    "working" -> Tag(issue.label, bg = C.pink, size = 10)
+                    "fixed" -> Tag(issue.label, bg = C.blue, fg = C.card, size = 10)
+                    else -> Tag(issue.label, bg = C.card, size = 10)
+                }
+                VSpace(5.dp)
+                Text(issue.title, style = zen(13.sp, FontWeight.Bold))
+                if (issue.detail.isNotEmpty()) Text(issue.detail, style = zen(11.sp, FontWeight.Medium, C.muted))
+            }
+        }
+        if (shown.size < issues.size) {
+            VSpace(10.dp)
+            Text("Show all ${issues.size}", style = zen(12.sp, FontWeight.Bold, C.pink), modifier = Modifier.tap { all = true }.padding(vertical = 4.dp))
         }
     }
 }
