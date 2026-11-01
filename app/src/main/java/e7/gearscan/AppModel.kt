@@ -772,20 +772,23 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         scanError = null
         val t0 = System.currentTimeMillis()
         thread(name = "import") {
+            var cause: String? = null
+            fun describe(e: Throwable) = "${e.javaClass.simpleName}: ${e.message.orEmpty()}".take(160)
             val result = runCatching {
                 val segments = Capture.hexSegments()
                 if (segments.isEmpty()) return@runCatching ScanError.NOTHING to null
-                val resp = try { Fribbels.getItems(segments) } catch (e: IOException) { return@runCatching ScanError.SERVER to null }
+                val resp = try { Fribbels.getItems(segments) } catch (e: IOException) { cause = describe(e); return@runCatching ScanError.SERVER to null }
                 val r = Fribbels.convert(resp)
                 if (r.items.length() == 0) return@runCatching ScanError.NOTHING to null
                 null to JSONObject().put("items", r.items).put("heroes", r.heroes).toString()
-            }.getOrElse { ScanError.NOTHING to null }
+            }.getOrElse { cause = describe(it); ScanError.NOTHING to null }
             viewModelScope.launch {
                 scanPhase = ScanPhase.IDLE
                 val (err, text) = result
                 if (err != null || text == null) {
                     scanError = err ?: ScanError.NOTHING
-                    lastError = "scan: ${scanError!!.name.lowercase()}"
+                    // the reason goes into bug reports ("last error"), so a failed import can be told apart later
+                    lastError = "scan: ${scanError!!.name.lowercase()}" + (cause?.let { " · $it" } ?: "")
                     saveScanLog()
                     return@launch
                 }
