@@ -149,11 +149,15 @@ internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.R
         Text(if (pct < 1) String.format(java.util.Locale.US, "%.2g%%", pct) else "${fmtNum(pct)}%", style = dela(30.sp, C.blue))
         if (kotlin.math.abs(pct - 1.0) < 1e-9) Text("default", style = zen(12.sp, color = C.muted), modifier = Modifier.padding(bottom = 6.dp))
     }
-    androidx.compose.material3.Slider(value = index.toFloat(), onValueChange = { index = it.toInt().coerceIn(ts.indices) }, onValueChangeFinished = { commit(ts[index] * 100) },
-        valueRange = 0f..(ts.size - 1).toFloat(), steps = (ts.size - 2).coerceAtLeast(0),
-        colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = C.pink, activeTrackColor = C.pink, inactiveTrackColor = C.line,
-            activeTickColor = androidx.compose.ui.graphics.Color.Transparent, inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent),
-        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Keep-rolling chance" })
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        StepButton("–", "Keep rolling more", index > 0) { index -= 1; commit(ts[index] * 100) }
+        androidx.compose.material3.Slider(value = index.toFloat(), onValueChange = { index = it.toInt().coerceIn(ts.indices) }, onValueChangeFinished = { commit(ts[index] * 100) },
+            valueRange = 0f..(ts.size - 1).toFloat(), steps = (ts.size - 2).coerceAtLeast(0),
+            colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = C.pink, activeTrackColor = C.pink, inactiveTrackColor = C.line,
+                activeTickColor = androidx.compose.ui.graphics.Color.Transparent, inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent),
+            modifier = Modifier.weight(1f).semantics { contentDescription = "Keep-rolling chance" })
+        StepButton("+", "Stop sooner", index < ts.lastIndex) { index += 1; commit(ts[index] * 100) }
+    }
     Row(Modifier.fillMaxWidth()) {
         Text("keep rolling more", style = zen(10.sp, color = C.muted), modifier = Modifier.weight(1f))
         Text("stop sooner", style = zen(10.sp, color = C.muted))
@@ -195,10 +199,25 @@ internal fun ValueSlider(label: String, icon: @Composable () -> Unit, value: Dou
             icon(); Text(label, style = zen(13.sp), modifier = Modifier.weight(1f)); Text(text(v), style = dela(15.sp, C.blue))
         }
         val n = ((max - min) / step).toInt().coerceAtLeast(1)
-        androidx.compose.material3.Slider(value = v.toFloat(), onValueChange = { v = (min + kotlin.math.round((it - min) / step) * step).coerceIn(min, max) },
-            onValueChangeFinished = { commit(v) }, valueRange = min.toFloat()..max.toFloat(), steps = if (n <= 200) n - 1 else 0,
-            colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = C.pink, activeTrackColor = C.pink, inactiveTrackColor = C.line,
-                activeTickColor = androidx.compose.ui.graphics.Color.Transparent, inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent),
-            modifier = Modifier.fillMaxWidth().height(32.dp).semantics { contentDescription = label })
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StepButton("–", "$label lower", v > min) { v = (v - step).coerceIn(min, max); commit(v) }
+            androidx.compose.material3.Slider(value = v.toFloat(), onValueChange = { v = (min + kotlin.math.round((it - min) / step) * step).coerceIn(min, max) },
+                onValueChangeFinished = { commit(v) }, valueRange = min.toFloat()..max.toFloat(), steps = if (n <= 200) n - 1 else 0,
+                colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = C.pink, activeTrackColor = C.pink, inactiveTrackColor = C.line,
+                    activeTickColor = androidx.compose.ui.graphics.Color.Transparent, inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent),
+                modifier = Modifier.weight(1f).height(32.dp).semantics { contentDescription = label })
+            StepButton("+", "$label higher", v < max) { v = (v + step).coerceIn(min, max); commit(v) }
+        }
+    }
+}
+
+/** A small raised square that moves a slider by exactly one step. */
+@Composable
+private fun StepButton(text: String, label: String, enabled: Boolean, click: () -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    Box(Modifier.size(36.dp).then(if (enabled) Modifier.hardShadow(C.shadow, 0.dp, 2.dp, 10.dp) else Modifier).clip(shape)
+        .background(if (enabled) C.card else C.paper).border(1.5.dp, if (enabled) C.edge else C.line, shape).tap(if (enabled) click else null)
+        .semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
+        Text(text, style = dela(16.sp, if (enabled) C.ink else C.faint))
     }
 }
