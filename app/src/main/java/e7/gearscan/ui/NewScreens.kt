@@ -189,11 +189,12 @@ fun KnownIssuesCard(issues: List<e7.gearscan.data.KnownIssue>, startOpen: Boolea
     var all by remember { mutableStateOf(false) }
     Card(radius = 14.dp, border = 2.dp, shadowOffset = 3.dp) {
         Row(Modifier.fillMaxWidth().tap { open = !open }, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Already known", style = dela(15.sp).pinkShadow(2.5f))
+            // Dela's tall ascent makes centre alignment put the badge visibly high; baselines line the digits up with the title
+            Text("Already known", style = dela(15.sp).pinkShadow(2.5f), modifier = Modifier.alignByBaseline())
             Text("${issues.size}", maxLines = 1, softWrap = false, style = zen(11.sp, FontWeight.Black, C.card),
-                modifier = Modifier.clip(RoundedCornerShape(50)).background(C.ink).padding(horizontal = 7.dp))
+                modifier = Modifier.alignByBaseline().clip(RoundedCornerShape(50)).background(C.ink).padding(horizontal = 7.dp))
             Box(Modifier.weight(1f))
-            Text(if (open) "Hide" else "Show", style = zen(12.sp, FontWeight.Bold, C.muted))
+            Text(if (open) "Hide" else "Show", style = zen(12.sp, FontWeight.Bold, C.muted), modifier = Modifier.alignByBaseline())
             Text("›", style = dela(16.sp, C.muted), modifier = Modifier.rotate(if (open) -90f else 90f))
         }
         if (!open) return@Card
