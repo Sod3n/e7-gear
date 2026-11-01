@@ -139,50 +139,18 @@ internal fun KeptRow(label: String, good: Int, of: Int, total: String, extra: St
     }
 }
 
-/** Stop-rule test on a real inventory (gear_cleanup/stop_rules, sweep_p50): keep-rolling chance %, good pieces kept, full +0->+15 enhances spent. */
-internal object KeepCurve {
-    const val POSSIBLE = 85.3
-    const val ALL_COST = 846.1
-    val points: List<Triple<Double, Double, Double>> = listOf(
-        Triple(0.05, 85.24, 206.5),
-        Triple(0.1, 85.22, 204.2),
-        Triple(0.2, 85.17, 201.4),
-        Triple(0.3, 85.07, 197.8),
-        Triple(0.5, 84.91, 193.0),
-        Triple(0.75, 84.68, 188.5),
-        Triple(1.0, 84.34, 182.5),
-        Triple(1.5, 83.46, 170.4),
-        Triple(2.0, 82.96, 165.0),
-        Triple(3.0, 81.93, 156.8),
-        Triple(4.0, 80.52, 146.6),
-        Triple(5.0, 79.39, 139.3),
-        Triple(6.5, 77.30, 127.3),
-        Triple(8.0, 75.65, 120.4),
-        Triple(10.0, 73.69, 112.8),
-        Triple(12.5, 70.44, 101.3),
-        Triple(15.0, 68.07, 94.1),
-        Triple(20.0, 63.92, 83.4),
-        Triple(25.0, 58.77, 71.8),
-        Triple(30.0, 53.86, 61.8),
-        Triple(40.0, 48.01, 52.0),
-        Triple(50.0, 43.57, 45.5),
-    )
-}
-
 @Composable
-internal fun KeepRollingSlider(value: Double, commit: (Double) -> Unit) {
-    val pts = KeepCurve.points
-    var index by remember(value) { mutableIntStateOf(pts.indices.minByOrNull { kotlin.math.abs(kotlin.math.ln(pts[it].first / value.coerceAtLeast(1e-4))) } ?: 0) }
-    val (pct, good, cost) = pts[index]
-    val stricter = pts.getOrNull(index + 1)
-    val extra = stricter?.let { (cost - it.third) / (good - it.second).coerceAtLeast(1e-6) }
+internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.Result?, busy: Boolean, commit: (Double) -> Unit) {
+    val ts = e7.gearscan.opt.KeepCurve.THRESHOLDS
+    var index by remember(value) { mutableIntStateOf(ts.indices.minByOrNull { kotlin.math.abs(kotlin.math.ln(ts[it] * 100 / value.coerceAtLeast(1e-4))) } ?: 0) }
+    val pct = ts[index] * 100
     Text("Keep enhancing while a piece's chance to reach your ES bar is at least", style = zen(13.sp))
     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(if (pct < 1) String.format(java.util.Locale.US, "%.2g%%", pct) else "${fmtNum(pct)}%", style = dela(30.sp, C.blue))
         if (kotlin.math.abs(pct - 1.0) < 1e-9) Text("default", style = zen(12.sp, color = C.muted), modifier = Modifier.padding(bottom = 6.dp))
     }
-    androidx.compose.material3.Slider(value = index.toFloat(), onValueChange = { index = it.toInt().coerceIn(pts.indices) }, onValueChangeFinished = { commit(pts[index].first) },
-        valueRange = 0f..(pts.size - 1).toFloat(), steps = (pts.size - 2).coerceAtLeast(0),
+    androidx.compose.material3.Slider(value = index.toFloat(), onValueChange = { index = it.toInt().coerceIn(ts.indices) }, onValueChangeFinished = { commit(ts[index] * 100) },
+        valueRange = 0f..(ts.size - 1).toFloat(), steps = (ts.size - 2).coerceAtLeast(0),
         colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = C.pink, activeTrackColor = C.pink, inactiveTrackColor = C.line,
             activeTickColor = androidx.compose.ui.graphics.Color.Transparent, inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent),
         modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Keep-rolling chance" })
@@ -190,10 +158,18 @@ internal fun KeepRollingSlider(value: Double, commit: (Double) -> Unit) {
         Text("keep rolling more", style = zen(10.sp, color = C.muted), modifier = Modifier.weight(1f))
         Text("stop sooner", style = zen(10.sp, color = C.muted))
     }
+    // same height whether the numbers are in or not, so nothing below moves
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        StatTile("Good pieces kept", "${good.toInt()} of ${KeepCurve.POSSIBLE.toInt()}", (good / KeepCurve.POSSIBLE).toFloat(), C.blue, Modifier.weight(1f))
-        StatTile("Total gold", EsForecast.goldText(cost * EsForecast.FULL_GOLD), (cost / KeepCurve.ALL_COST).toFloat(), C.deepPink, Modifier.weight(1f))
-        StatTile("Each extra piece", extra?.let { EsForecast.goldText(it * EsForecast.FULL_GOLD) } ?: "—", null, C.ink, Modifier.weight(1f))
+        if (curve == null) {
+            val t = if (busy) "Working out your numbers…" else "Your numbers appear after Find matches"
+            StatTile(t, " ", null, C.muted, Modifier.weight(1f))
+        } else {
+            val good = curve.good[index]; val gold = curve.gold[index]
+            val extra = if (index + 1 < ts.size) (gold - curve.gold[index + 1]) / (good - curve.good[index + 1]).coerceAtLeast(1e-6) else null
+            StatTile("Good pieces kept", "${kotlin.math.round(good).toInt()} of ${kotlin.math.round(curve.possible).toInt()}", (good / curve.possible.coerceAtLeast(1e-9)).toFloat(), C.blue, Modifier.weight(1f))
+            StatTile("Total gold", EsForecast.goldText(gold), (gold / curve.allGold.coerceAtLeast(1.0)).toFloat(), C.deepPink, Modifier.weight(1f))
+            StatTile("Each extra piece", extra?.takeIf { it.isFinite() && good - curve.good[index + 1] > 1e-3 }?.let { EsForecast.goldText(it) } ?: "—", null, C.ink, Modifier.weight(1f))
+        }
     }
 }
 

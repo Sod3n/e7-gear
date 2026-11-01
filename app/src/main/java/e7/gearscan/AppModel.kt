@@ -1062,6 +1062,20 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var sellQuery by mutableStateOf(e7.gearscan.data.SellQuery()); private set
     var sellResult: e7.gearscan.opt.SellSearch.Result? by mutableStateOf(null); private set
     var sellBusy by mutableStateOf(false); private set
+    /** Keep-rolling curve on the current review list, for the When to keep rolling tiles. */
+    var sellCurve: e7.gearscan.opt.KeepCurve.Result? by mutableStateOf(null); private set
+    var sellCurveBusy by mutableStateOf(false); private set
+    private fun computeSellCurve(result:e7.gearscan.opt.SellSearch.Result) {
+        val b=box?:return;val ctx=sellContext(result.query)?:return
+        val items=result.matches.filter { it.item.enhance<15&&it.item.id !in reviewedIds }.map { it.item }
+        val bars=Slot.entries.mapNotNull { s->ctx.esBar(s)?.let { s to it } }.toMap();val ref=result.query.reforge
+        sellCurve=null;sellCurveBusy=true
+        viewModelScope.launch {
+            val c=withContext(Dispatchers.Default) { runCatching { e7.gearscan.opt.KeepCurve.run(items,bars,{ ref&&b.canReforge(it.id) }) }.getOrNull() }
+            if(sellResult===result) { sellCurve=c;android.util.Log.i("E7Sell","keep curve: ${c?.pieces} pieces in ${c?.millis} ms") }
+            sellCurveBusy=false
+        }
+    }
     var sellDone by mutableIntStateOf(0); private set
     var sellTotal by mutableIntStateOf(0); private set
     var sellError: String? by mutableStateOf(null); private set
@@ -1131,7 +1145,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                         }
                     }
                 }
-                if(sellGeneration==generation) { sellResult=result;appliedSellKey=key;android.util.Log.i("E7Sell","${result.rows.size} checked, ${result.matches.size} matches, ${result.unknown} unknown, ${result.seconds}s") }
+                if(sellGeneration==generation) { sellResult=result;appliedSellKey=key;computeSellCurve(result);android.util.Log.i("E7Sell","${result.rows.size} checked, ${result.matches.size} matches, ${result.unknown} unknown, ${result.seconds}s") }
             }catch(e:kotlinx.coroutines.CancellationException) { throw e }
             catch(e:Exception) { if(sellGeneration==generation)sellError="The check stopped. Completed pieces are saved; tap Find matches to continue." }
             finally { if(sellGeneration==generation) { sellBusy=false;PoolService.stop(getApplication()) } }
@@ -2306,7 +2320,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }.getOrDefault(false)
 
     fun eraseAll() {
-        stopSellSearch();sellResult=null;sellQuery=e7.gearscan.data.SellQuery();appliedSellKey=null
+        stopSellSearch();sellResult=null;sellCurve=null;sellQuery=e7.gearscan.data.SellQuery();appliedSellKey=null
         File(files,"sell_progress.jsonl").delete()
         if (e7.gearscan.overlay.OverlayState.upgrade != null) e7.gearscan.overlay.OverlayService.stop(getApplication())
         if (upgrades.busy) { upgrades.generation++; upgrades.busy = false; PoolService.stop(getApplication()) }
@@ -2397,7 +2411,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         if (j.has("lastPoolAt")) lastPool = j.getLong("lastPoolAt") to j.getInt("lastPoolScore")
         cleanup = j.optJSONObject("cleanup")?.let { cleanupOf(it, l.box) }
         inventoryAscending = j.optBoolean("inventoryAscending", true); inventoryBagOnly = j.optBoolean("inventoryBagOnly", false)
-        stopSellSearch();sellResult=null;appliedSellKey=null
+        stopSellSearch();sellResult=null;sellCurve=null;appliedSellKey=null
         sellQuery=j.optJSONObject("sellQuery")?.let { runCatching { e7.gearscan.data.SellQuery.of(it) }.getOrNull() }?:e7.gearscan.data.SellQuery()
         potentialQuery = j.optJSONObject("potentialQuery")?.let { runCatching { e7.gearscan.data.PotentialQuery.of(it) }.getOrNull() } ?: e7.gearscan.data.PotentialQuery()
         potentialGeneration++; potentialJob?.cancel(); potentialBusy = false; potentialResult = null; potentialError = null

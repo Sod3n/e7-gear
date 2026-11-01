@@ -354,7 +354,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 OutlineButton("Reset all Sell review settings",Modifier.fillMaxWidth(),height=40.dp) { update(SellQuery()) }
             }
             SheetKind.SELL_WORTH->{
-                KeepRollingSlider(q.rollOn) { update(q.copy(rollOn=it)) }
+                KeepRollingSlider(q.rollOn,model.sellCurve,model.sellCurveBusy) { update(q.copy(rollOn=it)) }
                 SellToggle("Count reforging",q.reforge) { update(q.copy(reforge=it)) }
                 SectionTitle("ES bar")
                 val auto=model.sellAutoEsBars()

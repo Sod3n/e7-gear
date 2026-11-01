@@ -78,6 +78,8 @@ class GalleryScreens {
         ui { m.go(Screen.SellFilters) }
         ui { m.findSellGear() }
         rule.waitUntil(240_000) { !m.sellBusy }
+        rule.waitUntil(120_000) { !m.sellCurveBusy && m.sellCurve != null }
+        android.util.Log.i("E7Gallery", "keep curve ${m.sellCurve?.pieces} pieces in ${m.sellCurve?.millis} ms")
         ui { m.tab(Screen.Gear) }; shot("gear-01-home")
         ui { m.tab(Screen.ScanData) }; shot("gear-02-scan-data")
         ui { m.tab(Screen.ScanResult) }; shot("gear-03-imported")
