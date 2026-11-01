@@ -221,12 +221,13 @@ private fun SafeguardReason(guard:RollReview.Safeguard,active:Boolean) {
 @Composable
 fun SellFiltersScreen(model:AppModel) {
     val q=model.sellQuery;val result=model.sellResult
-    var tab by remember { mutableIntStateOf(if(result==null)0 else 1) }
+    var tab by model::sellTab
     var count by remember(result) { mutableIntStateOf(20) }
     var category by remember(result) { mutableIntStateOf(0) }
     // only the main button moves to Matches; Show my numbers in a sheet keeps the player on Set up
     var jump by remember { mutableStateOf(false) }
     LaunchedEffect(result) { if(result!=null&&jump) { tab=1;jump=false } }
+    LaunchedEffect(result==null) { if(result==null)tab=0 }
     Frame(null,null,actions={
         if(model.sellBusy)OutlineButton("Stop",Modifier.weight(1f)) { model.stopSellSearch() }
         else if(tab==1&&result!=null&&result.matches.any { it.item.id !in model.reviewedIds }&&model.sellFresh&&category==0) {

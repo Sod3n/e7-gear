@@ -1067,6 +1067,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var sellQuery by mutableStateOf(e7.gearscan.data.SellQuery()); private set
     var sellResult: e7.gearscan.opt.SellSearch.Result? by mutableStateOf(null); private set
     var sellBusy by mutableStateOf(false); private set
+    /** Sell review tab (0 Set up, 1 Matches); lives here so a trip to Kept pieces and back keeps it. */
+    var sellTab by mutableIntStateOf(0)
     /** Keep-rolling curve on the current review list, for the When to keep rolling tiles. */
     var sellCurve: e7.gearscan.opt.KeepCurve.Result? by mutableStateOf(null); private set
     var sellCurveBusy by mutableStateOf(false); private set

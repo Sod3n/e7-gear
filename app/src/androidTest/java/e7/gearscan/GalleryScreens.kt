@@ -87,6 +87,8 @@ class GalleryScreens {
         for (theme in only.split(",")) {
             dark = theme == "dark"; ui { Themes.set(ctx, dark); overlay = false; m.sheet = null; if (m.screen != Screen.SellFilters) { m.tab(Screen.Gear); m.go(Screen.SellFilters) } }
             tap("Set up"); shot("sell-01-setup")
+            ui { m.go(Screen.SellKept) }; ui { m.back() }
+            check(m.sellTab == 0) { "back from Kept pieces left Set up" }; rule.onAllNodesWithText("Worth rolling").onFirst().assertExists()
             tap("Matches"); shot("sell-02-list")
             scrollDown(); shot("sell-03-list-more")
             val first = m.sellResult?.matches?.firstOrNull { it.item.id !in m.reviewedIds }
