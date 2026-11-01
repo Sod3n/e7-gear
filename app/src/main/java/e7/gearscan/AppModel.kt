@@ -235,6 +235,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var captureConns by mutableIntStateOf(0)
     var captureBytes by mutableStateOf(0L)
     var returnedEarly by mutableStateOf(false)
+    /** Ticks every second while capturing, so "no login seen" appears even when nothing new arrives. */
+    var captureElapsed by mutableStateOf(0L)
+    val scanStep get() = e7.gearscan.data.ScanStatus.of(captureConns, captureBytes, captureElapsed)
 
     var lastError: String? by mutableStateOf(null)
     var overlaySeen by mutableStateOf(false)
@@ -758,6 +761,23 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun openGameSettings() {
         val app = getApplication<Application>()
         game?.let { g -> app.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", g, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
+
+    /** Mid-scan restart: the capture keeps running; the player force-stops the game and opens it again. */
+    fun restartGameDuringScan() {
+        val app = getApplication<Application>()
+        captureStarted = System.currentTimeMillis()
+        captureElapsed = 0L
+        app.startService(Intent(app, TProxyService::class.java).setAction(TProxyService.ACTION_RESET_CLOCK))
+        openGameSettings()
+    }
+
+    val pillAllowed get() = android.provider.Settings.canDrawOverlays(getApplication())
+
+    fun allowPill() {
+        val app = getApplication<Application>()
+        app.startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + app.packageName))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     fun openGame() {
@@ -2464,8 +2484,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             while (true) {
                 captureConns = Capture.count()
                 captureBytes = Capture.totalBytes()
+                captureElapsed = if (scanPhase == ScanPhase.CAPTURING) System.currentTimeMillis() - captureStarted else 0L
                 // the VPN can end without us (revoked by another VPN, service killed)
-                if (scanPhase == ScanPhase.CAPTURING && !TProxyService.running && System.currentTimeMillis() - captureStarted > 5000) {
+                if (scanPhase == ScanPhase.CAPTURING && !Capture.vpnRunning && System.currentTimeMillis() - captureStarted > 5000) {
                     scanPhase = ScanPhase.IDLE
                     if (captureBytes == 0L) scanError = ScanError.NOTHING
                 }
