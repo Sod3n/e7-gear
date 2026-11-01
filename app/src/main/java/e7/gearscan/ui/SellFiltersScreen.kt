@@ -375,7 +375,10 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                         Toggle(on) { v->update(q.copy(keepStats=if(v)q.keepStats+(stat to (SellQuery.DEFAULT_GUARDS[stat]?:bound.minimum)) else q.keepStats-stat)) }
                     }
                 }
-                OutlineButton("Reset to defaults",Modifier.fillMaxWidth(),height=40.dp,enabled=q.keepStats!=SellQuery.DEFAULT_GUARDS||q.keepChance!=1.0) { update(q.copy(keepStats=SellQuery.DEFAULT_GUARDS,keepChance=1.0)) }
+                Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                    OutlineButton("Turn all off",Modifier.weight(1f),height=40.dp,enabled=q.keepStats.isNotEmpty()) { update(q.copy(keepStats=emptyMap())) }
+                    OutlineButton("Reset to defaults",Modifier.weight(1f),height=40.dp,enabled=q.keepStats!=SellQuery.DEFAULT_GUARDS||q.keepChance!=1.0) { update(q.copy(keepStats=SellQuery.DEFAULT_GUARDS,keepChance=1.0)) }
+                }
             }
             SheetKind.SELL_SCORE->ScoringControls(model)
             SheetKind.SELL_WEIGHTS->{
