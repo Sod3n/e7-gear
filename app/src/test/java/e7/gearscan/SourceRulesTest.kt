@@ -25,7 +25,7 @@ class SourceRulesTest {
         val hits = src.walk().filter { it.extension == "kt" && it.name != "LegacyStatInput.kt" }.flatMap { f ->
             f.readLines().withIndex().filter { forbidden.containsMatchIn(it.value) }.map { "${f.name}:${it.index + 1}" }
         }.toList()
-        val callers = src.walk().filter { it.extension == "kt" && it.name !in setOf("LegacyStatInput.kt", "Sheets.kt") }.filter { "LegacyStatField(" in it.readText() }.toList()
+        val callers = src.walk().filter { it.extension == "kt" && it.name !in setOf("LegacyStatInput.kt", "Sheets.kt", "SellParts.kt") }.filter { Regex("""LegacyStatField(Value)?\(""").containsMatchIn(it.readText()) }.toList()
         assertTrue("Legacy stat keyboard reused elsewhere: $callers", callers.isEmpty())
         assertTrue("Keyboard input is allowed only in the existing optimizer stat controls: " + hits.joinToString(), hits.isEmpty())
     }

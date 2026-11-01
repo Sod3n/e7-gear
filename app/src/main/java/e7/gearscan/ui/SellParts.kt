@@ -5,6 +5,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.*
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -107,8 +111,8 @@ internal fun SharePair(label: String, found: Float, cost: Float, best: Boolean) 
     Row(Modifier.fillMaxWidth().clip(shape).background(if (best) C.lightPink else C.card).border(if (best) 2.dp else 1.dp, if (best) C.edge else C.line, shape)
         .padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(label, style = if (best) dela(13.sp) else zen(12.sp), modifier = Modifier.width(56.dp))
-        ShareBar(found, C.blue, Modifier.weight(1f))
-        ShareBar(cost, C.deepPink, Modifier.weight(1f))
+        ShareBar(found, C.blue, Modifier.weight(1f).fillMaxHeight())
+        ShareBar(cost, C.deepPink, Modifier.weight(1f).fillMaxHeight())
     }
 }
 
@@ -140,39 +144,40 @@ internal fun KeptRow(label: String, good: Int, of: Int, total: String, extra: St
 }
 
 @Composable
-internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.Result?, busy: Boolean, commit: (Double) -> Unit) {
+internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.Result?, busy: Boolean, find: () -> Unit, commit: (Double) -> Unit) {
     val ts = e7.gearscan.opt.KeepCurve.THRESHOLDS
     var index by remember(value) { mutableIntStateOf(ts.indices.minByOrNull { kotlin.math.abs(kotlin.math.ln(ts[it] * 100 / value.coerceAtLeast(1e-4))) } ?: 0) }
     val pct = ts[index] * 100
     Text("Keep enhancing while a piece's chance to reach your ES bar is at least", style = zen(13.sp))
+    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val active = source.collectIsDraggedAsState().value || source.collectIsPressedAsState().value
+    fun nearest(p: Double) = ts.indices.minByOrNull { kotlin.math.abs(kotlin.math.ln(ts[it] * 100 / p.coerceAtLeast(1e-4))) } ?: 0
     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(if (pct < 1) String.format(java.util.Locale.US, "%.2g%%", pct) else "${fmtNum(pct)}%", style = dela(30.sp, C.blue))
+        TypedNumber(if (pct < 1) String.format(java.util.Locale.US, "%.2g%%", pct) else "${fmtNum(pct)}%", pct, active, 30) { p -> index = nearest(p); commit(ts[index] * 100) }
         if (kotlin.math.abs(pct - 1.0) < 1e-9) Text("default", style = zen(12.sp, color = C.muted), modifier = Modifier.padding(bottom = 6.dp))
     }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        StepButton("–", "Keep rolling more", index > 0) { index -= 1; commit(ts[index] * 100) }
-        androidx.compose.material3.Slider(value = index.toFloat(), onValueChange = { index = it.toInt().coerceIn(ts.indices) }, onValueChangeFinished = { commit(ts[index] * 100) },
-            valueRange = 0f..(ts.size - 1).toFloat(), steps = (ts.size - 2).coerceAtLeast(0),
-            colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = C.pink, activeTrackColor = C.pink, inactiveTrackColor = C.line,
-                activeTickColor = androidx.compose.ui.graphics.Color.Transparent, inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent),
-            modifier = Modifier.weight(1f).semantics { contentDescription = "Keep-rolling chance" })
-        StepButton("+", "Stop sooner", index < ts.lastIndex) { index += 1; commit(ts[index] * 100) }
+    Row(Modifier.clip(RoundedCornerShape(12.dp)).background(if (active) C.lightPink else androidx.compose.ui.graphics.Color.Transparent).padding(4.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SliderTrack(index.toFloat(), { index = it.toInt().coerceIn(ts.indices) }, { commit(ts[index] * 100) }, 0f..(ts.size - 1).toFloat(), (ts.size - 2).coerceAtLeast(0),
+            source, active, "Keep-rolling chance", Modifier.weight(1f))
     }
     Row(Modifier.fillMaxWidth()) {
         Text("keep rolling more", style = zen(10.sp, color = C.muted), modifier = Modifier.weight(1f))
         Text("stop sooner", style = zen(10.sp, color = C.muted))
     }
     // same height whether the numbers are in or not, so nothing below moves
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth().height(84.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (curve == null) {
-            val t = if (busy) "Working out your numbers…" else "Your numbers appear after Find matches"
-            StatTile(t, " ", null, C.muted, Modifier.weight(1f))
+            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                if (busy) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { Spinner(); Text("Working…", style = zen(13.sp, color = C.muted)) }
+                else OutlineButton("Show my numbers", Modifier.fillMaxWidth(), height = 52.dp, onClick = find)
+            }
         } else {
             val good = curve.good[index]; val gold = curve.gold[index]
             val extra = if (index + 1 < ts.size) (gold - curve.gold[index + 1]) / (good - curve.good[index + 1]).coerceAtLeast(1e-6) else null
-            StatTile("Good pieces kept", "${kotlin.math.round(good).toInt()} of ${kotlin.math.round(curve.possible).toInt()}", (good / curve.possible.coerceAtLeast(1e-9)).toFloat(), C.blue, Modifier.weight(1f))
-            StatTile("Total gold", EsForecast.goldText(gold), (gold / curve.allGold.coerceAtLeast(1.0)).toFloat(), C.deepPink, Modifier.weight(1f))
-            StatTile("Each extra piece", extra?.takeIf { it.isFinite() && good - curve.good[index + 1] > 1e-3 }?.let { EsForecast.goldText(it) } ?: "—", null, C.ink, Modifier.weight(1f))
+            StatTile("Good pieces kept", "${kotlin.math.round(good).toInt()} of ${kotlin.math.round(curve.possible).toInt()}", (good / curve.possible.coerceAtLeast(1e-9)).toFloat(), C.blue, Modifier.weight(1f).fillMaxHeight())
+            StatTile("Total gold", EsForecast.goldText(gold), (gold / curve.allGold.coerceAtLeast(1.0)).toFloat(), C.deepPink, Modifier.weight(1f).fillMaxHeight())
+            StatTile("Each extra piece", extra?.takeIf { it.isFinite() && good - curve.good[index + 1] > 1e-3 }?.let { EsForecast.goldText(it) } ?: "—", null, C.ink, Modifier.weight(1f).fillMaxHeight())
         }
     }
 }
@@ -190,34 +195,57 @@ private fun StatTile(label: String, value: String, fill: Float?, color: androidx
     }
 }
 
-/** Label, live value and a slider; the value is saved when the finger lifts. */
+/** Label, live value and a slider; saved when the finger lifts. The row lights up while dragging; tap the value to type it. */
 @Composable
 internal fun ValueSlider(label: String, icon: @Composable () -> Unit, value: Double, min: Double, max: Double, step: Double, text: (Double) -> String, commit: (Double) -> Unit) {
     var v by remember(value) { mutableStateOf(value.coerceIn(min, max)) }
-    Column(Modifier.fillMaxWidth()) {
+    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val active = source.collectIsDraggedAsState().value || source.collectIsPressedAsState().value
+    fun snap(x: Double) = (min + kotlin.math.round((x - min) / step) * step).coerceIn(min, max)
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (active) C.lightPink else androidx.compose.ui.graphics.Color.Transparent).padding(horizontal = 6.dp, vertical = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            icon(); Text(label, style = zen(13.sp), modifier = Modifier.weight(1f)); Text(text(v), style = dela(15.sp, C.blue))
+            icon(); Text(label, style = zen(13.sp), modifier = Modifier.weight(1f))
+            TypedNumber(text(v), v, active) { typed -> v = snap(typed); commit(v) }
         }
         val n = ((max - min) / step).toInt().coerceAtLeast(1)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StepButton("–", "$label lower", v > min) { v = (v - step).coerceIn(min, max); commit(v) }
-            androidx.compose.material3.Slider(value = v.toFloat(), onValueChange = { v = (min + kotlin.math.round((it - min) / step) * step).coerceIn(min, max) },
-                onValueChangeFinished = { commit(v) }, valueRange = min.toFloat()..max.toFloat(), steps = if (n <= 200) n - 1 else 0,
-                colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = C.pink, activeTrackColor = C.pink, inactiveTrackColor = C.line,
-                    activeTickColor = androidx.compose.ui.graphics.Color.Transparent, inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent),
-                modifier = Modifier.weight(1f).height(32.dp).semantics { contentDescription = label })
-            StepButton("+", "$label higher", v < max) { v = (v + step).coerceIn(min, max); commit(v) }
+            SliderTrack(v.toFloat(), { v = snap(it.toDouble()) }, { commit(v) }, min.toFloat()..max.toFloat(), if (n <= 200) n - 1 else 0, source, active, label, Modifier.weight(1f))
         }
     }
 }
 
-/** A small raised square that moves a slider by exactly one step. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun StepButton(text: String, label: String, enabled: Boolean, click: () -> Unit) {
-    val shape = RoundedCornerShape(10.dp)
-    Box(Modifier.size(36.dp).then(if (enabled) Modifier.hardShadow(C.shadow, 0.dp, 2.dp, 10.dp) else Modifier).clip(shape)
-        .background(if (enabled) C.card else C.paper).border(1.5.dp, if (enabled) C.edge else C.line, shape).tap(if (enabled) click else null)
-        .semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
-        Text(text, style = dela(16.sp, if (enabled) C.ink else C.faint))
-    }
+internal fun SliderTrack(value: Float, change: (Float) -> Unit, done: () -> Unit, range: ClosedFloatingPointRange<Float>, steps: Int,
+                         source: androidx.compose.foundation.interaction.MutableInteractionSource, active: Boolean, label: String, modifier: Modifier) {
+    val colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = C.pink, activeTrackColor = C.pink, inactiveTrackColor = C.line,
+        activeTickColor = androidx.compose.ui.graphics.Color.Transparent, inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent)
+    androidx.compose.material3.Slider(value = value, onValueChange = change, onValueChangeFinished = done, valueRange = range, steps = steps,
+        interactionSource = source, colors = colors,
+        thumb = { androidx.compose.material3.SliderDefaults.Thumb(source, colors = colors, thumbSize = if (active) androidx.compose.ui.unit.DpSize(8.dp, 52.dp) else androidx.compose.ui.unit.DpSize(4.dp, 44.dp)) },
+        modifier = modifier.height(48.dp).semantics { contentDescription = label })
 }
+
+/** The value; tapping it opens the number keyboard, Done or leaving the field applies it. */
+@Composable
+internal fun TypedNumber(shown: String, value: Double, active: Boolean, size: Int = 15, apply: (Double) -> Unit) {
+    var editing by remember { mutableStateOf(false) }
+    if (!editing) {
+        Text(shown, style = dela(if (active) (size + 5).sp else size.sp, if (active) C.deepPink else C.blue),
+            modifier = Modifier.tap { editing = true }.semantics { contentDescription = "Type a value" })
+        return
+    }
+    val plain = if (value == kotlin.math.floor(value)) value.toLong().toString() else fmtNum(value)
+    var typed by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(plain, androidx.compose.ui.text.TextRange(0, plain.length))) }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    var focused by remember { mutableStateOf(false) }
+    fun finish() { typed.text.replace(',', '.').toDoubleOrNull()?.let(apply); editing = false }
+    val shape = RoundedCornerShape(8.dp)
+    LegacyStatFieldValue(typed, { typed = it }, dela(size.sp, C.deepPink),
+        androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+        androidx.compose.foundation.text.KeyboardActions(onDone = { finish() }),
+        Modifier.width(84.dp).clip(shape).background(C.field).border(1.5.dp, C.edge, shape).padding(horizontal = 8.dp, vertical = 4.dp)
+            .focusRequester(focus).onFocusChanged { if (focused && !it.isFocused) finish(); focused = it.isFocused })
+    LaunchedEffect(Unit) { focus.requestFocus() }
+}
+

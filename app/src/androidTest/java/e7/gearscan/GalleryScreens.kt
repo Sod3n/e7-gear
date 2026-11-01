@@ -75,7 +75,7 @@ class GalleryScreens {
         }
         dir.mkdirs(); dir.listFiles()?.filter { it.name.startsWith("sell") || it.name.startsWith("gear") }?.forEach { it.delete() }
         ui { m.tab(Screen.Gear) }; shot("gear-00-home-before")
-        ui { m.go(Screen.SellFilters) }
+        ui { m.go(Screen.SellFilters); m.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; shot("sell-00-worth-before"); ui { m.sheet = null }
         ui { m.findSellGear() }
         rule.waitUntil(240_000) { !m.sellBusy }
         rule.waitUntil(120_000) { !m.sellCurveBusy && m.sellCurve != null }
@@ -92,6 +92,10 @@ class GalleryScreens {
             val first = m.sellResult?.matches?.firstOrNull { it.item.id !in m.reviewedIds }
             if (first != null) { ui { m.sheet = Sheet(SheetKind.SELL_DETAILS, first.item.id) }; shot("sell-04-details"); ui { m.sheet = null } }
             ui { m.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; shot("sell-05-worth-rolling")
+            rule.onNodeWithContentDescription("Keep-rolling chance").performTouchInput { down(center); moveBy(androidx.compose.ui.geometry.Offset(40f, 0f)); moveBy(androidx.compose.ui.geometry.Offset(40f, 0f)) }; rule.mainClock.advanceTimeBy(300); shot("sell-05e-dragging")
+            rule.onNodeWithContentDescription("Keep-rolling chance").performTouchInput { up() }; rule.waitForIdle()
+            rule.onAllNodesWithContentDescription("Type a value")[1].performClick(); rule.waitForIdle(); shot("sell-05f-typing")
+            ui { m.sheet = null }; ui { m.sheet = Sheet(SheetKind.SELL_WORTH, 0) }
             ui { m.updateSellQuery(m.sellQuery.copy(rollOn = 10.0)); m.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; shot("sell-05c-why"); ui { m.updateSellQuery(m.sellQuery.copy(rollOn = 1.0)) }
             ui { m.sheet = Sheet(SheetKind.SELL_INVENTORY, 0) }; shot("sell-05b-gear-to-review")
             ui { m.sheet = Sheet(SheetKind.SELL_SAFEGUARDS, 0) }; shot("sell-05d-safeguards")
