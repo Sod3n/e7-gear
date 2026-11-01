@@ -143,6 +143,8 @@ internal fun KeptRow(label: String, good: Int, of: Int, total: String, extra: St
     }
 }
 
+private const val ESTIMATE = "This is an estimate: an average over all the ways the rolls can go. Your own results will be higher or lower."
+
 @Composable
 internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.Result?, busy: Boolean, find: () -> Unit, explain: (String, String) -> Unit, commit: (Double) -> Unit) {
     val ts = e7.gearscan.opt.KeepCurve.THRESHOLDS
@@ -177,19 +179,21 @@ internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.R
             val extra = if (index + 1 < ts.size) (gold - curve.gold[index + 1]) / (good - curve.good[index + 1]).coerceAtLeast(1e-6) else null
             val at = if (pct < 1) String.format(java.util.Locale.US, "%.2g%%", pct) else "${fmtNum(pct)}%"
             val g = kotlin.math.round(good).toInt(); val all = kotlin.math.round(curve.possible).toInt()
-            val extraText = extra?.takeIf { it.isFinite() && good - curve.good[index + 1] > 1e-3 }?.let { EsForecast.goldText(it) }
-            StatTile("Good pieces kept", "$g of $all", (good / curve.possible.coerceAtLeast(1e-9)).toFloat(), C.blue, Modifier.weight(1f).fillMaxHeight()) {
+            // estimates: shown rounded and with ~ so they never read as exact
+            fun rough(x: Double): String { val m = x / 1e6; return "~" + when { m >= 100 -> "${kotlin.math.round(m).toLong()}M"; m >= 1 -> String.format(java.util.Locale.US, "%.1fM", m); else -> "${kotlin.math.round(x / 1e3).toLong()}k" } }
+            val extraText = extra?.takeIf { it.isFinite() && good - curve.good[index + 1] > 1e-3 }?.let { rough(it) }
+            StatTile("Good pieces kept", "~$g of $all", (good / curve.possible.coerceAtLeast(1e-9)).toFloat(), C.blue, Modifier.weight(1f).fillMaxHeight()) {
                 explain("Good pieces kept", "Pieces from your list (${curve.pieces}) that end at or above your ES bar. If every one were taken to +15, about $all would make it. " +
-                    "At $at, a piece stops after any +3 that leaves it below a $at chance, so about $g still make it. Counted over every way the remaining rolls can land, weighted by how likely each is.")
+                    "At $at, a piece stops after any +3 that leaves it below a $at chance, so about $g still make it. Counted over every way the remaining rolls can land, weighted by how likely each is. " + ESTIMATE)
             }
-            StatTile("Total gold", EsForecast.goldText(gold), (gold / curve.allGold.coerceAtLeast(1.0)).toFloat(), C.deepPink, Modifier.weight(1f).fillMaxHeight()) {
+            StatTile("Total gold", rough(gold), (gold / curve.allGold.coerceAtLeast(1.0)).toFloat(), C.deepPink, Modifier.weight(1f).fillMaxHeight()) {
                 explain("Total gold", "Enhance gold for the pieces in your list, from their current level. Each +3 is paid only while a piece is still being rolled; " +
-                    "it stops once its chance drops below $at. Finishing every piece to +15 would cost ${EsForecast.goldText(curve.allGold)}. " +
-                    "Uses the enhancement-stone price; gold already spent and gold from selling are not counted.")
+                    "it stops once its chance drops below $at. Finishing every piece to +15 would cost ${rough(curve.allGold)}. " +
+                    "Uses the enhancement-stone price; gold already spent and gold from selling are not counted. " + ESTIMATE)
             }
             StatTile("Each extra piece", extraText ?: "—", null, C.ink, Modifier.weight(1f).fillMaxHeight()) {
                 explain("Each extra piece", "What one more good piece costs when you roll a little longer: the gold at $at minus the gold one step stricter on the slider, " +
-                    "divided by how many more good pieces that buys." + (extraText?.let { " Here about $it per piece." } ?: " At the strictest setting there is no step to compare with."))
+                    "divided by how many more good pieces that buys." + (extraText?.let { " Here about $it per piece." } ?: " At the strictest setting there is no step to compare with.") + " " + ESTIMATE)
             }
         }
     }
