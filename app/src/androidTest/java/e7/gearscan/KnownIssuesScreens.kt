@@ -12,6 +12,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import e7.gearscan.ui.App
@@ -48,8 +49,18 @@ class KnownIssuesScreens {
             Thread.sleep(1500)
             rule.waitForIdle()
             rule.onNodeWithText("Already known").assertExists()
-            val b = rule.onRoot().captureToImage().asAndroidBitmap()
-            File(dir, (if (dark) "dark" else "light") + "-feedback.png").outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            rule.onNodeWithText("Example: fixed lately").assertDoesNotExist()
+            shot((if (dark) "dark" else "light") + "-folded")
+            rule.onNodeWithText("Show").performClick()
+            rule.waitForIdle()
+            rule.onNodeWithText("Example: fixed lately").assertExists()
+            shot((if (dark) "dark" else "light") + "-open")
+            rule.onNodeWithText("Hide").performClick()
         }
+    }
+
+    private fun shot(name: String) {
+        val b = rule.onRoot().captureToImage().asAndroidBitmap()
+        File(dir, "$name.png").outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 }

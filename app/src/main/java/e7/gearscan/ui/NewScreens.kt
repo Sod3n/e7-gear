@@ -183,11 +183,20 @@ fun FeedbackScreen(model: AppModel, error: String?) {
 }
 
 @Composable
-fun KnownIssuesCard(issues: List<e7.gearscan.data.KnownIssue>) {
+fun KnownIssuesCard(issues: List<e7.gearscan.data.KnownIssue>, startOpen: Boolean = false) {
+    var open by remember { mutableStateOf(startOpen) }
+    var all by remember { mutableStateOf(false) }
     Card(shadow = null, radius = 14.dp, border = 2.dp) {
-        Text("Already known", style = dela(14.sp))
-        Text("No need to report these. We update this list as they're fixed.", style = zen(11.sp, FontWeight.Medium, C.muted))
-        for (issue in issues) {
+        Row(Modifier.fillMaxWidth().tap { open = !open }, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Already known", style = dela(14.sp))
+            Text("${issues.size}", maxLines = 1, softWrap = false, style = zen(11.sp, FontWeight.Black, C.onAccent),
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(C.ink).padding(horizontal = 7.dp))
+            Box(Modifier.weight(1f))
+            Text(if (open) "Hide" else "Show", style = zen(12.sp, FontWeight.Bold, C.muted))
+        }
+        if (!open) return@Card
+        val shown = if (all) issues else issues.take(5)
+        for (issue in shown) {
             VSpace(8.dp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                 val working = issue.status == "working"
@@ -198,6 +207,10 @@ fun KnownIssuesCard(issues: List<e7.gearscan.data.KnownIssue>) {
                     if (issue.detail.isNotEmpty()) Text(issue.detail, style = zen(11.sp, FontWeight.Medium, C.muted))
                 }
             }
+        }
+        if (shown.size < issues.size) {
+            VSpace(8.dp)
+            Text("Show all ${issues.size}", style = zen(12.sp, FontWeight.Bold, C.pink), modifier = Modifier.tap { all = true }.padding(vertical = 4.dp))
         }
     }
 }
