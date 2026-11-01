@@ -8,6 +8,9 @@ object Capture {
     const val DIR_S2C = 1
 
     private val conns = mutableListOf<Conn>()
+    /** Set by TProxyService; kept here because touching that class loads its native library. */
+    @Volatile var vpnRunning = false
+        internal set
     private val log = ArrayDeque<String>()
     private val clock = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
 

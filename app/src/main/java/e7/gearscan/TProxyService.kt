@@ -114,7 +114,7 @@ class TProxyService : VpnService() {
         // fake-IP DNS (mapdns): names reach CaptureProxy as SOCKS domain requests, so no UDP is needed
         TProxyStartService(conf.absolutePath, fd.fd)
         alerted = false
-        running = true
+        Capture.vpnRunning = true
         started = System.currentTimeMillis()
         pill = e7.gearscan.overlay.ScanPill(this, openApp())
         startForegroundNotification()
@@ -125,7 +125,7 @@ class TProxyService : VpnService() {
         handler.removeCallbacks(tick)
         pill?.hide()
         pill = null
-        running = false
+        Capture.vpnRunning = false
         getSystemService(NotificationManager::class.java).cancel(2)
         tunFd?.let {
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -190,9 +190,6 @@ class TProxyService : VpnService() {
         const val LOBBY_KB = 100L
         private const val CHANNEL = "capture"
         private const val CHANNEL_DONE = "capture-done"
-
-        @Volatile var running = false
-            internal set
 
         private const val TUN_IPV4 = "198.18.0.1"
         private const val TUN_IPV6 = "fc00::1"

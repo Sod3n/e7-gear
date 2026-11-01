@@ -5,7 +5,7 @@ enum class ScanStep(val title: String, val hint: String, val pill: String) {
     WAITING("Scanning is on", "Open Epic Seven from its title screen and log in.", "Scanning ON · open the game and log in"),
     CONNECTED("Game connected", "Tap through the title screen and log in.", "Scanning ON · log in to reach the lobby"),
     LOGIN("Logging in…", "Keep going until the lobby. Your heroes and gear arrive there.", "Logging in… keep going to the lobby"),
-    LOBBY("Heroes and gear arrived", "Come back to E7 Gear and import them.", "Got your box · tap to import"),
+    LOBBY("Heroes and gear arrived", "They're all here. Press Import to read them.", "Got your box · tap to import"),
     LATE("No login seen", "If the game was already past its title screen, restart it: the scan only sees a fresh login.",
         "No login yet · already in the game? Tap to restart it"),
 }

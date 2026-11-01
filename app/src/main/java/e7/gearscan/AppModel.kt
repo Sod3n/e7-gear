@@ -2481,7 +2481,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 captureBytes = Capture.totalBytes()
                 captureElapsed = if (scanPhase == ScanPhase.CAPTURING) System.currentTimeMillis() - captureStarted else 0L
                 // the VPN can end without us (revoked by another VPN, service killed)
-                if (scanPhase == ScanPhase.CAPTURING && !TProxyService.running && System.currentTimeMillis() - captureStarted > 5000) {
+                if (scanPhase == ScanPhase.CAPTURING && !Capture.vpnRunning && System.currentTimeMillis() - captureStarted > 5000) {
                     scanPhase = ScanPhase.IDLE
                     if (captureBytes == 0L) scanError = ScanError.NOTHING
                 }
