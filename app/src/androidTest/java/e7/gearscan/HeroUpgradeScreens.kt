@@ -52,6 +52,51 @@ class HeroUpgradeScreens {
         File(shots, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    /**
+     * Design rounds: the results states only, from a finished check saved as E7_FIXTURES/hero_upgrades.json, in about a
+     * minute instead of running the check twice. Run with -Pandroid.testInstrumentationRunnerArguments.class=e7.gearscan.HeroUpgradeScreens#quickRender
+     */
+    @Test
+    fun quickRender() {
+        assumeTrue("replaces the app's box; emulator only", Build.FINGERPRINT.contains("generic") || Build.HARDWARE.contains("ranchu"))
+        val assets = InstrumentationRegistry.getInstrumentation().context.assets
+        val saved = runCatching { assets.open("hero_upgrades.json").bufferedReader().use { it.readText() } }.getOrNull()
+        assumeTrue("no saved check in E7_FIXTURES (hero_upgrades.json)", saved != null)
+        File(ctx.filesDir, "content.json").writeText(assets.open("content.json").bufferedReader().use { it.readText() })
+        val backup = assets.open("backup.json").bufferedReader().use { it.readText() }
+        shots.deleteRecursively(); shots.mkdirs()
+        File(ctx.filesDir, "hero_upgrades.json").writeText(saved!!)
+        rule.runOnUiThread { model = AppModel(ctx.applicationContext as Application) }
+        rule.waitUntil(20_000) { model.ready }
+        ui { check(model.restore(backup)); model.consent = true; Themes.set(ctx, false) }
+        File(ctx.filesDir, "hero_upgrades.json").takeIf { !it.exists() }?.writeText(saved)
+        rule.runOnUiThread { model = AppModel(ctx.applicationContext as Application) }
+        rule.waitUntil(20_000) { model.ready }
+        val r = checkNotNull(model.heroUpgrades?.result) { "the saved check didn't load" }
+        var width by mutableStateOf(411)
+        var font by mutableStateOf(1f)
+        rule.setContent {
+            val d = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(d.density, font)) {
+                Box(Modifier.width(width.dp).fillMaxHeight()) { App(model) {} }
+            }
+        }
+        val hero = model.heroUpgradeView(r).first { it.rows.isNotEmpty() }
+        val row = hero.rows.first()
+        for ((w, f) in listOf(411 to 1f, 353 to 1.3f)) {
+            ui { width = w; font = f }
+            val tag = "$w-${if (f > 1f) "big" else "1x"}"
+            ui { model.sheet = null; model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) }; shoot("3-by-hero-$tag")
+            rule.onAllNodesWithText("By piece", useUnmergedTree = true)[0].performTouchInput { click() }; shoot("3d-by-piece-$tag")
+            rule.onAllNodesWithText("By hero", useUnmergedTree = true)[0].performTouchInput { click() }
+            ui { model.stack = listOf(Screen.Gear, Screen.HeroUpgrades(), Screen.HeroUpgrades(hero.hero.id)) }; shoot("4-hero-$tag")
+            ui { model.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, row.pick.piece) }; shoot("5-piece-$tag")
+            ui { model.openFinalBuild(hero.hero.id, row); model.sheet = Sheet(SheetKind.HERO_UPGRADE_BUILD, row.pick.piece) }
+            rule.waitUntil(60_000) { !model.finalBuildBusy }; shoot("5b-final-build-$tag")
+            ui { model.sheet = null }
+        }
+    }
+
     @Test
     fun improveHeroes() {
         assumeTrue("replaces the app's box; emulator only", Build.FINGERPRINT.contains("generic") || Build.HARDWARE.contains("ranchu"))

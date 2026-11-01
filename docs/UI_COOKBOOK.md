@@ -14,6 +14,9 @@ and the fact that decides it is the biggest thing there. Everything else is seco
 - Ask: what is the player deciding here? What single fact decides it? Is that fact the most visible thing?
 - Example: the Sell review card leads with ES now → usual at +15 and one chance chip; the roll history moved to details.
 - Prefer a visual (bar, chip, icon, colour) over a sentence that says the same.
+- Two numbers that mean different things never sit side by side on one row. Said, on an Improve heroes row showing
+  "best ~63%" next to an "89% now" chip: "this one kind still not very clear". The row kept the chance; the hero's
+  current match moved to its own page.
 
 ### 2. Every word must earn its place
 If a player would skip a text, it is noise and it hides what matters. Explanations are for the player who asks: fold them
@@ -100,6 +103,9 @@ The owner is not the reviewer. A round reaches them only after:
 3. **Machine checks clean, sized to the step**:
    - each design round: ScreenAudit filtered to the touched screens at the hardest setups (353 dp big font, Russian),
      ~1-2 min; unit tests (SourceRulesTest, ThemeRulesTest).
+   - renders for review come from a saved result, not a fresh computation: Improve heroes'
+     `HeroUpgradeScreens#quickRender` reads E7_FIXTURES/hero_upgrades.json (21 s with the emulator already up). Keep the
+     emulator running through a design session.
    - before a build goes to the owner's phone, and before release: the full audit
      (`E7_FIXTURES=~/Documents/epic7/gear_cleanup/fixtures tools/audit.sh`, ~8 min, emulator only) and every androidTest
      suite that touches the change.

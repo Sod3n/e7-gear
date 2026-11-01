@@ -193,19 +193,22 @@ private fun ByHero(model: AppModel, view: List<AppModel.HeroUpgradeHero>) {
 
 @Composable
 private fun HeroRow(model: AppModel, h: AppModel.HeroUpgradeHero) {
+    val top = h.rows.maxByOrNull { it.hits }
+    // one number per row: the best piece's chance; how close the hero already is lives on its own page
     ListRow({ model.go(Screen.HeroUpgrades(h.hero.id)) }, leading = { Face(model.face(h.hero), 40.dp) }, trailing = {
-        Slot(48.dp) { h.bestNow?.let { Column(horizontalAlignment = Alignment.CenterHorizontally) { MatchChip(it); Text("now", style = zen(9.sp, FontWeight.Medium, C.muted)) } } }
+        Slot(64.dp) { if (top != null && h.base.value != null) Column(horizontalAlignment = Alignment.End) {
+            FitText("~${top.chance}%", dela(16.sp, C.blue))
+            Text("best chance", style = zen(9.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        } }
     }) {
         Text(model.heroName(h.hero), style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        val top = h.rows.maxByOrNull { it.hits }
         val likely = h.rows.count { it.hits > LONG_SHOT }
-        val pieces = "$likely ${if (likely == 1) "piece" else "pieces"}"
         Text(when {
             top == null -> reason(h)
             h.base.value == null -> "${h.rows.size} ${if (h.rows.size == 1) "piece" else "pieces"} could make a build"
-            likely == 0 -> "only long shots · best ~${top.chance}%"
-            else -> "$pieces · best ~${top.chance}%"
-        }, style = zen(11.sp, FontWeight.Medium, if (top == null) C.muted else C.blue), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            likely == 0 -> "only long shots"
+            else -> "$likely ${if (likely == 1) "piece" else "pieces"} could help"
+        }, style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
