@@ -29,6 +29,8 @@ class TProxyService : VpnService() {
     private var proxy: CaptureProxy? = null
     private val handler = Handler(Looper.getMainLooper())
     private var alerted = false
+    private var started = 0L
+    private var pill: e7.gearscan.overlay.ScanPill? = null
     private val tick = object : Runnable {
         override fun run() {
             if (tunFd == null) return
@@ -36,12 +38,14 @@ class TProxyService : VpnService() {
             val lobby = kb >= LOBBY_KB
             getSystemService(NotificationManager::class.java).notify(1, progressNotification(kb, lobby))
             if (lobby && !alerted) { alerted = true; alertLobby() }
-            handler.postDelayed(this, 2000)
+            pill?.show(e7.gearscan.data.ScanStatus.of(Capture.count(), Capture.totalBytes(), System.currentTimeMillis() - started))
+            handler.postDelayed(this, 1000)
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // a null intent is a system restart after the process died; never resume capturing on our own
+        if (intent?.action == ACTION_RESET_CLOCK) { started = System.currentTimeMillis(); return START_NOT_STICKY }
         if (intent == null || intent.action == ACTION_DISCONNECT) stopCapture()
         else startCapture(intent.getStringExtra(EXTRA_GAME)!!, intent.getStringExtra(EXTRA_UPSTREAM).orEmpty())
         return START_NOT_STICKY
@@ -111,12 +115,16 @@ class TProxyService : VpnService() {
         TProxyStartService(conf.absolutePath, fd.fd)
         alerted = false
         running = true
+        started = System.currentTimeMillis()
+        pill = e7.gearscan.overlay.ScanPill(this, openApp())
         startForegroundNotification()
-        handler.postDelayed(tick, 2000)
+        handler.post(tick)
     }
 
     private fun stopCapture() {
         handler.removeCallbacks(tick)
+        pill?.hide()
+        pill = null
         running = false
         getSystemService(NotificationManager::class.java).cancel(2)
         tunFd?.let {
@@ -174,6 +182,8 @@ class TProxyService : VpnService() {
     companion object {
         const val ACTION_CONNECT = "e7.gearscan.CONNECT"
         const val ACTION_DISCONNECT = "e7.gearscan.DISCONNECT"
+        /** The player restarted the game mid-scan: "no login seen" counts from now again. */
+        const val ACTION_RESET_CLOCK = "e7.gearscan.RESET_CLOCK"
         const val EXTRA_GAME = "game"
         const val EXTRA_UPSTREAM = "upstream"
         /** Matches AppModel.lobbyLikely: the lobby's login reply carries the whole box. */
@@ -182,7 +192,7 @@ class TProxyService : VpnService() {
         private const val CHANNEL_DONE = "capture-done"
 
         @Volatile var running = false
-            private set
+            internal set
 
         private const val TUN_IPV4 = "198.18.0.1"
         private const val TUN_IPV6 = "fc00::1"

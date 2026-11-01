@@ -51,6 +51,8 @@ import e7.gearscan.ScanError
 import e7.gearscan.ScanPhase
 import e7.gearscan.Screen
 import e7.gearscan.data.Item
+import e7.gearscan.data.ScanStatus
+import e7.gearscan.data.ScanStep
 import e7.gearscan.data.fmtInt
 
 /**
@@ -283,12 +285,17 @@ fun CaptureScreen(model: AppModel) {
     val err = model.scanError
     val capturing = model.scanPhase == ScanPhase.CAPTURING
     val importing = model.scanPhase == ScanPhase.IMPORTING
+    val step = model.scanStep
     Frame(null, null, actions = {
         when {
             importing -> PinkButton("Importing…", Modifier.weight(1f), enabled = false) {}
             // the main button is the next step: back to the game until the box arrives, then importing it
-            capturing && model.lobbyLikely -> {
-                PinkButton("Stop and import", Modifier.weight(1f)) { model.stopAndImport() }
+            capturing && step == ScanStep.LOBBY -> {
+                PinkButton("Import", Modifier.weight(1f)) { model.stopAndImport() }
+                OutlineButton("Game", Modifier.width(96.dp)) { model.openGame() }
+            }
+            capturing && step == ScanStep.LATE -> {
+                PinkButton("Restart game", Modifier.weight(1f)) { model.restartGameDuringScan() }
                 OutlineButton("Game", Modifier.width(96.dp)) { model.openGame() }
             }
             capturing -> {
@@ -310,16 +317,17 @@ fun CaptureScreen(model: AppModel) {
                 horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PulseDot(9.dp)
                 Column {
-                    Text("Scanning the game's login", style = zen(12.sp, color = C.card))
-                    Text("Shown in your notifications too · tap there to come back", style = zen(10.sp, FontWeight.Medium, C.faint))
+                    Text("Scanning is ON", style = zen(12.sp, color = C.card))
+                    Text(if (model.pillAllowed) "Its status shows over the game · tap it to come back"
+                        else "Shown in your notifications · tap there to come back", style = zen(10.sp, FontWeight.Medium, C.faint))
                 }
             }
         }
         Text(when {
             importing -> "Importing…"
-            capturing -> "Capturing…"
+            capturing -> step.title
             err != null -> "Scan"
-            else -> "Ready to scan"
+            else -> "Not scanning"
         }, style = TitleStyle)
         when {
             importing -> Card {
@@ -329,14 +337,16 @@ fun CaptureScreen(model: AppModel) {
             }
             err != null -> ErrorCard(err, model)
             capturing -> Card {
-                // both messages are laid out and the other one hidden, so the card keeps the taller one's height
-                val done = !model.returnedEarly && model.lobbyLikely
+                // every step's message is laid out and the others hidden, so the card keeps the tallest one's height
                 Box {
-                    for (shows in listOf(false, true)) Column(if (shows == done) Modifier else Modifier.alpha(0f).clearAndSetSemantics {}) {
-                        if (shows) Tag("Looks complete", bg = C.ghostBg) else Tag("Not finished yet")
+                    for (s in ScanStep.entries) Column(if (s == step) Modifier else Modifier.alpha(0f).clearAndSetSemantics {}) {
+                        when (s) {
+                            ScanStep.LOBBY -> Tag("Ready to import", bg = C.blue, fg = C.card)
+                            ScanStep.LATE -> Tag("Restart needed", bg = C.red, fg = C.card)
+                            else -> Tag("Not finished yet")
+                        }
                         VSpace(8.dp)
-                        Text(if (shows) "Your heroes and gear seem to be here. Press Stop and import."
-                            else "Your heroes haven't arrived. Go back to the game and wait for the lobby.", style = zen(14.sp, FontWeight.Medium))
+                        Text(s.hint, style = zen(14.sp, FontWeight.Medium))
                     }
                 }
                 VSpace(10.dp)
@@ -346,13 +356,15 @@ fun CaptureScreen(model: AppModel) {
                 }
                 VSpace(10.dp)
                 Milestone("Game connected", model.captureConns > 0)
-                Milestone("Login started", model.captureBytes > 8 * 1024)
-                Milestone("Lobby reached · heroes and gear", model.lobbyLikely)
+                Milestone("Login started", model.captureBytes > ScanStatus.LOGIN_BYTES)
+                Milestone("Lobby reached · heroes and gear", model.captureBytes > ScanStatus.LOBBY_BYTES)
             }
             else -> Card {
-                Text("Start the scan, log in to the game until the lobby, then come back and press Stop.", style = zen(14.sp, FontWeight.Medium))
+                Text("Start the scan before you open the game: it reads the game's login, so Epic Seven has to start from its title screen. Then log in until the lobby.",
+                    style = zen(14.sp, FontWeight.Medium))
             }
         }
+        if (!importing && !model.pillAllowed) LinkText("Show the scan status over the game · allow it", size = 12) { model.allowPill() }
         Text("The capture is always kept, so any problem can be retried from here.", style = zen(12.sp, FontWeight.Medium, C.muted))
     }
 }
@@ -360,7 +372,7 @@ fun CaptureScreen(model: AppModel) {
 @Composable
 private fun ErrorCard(err: ScanError, model: AppModel) {
     val (title, body) = when (err) {
-        ScanError.NOTHING -> "Nothing captured" to "Stopped before the lobby, or started after login. Close the game fully and try again."
+        ScanError.NOTHING -> "Nothing captured" to "The scan has to see the game's login. Try again: E7 Gear restarts the game for you, then log in until the lobby."
         ScanError.SERVER -> "Fribbels' server unreachable" to "Your capture is kept (${model.captureBytes / 1024} KB)."
         ScanError.VPN -> "Another VPN is on" to "Switch it to proxy mode, then turn on “Use my VPN as a proxy”."
         ScanError.NOT_INSTALLED -> "Epic Seven not installed" to "Install the game, then come back."
