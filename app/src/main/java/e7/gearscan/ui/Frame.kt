@@ -104,7 +104,7 @@ fun TabBar(model: AppModel, current: Screen) {
         drawRect(C.edge, size = androidx.compose.ui.geometry.Size(size.width, 2.5.dp.toPx()))
     }.navigationBarsPadding().padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 8.dp)) {
         Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            for ((label, s) in listOf("Optimize" to Screen.Optimize, "Heroes" to Screen.Heroes)) {
+            for ((label, s) in listOf("Optimize" to Screen.Optimize, "Heroes" to Screen.Heroes, "Gear" to Screen.Gear)) {
                 val on = s == current
                 val shape = RoundedCornerShape(999.dp)
                 Box(Modifier.weight(1f).height(40.dp)

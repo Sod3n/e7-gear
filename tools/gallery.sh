@@ -6,6 +6,9 @@ cd "$(dirname "$0")/.."
 METHOD="${1:-sell}"
 OUT="${2:-app/build/gallery}"
 : "${E7_FIXTURES:?set E7_FIXTURES to a folder with backup.json and content.json}"
+# never a phone: Gradle installs on every device unless ANDROID_SERIAL names one
+export ANDROID_SERIAL="${ANDROID_SERIAL:-emulator-5554}"
+case "$ANDROID_SERIAL" in emulator-*) ;; *) echo "gallery runs on an emulator only (ANDROID_SERIAL=$ANDROID_SERIAL)"; exit 1;; esac
 adb get-state >/dev/null
 # boot_completed comes before the package service answers; installs fail until it does
 for i in $(seq 1 60); do adb shell pm path android >/dev/null 2>&1 && adb shell service check activity | grep -q found && break; sleep 2; done

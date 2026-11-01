@@ -52,7 +52,7 @@ fun GearPotentialScreen(model: AppModel) {
             }
         }) else null) {
             BackToPrevious(model)
-            ScreenTitle("Gear potential")
+            ScreenTitle("Find gear")
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 LinkText("Inventory order") { open(model, SheetKind.INVENTORY_ORDER) }
                 LinkText("Help") { open(model, SheetKind.POTENTIAL_HELP) }

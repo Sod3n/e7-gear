@@ -238,11 +238,6 @@ fun ScanDataScreen(model: AppModel) {
             DataRow("Over the game", if (model.overGameNative) "Phone's floating window · tap to use E7 Gear's panel" else "E7 Gear's panel · tap to use the phone's floating window", true) {
                 model.useOverGameNative(!model.overGameNative)
             }
-            DataRow("Improve heroes", "Pieces worth enhancing for the heroes you've set up", box != null) { model.go(Screen.HeroUpgrades()) }
-            DataRow("Gear potential", "Search final substats, sets and slots", box != null) { model.go(Screen.GearPotential) }
-            DataRow("Track upgrades", "Record each +3 over the game and check whether to continue", box != null) { model.go(Screen.Upgrade) }
-            DataRow("Sell review", "Worst rolls first · sell or keep each piece", box != null) { model.go(Screen.SellFilters) }
-            DataRow("Make room", "Pieces you can feed or sell without losing gear a hero could use", box != null) { model.go(Screen.Cleanup) }
             DataRow("Restore from a backup", null, true) { restore.launch(arrayOf("application/json", "text/plain", "*/*")) }
             DataRow("Import a gear.txt file", null, true) { importGear.launch(arrayOf("text/plain", "application/json", "*/*")) }
             DataRow("Game content", model.contentStatus ?: ("Version ${model.content.version}" +
@@ -414,13 +409,7 @@ fun ScanResultScreen(model: AppModel) {
                 style = zen(11.sp, FontWeight.Medium, C.muted))
         }
         Card(shadow = null, radius = 14.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-            DiffRow("Sell review", "Sell or keep, worst rolls first", C.ink) { model.go(Screen.SellFilters) }
-            DiffRow("Improve heroes", model.heroUpgrades?.takeIf { !it.running && it.result != null && !model.heroUpgradesStale }?.result
-                ?.let { r -> "${model.heroUpgradeView(r).count { it.rows.isNotEmpty() }} can get better" } ?: "Pieces worth enhancing", C.ink) { model.go(Screen.HeroUpgrades()) }
-            DiffRow("Gear potential", "Find possible upgrades", C.ink) { model.go(Screen.GearPotential) }
-            DiffRow("Track upgrades", "Over the game", C.ink) { model.go(Screen.Upgrade) }
-            DiffRow("Make room", model.cleanup?.takeIf { !it.running && it.finishedAt > 0 && it.scan == model.lastScan }
-                ?.let { c -> "${c.picks.count { it.item.id !in model.cleanupDone }} can go" } ?: "Find pieces to feed", C.ink) { model.go(Screen.Cleanup) }
+            DiffRow("Gear", "Sell review · Improve heroes · Find gear", C.ink) { model.tab(Screen.Gear) }
         }
         SectionTitle("Since last scan")
         if (d == null || (d.newItems + d.removedItems + d.enhanced + d.moved).isEmpty() && d.newHeroes.isEmpty()) {

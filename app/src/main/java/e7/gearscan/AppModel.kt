@@ -58,6 +58,7 @@ sealed class Screen {
     data object ScanResult : Screen()
     data object Optimize : Screen()
     data object Heroes : Screen()
+    data object Gear : Screen()
     data object Results : Screen()
     data object GhostBuild : Screen()
     data class Compare(val index: Int, val poolHero: Long? = null) : Screen()
@@ -264,6 +265,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         Screen.ScanData -> "Scan & data"
         Screen.ScanResult -> "Imported"
         Screen.Optimize -> "Optimize"
+        Screen.Gear -> "Gear"
         Screen.Heroes -> "Heroes"
         Screen.Results -> "Best 50"
         Screen.GhostBuild -> "Ghost build"
@@ -277,7 +279,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         is Screen.PoolHero -> hero(s.id)?.let(::heroName) ?: "Whole pool"
         Screen.Cleanup -> "Make room"
         Screen.Upgrade -> "Track upgrades"
-        Screen.GearPotential -> "Gear potential"
+        Screen.GearPotential -> "Find gear"
         Screen.SellFilters -> "Sell review"
         Screen.SellKept -> "Kept pieces"
         is Screen.HeroUpgrades -> s.heroId?.let { id -> hero(id)?.let(::heroName) } ?: "Improve heroes"

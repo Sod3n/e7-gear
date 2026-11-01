@@ -44,6 +44,7 @@ fun App(model: AppModel, onExit: () -> Unit) {
             Screen.ScanResult -> ScanResultScreen(model)
             Screen.Optimize -> OptimizeScreen(model)
             Screen.Heroes -> HeroesScreen(model)
+            Screen.Gear -> GearScreen(model)
             Screen.Results -> ResultsScreen(model)
             Screen.GhostBuild -> GhostBuildScreen(model)
             is Screen.Compare -> CompareScreen(model, s.index, s.poolHero)

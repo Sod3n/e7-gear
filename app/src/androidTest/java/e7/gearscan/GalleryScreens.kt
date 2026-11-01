@@ -73,12 +73,17 @@ class GalleryScreens {
                 }
             }
         }
-        dir.mkdirs(); dir.listFiles()?.filter { it.name.startsWith("sell") }?.forEach { it.delete() }
+        dir.mkdirs(); dir.listFiles()?.filter { it.name.startsWith("sell") || it.name.startsWith("gear") }?.forEach { it.delete() }
+        ui { m.tab(Screen.Gear) }; shot("gear-00-home-before")
         ui { m.go(Screen.SellFilters) }
         ui { m.findSellGear() }
         rule.waitUntil(240_000) { !m.sellBusy }
+        ui { m.tab(Screen.Gear) }; shot("gear-01-home")
+        ui { m.tab(Screen.ScanData) }; shot("gear-02-scan-data")
+        ui { m.tab(Screen.ScanResult) }; shot("gear-03-imported")
+        ui { m.tab(Screen.Gear); m.go(Screen.SellFilters) }
         for (theme in only.split(",")) {
-            dark = theme == "dark"; ui { Themes.set(ctx, dark); overlay = false; m.sheet = null; if (m.screen != Screen.SellFilters) m.go(Screen.SellFilters) }
+            dark = theme == "dark"; ui { Themes.set(ctx, dark); overlay = false; m.sheet = null; if (m.screen != Screen.SellFilters) { m.tab(Screen.Gear); m.go(Screen.SellFilters) } }
             tap("Set up"); shot("sell-01-setup")
             tap("Matches"); shot("sell-02-list")
             scrollDown(); shot("sell-03-list-more")
