@@ -18,6 +18,14 @@ object EsForecast {
     const val GOLD_PER_XP = 19 * 0.6
     /** Gold for one Epic Lv85 +0 -> +15 at the stone price. */
     val FULL_GOLD = FULL * GOLD_PER_XP
+    /** Lowest and highest ES a +15 piece can have: weakest/strongest roll in all 9 roll slots, main at +15, reforge gains on top. */
+    val esRange: IntRange by lazy {
+        val w = GearScore.weights
+        val lo = GearStat.entries.minOf { Finish.range(it, 85).first * w.getValue(it) }
+        val hi = GearStat.entries.maxOf { maxOf(Finish.maximumRoll(it, 88).toDouble(), Finish.maximumRoll(it, 85) + Reforge.gain(it, 6) / 6) * w.getValue(it) }
+        val mains = GearStat.entries.map { Reforge.main(it, 0.0) * InventoryOrder.mainWeight(it) }.filter { it > 0 }
+        (kotlin.math.floor((mains.minOrNull() ?: 20.0) * .9 + 9 * lo).toInt())..(kotlin.math.ceil((mains.maxOrNull() ?: 27.0) + 9 * hi).toInt())
+    }
     fun goldText(gold: Double): String = when {
         gold >= 1e9 -> String.format(java.util.Locale.US, "%.1fB", gold / 1e9)
         gold >= 1e6 -> String.format(java.util.Locale.US, "%.1fM", gold / 1e6)

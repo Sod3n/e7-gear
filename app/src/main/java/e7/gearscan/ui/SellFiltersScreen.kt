@@ -233,30 +233,23 @@ fun SellFiltersScreen(model:AppModel) {
         }else PinkButton(if(result!=null&&!model.sellFresh)"Update matches" else "Find matches",Modifier.weight(1f)) { model.findSellGear() }
     }) {
         BackToPrevious(model);ScreenTitle("Sell review")
-        Text("Lowest rolls first · sell or keep each piece",style=zen(14.sp))
         Segmented(listOf("Set up","Matches"),tab) { tab=it }
         if(model.sellBusy)Card(shadow=null,padding=PaddingValues(12.dp)) {
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(9.dp)) { Spinner();Text("Checking ${model.sellDone} / ${model.sellTotal}",style=zen(13.sp)) }
-            Text("Stop and resume from completed pieces.",style=zen(11.sp,color=C.muted))
         }
         model.sellError?.let { Text(it,style=zen(12.sp,color=C.deepPink)) }
         if(tab==0) {
             RowCard("Worth rolling",{openSell(model,SheetKind.SELL_WORTH)}) { Text("1 in ${if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt().toString() else "–"} reach ${if(q.esBars.isEmpty())"your usual +15 ES" else "your ES bars"}",style=zen(11.sp)) }
-            RowCard("Rolls",{openSell(model,SheetKind.SELL_QUALITY)}) { Text("${when(q.maximumTotalQuality) { null->"Any";50.0->"Low average";25.0->"Very low average";0.0->"Minimum only";else->"Up to ${fmtNum(q.maximumTotalQuality)}% of range" }}${if(q.minimumProcs>0)" · ${q.minimumProcs}+ upgrades" else ""}",style=zen(12.sp)) }
-            RowCard("Stat safeguards",{openSell(model,SheetKind.SELL_SAFEGUARDS)}) { Text(if(q.keepStats.isEmpty())"Choose stats to leave out" else q.keepStats.entries.joinToString { (s,v)->"${s.short} ${s.format(v)}" },style=zen(11.sp)) }
+            RowCard("Stat safeguards",{openSell(model,SheetKind.SELL_SAFEGUARDS)}) { Text(when { q.keepStats.isEmpty()->"Off";q.keepStats==SellQuery.DEFAULT_GUARDS->"Default · Spd 20 and 5 max rolls of any stat";else->"${q.keepStats.size} stats" },style=zen(11.sp)) }
             RowCard("Gear to review",{openSell(model,SheetKind.SELL_INVENTORY)}) { Text("${if(q.bagOnly)"Bag" else "All gear"} · +${q.minimumEnhance} to +${q.maximumEnhance}",style=zen(12.sp)) }
             RowCard("Slots",{openSell(model,SheetKind.SELL_SLOTS)}) { Text(if(q.slots.size==6)"Any slot" else q.slots.joinToString { it.label },style=zen(11.sp)) }
             RowCard("Sets",{openSell(model,SheetKind.SELL_SETS)}) { Text(if(q.sets.isEmpty())"Any set" else "${q.sets.size} selected",style=zen(12.sp)) }
             RowCard("Main stats",{openSell(model,SheetKind.SELL_MAINS)}) { Text(if(q.mains.isEmpty())"Any main" else q.mains.joinToString { it.short },style=zen(11.sp)) }
             RowCard("Levels",{openSell(model,SheetKind.SELL_LEVELS)}) { Text(if(q.levels.isEmpty())"Any level" else q.levels.sorted().joinToString(),style=zen(12.sp)) }
-            SectionTitle("Order")
-            Segmented(listOf("Lowest rolls","Game order"),if(q.sort==SellSort.INVENTORY)1 else 0) { model.updateSellQuery(q.copy(sort=if(it==0)SellSort.QUALITY else SellSort.INVENTORY,descending=false)) }
-            if(q.scoreFilter)Text("Combined-score filter is on (Additional filters).",style=zen(11.sp,color=C.muted))
-            RowCard("More filters",{openSell(model,SheetKind.SELL_EXTRA)}) { Text(if(q.scoreFilter)"Combined score on" else "Unknown pieces, coverage, order",style=zen(11.sp)) }
+            RowCard("More filters",{openSell(model,SheetKind.SELL_EXTRA)}) { Text(if(q.scoreFilter)"Combined score on" else "Off",style=zen(12.sp)) }
             RowCard("Kept pieces",{model.go(Screen.SellKept)}) { Text("${model.sellKept.size} kept",style=zen(12.sp)) }
         }else if(result==null)Card {
-            Text("Find gear to review",style=dela(17.sp));VSpace(7.dp)
-            Text("No minimum combined score is needed. Upgrade values are compared with that stat's own roll range.",style=zen(12.sp,color=C.muted))
+            Text("Tap Find matches",style=dela(17.sp))
         }else {
             val done=model.reviewedIds;val pending=result.matches.filter { it.item.id !in done }
             val guarded=result.rows.filter { it.protected&&it.item.id !in done };val unknown=result.rows.filter { it.unknown&&!it.protected&&it.item.id !in done }
@@ -264,9 +257,8 @@ fun SellFiltersScreen(model:AppModel) {
                 Text("${pending.size} pieces to review",style=dela(19.sp))
                 val rolling=pending.mapNotNull { it.es }.filter { it.finishShare>0&&it.worthRolling(q.rollOn)&&!it.reached }
                 if(rolling.isNotEmpty())Text("${rolling.size} worth rolling now",style=zen(12.sp,color=C.blue))
-                Text("${if(result.query.sort==SellSort.INVENTORY)"Game order" else if(result.query.descending)"Best rolls first" else "Worst rolls first"} · keep rolling at 1 in ${if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt().toString() else "–"}${if(result.query.reforge)" · reforge counted" else ""}",style=zen(11.sp,color=C.muted))
+                if(false)Text("${if(result.query.sort==SellSort.INVENTORY)"Game order" else if(result.query.descending)"Best rolls first" else "Worst rolls first"} · keep rolling at 1 in ${if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt().toString() else "–"}${if(result.query.reforge)" · reforge counted" else ""}",style=zen(11.sp,color=C.muted))
                 if(result.query.minimumProcs>0||result.query.maximumTotalQuality!=null)Text("${if(result.query.minimumProcs>0)"${result.query.minimumProcs}+ upgrades · " else ""}${rollLimitText(result.query)}",style=zen(11.sp,color=C.blue))
-                if(result.query.maximumProcQuality!=null)Text("An additional upgrade-only limit is active",style=zen(11.sp,color=C.muted))
                 if(result.query.scoreFilter)Text("Additional combined-value filter applied",style=zen(11.sp,color=C.muted))
                 if(guarded.isNotEmpty()||unknown.isNotEmpty()||model.sellKept.isNotEmpty()) {
                     VSpace(8.dp)
@@ -276,15 +268,14 @@ fun SellFiltersScreen(model:AppModel) {
                         if(unknown.isNotEmpty())Pill("${unknown.size} no forecast",selected=category==2,onClick={ category=if(category==2)0 else 2;count=20 })
                         if(model.sellKept.isNotEmpty())Pill("${model.sellKept.size} kept",onClick={ model.go(Screen.SellKept) })
                     }
-                    if(category==2) { VSpace(6.dp);Text("No reliable roll history (event or preset gear, modified substats), so no chance can be shown. Tap again to go back.",style=zen(11.sp,color=C.muted)) }
-                    if(category==1) { VSpace(6.dp);Text("These can still reach a stat you protect. Tap again to go back.",style=zen(11.sp,color=C.muted)) }
+                    if(category==2) { VSpace(6.dp);Text("No roll history, so no forecast.",style=zen(11.sp,color=C.muted)) }
+                    if(category==1) { VSpace(6.dp);Text("Can still reach a stat you protect.",style=zen(11.sp,color=C.muted)) }
                 }
             }
             if(!model.sellFresh&&!model.sellBusy)Text("Inventory or settings changed. Update before starting a list.",style=zen(12.sp,color=C.deepPink))
             val shown=when(category) { 1->guarded;2->unknown;else->pending }
             if(shown.isEmpty())Card {
-                Text("Nothing matches",style=dela(17.sp));VSpace(6.dp)
-                Text("Review the upgrade-count, roll limits, stat safeguards and gear filters.",style=zen(12.sp,color=C.muted))
+                Text("Nothing matches",style=dela(17.sp))
             }
             shown.take(count).forEach { row->Card(shadow=null,radius=14.dp,border=2.dp,padding=PaddingValues(12.dp)) {
                 Column(Modifier.tap { openSell(model,SheetKind.SELL_DETAILS,row.item.id) }) {
@@ -350,56 +341,41 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
     SheetBody(title,button=when(sheet.kind) { SheetKind.SELL_WEIGHTS->"Back to scoring";SheetKind.SELL_CUSTOMS->"Back to comparisons";else->"Done" },onButton={when(sheet.kind) { SheetKind.SELL_HEROES,SheetKind.SELL_CUSTOMS->openSell(model,SheetKind.SELL_FLOORS);SheetKind.SELL_WEIGHTS->openSell(model,SheetKind.SELL_SCORE);else->model.sheet=null }}) {
         when(sheet.kind) {
             SheetKind.SELL_EXTRA->{
-                SellToggle("Show unknown forecasts",q.includeUnknown,"Missing roll history and incomplete checks stay unknown") { update(q.copy(includeUnknown=it)) }
-                SellToggle("Standard Lv85 coverage",q.standardOnly,"Off assumes ordinary rolls on supported Lv85/88 gear, including event scenarios") { update(q.copy(standardOnly=it)) }
-                SellToggle("Best rolls first",q.descending) { update(q.copy(descending=it)) }
-                LinkText("Reset all sell filters") { update(SellQuery()) }
-                SectionTitle("Combined score")
-                SellToggle("Also filter by combined score",q.scoreFilter,"Optional comparison with your equipped gear") { update(q.copy(scoreFilter=it)) }
-                Text("Off: use observed upgrade rolls and stat safeguards only. Existing score settings are retained here.",style=zen(11.sp,color=C.muted))
-                LinkText("Scoring weights & diversity") { openSell(model,SheetKind.SELL_SCORE) }
-                LinkText("Equipped comparison gear") { openSell(model,SheetKind.SELL_FLOORS) }
-                SellNumber("Maximum catch-up chance %",q.maximumChance,0.0,100.0,1) { update(q.copy(maximumChance=it?:5.0)) }
-                SellNumber("Maximum current score",q.maximumCurrentScore,0.0,model.sellScoreLimit,4,true) { update(q.copy(maximumCurrentScore=it)) }
-                SellToggle("Include rare-only possibilities",q.includeRare,"Zero ordinary chance; rare probability unknown") { update(q.copy(includeRare=it)) }
-                SellNumber("Per-piece time limit (ms)",q.forecastMs.toDouble(),25.0,5000.0,0) { update(q.copy(forecastMs=(it?:250.0).toInt())) }
-                if(q.scoreFilter)CardGrid(SellSort.entries,columns=2) { key,m->SellChoice(when(key){SellSort.QUALITY->"Roll values";SellSort.INVENTORY->"Game order";SellSort.CHANCE->"Combined chance";SellSort.SCORE->"Combined score"},m,q.sort==key) { update(q.copy(sort=key)) } }
+                SellToggle("Show pieces without a forecast",q.includeUnknown) { update(q.copy(includeUnknown=it)) }
+                SellToggle("Lv85 crafted gear only",q.standardOnly) { update(q.copy(standardOnly=it)) }
+                SellToggle("Also filter by combined score",q.scoreFilter) { update(q.copy(scoreFilter=it)) }
+                if(q.scoreFilter) {
+                    RowCard("Scoring",{openSell(model,SheetKind.SELL_SCORE)}) { Text("Weights & diversity",style=zen(12.sp)) }
+                    RowCard("Comparison gear",{openSell(model,SheetKind.SELL_FLOORS)}) { Text("Equipped pieces",style=zen(12.sp)) }
+                    SellNumber("Maximum catch-up chance %",q.maximumChance,0.0,100.0,1) { update(q.copy(maximumChance=it?:5.0)) }
+                    SellNumber("Maximum current score",q.maximumCurrentScore,0.0,model.sellScoreLimit,4,true) { update(q.copy(maximumCurrentScore=it)) }
+                    SellToggle("Include rare-only possibilities",q.includeRare) { update(q.copy(includeRare=it)) }
+                }
+                OutlineButton("Reset all Sell review settings",Modifier.fillMaxWidth(),height=40.dp) { update(SellQuery()) }
             }
             SheetKind.SELL_WORTH->{
                 KeepRollingSlider(q.rollOn) { update(q.copy(rollOn=it)) }
-                SellToggle("Count reforging",q.reforge,"Lv85 gear reaches higher ES after reforge") { update(q.copy(reforge=it)) }
+                SellToggle("Count reforging",q.reforge) { update(q.copy(reforge=it)) }
                 SectionTitle("ES bar")
-                Text("Default: the middle ES of your own +15 pieces in that slot.",style=zen(11.sp,color=C.muted))
                 val auto=model.sellAutoEsBars()
-                Slot.entries.forEach { slot->
-                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                        GearIcon(slot.icon,18.dp,C.ink)
-                        Box(Modifier.weight(1f)) { SellNumber("${slot.label}${if(slot in q.esBars)" · yours" else ""}",(q.esBars[slot]?:auto[slot])?.toDouble(),0.0,300.0,0,true) { v->
-                            update(q.copy(esBars=if(v==null)q.esBars-slot else q.esBars+(slot to v.toInt()))) } }
-                    }
-                }
-                if(q.esBars.isNotEmpty())OutlineButton("Use the defaults for every slot",Modifier.fillMaxWidth(),height=40.dp) { update(q.copy(esBars=emptyMap())) }
+                Slot.entries.forEach { slot->ValueSlider(slot.label,{ GearIcon(slot.icon,18.dp,C.ink) },(q.esBars[slot]?:auto[slot]?:80).toDouble(),EsForecast.esRange.first.toDouble(),EsForecast.esRange.last.toDouble(),1.0,{ "${it.toInt()}" }) { v->
+                    update(q.copy(esBars=q.esBars+(slot to v.toInt()))) } }
+                OutlineButton("Reset all to your +15 medians",Modifier.fillMaxWidth(),height=40.dp,enabled=q.esBars.isNotEmpty()) { update(q.copy(esBars=emptyMap())) }
             }
             SheetKind.SELL_SAFEGUARDS->{
-                Text("Leave a piece out of the review list if ANY substat can reach a target you choose. Main stats do not count.",style=zen(12.sp))
-                if(q.keepStats.isEmpty())Text("No stat safeguards selected. Individual stats will still be shown for review.",style=zen(11.sp,color=C.muted))
-                q.keepStats.forEach { (stat,value)->
-                    val bound=GearBounds.target(stat,q.reforge,true)
-                    SellNumber("Keep ${stat.short}",value,bound.minimum,maxOf(bound.maximum,value),1,true) { v->update(q.copy(keepStats=if(v==null)q.keepStats-stat else q.keepStats+(stat to v))) }
+                Text("Pieces that can still reach one of these stay out of Sell review.",style=zen(13.sp))
+                GearStat.entries.forEach { stat->
+                    val bound=GearBounds.target(stat,q.reforge,true);val on=stat in q.keepStats
+                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.weight(1f)) {
+                            if(on)ValueSlider(stat.short,{ StatIcon(stat.stat,16.dp,C.ink) },q.keepStats.getValue(stat),bound.minimum,maxOf(bound.maximum,q.keepStats.getValue(stat)),if(stat.showsPercent||stat==GearStat.SPD)1.0 else 10.0,{ stat.format(it) }) { v->
+                                update(q.copy(keepStats=q.keepStats+(stat to v))) }
+                            else Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) { StatIcon(stat.stat,16.dp,C.muted);Text("${stat.short} · off",style=zen(13.sp,color=C.muted)) }
+                        }
+                        Toggle(on) { v->update(q.copy(keepStats=if(v)q.keepStats+(stat to (SellQuery.DEFAULT_GUARDS[stat]?:bound.minimum)) else q.keepStats-stat)) }
+                    }
                 }
-                SectionTitle("Add a stat")
-                CardGrid(GearStat.entries.filter { it !in q.keepStats },columns=3) { stat,m->SellChoice(stat.short,m,false) {
-                    val bound=GearBounds.target(stat,q.reforge,true)
-                    val suggested=model.potentialQuery.targets[stat]?.toDoubleOrNull()?.takeIf { it>0 }?:bound.minimum
-                    update(q.copy(keepStats=q.keepStats+(stat to suggested)))
-                } }
-                LinkText("Use saved stat-search targets") {
-                    val targets=model.potentialQuery.targets.mapNotNull { (stat,value)->value.toDoubleOrNull()?.takeIf { it>0 }?.let { stat to it } }.toMap()
-                    update(q.copy(keepStats=q.keepStats+targets))
-                }
-                SellNumber("Minimum chance to leave out %",q.keepChance,0.0,100.0,1) { update(q.copy(keepChance=it?:0.0)) }
-                Text("0% means any possible finish, including rare rolls with unknown odds. A higher limit uses ordinary-roll probability. Already-met targets always stay out.",style=zen(11.sp,color=C.muted))
-                LinkText("Clear stat safeguards") { update(q.copy(keepStats=emptyMap())) }
+                OutlineButton("Reset to defaults",Modifier.fillMaxWidth(),height=40.dp,enabled=q.keepStats!=SellQuery.DEFAULT_GUARDS||q.keepChance!=1.0) { update(q.copy(keepStats=SellQuery.DEFAULT_GUARDS,keepChance=1.0)) }
             }
             SheetKind.SELL_SCORE->ScoringControls(model)
             SheetKind.SELL_WEIGHTS->{

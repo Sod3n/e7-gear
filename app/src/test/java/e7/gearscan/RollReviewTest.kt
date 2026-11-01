@@ -118,8 +118,11 @@ class RollReviewTest {
         assertFalse(GearPotential.forecast(row.item,GearPotential.Goal(mapOf(GearStat.SPD to 13.0,GearStat.HP_P to 8.0),false,false)).possible)
     }
     @Test fun rarePossibilitiesAndUnknownFutureCannotMasqueradeAsSafeZeros() {
-        val rare=SellSearch.run(context(SellQuery(reforge=false,keepStats=mapOf(GearStat.SPD to 16.0)),raw(1)),null)
+        val rare=SellSearch.run(context(SellQuery(reforge=false,keepStats=mapOf(GearStat.SPD to 16.0),keepChance=0.0),raw(1)),null)
         assertTrue(rare.rows.single().protected);assertEquals(0.0,rare.rows.single().safeguards.single().chance,0.0)
+        // the default 1% asks for ordinary odds: a rare-only reach does not hide the piece
+        val ordinary=SellSearch.run(context(SellQuery(reforge=false,keepStats=mapOf(GearStat.SPD to 16.0)),raw(1)),null)
+        assertFalse(ordinary.rows.single().protected)
         val unknown=SellSearch.run(context(SellQuery(reforge=false,keepStats=mapOf(GearStat.SPD to 20.0)),raw(1,family="event")),null)
         assertEquals(1,unknown.unknown);assertTrue(unknown.matches.isEmpty())
         val current=SellSearch.run(context(SellQuery(reforge=false,keepStats=mapOf(GearStat.SPD to 10.0)),raw(1,family="event")),null)

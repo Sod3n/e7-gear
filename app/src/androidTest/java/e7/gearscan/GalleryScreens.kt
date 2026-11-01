@@ -92,6 +92,7 @@ class GalleryScreens {
             ui { m.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; shot("sell-05-worth-rolling")
             ui { m.updateSellQuery(m.sellQuery.copy(rollOn = 10.0)); m.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; shot("sell-05c-why"); ui { m.updateSellQuery(m.sellQuery.copy(rollOn = 1.0)) }
             ui { m.sheet = Sheet(SheetKind.SELL_INVENTORY, 0) }; shot("sell-05b-gear-to-review")
+            ui { m.sheet = Sheet(SheetKind.SELL_SAFEGUARDS, 0) }; shot("sell-05d-safeguards")
             if (theme == only.split(",").first()) ui { m.sheet = null; m.sellResult?.matches?.take(6)?.forEach { m.markSellReview(it.item.id, keep = true) } }
             ui { m.sheet = null; m.go(Screen.SellKept) }; shot("sell-06-kept"); ui { m.go(Screen.SellFilters) }
             ui { m.trackSellMatches(openOverlay = false) }

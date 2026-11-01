@@ -27,7 +27,7 @@ fun SellKeptScreen(model: AppModel) {
     }
     Frame(model, null) {
         BackToPrevious(model); ScreenTitle("Kept pieces")
-        Text("${all.size} kept · they stay out of Sell review until you unlock them", style = zen(12.sp, color = C.muted))
+        Text("${all.size} kept", style = zen(12.sp, color = C.muted))
         CardGrid(Slot.entries, columns = 3, gap = 6.dp) { s, m ->
             Pill(s.label, m, selected = s in slots, onClick = { slots = if (s in slots) slots - s else slots + s; count = 30 },
                 leading = { GearIcon(s.icon, 14.dp, if (s in slots) C.onAccent else C.ink) })

@@ -209,3 +209,20 @@ private fun StatTile(label: String, value: String, fill: Float?, color: androidx
         } else Spacer(Modifier.height(5.dp))
     }
 }
+
+/** Label, live value and a slider; the value is saved when the finger lifts. */
+@Composable
+internal fun ValueSlider(label: String, icon: @Composable () -> Unit, value: Double, min: Double, max: Double, step: Double, text: (Double) -> String, commit: (Double) -> Unit) {
+    var v by remember(value) { mutableStateOf(value.coerceIn(min, max)) }
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            icon(); Text(label, style = zen(13.sp), modifier = Modifier.weight(1f)); Text(text(v), style = dela(15.sp, C.blue))
+        }
+        val n = ((max - min) / step).toInt().coerceAtLeast(1)
+        androidx.compose.material3.Slider(value = v.toFloat(), onValueChange = { v = (min + kotlin.math.round((it - min) / step) * step).coerceIn(min, max) },
+            onValueChangeFinished = { commit(v) }, valueRange = min.toFloat()..max.toFloat(), steps = if (n <= 200) n - 1 else 0,
+            colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = C.pink, activeTrackColor = C.pink, inactiveTrackColor = C.line,
+                activeTickColor = androidx.compose.ui.graphics.Color.Transparent, inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent),
+            modifier = Modifier.fillMaxWidth().height(32.dp).semantics { contentDescription = label })
+    }
+}
