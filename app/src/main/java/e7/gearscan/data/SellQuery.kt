@@ -5,7 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 enum class SellReference { POOL, EQUIPPED, SELECTED }
-enum class SellSort { CHANCE, SCORE, INVENTORY, QUALITY }
+enum class SellSort { CHANCE, SCORE, QUALITY }
 
 /** These are saved search requirements, not an automatic sale policy. */
 data class SellQuery(

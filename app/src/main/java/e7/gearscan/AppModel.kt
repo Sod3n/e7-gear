@@ -80,7 +80,7 @@ sealed class Screen {
     data class PoolHero(val id: Long, val setup: Boolean) : Screen()
 }
 
-enum class SheetKind { PRESET, TARGETS, ADVANCED, BONUS, SETS, MAINS, GOALS, SHOW, HERO_PICK, ARTIFACT, POOL_PICK, POOL_WORSE, POOL_LOW, POOL_HEROES, POOL_LIST, POOL_TRADES, SCAN_RESTART, POTENTIAL_HELP, POTENTIAL_TARGETS, POTENTIAL_SLOTS, POTENTIAL_SETS, POTENTIAL_MAINS, POTENTIAL_OPTIONS, POTENTIAL_PIECE, INVENTORY_ORDER, SELL_SCORE, SELL_WEIGHTS, SELL_FLOORS, SELL_CUSTOMS, SELL_HEROES, SELL_INVENTORY, SELL_SLOTS, SELL_SETS, SELL_MAINS, SELL_LEVELS, SELL_QUALITY, SELL_DETAILS, SELL_HELP, SELL_SAFEGUARDS, SELL_EXTRA, SELL_WORTH, HERO_UPGRADE_PIECE, HERO_UPGRADE_HELP, HERO_UPGRADE_BUILD }
+enum class SheetKind { PRESET, TARGETS, ADVANCED, BONUS, SETS, MAINS, GOALS, SHOW, HERO_PICK, ARTIFACT, POOL_PICK, POOL_WORSE, POOL_LOW, POOL_HEROES, POOL_LIST, POOL_TRADES, SCAN_RESTART, POTENTIAL_HELP, POTENTIAL_TARGETS, POTENTIAL_SLOTS, POTENTIAL_SETS, POTENTIAL_MAINS, POTENTIAL_OPTIONS, POTENTIAL_PIECE, SELL_SCORE, SELL_WEIGHTS, SELL_FLOORS, SELL_CUSTOMS, SELL_HEROES, SELL_INVENTORY, SELL_SLOTS, SELL_SETS, SELL_MAINS, SELL_LEVELS, SELL_QUALITY, SELL_DETAILS, SELL_HELP, SELL_SAFEGUARDS, SELL_EXTRA, SELL_WORTH, HERO_UPGRADE_PIECE, HERO_UPGRADE_HELP, HERO_UPGRADE_BUILD }
 
 /** [back] is the sheet to return to when this one finishes; null closes. */
 data class Sheet(val kind: SheetKind, val heroId: Long, val back: SheetKind? = null)
@@ -1288,31 +1288,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     // ---- upgrade observations (separate from the scan) ----
     val upgrades = e7.gearscan.overlay.UpgradeTracker(File(files, "upgrades.json"))
 
-    var inventoryAscending by mutableStateOf(true); private set
-    var inventoryBagOnly by mutableStateOf(false); private set
-    val inventoryOrderLabel get() = "${if (inventoryBagOnly) "Bag only" else "All gear"} · ${if (inventoryAscending) "low score first" else "high score first"}"
-    private var inventoryKey: List<Any?>? = null
-    private var inventoryIndex = emptyMap<Long, e7.gearscan.data.InventoryOrder.Position>()
-    fun setInventoryOrder(ascending: Boolean, bagOnly: Boolean) {
-        inventoryAscending = ascending; inventoryBagOnly = bagOnly; touch()
-        refreshUpgradePosition()
-    }
-    fun inventoryPosition(id: Long): e7.gearscan.data.InventoryOrder.Position? {
-        val b = box ?: return null
-        val key = listOf(b, upgrades.records, cleanupDone, inventoryAscending, inventoryBagOnly, lastScan, rev)
-        if (inventoryKey != key) {
-            val observed = upgrades.records.values.filter { it.scan == lastScan && it.history.size > 1 }.associate { it.item.id to it.item }
-            inventoryIndex = e7.gearscan.data.InventoryOrder.index(b, observed, cleanupDone, inventoryAscending, inventoryBagOnly)
-            inventoryKey = key
-        }
-        return inventoryIndex[id]
-    }
-    private fun refreshUpgradePosition() {
-        upgrades.inventoryPosition = upgrades.record?.item?.let { item ->
-            inventoryPosition(item.id)?.let { it.label() + " · " + if (inventoryAscending) "low first" else "high first" }
-                ?: if (inventoryBagOnly && item.equippedOn != null) "Equipped · outside bag view" else null
-        }
-    }
     fun openUpgradeOverlay() {
         val r = upgrades.record ?: return
         if (r.scan != lastScan || r.item.id !in (box?.itemsById ?: emptyMap())) {
@@ -1370,8 +1345,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             else getApplication<Application>().startActivity(Intent(getApplication(), MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP))
         }
-        upgrades.positionFor = { inventoryPosition(it)?.label() }
-        refreshUpgradePosition()
     }
 
     /** Acknowledges a sale made in the game; never sends a game command. */
@@ -1408,7 +1381,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun checkUpgrade() {
-        refreshUpgradePosition()
         if (upgrades.hasTarget) { refreshScoreGoal();upgrades.busy = false; return }
         val r = upgrades.record ?: return
         if (r.scan != lastScan || box?.itemsById?.containsKey(r.item.id) != true) {
@@ -1503,7 +1475,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val lines = ranked.take(5).map { (p, v, _) ->
             val q = if (p.piece == current.id) current else b.itemsById.getValue(p.piece)
             val name = "${content.set(q.set)?.name ?: q.set.removeSuffix("Set")} ${q.slot.label} +${q.enhance}"
-            val where = if (p.piece == current.id) " (this one)" else inventoryPosition(p.piece)?.label()?.substringBefore(" ·")?.let { " · $it" }.orEmpty()
+            val where = if (p.piece == current.id) " (this one)" else ""
             p.piece to "$name$where · ${v.size * 100 / res.sims}%" + (v.getOrNull(v.size / 2)?.let { " · usually ${heroGainLabel(s.hero.id, refBase, it)}" } ?: "")
         }
         return lines to ranked.filter { it.first.piece != current.id && it.third > mine }.map { it.first.piece }
@@ -1563,7 +1535,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val next = Box(b.json)
         next.itemsById[r.item.id]?.let { next.setEquipped(it, heroId) }
         displaced?.let { d -> next.itemsById[d.id]?.let { next.setEquipped(it, null) } }
-        box = next; inventoryKey = null; touch(); saveBox(); save()
+        box = next; touch(); saveBox(); save()
         val name = hero(heroId)?.let(::heroName) ?: "the hero"
         upgrades.equippedOn = name
         upgrades.undoEquip = {
@@ -1572,7 +1544,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 val back = Box(cur.json)
                 back.itemsById[r.item.id]?.let { back.setEquipped(it, owner) }
                 displaced?.let { d -> back.itemsById[d.id]?.let { back.setEquipped(it, heroId) } }
-                box = back; inventoryKey = null; touch(); saveBox(); save()
+                box = back; touch(); saveBox(); save()
             }
             upgrades.undoEquip = null; upgrades.equippedOn = null
         }
@@ -2037,7 +2009,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             val reforged = e7.gearscan.data.UpgradeRecord(lastScan, listOf(e7.gearscan.data.UpgradeRecord.fromScan(it))).reforged().item
             b.writeStats(reforged)?.let { j -> id to j }
         }
-        if (before.isNotEmpty()) { box = Box(b.json); inventoryKey = null; touch(); saveBox(); save() }
+        if (before.isNotEmpty()) { box = Box(b.json); touch(); saveBox(); save() }
         return before
     }
 
@@ -2048,7 +2020,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun recordMods(mods: List<Pair<Long, e7.gearscan.data.Mod>>): List<Pair<Long, JSONObject>> {
         val b = box ?: return emptyList()
         val before = mods.mapNotNull { (id, m) -> b.itemsById[id]?.let { b.writeSubs(e7.gearscan.opt.Mods.apply(it, m)) }?.let { id to it } }
-        if (before.isNotEmpty()) { box = Box(b.json); inventoryKey = null; touch(); saveBox(); save() }
+        if (before.isNotEmpty()) { box = Box(b.json); touch(); saveBox(); save() }
         return before
     }
 
@@ -2057,7 +2029,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val b = box ?: return
         if (before.isEmpty()) return
         before.asReversed().forEach { (id, j) -> b.restore(id, j) }
-        box = Box(b.json); inventoryKey = null; touch(); saveBox(); save()
+        box = Box(b.json); touch(); saveBox(); save()
     }
 
     private fun reforgedNote(before: List<Pair<Long, JSONObject>>) = if (before.isEmpty()) "" else " · ${before.size} reforged"
@@ -2346,7 +2318,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         if (upgrades.busy) { upgrades.generation++; upgrades.busy = false; PoolService.stop(getApplication()) }
         boxFile.delete(); stateFile.delete(); buildsDir.deleteRecursively()
         potentialGeneration++; potentialJob?.cancel(); potentialBusy = false; potentialResult = null; potentialQuery = e7.gearscan.data.PotentialQuery()
-        inventoryAscending = true; inventoryBagOnly = false; inventoryKey = null
         if (heroUpgrades?.running == true) stopHeroUpgrades()
         heroUpgrades = null; heroUpgradesResumable = false; heroUpgradesFile.delete(); heroUpgradesProgressFile.delete()
         overlaySales=emptyList();cleanupDone=emptySet();sellKept=emptySet();upgrades.clear(); e7.gearscan.overlay.OverlayService.stop(getApplication()); e7.gearscan.overlay.OverlayState.upgrade = null
@@ -2382,7 +2353,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         put("potentialQuery", potentialQuery.toJson())
         put("heroUpgradeMinGain", heroUpgradeMinGain); put("heroUpgradeRebuilds", heroUpgradeRebuilds)
         put("sellQuery", sellQuery.toJson())
-        put("inventoryAscending", inventoryAscending).put("inventoryBagOnly", inventoryBagOnly)
     }
 
     private val crashFile = File(files, CRASH_FILE)
@@ -2430,7 +2400,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         poolEffort = runCatching { PoolEffort.valueOf(j.optString("poolEffort")) }.getOrDefault(PoolEffort.BALANCED)
         if (j.has("lastPoolAt")) lastPool = j.getLong("lastPoolAt") to j.getInt("lastPoolScore")
         cleanup = j.optJSONObject("cleanup")?.let { cleanupOf(it, l.box) }
-        inventoryAscending = j.optBoolean("inventoryAscending", true); inventoryBagOnly = j.optBoolean("inventoryBagOnly", false)
         stopSellSearch();sellResult=null;sellCurve=null;appliedSellKey=null
         sellQuery=j.optJSONObject("sellQuery")?.let { runCatching { e7.gearscan.data.SellQuery.of(it) }.getOrNull() }?:e7.gearscan.data.SellQuery()
         potentialQuery = j.optJSONObject("potentialQuery")?.let { runCatching { e7.gearscan.data.PotentialQuery.of(it) }.getOrNull() } ?: e7.gearscan.data.PotentialQuery()
@@ -2498,7 +2467,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         upgrades.switchTo = { id -> selectUpgrade(id); checkUpgrade() }
         upgrades.rebuilds = heroUpgradeRebuilds
         upgrades.setRebuilds = { on -> useHeroUpgradeRebuilds(on); upgrades.rebuilds = on; checkUpgrade() }
-        refreshUpgradePosition()
         viewModelScope.launch {
             val loaded = withContext(Dispatchers.IO) { readFiles() }
             lastCrash = withContext(Dispatchers.IO) { crashFile.takeIf { it.exists() }?.readText() }

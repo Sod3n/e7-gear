@@ -54,7 +54,6 @@ fun GearPotentialScreen(model: AppModel) {
             BackToPrevious(model)
             ScreenTitle("Find gear")
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                LinkText("Inventory order") { open(model, SheetKind.INVENTORY_ORDER) }
                 LinkText("Help") { open(model, SheetKind.POTENTIAL_HELP) }
             }
             Segmented(listOf("Set up", "Matches"), tab) { tab = it }
@@ -314,14 +313,6 @@ internal fun PotentialPieceSheet(model: AppModel, id: Long) {
                 Column(Modifier.weight(1f)) { Text(finishAction(match, result.query), style = zen(13.sp)); Text("Chance to meet every target", style = zen(11.sp, FontWeight.Medium, C.muted)) }
             }
         }
-        model.inventoryPosition(item.id)?.let { pos ->
-            Card(shadow = null, padding = PaddingValues(12.dp)) {
-                Text(pos.label(), style = zen(13.sp, color = C.blue))
-                Text(pos.grid() + " · 5 columns", style = zen(12.sp))
-                Text(model.inventoryOrderLabel, style = zen(11.sp, FontWeight.Medium, C.muted))
-                LinkText("Match my game view") { open(model, SheetKind.INVENTORY_ORDER) }
-            }
-        }
         SectionTitle("Now / target")
         result.query.goal().minimums.forEach { (t, v) ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -352,26 +343,5 @@ internal fun PotentialNumber(value: String, hint: String, modifier: Modifier, mi
 
 @Composable
 internal fun GearPositionLabel(model: AppModel, item: Item, explicitGameScore:Boolean=false) {
-    if (!item.ghost) {
-        val position = model.inventoryPosition(item.id)
-        Text(position?.label()?.let { if(explicitGameScore)it.substringBefore(" · score ") else it.replace(" · score "," · ES ") } ?: if (model.inventoryBagOnly && item.equippedOn != null) "Equipped · outside bag view" else "Position unavailable", style = zen(10.sp, FontWeight.Medium, C.blue),
-            modifier = Modifier.tap { model.sheet = Sheet(SheetKind.INVENTORY_ORDER, 0) })
-    }
-}
-
-@Composable
-internal fun InventoryOrderSheet(model: AppModel) {
-    SheetBody("Find gear in game", button = "Done", onButton = { model.sheet = null }) {
-        Text("Sort your in-game inventory by Equipment Score.", style = zen(13.sp))
-        SectionTitle("Direction")
-        Segmented(listOf("Low score first", "High score first"), if (model.inventoryAscending) 0 else 1) { model.setInventoryOrder(it == 0, model.inventoryBagOnly) }
-        SectionTitle("Equipment shown")
-        Segmented(listOf("All gear", "In bag only"), if (model.inventoryBagOnly) 1 else 0) { model.setInventoryOrder(model.inventoryAscending, it == 1) }
-        Card(shadow = null, padding = PaddingValues(12.dp)) {
-            Text("Inventory # is the piece's position in that list.", style = zen(13.sp, color = C.blue))
-            VSpace(6.dp)
-            Text("Turn off slot, set and other filters in the game. All gear includes equipped pieces. Search filters here do not change inventory numbers.", style = zen(12.sp, FontWeight.Medium, C.muted))
-        }
-        Text("Positions use your latest scan, excluding pieces marked cleared. A ~ marks an estimate after manual upgrades or an import without full sorting data; rescan for exact tie-breaks. Rescan after selling or reforging. Row and column hints assume 5 columns.", style = zen(12.sp, FontWeight.Medium, C.muted))
-    }
+    if (!item.ghost) Text("ES ${e7.gearscan.data.InventoryOrder.score(item)}", style = zen(10.sp, FontWeight.Medium, C.blue))
 }

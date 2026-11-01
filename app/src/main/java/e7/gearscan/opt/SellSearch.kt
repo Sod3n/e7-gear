@@ -32,7 +32,6 @@ object SellSearch {
         val autoEsBars:Map<Slot,Int> by lazy { items.filter { it.enhance==15&&it.level>=85 }.groupBy { it.slot }.mapValues { (_,v)->v.map { gameScore(it) }.sorted()[v.size/2] } }
         fun esBar(slot:Slot)=query.esBars[slot]?:autoEsBars[slot]
         fun es(item:Item)=EsForecast.of(item,gameScore(item),esBar(item.slot),query.reforge,box.canReforge(item.id),coverage(item),query.forecastMs)
-        val inventoryRanks by lazy { InventoryOrder.index(box,records.filterValues { it.scan==scan&&it.history.size>1 }.mapValues { it.value.item },removed) }
         val raw=box.json.getJSONArray("items").let { a->(0 until a.length()).map { a.getJSONObject(it) }.associateBy { it.optLong("id",it.optLong("ingameId")) } }
         private val duplicateHistories=raw.values.filter { it.optInt("enhance")>0 }.groupingBy { historyKey(it) }.eachCount()
         val references=items.filter { it.equippedOn!=null && it.enhance>=query.referenceMinimum && when(query.reference) {
@@ -141,7 +140,6 @@ object SellSearch {
             SellSort.QUALITY->compareBy<Row> { it.quality.total?:Double.POSITIVE_INFINITY }.thenByDescending { it.quality.count }.thenBy { it.item.id }
             SellSort.CHANCE->compareBy<Row> { if(it.forecast.supported)it.forecast.chance else Double.POSITIVE_INFINITY }.thenBy { it.forecast.current }.thenBy { it.item.id }
             SellSort.SCORE->compareBy<Row> { it.forecast.current }.thenBy { it.item.id }
-            SellSort.INVENTORY->compareBy<Row> { context.inventoryRanks[it.item.id]?.number?:Int.MAX_VALUE }.thenBy { it.item.id }
         })
         if(q.descending)matches=matches.asReversed()
         if(q.sort==SellSort.QUALITY||!q.scoreFilter&&q.sort in listOf(SellSort.SCORE,SellSort.CHANCE))matches=matches.sortedBy { it.quality.total==null }

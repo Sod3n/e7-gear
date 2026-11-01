@@ -21,7 +21,7 @@ fun SellKeptScreen(model: AppModel) {
     val box = model.box
     // sellKept keeps the order pieces were kept in
     val all = model.sellKept.toList().mapNotNull { box?.itemsById?.get(it) }
-    fun es(item: Item) = model.inventoryPosition(item.id)?.score ?: InventoryOrder.score(item)
+    fun es(item: Item) = InventoryOrder.score(item)
     val shown = all.filter { (slots.isEmpty() || it.slot in slots) && (sets.isEmpty() || it.set in sets) }.let { list ->
         when (sort) { 0 -> list.asReversed(); 1 -> list.sortedBy(::es); else -> list.sortedByDescending(::es) }
     }

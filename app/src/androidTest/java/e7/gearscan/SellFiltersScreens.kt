@@ -126,7 +126,7 @@ class SellFiltersScreens {
         val soldId=t.selected!!;val history=t.record!!.history.size
         tap("Sold ›")
         assertTrue(soldId in model.cleanupDone);assertEquals(n-1,t.pendingQueue.size);assertNotEquals(soldId,t.selected)
-        assertNull(model.inventoryPosition(soldId));shot("19-sold-next",true)
+        shot("19-sold-next",true)
         val afterSale=model.backupText()
         val interrupted=JSONObject(afterSale);interrupted.getJSONObject("upgrades").put("selected",soldId)
         ui { assertTrue(model.restore(interrupted.toString())) }
@@ -140,7 +140,7 @@ class SellFiltersScreens {
         ui { model.markOverlaySold(soldId) };assertEquals(n-1,t.pendingQueue.size)
         rule.onNodeWithContentDescription("Undo last mark").performClick();rule.waitForIdle()
         assertFalse(soldId in model.cleanupDone);assertEquals(n,t.pendingQueue.size);assertEquals(soldId,t.selected)
-        assertEquals(history,t.record!!.history.size);assertNotNull(model.inventoryPosition(soldId));shot("20-undo-sold-mark",true)
+        assertEquals(history,t.record!!.history.size);shot("20-undo-sold-mark",true)
         ui { overlay=false;assertTrue(model.restore(afterSale));model.go(Screen.Upgrade) }
         assertTrue(soldId in model.cleanupDone);assertEquals(n-1,t.pendingQueue.size);assertTrue(t.canUndoSold)
         ui { model.undoOverlaySold() };assertEquals(soldId,t.selected);assertFalse(soldId in model.cleanupDone)

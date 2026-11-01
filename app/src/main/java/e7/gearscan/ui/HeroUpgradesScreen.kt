@@ -71,7 +71,6 @@ fun HeroUpgradesScreen(model: AppModel, heroId: Long?) {
         if (heroId == null) ScreenTitle("Improve heroes", "キョウカ") else ScreenTitle(model.hero(heroId)?.let(model::heroName) ?: "Improve heroes")
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             LinkText("How it works") { model.sheet = Sheet(SheetKind.HERO_UPGRADE_HELP, 0) }
-            LinkText("Inventory order") { model.sheet = Sheet(SheetKind.INVENTORY_ORDER, 0) }
         }
         if (running) Card(padding = PaddingValues(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -298,13 +297,6 @@ internal fun HeroUpgradePieceSheet(model: AppModel, id: Long) {
     }
     SheetBody("Equipment", button = "Track over game", onButton = { model.sheet = null; model.trackHeroUpgrade(id) }) {
         Card(shadow = null, padding = PaddingValues(12.dp)) { GearSearchIdentity(model, item) }
-        model.inventoryPosition(item.id)?.let { pos ->
-            Card(shadow = null, padding = PaddingValues(12.dp)) {
-                Text(pos.label(), style = zen(13.sp, color = C.blue))
-                Text(pos.grid() + " · 5 columns", style = zen(12.sp))
-                Text(model.inventoryOrderLabel, style = zen(11.sp, FontWeight.Medium, C.muted))
-            }
-        }
         SectionTitle("Heroes it could improve", trailing = "${heroes.size}")
         heroes.forEach { (h, r) ->
             Card(shadow = null, padding = PaddingValues(12.dp), onClick = { model.sheet = null; model.go(Screen.HeroUpgrades(h.hero.id)) }) {

@@ -95,8 +95,6 @@ class NoScrollScreens {
                 tracker.setName = "Speed"; tracker.setIcon = content.set("SpeedSet")?.icon
                 tracker.selectQueue = { index -> tracker.select(pieces[index], 1, keepQueue = true) }
                 tracker.returnToApp = { returned++ }
-                tracker.inventoryPosition = "Inventory #1144 · score 51 · low first"
-                tracker.positionFor = { "Inventory #$it · score 51" }
                 OverlayState.expanded = true; OverlayState.usableHeightDp = 0f
                 height = h; font = f; t = tracker
             }

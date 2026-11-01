@@ -166,7 +166,6 @@ fun SheetHost(model: AppModel) {
                 SheetKind.POTENTIAL_OPTIONS -> PotentialOptionsSheet(model)
                 SheetKind.POTENTIAL_HELP -> PotentialHelpSheet(model)
                 SheetKind.POTENTIAL_PIECE -> PotentialPieceSheet(model, sheet.heroId)
-                SheetKind.INVENTORY_ORDER -> InventoryOrderSheet(model)
                 SheetKind.HERO_UPGRADE_PIECE -> HeroUpgradePieceSheet(model, sheet.heroId)
                 SheetKind.HERO_UPGRADE_HELP -> HeroUpgradeHelpSheet(model)
                 SheetKind.HERO_UPGRADE_BUILD -> HeroUpgradeBuildSheet(model)

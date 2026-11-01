@@ -119,11 +119,7 @@ class GearPotentialScreens {
         tap("${model.content.set(best.item.set)?.name} ${best.item.slot.label}")
         assertEquals(SheetKind.POTENTIAL_PIECE, model.sheet!!.kind)
         shot("07-piece-353-big")
-        ui { model.sheet = Sheet(SheetKind.INVENTORY_ORDER, 0) }
-        shot("07-inventory-353-big")
-        tap("High score first"); assertFalse(model.inventoryAscending)
-        tap("In bag only"); assertTrue(model.inventoryBagOnly)
-        tap("Low score first"); tap("All gear"); tap("Done")
+
         ui { model.trackPotential(best) }
         assertEquals(Screen.Upgrade, model.screen)
         assertEquals(mapOf(GearStat.SPD to 20.0, GearStat.HP_P to 5.0), model.upgrades.goal!!.minimums)

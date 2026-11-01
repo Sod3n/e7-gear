@@ -35,7 +35,6 @@ class UpgradeTracker(private val file: File) {
     val canMarkSold get()=isSellQueue&&!sellQueueComplete&&!editing&&selected in pendingQueue.map { it.id }&&markSold!=null
     var selectQueue: ((Int) -> Unit)? = null
     var returnToApp: (() -> Unit)? = null
-    var positionFor: ((Long) -> String?)? = null
     /** Sell review: the piece's Equipment Score now and at +15, from its recorded state. */
     var esFor: ((Item) -> e7.gearscan.opt.EsForecast.Es?)? = null
     var rollOn = 1.0
@@ -61,7 +60,6 @@ class UpgradeTracker(private val file: File) {
     var requestCheck: (() -> Unit)? = null
     var setIcon: String? by mutableStateOf(null)
     var setName: String? by mutableStateOf(null)
-    var inventoryPosition: String? by mutableStateOf(null)
     var goal: e7.gearscan.opt.GearPotential.Goal? by mutableStateOf(null); private set
     var scoreGoal: e7.gearscan.opt.GearScore.Goal? by mutableStateOf(null); private set
     val isRollReview get()=scoreQuery!=null&&!scoreQuery!!.scoreFilter&&scoreGoal==null&&goal==null

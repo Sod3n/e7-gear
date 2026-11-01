@@ -264,7 +264,6 @@ fun SellFiltersScreen(model:AppModel) {
                 Text("${pending.size} pieces to review",style=dela(19.sp))
                 val rolling=pending.mapNotNull { it.es }.filter { it.finishShare>0&&it.worthRolling(q.rollOn)&&!it.reached }
                 if(rolling.isNotEmpty())Text("${rolling.size} worth rolling now",style=zen(12.sp,color=C.blue))
-                if(false)Text("${if(result.query.sort==SellSort.INVENTORY)"Game order" else if(result.query.descending)"Best rolls first" else "Worst rolls first"} · keep rolling at 1 in ${if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt().toString() else "–"}${if(result.query.reforge)" · reforge counted" else ""}",style=zen(11.sp,color=C.muted))
                 if(result.query.minimumProcs>0||result.query.maximumTotalQuality!=null)Text("${if(result.query.minimumProcs>0)"${result.query.minimumProcs}+ upgrades · " else ""}${rollLimitText(result.query)}",style=zen(11.sp,color=C.blue))
                 if(result.query.scoreFilter)Text("Additional combined-value filter applied",style=zen(11.sp,color=C.muted))
                 if(guarded.isNotEmpty()||unknown.isNotEmpty()||model.sellKept.isNotEmpty()) {
@@ -496,7 +495,6 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                     Fold("Each stat at +15",stats,{ stats=!stats }) { row.lines.sortedBy { if(it.stat==GearStat.SPD)0 else 1 }.forEach { StatFinish(it,model.sellResult!!.query.reforge) } }
                     if(row.safeguards.isNotEmpty()) { SectionTitle("Your stat safeguards");row.safeguards.forEach { SafeguardReason(it,it.active(row.keepChance)) } }
                     if(!model.sellFresh)Text("Inventory or settings changed; update before tracking.",style=zen(12.sp,color=C.deepPink))
-                    model.inventoryPosition(row.item.id)?.let { pos->Text("In game: ${pos.grid()} · ${if(model.inventoryAscending)"low score first" else "high score first"}",style=zen(11.sp,color=C.muted)) }
                     if(model.sellResult?.matches?.any { it.item.id==row.item.id }==true)OutlineButton("Track over game",Modifier.fillMaxWidth(),height=44.dp,enabled=model.sellFresh) { model.trackSellMatches(row.item.id) }
                     var combined by remember(row.item.id) { mutableStateOf(false) }
                     if(model.sellResult!!.query.scoreFilter)Fold("Combined score",combined,{ combined=!combined }) {

@@ -192,7 +192,7 @@ private fun chanceBadge(t: UpgradeTracker) = if (!t.hasTarget && t.results.isNot
 private fun PieceSummary(t: UpgradeTracker, item: Item, height: Float) {
     if (height < 60 * LocalDensity.current.fontScale + 12) {
         PanelTextPages("${item.rank} Lv.${item.level} · ${item.mainType.short} ${item.mainType.format(item.mainValue)}\n" +
-            item.subs.joinToString("\n") { "${it.type.short} ${it.type.format(it.value)}" } + "\n${t.inventoryPosition.orEmpty()}" +
+            item.subs.joinToString("\n") { "${it.type.short} ${it.type.format(it.value)}" } +
             if (!t.hasTarget||t.isRollReview) "\n${t.title}" + (weakestLine(t)?.let { "\n$it" } ?: "") else "", height)
         return
     }
@@ -214,7 +214,7 @@ private fun PieceSummary(t: UpgradeTracker, item: Item, height: Float) {
                 }
                 EsBar(e)
             }
-        } else t.inventoryPosition?.let { FitText(it, zen(9.sp, color = C.blue)) }
+        }
         if (!t.hasTarget && t.esFor == null) FitText(t.title, zen(10.sp, color = C.blue))
         if (!t.hasTarget) weakestLine(t)?.let { FitText(it, zen(9.sp, color = C.muted)) }
     }
@@ -271,7 +271,7 @@ private fun QueuePage(t: UpgradeTracker, height: Float, selected: () -> Unit) {
                     Column(Modifier.weight(1f)) {
                         FitText("${entry.setName} ${item.slot.label}", zen(10.sp))
                         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            FitText(t.positionFor?.invoke(item.id)?.removePrefix("Inventory ") ?: "#${page * perPage + offset + 1}", zen(8.sp, color = C.muted), Modifier.weight(1f))
+                            FitText("#${page * perPage + offset + 1}", zen(8.sp, color = C.muted), Modifier.weight(1f))
                             val out = entry.scoreGoal?.let { e7.gearscan.opt.GearScore.forecast(item,it).outcome(it.floor) }?:entry.goal?.let { GearPotential.forecast(item,it) }
                             FitText(if(t.isRollReview)"Review" else if(out==null||!out.supported) "Unknown" else if (out.rareOnly) "Rare" else if (!out.possible) if(entry.scoreGoal==null) "Stop" else "0%" else out.label(), zen(9.sp, color = C.blue))
                         }
@@ -373,7 +373,6 @@ private fun helpText(t: UpgradeTracker) = listOfNotNull(t.notice,
     else if(t.scoreGoal!=null) "The chance is for reaching the comparison points from your applied sell filters. These use your equipped gear or a custom score. Recorded upgrades refresh the comparison and chances. A filter match does not mean a piece is useless or should be sold. Rare endpoints have no estimated probability."
     else if (t.hasTarget) "The chance is for all targets together, using usual roll ranges. Rare maximum rolls have no estimated percentage. No modification stones are assumed."
     else "Advice compares complete builds for saved hero setups. The bar is the better of each hero's best build without this piece and with it as it is now. The chance is the share of ${e7.gearscan.PIECE_SIMS} simulated finishes from here that beat it; \"from\" lists the weakest finishes that still do, as substats at +15 before reforging. Pause means stop spending for now; it does not mean sell. After +15, Reforge and Equip record what you did in the game; Equip writes the piece into this app's gear until your next scan.",
-    "Inventory # uses your latest scan and recorded upgrades. Match Equipment Score direction and bag/all-gear settings; turn off other in-game filters.",
     "Rescan after selling or reforging. ~ marks an estimate until a fresh scan supplies exact experience tie-breaks.").joinToString("\n\n")
 
 /** The weakest finish that still helps the hero it helps most often, for the piece page. */
