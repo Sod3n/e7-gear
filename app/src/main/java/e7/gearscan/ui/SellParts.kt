@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import e7.gearscan.data.*
@@ -81,5 +82,18 @@ internal fun OddsDots(n: Int) {
             repeat(n) { i -> Box(Modifier.size(12.dp).clip(RoundedCornerShape(6.dp)).background(if (i == 0) C.blue else C.line)) }
         }
         Text("1 lit of $n finishes reaches the bar", style = zen(11.sp, color = C.muted))
+    }
+}
+
+/** A section that opens in place: a full-width row with a chevron, never a link. */
+@Composable
+internal fun Fold(title: String, open: Boolean, toggle: () -> Unit, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(C.field).border(1.5.dp, C.line, RoundedCornerShape(10.dp))
+            .tap(toggle).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = zen(13.sp), modifier = Modifier.weight(1f))
+            Text("›", style = zen(15.sp, color = C.muted), modifier = Modifier.rotate(if (open) -90f else 90f))
+        }
+        if (open) Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
     }
 }

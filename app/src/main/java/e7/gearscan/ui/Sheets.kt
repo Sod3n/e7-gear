@@ -23,6 +23,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.Orientation
@@ -127,7 +128,7 @@ fun SheetHost(model: AppModel) {
     val drag = rememberDraggableState { d -> dy = (dy + d).coerceAtLeast(0f) }
     Box(Modifier.fillMaxSize().background(C.scrim.copy(alpha = C.scrim.alpha * (1f - dy / height).coerceIn(0f, 1f)))
         .tap { model.sheet = null }) {
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(if (sheet.kind in tall) 0.92f else 0.86f)
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().then(if (sheet.kind in tall) Modifier.fillMaxHeight(0.92f) else Modifier.heightIn(max = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.86f).dp))
             .onSizeChanged { height = it.height.toFloat().coerceAtLeast(1f) }
             .offset { IntOffset(0, dy.roundToInt()) }
             .nestedScroll(nested)
@@ -180,8 +181,8 @@ private val tall = setOf(SheetKind.TARGETS, SheetKind.HERO_PICK, SheetKind.ARTIF
 @Composable
 internal fun SheetBody(title: String, trailing: @Composable (() -> Unit)? = null, button: String? = null, onButton: (() -> Unit)? = null,
                       content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxSize()) {
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
+    Column(Modifier.fillMaxWidth()) {
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = TitleStyle, modifier = Modifier.weight(1f))

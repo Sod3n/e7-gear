@@ -103,7 +103,7 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
             PanelAction("–", Modifier.width(30.dp), label = "Collapse tracker") { OverlayState.expanded = false; onDock(false) }
             PanelAction("×", Modifier.width(30.dp), label = "Close tracker", click = onClose)
         }
-        if (t.queue.isNotEmpty()) Row(Modifier.fillMaxWidth().height(38.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (t.queue.isNotEmpty() && pane == UpgradePane.PIECE && !t.editing) Row(Modifier.fillMaxWidth().height(38.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
             PanelAction("‹", Modifier.width(60.dp), enabled = t.queueIndex > 0 && !t.editing, label = "Previous gear") { t.selectQueue?.invoke(t.queueIndex - 1); pane = UpgradePane.PIECE }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { FitText(if(t.sellQueueComplete)"0 remaining" else if(t.needsRollRefresh)"Refresh list for overall ranking" else if(t.isSellQueue)"${t.queueIndex + 1} / ${t.pendingQueue.size} · sell in E7 first" else "${t.queueIndex + 1} / ${t.pendingQueue.size} matches", zen(10.sp, color = C.blue)) }
             if (!t.isSellQueue) PanelAction(if (pane == UpgradePane.LIST) "Piece" else "List", Modifier.width(46.dp), enabled = !t.editing&&!t.sellQueueComplete) { pane = if (pane == UpgradePane.LIST) UpgradePane.PIECE else UpgradePane.LIST }
@@ -196,20 +196,24 @@ private fun PieceSummary(t: UpgradeTracker, item: Item, height: Float) {
             if (!t.hasTarget||t.isRollReview) "\n${t.title}" + (weakestLine(t)?.let { "\n$it" } ?: "") else "", height)
         return
     }
-    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.fillMaxWidth().inset().padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             StatIcon(item.mainType.stat, 13.dp, C.ink); Spacer(Modifier.width(4.dp))
             FitText(item.mainType.format(item.mainValue), zen(11.sp), Modifier.weight(1f))
             FitText(if(t.isRollReview)t.reviewRolls?.let { "${e7.gearscan.opt.RollReview.overallWeakCount(it)}/${it.size} low" }?:"History unknown" else "${item.rank} · Lv.${item.level}", zen(9.sp, color = C.muted))
         }
         GearSearchSubs(item, t.goal?.minimums?.keys ?: emptySet())
+        }
         val es by produceState<e7.gearscan.opt.EsForecast.Es?>(null, item, t.esFor) { value = t.esFor?.let { f -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { f(item) } } }
         if (t.esFor != null) es?.let { e ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                FitText("ES ${e.now}${e.typical?.takeIf { e.finishShare > 0 }?.let { " → ${it.toInt()}" } ?: ""}", dela(13.sp), Modifier.weight(1f))
-                EsChip(e, t.rollOn)
+            Column(Modifier.fillMaxWidth().inset().padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    FitText("ES ${e.now}${e.typical?.takeIf { e.finishShare > 0 }?.let { " → ${it.toInt()}" } ?: ""}", dela(13.sp), Modifier.weight(1f))
+                    EsChip(e, t.rollOn)
+                }
+                EsBar(e)
             }
-            EsBar(e)
         } else t.inventoryPosition?.let { FitText(it, zen(9.sp, color = C.blue)) }
         if (!t.hasTarget && t.esFor == null) FitText(t.title, zen(10.sp, color = C.blue))
         if (!t.hasTarget) weakestLine(t)?.let { FitText(it, zen(9.sp, color = C.muted)) }
@@ -414,8 +418,12 @@ private fun PanelPager(page: Int, pages: Int, text: String, kind: String, change
 @Composable
 private fun PanelAction(text: String, modifier: Modifier = Modifier, pink: Boolean = false, enabled: Boolean = true, label: String = text, click: () -> Unit) {
     val shape = RoundedCornerShape(8.dp)
-    Box(modifier.heightIn(min = 27.dp).fillMaxHeight().clip(shape).background(if (!enabled) C.paper else if (pink) C.pink else C.field)
-        .border(1.5.dp, if (pink) C.edge else C.line, shape).tap(if (enabled) click else null).semantics { contentDescription = label }.padding(horizontal = 5.dp), contentAlignment = Alignment.Center) {
+    Box(modifier.heightIn(min = 27.dp).fillMaxHeight().then(if (enabled) Modifier.padding(bottom = 2.dp).hardShadow(C.edge, 0.dp, 2.dp, 8.dp) else Modifier)
+        .clip(shape).background(if (!enabled) C.paper else if (pink) C.pink else C.card)
+        .border(1.5.dp, if (pink || enabled) C.edge else C.line, shape).tap(if (enabled) click else null).semantics { contentDescription = label }.padding(horizontal = 5.dp), contentAlignment = Alignment.Center) {
         FitText(text, zen(10.sp, color = if (!enabled) C.faint else if (pink) C.onAccent else C.ink))
     }
 }
+
+/** A recessed block inside the panel: field fill and a thin rule, so sections read as layers. */
+private fun Modifier.inset(): Modifier = this.clip(RoundedCornerShape(10.dp)).background(C.field).border(1.dp, C.line, RoundedCornerShape(10.dp))

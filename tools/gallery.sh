@@ -7,6 +7,8 @@ METHOD="${1:-sell}"
 OUT="${2:-app/build/gallery}"
 : "${E7_FIXTURES:?set E7_FIXTURES to a folder with backup.json and content.json}"
 adb get-state >/dev/null
+# boot_completed comes before the package service answers; installs fail until it does
+for i in $(seq 1 60); do adb shell pm path android >/dev/null 2>&1 && adb shell service check activity | grep -q found && break; sleep 2; done
 ./gradlew -q :app:installDebug :app:installDebugAndroidTest
 # am instrument directly: Gradle's connected runner crashed the process on a freshly booted emulator
 RESULT=$(adb shell am instrument -w -r -e class "e7.gearscan.GalleryScreens#$METHOD" e7.gearscan.test/androidx.test.runner.AndroidJUnitRunner)

@@ -85,6 +85,7 @@ class GalleryScreens {
             val first = m.sellResult?.matches?.firstOrNull { it.item.id !in m.reviewedIds }
             if (first != null) { ui { m.sheet = Sheet(SheetKind.SELL_DETAILS, first.item.id) }; shot("sell-04-details"); ui { m.sheet = null } }
             ui { m.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; shot("sell-05-worth-rolling")
+            tap("Why 1 in 20 is the best balance"); shot("sell-05c-why")
             ui { m.sheet = Sheet(SheetKind.SELL_INVENTORY, 0) }; shot("sell-05b-gear-to-review")
             if (theme == only.split(",").first()) ui { m.sheet = null; m.sellResult?.matches?.take(6)?.forEach { m.markSellReview(it.item.id, keep = true) } }
             ui { m.sheet = null; m.go(Screen.SellKept) }; shot("sell-06-kept"); ui { m.go(Screen.SellFilters) }
