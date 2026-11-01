@@ -179,7 +179,7 @@ internal fun KeepRollingSlider(value: Double, commit: (Double) -> Unit) {
     Text("Keep enhancing while a piece's chance to reach your ES bar is at least", style = zen(13.sp))
     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(if (pct < 1) String.format(java.util.Locale.US, "%.2g%%", pct) else "${fmtNum(pct)}%", style = dela(30.sp, C.blue))
-        Text("1 in ${kotlin.math.round(100 / pct).toInt()}${if (kotlin.math.abs(pct - 1.0) < 1e-9) " · default" else ""}", style = zen(13.sp, color = C.muted), modifier = Modifier.padding(bottom = 6.dp))
+        if (kotlin.math.abs(pct - 1.0) < 1e-9) Text("default", style = zen(12.sp, color = C.muted), modifier = Modifier.padding(bottom = 6.dp))
     }
     androidx.compose.material3.Slider(value = index.toFloat(), onValueChange = { index = it.toInt().coerceIn(pts.indices) }, onValueChangeFinished = { commit(pts[index].first) },
         valueRange = 0f..(pts.size - 1).toFloat(), steps = (pts.size - 2).coerceAtLeast(0),
@@ -195,8 +195,6 @@ internal fun KeepRollingSlider(value: Double, commit: (Double) -> Unit) {
         StatTile("Total gold", EsForecast.goldText(cost * EsForecast.FULL_GOLD), (cost / KeepCurve.ALL_COST).toFloat(), C.deepPink, Modifier.weight(1f))
         StatTile("Each extra piece", extra?.let { EsForecast.goldText(it * EsForecast.FULL_GOLD) } ?: "—", null, C.ink, Modifier.weight(1f))
     }
-    Text("Measured on a real inventory: 921 unfinished pieces, ${KeepCurve.POSSIBLE.toInt()} of them can reach the bar; finishing all costs ${EsForecast.goldText(KeepCurve.ALL_COST * EsForecast.FULL_GOLD)} gold. " +
-        "Each extra piece: gold per good piece kept compared with one step stricter.", style = zen(11.sp, color = C.muted))
 }
 
 @Composable
