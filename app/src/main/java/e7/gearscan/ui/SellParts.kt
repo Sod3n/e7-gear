@@ -182,7 +182,7 @@ internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.R
             // estimates: shown rounded and with ~ so they never read as exact
             fun rough(x: Double): String { val m = x / 1e6; return "~" + when { m >= 100 -> "${kotlin.math.round(m).toLong()}M"; m >= 1 -> String.format(java.util.Locale.US, "%.1fM", m); else -> "${kotlin.math.round(x / 1e3).toLong()}k" } }
             val extraText = extra?.takeIf { it.isFinite() && good - curve.good[index + 1] > 1e-3 }?.let { rough(it) }
-            StatTile("Good pieces kept", "~$g of $all", (good / curve.possible.coerceAtLeast(1e-9)).toFloat(), C.blue, Modifier.weight(1f).fillMaxHeight()) {
+            StatTile("Good pieces kept", "~$g of $all", (good / curve.possible.coerceAtLeast(1e-9)).toFloat(), C.blue, Modifier.weight(1f).fillMaxHeight(), short = "~$g") {
                 explain("Good pieces kept", "Pieces from your list (${curve.pieces}) that end at or above your ES bar. If every one were taken to +15, about $all would make it. " +
                     "At $at, a piece stops after any +3 that leaves it below a $at chance, so about $g still make it. Counted over every way the remaining rolls can land, weighted by how likely each is. " + ESTIMATE)
             }
@@ -200,7 +200,7 @@ internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.R
 }
 
 @Composable
-private fun StatTile(label: String, value: String, fill: Float?, color: androidx.compose.ui.graphics.Color, modifier: Modifier, explain: (() -> Unit)? = null) {
+private fun StatTile(label: String, value: String, fill: Float?, color: androidx.compose.ui.graphics.Color, modifier: Modifier, short: String? = null, explain: (() -> Unit)? = null) {
     val shape = RoundedCornerShape(12.dp)
     Column(modifier.padding(bottom = 3.dp).hardShadow(C.shadow, 0.dp, 3.dp, 12.dp).clip(shape).background(C.card).border(1.5.dp, C.edge, shape).tap(explain).padding(horizontal = 9.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -208,7 +208,7 @@ private fun StatTile(label: String, value: String, fill: Float?, color: androidx
             Text(label, style = zen(10.sp, color = C.muted), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             if (explain != null) Text("?", style = dela(11.sp, C.muted))
         }
-        FitText(value, dela(16.sp, color))
+        FitText(value, dela(16.sp, color), short = short)
         if (fill != null) Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)).background(C.line)) {
             Box(Modifier.fillMaxWidth(fill.coerceIn(0f, 1f)).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(color))
         } else Spacer(Modifier.height(5.dp))

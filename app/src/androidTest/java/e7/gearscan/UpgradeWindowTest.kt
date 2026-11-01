@@ -65,8 +65,15 @@ class UpgradeWindowTest {
             shot("07-over-browser-portrait")
             shell("settings put system accelerometer_rotation 0")
             shell("settings put system user_rotation 1")
-            Thread.sleep(1000)
-            val landscape = shot("08-over-browser-landscape")
+            // the emulator's rotation animation outlasts a fixed sleep: wait until two shots in a row match
+            var landscape = shot("08-over-browser-landscape")
+            for (i in 0 until 16) {
+                Thread.sleep(500)
+                val next = shot("08-over-browser-landscape")
+                val settled = next.width > next.height && next.sameAs(landscape)
+                landscape = next
+                if (settled) break
+            }
             assertTrue("browser did not rotate", landscape.width > landscape.height)
             // Non-focusable Compose overlay text is absent from this emulator's accessibility-window roots.
             // Locate the solid pink Record action in the screenshot, then inject a real touch.

@@ -49,7 +49,7 @@ class SellFiltersScreens {
         rule.onAllNodes(hasSetTextAction(),useUnmergedTree=true).assertCountEquals(0)
         if(overlay) {
             rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollBy),useUnmergedTree=true).assertCountEquals(0)
-            rule.onNodeWithText("E7 Gear").assertIsDisplayed()
+            rule.onNodeWithText("···",substring=true).assertIsDisplayed()
             val body=rule.onNodeWithTag("gear-tracker-body",useUnmergedTree=true).getUnclippedBoundsInRoot()
             val text=rule.onAllNodes(hasAnyAncestor(hasTestTag("gear-tracker-body")) and SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult),useUnmergedTree=true)
             repeat(text.fetchSemanticsNodes().size) { i->val b=text[i].getUnclippedBoundsInRoot();assertTrue("Text outside overlay: $b vs $body",b.top.value>=body.top.value-1&&b.bottom.value<=body.bottom.value+1) }

@@ -59,7 +59,7 @@ class GearPotentialScreens {
         shot("01-slots-353-big"); tap("Done")
         ui { model.sheet = Sheet(SheetKind.POTENTIAL_MAINS, 0) }
         shot("01-mains-353-big"); tap("Done")
-        tap("Find gear")
+        rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle()
         rule.waitUntil(30_000) { !model.potentialBusy }
         assertNull(model.potentialError)
         val first = model.potentialResult!!
@@ -77,7 +77,7 @@ class GearPotentialScreens {
         shot("03-sets-353-big")
         tap("Done")
         ui { model.updatePotentialQuery(model.potentialQuery.copy(slots = setOf(Slot.HELMET))) }
-        tap("Find gear")
+        rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle()
         rule.waitUntil(30_000) { !model.potentialBusy }
         assertTrue(model.potentialResult!!.matches.all { it.item.slot == Slot.HELMET && it.item.set == "DestructionSet" })
         assertTrue(model.potentialResult!!.matches.any { kotlin.math.abs(it.outcome.chance - .25) < 1e-10 })
@@ -97,7 +97,7 @@ class GearPotentialScreens {
         assertEquals("5", model.potentialQuery.targets[GearStat.HP_P])
         shot("05-joint-targets-353-big")
         tap("Done")
-        tap("Find gear")
+        rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle()
         rule.waitUntil(30_000) { !model.potentialBusy }
         val best = model.potentialResult!!.matches.first()
         assertEquals(.25, best.outcome.chance, 1e-10)
@@ -110,7 +110,7 @@ class GearPotentialScreens {
         repeat(3) { rule.onNodeWithContentDescription("Increase value").performClick() }
         tap("Use value")
         shot("06-options-353-big"); tap("Done")
-        tap("Find gear")
+        rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle()
         rule.waitUntil(30_000) { !model.potentialBusy }
         assertTrue(model.potentialResult!!.matches.isEmpty())
         shot("07-empty-353-big")

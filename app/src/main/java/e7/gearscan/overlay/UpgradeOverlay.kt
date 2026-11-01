@@ -103,7 +103,7 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
             PanelAction("–", Modifier.width(30.dp), label = "Collapse tracker") { OverlayState.expanded = false; onDock(false) }
             PanelAction("×", Modifier.width(30.dp), label = "Close tracker", click = onClose)
         }
-        if (t.queue.isNotEmpty() && pane == UpgradePane.PIECE && !t.editing) Row(Modifier.fillMaxWidth().height(38.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (t.queue.isNotEmpty() && (pane == UpgradePane.PIECE || pane == UpgradePane.LIST) && !t.editing) Row(Modifier.fillMaxWidth().height(38.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
             PanelAction("‹", Modifier.width(60.dp), enabled = t.queueIndex > 0 && !t.editing, label = "Previous gear") { t.selectQueue?.invoke(t.queueIndex - 1); pane = UpgradePane.PIECE }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { FitText(if(t.sellQueueComplete)"0 remaining" else if(t.needsRollRefresh)"Refresh list for overall ranking" else if(t.isSellQueue)"${t.queueIndex + 1} / ${t.pendingQueue.size} · sell in E7 first" else "${t.queueIndex + 1} / ${t.pendingQueue.size} matches", zen(10.sp, color = C.blue)) }
             if (!t.isSellQueue) PanelAction(if (pane == UpgradePane.LIST) "Piece" else "List", Modifier.width(46.dp), enabled = !t.editing&&!t.sellQueueComplete) { pane = if (pane == UpgradePane.LIST) UpgradePane.PIECE else UpgradePane.LIST }

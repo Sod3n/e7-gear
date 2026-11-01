@@ -230,6 +230,7 @@ class ScreenAudit {
         runCatching { rule.waitUntil(180_000) { !model.sellCurveBusy && model.sellCurve != null } }
         if (model.sellResult?.matches.isNullOrEmpty()) add("Sell review finds nothing on the fixture, so its cards go unchecked", "sell")
         if (model.sellCurve == null) add("the keep-rolling numbers never arrive", "sell")
+        val baseSellQuery = model.sellQuery
         val sellFirst = model.sellResult?.matches?.firstOrNull()?.item?.id
         ui { model.sellResult?.matches?.drop(1)?.take(3)?.forEach { model.markSellReview(it.item.id, keep = true) }; model.toast = null }
         ui { model.findGearPotential() }
@@ -280,12 +281,20 @@ class ScreenAudit {
         steps.add("rta-after-cache-only-load" to {
             // the Heroes list loads low tiers from cache only; a later online load must still fetch the RTA samples
             val code = model.hero(hero)!!.code
-            ui { model.presets.remove(code); model.presetsOnline -= code; File(model.buildsDir, "rta_$code.json").delete(); File(model.buildsDir, "rta_$code.none").delete() }
+            // offline the samples can't be fetched: keep the cached ones and check the online load still runs
+            val online = model.presetNetwork
+            ui { model.presets.remove(code); model.presetsOnline -= code
+                if (online) { File(model.buildsDir, "rta_$code.json").delete(); File(model.buildsDir, "rta_$code.none").delete() } }
             ui { model.loadPresetsQuietly(hero, network = false) }
             rule.waitUntil(10_000) { model.presets.containsKey(code) && model.presetLoading[code] != true }
             ui { model.loadPresetsQuietly(hero, network = true) }
-            runCatching { rule.waitUntil(30_000) { model.presets[code]?.rta?.isNotEmpty() == true } }
-            if (model.presets[code]?.rta.isNullOrEmpty()) add("RTA samples never load after a cache-only load", "presets")
+            if (online) {
+                runCatching { rule.waitUntil(30_000) { model.presets[code]?.rta?.isNotEmpty() == true } }
+                if (model.presets[code]?.rta.isNullOrEmpty()) add("RTA samples never load after a cache-only load", "presets")
+            } else {
+                runCatching { rule.waitUntil(10_000) { code in model.presetsOnline && model.presetLoading[code] != true } }
+                if (code !in model.presetsOnline) add("an online preset load after a cache-only load is skipped", "presets")
+            }
         })
         steps.add("sets-torrent-x3" to {
             val torrent = model.content.setByName("Torrent")!!.key
@@ -781,7 +790,8 @@ class ScreenAudit {
         )
 
         flips += listOf(
-            Triple("sell: a safeguard to off", { ui { overlay = false; model.stack = listOf(Screen.Gear, Screen.SellFilters); model.sheet = Sheet(SheetKind.SELL_SAFEGUARDS, 0) } },
+            Triple("sell: a safeguard to off", { ui { overlay = false; model.stack = listOf(Screen.Gear, Screen.SellFilters); model.sheet = Sheet(SheetKind.SELL_SAFEGUARDS, 0) }
+                runCatching { rule.onAllNodesWithText("Spd", useUnmergedTree = true)[0].performScrollTo() }; rule.waitForIdle() },
                 { ui { model.updateSellQuery(model.sellQuery.copy(keepStats = model.sellQuery.keepStats - e7.gearscan.data.GearStat.SPD)) } }),
             Triple("sell: keep-rolling chance", { ui { model.updateSellQuery(model.sellQuery.copy(keepStats = e7.gearscan.data.SellQuery.DEFAULT_GUARDS)); model.sheet = Sheet(SheetKind.SELL_WORTH, 0) } },
                 { ui { model.updateSellQuery(model.sellQuery.copy(rollOn = if (model.sellQuery.rollOn == 1.0) 10.0 else 1.0)) } }),
@@ -794,6 +804,12 @@ class ScreenAudit {
             setup = s
             overlay = false
             ui { OverlayState.expanded = false; resetCapture(model); model.team = listOf(hero); model.pickHero(hero) }
+            // the last setup's flips edited the sell filters, which drops the keep-rolling numbers
+            if (model.sellQuery != baseSellQuery || model.sellCurve == null) {
+                ui { model.updateSellQuery(baseSellQuery); model.findSellGear() }
+                rule.waitUntil(300_000) { !model.sellBusy }
+                runCatching { rule.waitUntil(180_000) { !model.sellCurveBusy && model.sellCurve != null } }
+            }
             for ((name, act) in steps) {
                 try {
                     act(); rule.waitForIdle()
@@ -852,13 +868,16 @@ class ScreenAudit {
 
         // last, since a restore reloads every setup the steps above hold: a backup carries history and a restore brings it
         // back (moving to a new signing key depends on it)
-        run {
+        // ~650 screens in one process leave little heap: a second JSON tree of the backup ran out of memory and lost the report
+        try {
             val runs = model.history.size
             val text = model.backupText()
-            if (org.json.JSONObject(text).optJSONArray("history")?.length() != runs) add("a backup doesn't carry the history", "backup")
+            if (historyLength(text) != runs) add("a backup doesn't carry the history", "backup")
             var ok = false
             ui { ok = model.restore(text) }
-            if (!ok || model.history.size != runs || runs == 0) add("restoring a backup loses the history", "backup: $runs runs before, ${model.history.size} after")
+            if (!ok || model.history.size != runs || runs == 0) add("restoring a backup loses the history", "backup: $runs runs before, ${model.history.size} after, ${text.length / 1024} KB, heap ${heapMb()}")
+        } catch (e: OutOfMemoryError) {
+            add("the backup step ran out of memory", "heap ${heapMb()}")
         }
 
         fun fmt(m: Map<String, Set<String>>) = m.entries.joinToString("\n") { (k, v) -> "$k\n" + v.joinToString("\n") { "    $it" } }
@@ -869,6 +888,19 @@ class ScreenAudit {
     }
 
     private fun ui(f: () -> Unit) { rule.runOnUiThread(f); rule.waitForIdle() }
+
+    private fun heapMb(): String = Runtime.getRuntime().let { "${(it.totalMemory() - it.freeMemory()) shr 20}/${it.maxMemory() shr 20} MB" }
+
+    private fun historyLength(text: String): Int? = android.util.JsonReader(java.io.StringReader(text)).use { r ->
+        r.beginObject()
+        while (r.hasNext()) {
+            if (r.nextName() != "history") { r.skipValue(); continue }
+            var n = 0
+            r.beginArray(); while (r.hasNext()) { r.skipValue(); n++ }; r.endArray()
+            return n
+        }
+        null
+    }
 
     private fun clickText(text: String, substring: Boolean = false, index: Int = 0) {
         val node = rule.onAllNodesWithText(text, substring = substring, useUnmergedTree = true)[index]
@@ -944,7 +976,8 @@ class ScreenAudit {
         // layouts from the kit: a grid row is one height, and rows of one list keep the same trailing slots
         // (an arrow, stamp or chip missing in one row must leave its place empty, not move the rest)
         val cells = rule.onAllNodes(androidx.compose.ui.test.hasTestTag(e7.gearscan.ui.CELL_TAG), true).fetchSemanticsNodes(false)
-        for ((_, row) in cells.groupBy { Math.round(it.positionInRoot.y / 4f) }) {
+        // per grid: a page under an open sheet can have its own grid at the same height
+        for ((_, row) in cells.groupBy { it.parent?.id to Math.round(it.positionInRoot.y / 4f) }) {
             val hs = row.map { it.size.height }
             if (hs.maxOrNull()!! - hs.minOrNull()!! > 2) add("grid cells in one row differ in height", "$where: ${hs.joinToString()} px")
         }

@@ -107,27 +107,34 @@ private fun Results(model: AppModel, r: e7.gearscan.CleanupState) {
                 style = zen(11.sp, FontWeight.Medium, C.deepPink))
         }
     }
+    var count by remember(r.finishedAt) { mutableStateOf(20) }
+    var budget = count
     val copies = r.picks.filter { it.twin != null }
     val tickets = r.picks.filter { it.twin == null }
-    if (copies.isNotEmpty()) {
+    if (copies.isNotEmpty() && budget > 0) {
         SectionTitle("Copies", trailing = "${copies.size}")
-        copies.forEach { p -> PickRow(model, p, "Same as the one ${where(model, p.twin!!)}") }
+        copies.take(budget).forEach { p -> PickRow(model, p, "Same as the one ${where(model, p.twin!!)}") }
+        budget -= copies.size
     }
     // heroes missing from the scan's hero list still wear gear in the game; they go last, together
     val worn = tickets.filter { it.item.equippedOn != null }.groupBy { p -> p.item.equippedOn!!.let { id -> model.hero(id)?.let(model::heroName) } }
-    if (worn.isNotEmpty()) {
+    if (worn.isNotEmpty() && budget > 0) {
         SectionTitle("On heroes · unequip first", trailing = "${worn.values.sumOf { it.size }}")
         worn.entries.sortedWith(compareBy<Map.Entry<String?, List<Cleanup.Pick>>> { it.key == null }.thenBy { it.key ?: "" }).forEach { (name, ps) ->
-            Text(name ?: "Heroes not in the scan", style = zen(12.sp, color = C.blue))
-            ps.forEach { p -> PickRow(model, p, reason(p)) }
+            if (budget > 0) {
+                Text(name ?: "Heroes not in the scan", style = zen(12.sp, color = C.blue))
+                ps.take(budget).forEach { p -> PickRow(model, p, reason(p)) }
+            }
+            budget -= ps.size
         }
     }
     val bag = tickets.filter { it.item.equippedOn == null }
-    if (bag.isNotEmpty()) {
+    if (bag.isNotEmpty() && budget > 0) {
         SectionTitle("In the bag", trailing = "${bag.size}")
         bag.sortedWith(compareBy<Cleanup.Pick> { it.item.slot.ordinal }.thenBy { it.item.set }.thenBy { it.item.enhance })
-            .forEach { p -> PickRow(model, p, reason(p)) }
+            .take(budget).forEach { p -> PickRow(model, p, reason(p)) }
     }
+    if (count < r.picks.size) OutlineButton("Show 20 more", Modifier.fillMaxWidth(), height = 42.dp) { count += 20 }
     if (r.picks.isEmpty()) Text("Nothing to clear: every piece is either in use, the best of its kind, or could still help a hero.",
         style = zen(13.sp, FontWeight.Medium, C.muted))
 }

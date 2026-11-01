@@ -199,8 +199,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     var content: Content by mutableStateOf(loadContent())
         private set
-    var box: Box? by mutableStateOf(null)
-        private set
+    // not a mutableStateOf: snapshot records keep replaced values, and each old box holds a whole JSON tree of the gear
+    @Volatile private var boxRef: Box? = null
+    private var boxVersion by mutableIntStateOf(0)
+    var box: Box?
+        get() { boxVersion; return boxRef }
+        private set(v) { boxRef = v; boxVersion++ }
     /** Bumped on every in-place change to the box or configs, so readers recompose. */
     var rev by mutableIntStateOf(0)
         private set
@@ -1142,7 +1146,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun findSellGear() {
         stopSellSearch()
         val q=sellQuery;sellError=q.error();if(sellError!=null)return
-        if(pool?.running==true||cleanup?.running==true||upgrades.busy) { sellError="Finish or stop the current build check first.";return }
+        if(pool?.running==true||cleanup?.running==true||upgrades.busy) { showToast("Finish or stop the current build check first.");return }
         val b=box?:return
         val text=b.toText();val scan=lastScan;val records=upgrades.records.filterValues { it.scan==scan&&it.history.size>1 }
         val removed=reviewedIds;val members=poolMembers().map { it.id }.toSet();val names=b.allHeroes.associate { it.id to heroName(it) }
@@ -1169,14 +1173,14 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
     fun trackSellMatches(id:Long?=null,openOverlay:Boolean=true) {
         val result=sellResult?:return
-        if(!sellFresh) { sellError="Update the matches before opening this list.";return }
+        if(!sellFresh) { showToast("Update the matches before opening this list.");return }
         val b=box?:return
         val selected=result.matches.filter { id==null||it.item.id==id }
         val entries=selected.mapNotNull { row->b.itemsById[row.item.id]?.takeIf { it.id !in reviewedIds }?.let { original->
             val set=content.set(original.set)
             original to e7.gearscan.overlay.UpgradeTracker.QueueEntry(original.id,null,set?.name?:original.set.removeSuffix("Set"),set?.icon,row.goal.takeIf { result.query.scoreFilter },row.rolls,upgrades.records[original.id]?.takeIf { it.scan==lastScan }?.history?.size?:1,row.goal.reforgeAllowed,row.goal.supported)
         } }
-        if(entries.isEmpty()) { sellError="No matching pieces remain. Update the search.";return }
+        if(entries.isEmpty()) { showToast("No matching pieces remain. Update the search.");return }
         upgrades.startQueue(entries,lastScan,result.query)
         configureUpgrade();go(Screen.Upgrade)
         if(openOverlay)openUpgradeOverlay()

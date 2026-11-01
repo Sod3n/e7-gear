@@ -51,7 +51,7 @@ class QueueScreens {
                 Box(Modifier.width(353.dp).fillMaxHeight()) { if (overlay) OverlayUi({ _, _ -> }, {}, {}) else App(model) {} }
             }
         }
-        tap("Find gear"); rule.waitUntil(30_000) { !model.potentialBusy }
+        rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle(); rule.waitUntil(30_000) { !model.potentialBusy }
         val matches = model.potentialResult!!.matches
         assertTrue(matches.size > 20)
         rule.onNodeWithText("Track all ${matches.size} matches").assertExists()

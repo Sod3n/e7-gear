@@ -318,12 +318,13 @@ fun CaptureScreen(model: AppModel) {
                 }
             }
         }
-        Text(when {
+        // one line in every state: a title that wraps when the box arrives would push the checklist down
+        FitText(when {
             importing -> "Importing…"
             capturing -> step.title
             err != null -> "Scan"
             else -> "Not scanning"
-        }, style = TitleStyle)
+        }, TitleStyle, short = if (capturing && step == e7.gearscan.data.ScanStep.LOBBY) "Gear arrived" else null)
         when {
             importing -> Card {
                 Text("Sending the capture to Fribbels' server and reading your box. This takes a few seconds.", style = zen(14.sp, FontWeight.Medium))
@@ -421,7 +422,10 @@ fun ScanResultScreen(model: AppModel) {
                 style = zen(11.sp, FontWeight.Medium, C.muted))
         }
         Card(shadow = null, radius = 14.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-            DiffRow("Gear", "Sell review · Improve heroes · Find gear", C.ink) { model.tab(Screen.Gear) }
+            ListRow({ model.tab(Screen.Gear) }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                Text("Gear", style = zen(14.sp))
+                Text("Sell review · Improve heroes · Find gear", style = zen(11.sp, FontWeight.Medium, C.muted))
+            }
         }
         SectionTitle("Since last scan")
         if (d == null || (d.newItems + d.removedItems + d.enhanced + d.moved).isEmpty() && d.newHeroes.isEmpty()) {
