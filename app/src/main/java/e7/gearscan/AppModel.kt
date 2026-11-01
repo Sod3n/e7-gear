@@ -1281,7 +1281,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         upgrades.canUndoSold=overlaySales.any { it.scan==lastScan&&it.id in reviewedIds&&upgrades.queue.any { e->e.id==it.id } }
         upgrades.markSold=if(upgrades.scoreQuery!=null)({ id->markOverlaySold(id) }) else null
         upgrades.markKept=if(upgrades.scoreQuery!=null)({ id->markOverlaySold(id,keep=true) }) else null
-        upgrades.rollOn=upgrades.scoreQuery?.rollOn?:5.0
+        upgrades.rollOn=upgrades.scoreQuery?.rollOn?:1.0
         upgrades.esFor=upgrades.scoreQuery?.let { q->{ item:Item->
             val b=box;val ctx=sellContext(q)
             if(b==null||ctx==null)null else e7.gearscan.opt.EsForecast.of(item,e7.gearscan.data.InventoryOrder.score(item,if(item.enhance==b.itemsById[item.id]?.enhance)ctx.raw[item.id] else null),

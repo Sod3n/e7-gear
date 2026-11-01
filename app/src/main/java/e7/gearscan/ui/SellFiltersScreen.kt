@@ -295,6 +295,7 @@ fun SellFiltersScreen(model:AppModel) {
                             Spacer(Modifier.weight(1f));EsChip(es,result.query.rollOn)
                         }
                         VSpace(6.dp);EsBar(es)
+                        if(es.finishShare>0) { VSpace(3.dp);Text("~${EsForecast.goldText(es.finishShare*EsForecast.FULL_GOLD)} gold to +15",style=zen(10.sp,color=C.muted)) }
                     }?:Text("Update the list to see ES",style=zen(11.sp,color=C.muted))
                     if(row.protected)row.safeguards.filter { it.active(row.keepChance) }.forEach { SafeguardReason(it,true) }
                 }
@@ -365,11 +366,11 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
             SheetKind.SELL_WORTH->{
                 val n=if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt() else 0
                 Text("Keep enhancing a piece if at least this many of its finishes reach your ES bar",style=zen(13.sp))
-                CardGrid(listOf(50,20,10,5),columns=4) { k,m->Column(m,horizontalAlignment=Alignment.CenterHorizontally) {
-                    SellChoice("1 in $k",Modifier.fillMaxWidth(),n==k,strong=k==20) { update(q.copy(rollOn=100.0/k)) }
-                    Text(if(k==20)"default" else " ",style=zen(10.sp,color=C.muted))
+                CardGrid(listOf(1000,100,20,5),columns=4) { k,m->Column(m,horizontalAlignment=Alignment.CenterHorizontally) {
+                    SellChoice("1 in $k",Modifier.fillMaxWidth(),n==k,strong=k==100) { update(q.copy(rollOn=100.0/k)) }
+                    Text(if(k==100)"default" else " ",style=zen(10.sp,color=C.muted))
                 } }
-                if(n in 1..50)OddsDots(n)
+                if(n in 1..100)OddsDots(n) else if(n>100)Text("1 of every $n finishes reaches the bar · only near-hopeless pieces stop",style=zen(11.sp,color=C.muted))
                 var why by remember { mutableStateOf(false) }
                 Fold("What each choice costs",why,{ why=!why }) {
                     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
@@ -377,12 +378,13 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                         Text("Good pieces kept",style=zen(11.sp,color=C.blue),modifier=Modifier.weight(1f))
                         Text("Each extra one costs",style=zen(11.sp,color=C.deepPink),modifier=Modifier.width(118.dp))
                     }
-                    listOf(Triple("1 in 5",64,"—"),Triple("1 in 10",74,"3 enhances"),Triple("1 in 20",79,"4.6 enhances"),Triple("1 in 50",83,"7 enhances"),Triple("Finish all",85,"~300 enhances")).forEach { (k,good,extra)->
-                        KeptRow(k,good,85,extra,k=="1 in ${n}")
+                    // stop-rule test (gear_cleanup/stop_rules): full +0->+15 enhances per extra good piece vs the row above
+                    listOf(Triple("1 in 5",64,0.0),Triple("1 in 20",79,3.6),Triple("1 in 100",84,8.8),Triple("1 in 1000",85,23.6),Triple("Finish all",85,8000.0)).forEach { (k,good,extra)->
+                        KeptRow(k,good,85,if(extra==0.0)"—" else "~${EsForecast.goldText(extra*EsForecast.FULL_GOLD)} gold",k=="1 in ${n}")
                     }
-                    Text("From a real inventory: 921 unfinished pieces, 85 of which can reach the bar. “Each extra one” is the full +0 → +15 enhances spent per good piece this choice keeps beyond the stricter one above it. Pick by how much enhance material you can spare.",style=zen(11.sp,color=C.muted))
+                    Text("From a real inventory: 921 unfinished pieces, 85 of which can reach the bar. “Each extra one” is the enhance gold spent per good piece this choice keeps beyond the row above, at the enhancement-stone price.",style=zen(11.sp,color=C.muted))
                 }
-                SellNumber("Exact %",q.rollOn,0.0,100.0,1) { update(q.copy(rollOn=it?:5.0)) }
+                SellNumber("Exact %",q.rollOn,0.0,100.0,1) { update(q.copy(rollOn=it?:1.0)) }
                 SellToggle("Count reforging",q.reforge,"Lv85 gear reaches higher ES after reforge") { update(q.copy(reforge=it)) }
                 SectionTitle("ES bar")
                 Text("Default: the middle ES of your own +15 pieces in that slot.",style=zen(11.sp,color=C.muted))
@@ -521,7 +523,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                                 Text(when { es.bar==null->"no bar for this slot";rare->"only rare rolls reach ES ${es.bar}";open->"of finishes reach ES ${es.bar}";es.reached->"at or above your bar ${es.bar}";else->"finished · below bar ${es.bar}" },style=zen(12.sp,color=C.muted),modifier=Modifier.padding(bottom=5.dp))
                             }
                             VSpace(8.dp);EsBar(es);VSpace(3.dp);EsLegend(es)
-                            if(es.finishShare>0) { VSpace(4.dp);Text("Finishing costs ${(es.finishShare*100).toInt()}% of a full +0 → +15",style=zen(10.sp,color=C.muted)) }
+                            if(es.finishShare>0) { VSpace(4.dp);Text("~${EsForecast.goldText(es.finishShare*EsForecast.FULL_GOLD)} gold to +15",style=zen(11.sp,color=C.muted)) }
                         }
                     }
                     SectionTitle("Rolls",trailing=row.rolls?.let { "${RollReview.overallWeakCount(it)} of ${it.size} low" })

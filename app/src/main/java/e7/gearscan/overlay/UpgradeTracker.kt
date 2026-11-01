@@ -38,7 +38,7 @@ class UpgradeTracker(private val file: File) {
     var positionFor: ((Long) -> String?)? = null
     /** Sell review: the piece's Equipment Score now and at +15, from its recorded state. */
     var esFor: ((Item) -> e7.gearscan.opt.EsForecast.Es?)? = null
-    var rollOn = 5.0
+    var rollOn = 1.0
 
     var scoreQuery: SellQuery? by mutableStateOf(null);private set
     fun startQueue(items: List<Pair<Item, QueueEntry>>, scan: Long, scoreQuery:SellQuery?=null, source: String = "") {
