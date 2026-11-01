@@ -366,16 +366,11 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
             SheetKind.SELL_SAFEGUARDS->{
                 Text("Pieces that can still reach one of these stay out of Sell review.",style=zen(13.sp))
                 GearStat.entries.forEach { stat->
-                    val bound=GearBounds.target(stat,q.reforge,true);val on=stat in q.keepStats
-                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                        Box(Modifier.weight(1f)) {
-                            // the slider stays when off (greyed), so switching never moves the rows below
-                            val shown=q.keepStats[stat]?:SellQuery.DEFAULT_GUARDS[stat]?:bound.minimum
-                            ValueSlider(stat.short,{ StatIcon(stat.stat,16.dp,if(on)C.ink else C.muted) },shown,bound.minimum,maxOf(bound.maximum,shown),if(stat.showsPercent||stat==GearStat.SPD)1.0 else 10.0,{ if(on)stat.format(it) else "off" },enabled=on) { v->
-                                update(q.copy(keepStats=q.keepStats+(stat to v))) }
-                        }
-                        Toggle(on) { v->update(q.copy(keepStats=if(v)q.keepStats+(stat to (SellQuery.DEFAULT_GUARDS[stat]?:bound.minimum)) else q.keepStats-stat)) }
-                    }
+                    val bound=GearBounds.target(stat,q.reforge,true);val step=if(stat.showsPercent||stat==GearStat.SPD)1.0 else 10.0
+                    // far left is off; anywhere else sets that value
+                    ValueSlider(stat.short,{ StatIcon(stat.stat,16.dp,if(stat in q.keepStats)C.ink else C.muted) },q.keepStats[stat]?:(bound.minimum-step),bound.minimum,
+                        maxOf(bound.maximum,q.keepStats[stat]?:bound.minimum),step,{ if(it<bound.minimum)"off" else stat.format(it) },offStop=true) { v->
+                        update(q.copy(keepStats=if(v<bound.minimum)q.keepStats-stat else q.keepStats+(stat to v))) }
                 }
                 Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     OutlineButton("Turn all off",Modifier.weight(1f),height=40.dp,enabled=q.keepStats.isNotEmpty()) { update(q.copy(keepStats=emptyMap())) }

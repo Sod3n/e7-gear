@@ -197,19 +197,24 @@ private fun StatTile(label: String, value: String, fill: Float?, color: androidx
 
 /** Label, live value and a slider; saved when the finger lifts. The row lights up while dragging; tap the value to type it. */
 @Composable
-internal fun ValueSlider(label: String, icon: @Composable () -> Unit, value: Double, min: Double, max: Double, step: Double, text: (Double) -> String, enabled: Boolean = true, commit: (Double) -> Unit) {
-    var v by remember(value) { mutableStateOf(value.coerceIn(min, max)) }
+internal fun ValueSlider(label: String, icon: @Composable () -> Unit, value: Double, min: Double, max: Double, step: Double, text: (Double) -> String, enabled: Boolean = true,
+                         offStop: Boolean = false, commit: (Double) -> Unit) {
+    // offStop: one extra stop left of [min] that means "off"; the caller gets a value below min for it
+    val low = if (offStop) min - step else min
+    var v by remember(value) { mutableStateOf(value.coerceIn(low, max)) }
+    val off = offStop && v < min
     val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val active = source.collectIsDraggedAsState().value || source.collectIsPressedAsState().value
-    fun snap(x: Double) = (min + kotlin.math.round((x - min) / step) * step).coerceIn(min, max)
+    fun snap(x: Double) = if (offStop && x < min - step / 2) low else (min + kotlin.math.round((x - min) / step) * step).coerceIn(min, max)
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (active) C.lightPink else androidx.compose.ui.graphics.Color.Transparent).padding(horizontal = 6.dp, vertical = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            icon(); Text(label, style = zen(13.sp, color = if (enabled) C.ink else C.muted), modifier = Modifier.weight(1f))
-            if (enabled) TypedNumber(text(v), v, active) { typed -> v = snap(typed); commit(v) } else Text(text(v), style = dela(15.sp, C.faint))
+            icon(); Text(label, style = zen(13.sp, color = if (enabled && !off) C.ink else C.muted), modifier = Modifier.weight(1f))
+            if (!enabled) Text(text(v), style = dela(15.sp, C.faint))
+            else TypedNumber(text(v), v, active, dim = off) { typed -> v = snap(typed); commit(v) }
         }
-        val n = ((max - min) / step).toInt().coerceAtLeast(1)
+        val n = ((max - low) / step).toInt().coerceAtLeast(1)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SliderTrack(v.toFloat(), { v = snap(it.toDouble()) }, { commit(v) }, min.toFloat()..max.toFloat(), if (n <= 200) n - 1 else 0, source, active, label, Modifier.weight(1f), enabled)
+            SliderTrack(v.toFloat(), { v = snap(it.toDouble()) }, { commit(v) }, low.toFloat()..max.toFloat(), if (n <= 200) n - 1 else 0, source, active, label, Modifier.weight(1f), enabled, quiet = off)
         }
     }
 }
@@ -217,9 +222,9 @@ internal fun ValueSlider(label: String, icon: @Composable () -> Unit, value: Dou
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 internal fun SliderTrack(value: Float, change: (Float) -> Unit, done: () -> Unit, range: ClosedFloatingPointRange<Float>, steps: Int,
-                         source: androidx.compose.foundation.interaction.MutableInteractionSource, active: Boolean, label: String, modifier: Modifier, enabled: Boolean = true) {
+                         source: androidx.compose.foundation.interaction.MutableInteractionSource, active: Boolean, label: String, modifier: Modifier, enabled: Boolean = true, quiet: Boolean = false) {
     val none = androidx.compose.ui.graphics.Color.Transparent
-    val colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = C.pink, activeTrackColor = C.pink, inactiveTrackColor = C.line,
+    val colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = if (quiet) C.faint else C.pink, activeTrackColor = if (quiet) C.line else C.pink, inactiveTrackColor = C.line,
         activeTickColor = none, inactiveTickColor = none, disabledThumbColor = C.faint, disabledActiveTrackColor = C.line,
         disabledInactiveTrackColor = C.line, disabledActiveTickColor = none, disabledInactiveTickColor = none)
     androidx.compose.material3.Slider(value = value, onValueChange = change, onValueChangeFinished = done, valueRange = range, steps = steps,
@@ -230,10 +235,10 @@ internal fun SliderTrack(value: Float, change: (Float) -> Unit, done: () -> Unit
 
 /** The value; tapping it opens the number keyboard, Done or leaving the field applies it. */
 @Composable
-internal fun TypedNumber(shown: String, value: Double, active: Boolean, size: Int = 15, apply: (Double) -> Unit) {
+internal fun TypedNumber(shown: String, value: Double, active: Boolean, size: Int = 15, dim: Boolean = false, apply: (Double) -> Unit) {
     var editing by remember { mutableStateOf(false) }
     if (!editing) {
-        Text(shown, style = dela(if (active) (size + 5).sp else size.sp, if (active) C.deepPink else C.blue),
+        Text(shown, style = dela(if (active) (size + 5).sp else size.sp, if (active) C.deepPink else if (dim) C.faint else C.blue),
             modifier = Modifier.tap { editing = true }.semantics { contentDescription = "Type a value" })
         return
     }
