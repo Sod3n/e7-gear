@@ -16,11 +16,11 @@ object SellSearch {
         companion object { fun of(j:JSONObject)=Quality(if(j.isNull("proc"))null else j.getDouble("proc"),if(j.isNull("total"))null else j.getDouble("total"),j.getInt("count")) }
     }
     data class Row(val item:Item,val goal:GearScore.Goal,val forecast:GearScore.Forecast,val quality:Quality,val gameScore:Int,val qualityUnknown:Boolean=false,
-        val scoreUsed:Boolean=true,val rolls:List<RollReview.Roll>?=null,val lines:List<RollReview.Line> = emptyList(),val safeguards:List<RollReview.Safeguard> = emptyList(),val keepChance:Double=0.0) {
+        val scoreUsed:Boolean=true,val rolls:List<RollReview.Roll>?=null,val lines:List<RollReview.Line> = emptyList(),val safeguards:List<RollReview.Safeguard> = emptyList(),val keepChance:Double=0.0,val es:EsForecast.Es?=null) {
         val protected get()=safeguards.any { it.active(keepChance) }
         val unknown get()=scoreUsed&&!forecast.supported||qualityUnknown||!protected&&safeguards.any { !it.known }
         fun toJson()=JSONObject().put("id",item.id).put("goal",goal.toJson()).put("forecast",forecast.toJson()).put("quality",quality.toJson()).put("gameScore",gameScore).put("qualityUnknown",qualityUnknown)
-            .put("scoreUsed",scoreUsed).put("rolls",RollReview.rollsJson(rolls)).put("lines",org.json.JSONArray(lines.map { it.toJson() })).put("safeguards",org.json.JSONArray(safeguards.map { it.toJson() })).put("keepChance",keepChance)
+            .put("scoreUsed",scoreUsed).put("rolls",RollReview.rollsJson(rolls)).put("lines",org.json.JSONArray(lines.map { it.toJson() })).put("safeguards",org.json.JSONArray(safeguards.map { it.toJson() })).put("keepChance",keepChance).put("es",es?.toJson()?:JSONObject.NULL)
     }
     class Context(val box:Box,val records:Map<Long,UpgradeRecord>,val scan:Long,val removed:Set<Long>,val pool:Set<Long>,val names:Map<Long,String>,val query:SellQuery,val contentVersion:String="") {
         private val original=box.itemsById
@@ -28,6 +28,10 @@ object SellSearch {
             val observed=records[original.id]?.takeIf { it.scan==scan }?.item
             if(observed==null)original else Item(original.id,original.slot,original.set,observed.rank,observed.level,observed.enhance,observed.mainType,observed.mainValue,observed.subs,original.locked,original.equippedOn,main15=observed.main15)
         }
+        /** Median game ES of your +15 pieces per slot, the default bar a piece should reach. */
+        val autoEsBars:Map<Slot,Int> by lazy { items.filter { it.enhance==15&&it.level>=85 }.groupBy { it.slot }.mapValues { (_,v)->v.map { gameScore(it) }.sorted()[v.size/2] } }
+        fun esBar(slot:Slot)=query.esBars[slot]?:autoEsBars[slot]
+        fun es(item:Item)=EsForecast.of(item,gameScore(item),esBar(item.slot),query.reforge,box.canReforge(item.id),coverage(item),query.forecastMs)
         val inventoryRanks by lazy { InventoryOrder.index(box,records.filterValues { it.scan==scan&&it.history.size>1 }.mapValues { it.value.item },removed) }
         val raw=box.json.getJSONArray("items").let { a->(0 until a.length()).map { a.getJSONObject(it) }.associateBy { it.optLong("id",it.optLong("ingameId")) } }
         private val duplicateHistories=raw.values.filter { it.optInt("enhance")>0 }.groupingBy { historyKey(it) }.eachCount()
@@ -82,8 +86,8 @@ object SellSearch {
             return Quality(procs.takeIf { it.isNotEmpty() }?.map { it.fraction*100 }?.average(),events.map { it.fraction*100 }.average(),procs.size)
         }
         fun signature():String {
-            val text=RollReview.VERSION+GearScore.VERSION+query.toJson()+box.toText()+records.values.filter { it.scan==scan }.sortedBy { it.item.id }.joinToString { it.toJson().toString() }+
-                removed.sorted()+pool.sorted()+names.toSortedMap()+scan+contentVersion
+            val text=RollReview.VERSION+GearScore.VERSION+EsForecast.VERSION+autoEsBars.toSortedMap()+query.toJson()+box.toText()+records.values.filter { it.scan==scan }.sortedBy { it.item.id }.joinToString { it.toJson().toString() }+
+                removed.filter { original[it]?.equippedOn!=null }.sorted()+pool.sorted()+names.toSortedMap()+scan+contentVersion
             return MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(java.util.Locale.US,it) }
         }
         fun gameScore(item:Item)=InventoryOrder.score(item,if((records[item.id]?.takeIf { it.scan==scan }?.history?.size?:0) > 1)null else raw[item.id])
@@ -122,13 +126,13 @@ object SellSearch {
             val qualityUnknown=(!q.scoreFilter&&quality.total==null)||q.maximumProcQuality!=null&&quality.proc==null || q.maximumTotalQuality!=null&&quality.total==null
             val row=saved[item.id]?.takeIf { !it.getJSONObject("forecast").optString("reason").startsWith("Forecast time limit") }?.let { j->runCatching {
                 val la=j.getJSONArray("lines");val sa=j.getJSONArray("safeguards")
-                Row(item,GearScore.Goal.of(j.getJSONObject("goal")),GearScore.Forecast.of(j.getJSONObject("forecast")),Quality.of(j.getJSONObject("quality")),j.getInt("gameScore"),j.optBoolean("qualityUnknown",false),j.getBoolean("scoreUsed"),RollReview.rollsOf(j.optJSONArray("rolls")),(0 until la.length()).map { RollReview.Line.of(la.getJSONObject(it)) },(0 until sa.length()).map { RollReview.Safeguard.of(sa.getJSONObject(it)) },j.getDouble("keepChance"))
+                Row(item,GearScore.Goal.of(j.getJSONObject("goal")),GearScore.Forecast.of(j.getJSONObject("forecast")),Quality.of(j.getJSONObject("quality")),j.getInt("gameScore"),j.optBoolean("qualityUnknown",false),j.getBoolean("scoreUsed"),RollReview.rollsOf(j.optJSONArray("rolls")),(0 until la.length()).map { RollReview.Line.of(la.getJSONObject(it)) },(0 until sa.length()).map { RollReview.Safeguard.of(sa.getJSONObject(it)) },j.getDouble("keepChance"),j.optJSONObject("es")?.let(EsForecast.Es::of))
             }.getOrNull() }?:run {
                 val goal=context.goal(item);val cover=context.coverage(item);val allowed=context.box.canReforge(item.id)
                 val forecast=if(q.scoreFilter)GearScore.forecast(item,goal,cancelled) else GearScore.Forecast(0.0,false,false,q.score.value(item),null,null,null,"Combined comparison is off")
                 val lines=item.subs.map { RollReview.line(item,it.type,q.reforge,allowed,cover) }
                 val guards=q.keepStats.map { (stat,minimum)->RollReview.safeguard(item,stat,minimum,q.reforge,allowed,cover) }
-                Row(item,goal,forecast,quality,context.gameScore(item),qualityUnknown,q.scoreFilter,context.rolls(item),lines,guards,q.keepChance).also { row->
+                Row(item,goal,forecast,quality,context.gameScore(item),qualityUnknown,q.scoreFilter,context.rolls(item),lines,guards,q.keepChance,context.es(item)).also { row->
                     if(cancelled())throw CancellationException();file?.appendText(row.toJson().toString()+"\n") }
             }
             rows+=row;progress(++done,candidates.size)

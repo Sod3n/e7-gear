@@ -29,6 +29,7 @@ class UpgradeTracker(private val file: File) {
     val isSellQueue get()=scoreQuery!=null&&queue.isNotEmpty()
     val sellQueueComplete get()=isSellQueue&&pendingQueue.isEmpty()
     var markSold:((Long)->Unit)?=null
+    var markKept:((Long)->Unit)?=null
     var undoSold:(()->Unit)?=null
     var canUndoSold by mutableStateOf(false)
     val canMarkSold get()=isSellQueue&&!sellQueueComplete&&!editing&&selected in pendingQueue.map { it.id }&&markSold!=null

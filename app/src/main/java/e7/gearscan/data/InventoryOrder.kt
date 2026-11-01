@@ -11,6 +11,7 @@ object InventoryOrder {
         fun grid(columns: Int = 5) = "Row ${(number - 1) / columns + 1} · column ${(number - 1) % columns + 1}"
     }
     private val power = doubleArrayOf(1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0, 3.3, 3.6, 3.9, 4.2, 5.0)
+    fun mainWeight(t: GearStat) = mainWeights[t] ?: .4
     private val mainWeights = mapOf(GearStat.ATK to .0498, GearStat.HP to .0093, GearStat.DEF to .0844, GearStat.SPD to .588, GearStat.CR to .435, GearStat.CD to .375)
     private val subWeights = mapOf(GearStat.ATK to .0972, GearStat.HP to .02, GearStat.DEF to .135, GearStat.SPD to 2.0, GearStat.CR to 1.6, GearStat.CD to 1.14)
     private val rawStats = mapOf("att" to GearStat.ATK, "att_rate" to GearStat.ATK_P, "max_hp" to GearStat.HP, "max_hp_rate" to GearStat.HP_P,

@@ -169,7 +169,7 @@ fun SheetHost(model: AppModel) {
                 SheetKind.HERO_UPGRADE_PIECE -> HeroUpgradePieceSheet(model, sheet.heroId)
                 SheetKind.HERO_UPGRADE_HELP -> HeroUpgradeHelpSheet(model)
                 SheetKind.HERO_UPGRADE_BUILD -> HeroUpgradeBuildSheet(model)
-                SheetKind.SELL_SAFEGUARDS,SheetKind.SELL_EXTRA,SheetKind.SELL_SCORE,SheetKind.SELL_WEIGHTS,SheetKind.SELL_FLOORS,SheetKind.SELL_CUSTOMS,SheetKind.SELL_HEROES,SheetKind.SELL_INVENTORY,SheetKind.SELL_SLOTS,SheetKind.SELL_SETS,SheetKind.SELL_MAINS,SheetKind.SELL_LEVELS,SheetKind.SELL_QUALITY,SheetKind.SELL_DETAILS,SheetKind.SELL_HELP -> SellSheet(model,sheet)
+                SheetKind.SELL_SAFEGUARDS,SheetKind.SELL_EXTRA,SheetKind.SELL_WORTH,SheetKind.SELL_KEPT,SheetKind.SELL_SCORE,SheetKind.SELL_WEIGHTS,SheetKind.SELL_FLOORS,SheetKind.SELL_CUSTOMS,SheetKind.SELL_HEROES,SheetKind.SELL_INVENTORY,SheetKind.SELL_SLOTS,SheetKind.SELL_SETS,SheetKind.SELL_MAINS,SheetKind.SELL_LEVELS,SheetKind.SELL_QUALITY,SheetKind.SELL_DETAILS,SheetKind.SELL_HELP -> SellSheet(model,sheet)
             }
         }
     }

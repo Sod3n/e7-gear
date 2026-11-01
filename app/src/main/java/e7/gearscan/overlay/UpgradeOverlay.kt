@@ -97,7 +97,7 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
             Box(Modifier.width(48.dp).tap { if (!t.editing) pane = if (!t.hasTarget) UpgradePane.ADVICE else UpgradePane.GOAL }, contentAlignment = Alignment.Center) {
                 FitText(chanceBadge(t), dela(12.sp, C.blue))
             }
-            if(t.canUndoSold&&!t.sellQueueComplete&&!t.editing)PanelAction("Undo",Modifier.width(38.dp),label="Undo sold mark") { t.undoSold?.invoke();pane=UpgradePane.PIECE }
+            if(t.canUndoSold&&!t.sellQueueComplete&&!t.editing)PanelAction("Undo",Modifier.width(38.dp),label="Undo last mark") { t.undoSold?.invoke();pane=UpgradePane.PIECE }
             else if (t.undoEquip != null && !t.editing) PanelAction("Undo", Modifier.width(38.dp), label = "Undo equip") { t.undoEquip?.invoke(); pane = UpgradePane.PIECE }
             PanelAction("–", Modifier.width(30.dp), label = "Collapse tracker") { OverlayState.expanded = false; onDock(false) }
             PanelAction("×", Modifier.width(30.dp), label = "Close tracker", click = onClose)
@@ -111,7 +111,7 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 2.dp).testTag("gear-tracker-body")) {
             when {
                 t.error != null -> PanelTextPages(t.error!!, maxHeight.value)
-                t.sellQueueComplete -> PanelTextPages("List complete\n\nAll pieces in this list are marked cleared.\n\nUndo mark restores the last local mark. Rescan after selling to refresh the game inventory.",maxHeight.value)
+                t.sellQueueComplete -> PanelTextPages("List complete\n\nEvery piece in this list is marked sold or kept.\n\nUndo mark restores the last local mark. Rescan after selling to refresh the game inventory.",maxHeight.value)
                 draft != null -> DraftBody(draft, maxHeight.value)
                 pane == UpgradePane.PIECE -> PieceSummary(t, item, maxHeight.value)
                 pane == UpgradePane.LIST -> QueuePage(t, maxHeight.value) { pane = UpgradePane.PIECE }
@@ -162,7 +162,10 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                 }
                 t.sellQueueComplete -> PanelAction("Undo mark",Modifier.weight(1.5f),pink=true,enabled=t.canUndoSold) { t.undoSold?.invoke();pane=UpgradePane.PIECE }
                 pane == UpgradePane.PIECE -> {
-                    if(t.isSellQueue)PanelAction("Sold → next",Modifier.weight(1.4f),pink=true,enabled=t.canMarkSold,label="Sold and next") { t.markSold?.invoke(item.id);pane=UpgradePane.PIECE }
+                    if(t.isSellQueue) {
+                        PanelAction("Sold ›",Modifier.weight(1f),pink=true,enabled=t.canMarkSold,label="Sold and next") { t.markSold?.invoke(item.id);pane=UpgradePane.PIECE }
+                        PanelAction("Keep ›",Modifier.weight(1f),enabled=t.canMarkSold&&t.markKept!=null,label="Keep and next") { t.markKept?.invoke(item.id);pane=UpgradePane.PIECE }
+                    }
                     if (item.enhance < 15 && UpgradeRecord.supported(item)) PanelAction("Record +${((item.enhance / 3 + 1) * 3).coerceAtMost(15)}", Modifier.weight(if(t.isSellQueue)1.3f else 1.7f), pink = !t.isSellQueue) { correction = false; t.error = null; t.editing = true }
                     // a finished piece: record the reforge, then equipping it, as done in the game
                     if (!t.isSellQueue && item.enhance == 15 && item.level == 85 && t.canReforge?.invoke(item.id) == true)
@@ -344,7 +347,7 @@ private fun PanelTextPages(text: String, height: Float) {
 }
 
 private fun helpText(t: UpgradeTracker) = listOfNotNull(t.notice,
-    "For sell-filter lists, sell in Epic Seven first, then tap Sold → next to mark it cleared here. Undo mark restores only the helper mark.\n\nRecord the totals after the next +3. The main stat is filled automatically. Each piece keeps its own history.",
+    "For Sell review lists, sell in Epic Seven first, then tap Sold › to mark it here; Keep › keeps a piece out of Sell review until you unlock it. Undo restores only the helper mark.\n\nRecord the totals after the next +3. The main stat is filled automatically. Each piece keeps its own history.",
     if(t.isRollReview) "This is the roll-review list. Low upgrade values alone do not mean a piece should be sold. Review individual stats. New recorded upgrades are appended to the roll history; recompute the sell-filter list to apply its safeguards again."
     else if(t.scoreGoal!=null) "The chance is for reaching the comparison points from your applied sell filters. These use your equipped gear or a custom score. Recorded upgrades refresh the comparison and chances. A filter match does not mean a piece is useless or should be sold. Rare endpoints have no estimated probability."
     else if (t.hasTarget) "The chance is for all targets together, using usual roll ranges. Rare maximum rolls have no estimated percentage. No modification stones are assumed."

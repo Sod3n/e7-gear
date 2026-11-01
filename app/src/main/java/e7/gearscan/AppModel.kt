@@ -78,7 +78,7 @@ sealed class Screen {
     data class PoolHero(val id: Long, val setup: Boolean) : Screen()
 }
 
-enum class SheetKind { PRESET, TARGETS, ADVANCED, BONUS, SETS, MAINS, GOALS, SHOW, HERO_PICK, ARTIFACT, POOL_PICK, POOL_WORSE, POOL_LOW, POOL_HEROES, POOL_LIST, POOL_TRADES, SCAN_RESTART, POTENTIAL_HELP, POTENTIAL_TARGETS, POTENTIAL_SLOTS, POTENTIAL_SETS, POTENTIAL_MAINS, POTENTIAL_OPTIONS, POTENTIAL_PIECE, INVENTORY_ORDER, SELL_SCORE, SELL_WEIGHTS, SELL_FLOORS, SELL_CUSTOMS, SELL_HEROES, SELL_INVENTORY, SELL_SLOTS, SELL_SETS, SELL_MAINS, SELL_LEVELS, SELL_QUALITY, SELL_DETAILS, SELL_HELP, SELL_SAFEGUARDS, SELL_EXTRA, HERO_UPGRADE_PIECE, HERO_UPGRADE_HELP, HERO_UPGRADE_BUILD }
+enum class SheetKind { PRESET, TARGETS, ADVANCED, BONUS, SETS, MAINS, GOALS, SHOW, HERO_PICK, ARTIFACT, POOL_PICK, POOL_WORSE, POOL_LOW, POOL_HEROES, POOL_LIST, POOL_TRADES, SCAN_RESTART, POTENTIAL_HELP, POTENTIAL_TARGETS, POTENTIAL_SLOTS, POTENTIAL_SETS, POTENTIAL_MAINS, POTENTIAL_OPTIONS, POTENTIAL_PIECE, INVENTORY_ORDER, SELL_SCORE, SELL_WEIGHTS, SELL_FLOORS, SELL_CUSTOMS, SELL_HEROES, SELL_INVENTORY, SELL_SLOTS, SELL_SETS, SELL_MAINS, SELL_LEVELS, SELL_QUALITY, SELL_DETAILS, SELL_HELP, SELL_SAFEGUARDS, SELL_EXTRA, SELL_WORTH, SELL_KEPT, HERO_UPGRADE_PIECE, HERO_UPGRADE_HELP, HERO_UPGRADE_BUILD }
 
 /** [back] is the sheet to return to when this one finishes; null closes. */
 data class Sheet(val kind: SheetKind, val heroId: Long, val back: SheetKind? = null)
@@ -1042,15 +1042,15 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     @Volatile private var sellGeneration = 0
     private val sellMutex = kotlinx.coroutines.sync.Mutex()
     private var appliedSellKey: List<Any?>? = null
-    private fun sellKey(): List<Any?> = listOf(box,lastScan,upgrades.records.filterValues { it.scan==lastScan&&it.history.size>1 },cleanupDone,poolTiers,poolExtra,tiers,content.version,rev,sellQuery)
+    private fun sellKey(): List<Any?> = listOf(box,lastScan,upgrades.records.filterValues { it.scan==lastScan&&it.history.size>1 },poolTiers,poolExtra,tiers,content.version,rev,sellQuery)
     val sellFresh get() = sellResult!=null && appliedSellKey==sellKey() && !sellBusy
     private var sellContextKey:List<Any?>?=null
     private var cachedSellContext:e7.gearscan.opt.SellSearch.Context?=null
     private fun sellContext(q:e7.gearscan.data.SellQuery):e7.gearscan.opt.SellSearch.Context? {
         val b=box?:return null
-        val key=listOf(b,lastScan,upgrades.records,cleanupDone,poolTiers,poolExtra,tiers,content.version,rev,q)
+        val key=listOf(b,lastScan,upgrades.records,reviewedIds,poolTiers,poolExtra,tiers,content.version,rev,q)
         if(key!=sellContextKey) {
-            cachedSellContext=e7.gearscan.opt.SellSearch.Context(b,upgrades.records.filterValues { it.scan==lastScan&&it.history.size>1 },lastScan,cleanupDone,
+            cachedSellContext=e7.gearscan.opt.SellSearch.Context(b,upgrades.records.filterValues { it.scan==lastScan&&it.history.size>1 },lastScan,reviewedIds,
                 poolMembers().map { it.id }.toSet(),b.allHeroes.associate { it.id to heroName(it) },q,content.version)
             sellContextKey=key
         }
@@ -1066,6 +1066,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val subs=GearStat.entries.sumOf { e7.gearscan.opt.GearBounds.target(it,true,true).maximum*m.weight(it) }
         return maxOf(100.0,kotlin.math.ceil((main+subs)*2),sellQuery.floors.values.maxOrNull()?:0.0,sellQuery.maximumCurrentScore?:0.0)
     }
+    fun sellAutoEsBars():Map<Slot,Int> = sellContext(sellQuery)?.autoEsBars.orEmpty()
     fun sellFloorPreview(slot:Slot):e7.gearscan.opt.SellSearch.Floor? {
         if(sellQuery.matchMain)return null
         val context=sellContext(sellQuery.copy(floorPercent=100.0,floors=emptyMap()))?:return null
@@ -1084,7 +1085,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         if(pool?.running==true||cleanup?.running==true||upgrades.busy) { sellError="Finish or stop the current build check first.";return }
         val b=box?:return
         val text=b.toText();val scan=lastScan;val records=upgrades.records.filterValues { it.scan==scan&&it.history.size>1 }
-        val removed=cleanupDone;val members=poolMembers().map { it.id }.toSet();val names=b.allHeroes.associate { it.id to heroName(it) }
+        val removed=reviewedIds;val members=poolMembers().map { it.id }.toSet();val names=b.allHeroes.associate { it.id to heroName(it) }
         val key=sellKey();val generation=++sellGeneration;sellBusy=true;sellDone=0;sellTotal=0;sellError=null
         PoolService.start(getApplication(),"Checking sell filters") { viewModelScope.launch { stopSellSearch() } }
         sellJob=viewModelScope.launch {
@@ -1111,7 +1112,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         if(!sellFresh) { sellError="Update the matches before opening this list.";return }
         val b=box?:return
         val selected=result.matches.filter { id==null||it.item.id==id }
-        val entries=selected.mapNotNull { row->b.itemsById[row.item.id]?.takeIf { it.id !in cleanupDone }?.let { original->
+        val entries=selected.mapNotNull { row->b.itemsById[row.item.id]?.takeIf { it.id !in reviewedIds }?.let { original->
             val set=content.set(original.set)
             original to e7.gearscan.overlay.UpgradeTracker.QueueEntry(original.id,null,set?.name?:original.set.removeSuffix("Set"),set?.icon,row.goal.takeIf { result.query.scoreFilter },row.rolls,upgrades.records[original.id]?.takeIf { it.scan==lastScan }?.history?.size?:1,row.goal.reforgeAllowed,row.goal.supported)
         } }
@@ -1263,8 +1264,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun syncClearedUpgradeQueue() {
-        upgrades.cleared=cleanupDone
-        if(upgrades.isSellQueue&&upgrades.queueScan==lastScan&&upgrades.selected in cleanupDone) {
+        upgrades.cleared=reviewedIds
+        if(upgrades.isSellQueue&&upgrades.queueScan==lastScan&&upgrades.selected in reviewedIds) {
             upgrades.pendingQueue.firstOrNull()?.let { e->box?.itemsById?.get(e.id)?.let { item->
                 if(upgrades.records[e.id]?.scan==lastScan)upgrades.select(item,lastScan,keepQueue=true)
             } }
@@ -1272,8 +1273,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
     private fun configureUpgrade() {
         syncClearedUpgradeQueue()
-        upgrades.canUndoSold=overlaySales.any { it.scan==lastScan&&it.id in cleanupDone&&upgrades.queue.any { e->e.id==it.id } }
+        upgrades.canUndoSold=overlaySales.any { it.scan==lastScan&&it.id in reviewedIds&&upgrades.queue.any { e->e.id==it.id } }
         upgrades.markSold=if(upgrades.scoreQuery!=null)({ id->markOverlaySold(id) }) else null
+        upgrades.markKept=if(upgrades.scoreQuery!=null)({ id->markOverlaySold(id,keep=true) }) else null
         upgrades.undoSold=if(upgrades.scoreQuery!=null)({ undoOverlaySold() }) else null
         refreshScoreGoal()
         val item = upgrades.record?.item ?: return
@@ -1303,15 +1305,15 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Acknowledges a sale made in the game; never sends a game command. */
-    fun markOverlaySold(expectedId:Long) {
+    fun markOverlaySold(expectedId:Long,keep:Boolean=false) {
         val t=upgrades;val record=t.record?:return
-        if(t.editing||t.scoreQuery==null||t.selected!=expectedId||expectedId in cleanupDone)return
+        if(t.editing||t.scoreQuery==null||t.selected!=expectedId||expectedId in reviewedIds)return
         if(t.queueScan!=lastScan||record.scan!=lastScan||box?.itemsById?.containsKey(expectedId)!=true||t.queue.none { it.id==expectedId }) {
             t.error="Your scan changed. Refresh the matches before marking this piece.";return
         }
         val index=t.queueIndex.coerceAtLeast(0)
-        overlaySales=overlaySales.filterNot { it.id==expectedId&&it.scan==lastScan }+OverlaySale(expectedId,lastScan)
-        cleanupDone=cleanupDone+expectedId;t.cleared=cleanupDone
+        overlaySales=overlaySales.filterNot { it.id==expectedId&&it.scan==lastScan }+OverlaySale(expectedId,lastScan,keep)
+        if(keep)sellKept=sellKept+expectedId else cleanupDone=cleanupDone+expectedId;t.cleared=reviewedIds
         t.invalidate();touch();save()
         val next=t.pendingQueue.getOrNull(index)?:t.pendingQueue.lastOrNull()
         next?.let { e->box?.itemsById?.get(e.id)?.let { t.select(it,lastScan,keepQueue=true) } }
@@ -1320,9 +1322,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun undoOverlaySold() {
         val t=upgrades
         if(t.editing)return
-        val mark=overlaySales.lastOrNull { it.scan==lastScan&&it.id in cleanupDone&&t.queue.any { e->e.id==it.id } }?:return
+        val mark=overlaySales.lastOrNull { it.scan==lastScan&&it.id in reviewedIds&&t.queue.any { e->e.id==it.id } }?:return
         if(box?.itemsById?.containsKey(mark.id)!=true) { t.error="That piece is no longer in your scan.";return }
-        overlaySales=overlaySales-mark;cleanupDone=cleanupDone-mark.id;t.cleared=cleanupDone
+        overlaySales=overlaySales-mark;if(mark.kept)sellKept=sellKept-mark.id else cleanupDone=cleanupDone-mark.id;t.cleared=reviewedIds
         t.invalidate();touch();save()
         t.select(box!!.itemsById.getValue(mark.id),lastScan,keepQueue=true);configureUpgrade()
     }
@@ -1511,7 +1513,21 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         internal set
     /** Pieces the player marked as fed or sold. */
     var cleanupDone: Set<Long> by mutableStateOf(emptySet())
-    private data class OverlaySale(val id:Long,val scan:Long)
+    /** Pieces the player chose to keep in Sell review; they stay out of it until unlocked. */
+    var sellKept: Set<Long> by mutableStateOf(emptySet()); private set
+    val reviewedIds get() = cleanupDone + sellKept
+    /** Sell review: mark one piece sold (after selling it in the game) or kept, with Undo. */
+    fun markSellReview(id: Long, keep: Boolean) {
+        if (id in reviewedIds) return
+        if (keep) sellKept = sellKept + id else cleanupDone = cleanupDone + id
+        upgrades.cleared = reviewedIds; touch(); save()
+        toast = Toast(if (keep) "Kept · won't come back until you unlock it" else "Marked sold", "Undo") { unmarkSellReview(id) }
+    }
+    fun unmarkSellReview(id: Long) {
+        sellKept = sellKept - id; cleanupDone = cleanupDone - id; overlaySales = overlaySales.filterNot { it.id == id }
+        upgrades.cleared = reviewedIds; touch(); save()
+    }
+    private data class OverlaySale(val id:Long,val scan:Long,val kept:Boolean=false)
     private var overlaySales:List<OverlaySale> by mutableStateOf(emptyList())
     @Volatile private var cleanupToken: Any? = null
 
@@ -1618,11 +1634,11 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         return true
     }
 
-    private fun markCleanedAll(ids: List<Long>) { cleanupDone = cleanupDone + ids;upgrades.cleared=cleanupDone; touch() }
+    private fun markCleanedAll(ids: List<Long>) { cleanupDone = cleanupDone + ids;upgrades.cleared=reviewedIds; touch() }
 
     fun markCleaned(id: Long, done: Boolean) {
         cleanupDone = if (done) cleanupDone + id else cleanupDone - id
-        upgrades.cleared=cleanupDone
+        upgrades.cleared=reviewedIds
         touch()
     }
 
@@ -2253,7 +2269,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         inventoryAscending = true; inventoryBagOnly = false; inventoryKey = null
         if (heroUpgrades?.running == true) stopHeroUpgrades()
         heroUpgrades = null; heroUpgradesResumable = false; heroUpgradesFile.delete(); heroUpgradesProgressFile.delete()
-        overlaySales=emptyList();cleanupDone=emptySet();upgrades.clear(); e7.gearscan.overlay.OverlayService.stop(getApplication()); e7.gearscan.overlay.OverlayState.upgrade = null
+        overlaySales=emptyList();cleanupDone=emptySet();sellKept=emptySet();upgrades.clear(); e7.gearscan.overlay.OverlayService.stop(getApplication()); e7.gearscan.overlay.OverlayState.upgrade = null
         configs.clear(); box = null; tiers = emptyMap(); team = emptyList(); lastScan = 0; lastDiff = null
         consent = false; search = null; presets.clear()
         touch()
@@ -2281,7 +2297,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         lastPool?.let { put("lastPoolAt", it.first); put("lastPoolScore", it.second) }
         cleanup?.takeIf { !it.running && it.finishedAt > 0 }?.let { put("cleanup", cleanupJson(it)) }
         put("cleanupDone", JSONArray(cleanupDone.toList()))
-        put("overlaySales",JSONArray(overlaySales.map { JSONObject().put("id",it.id).put("scan",it.scan) }))
+        put("sellKept", JSONArray(sellKept.toList()))
+        put("overlaySales",JSONArray(overlaySales.map { JSONObject().put("id",it.id).put("scan",it.scan).put("kept",it.kept) }))
         put("potentialQuery", potentialQuery.toJson())
         put("heroUpgradeMinGain", heroUpgradeMinGain); put("heroUpgradeRebuilds", heroUpgradeRebuilds)
         put("sellQuery", sellQuery.toJson())
@@ -2339,8 +2356,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         potentialQuery = j.optJSONObject("potentialQuery")?.let { runCatching { e7.gearscan.data.PotentialQuery.of(it) }.getOrNull() } ?: e7.gearscan.data.PotentialQuery()
         potentialGeneration++; potentialJob?.cancel(); potentialBusy = false; potentialResult = null; potentialError = null
         cleanupDone = longs("cleanupDone").filter { id -> l.box?.itemsById?.containsKey(id) == true }.toSet()
+        sellKept = longs("sellKept").filter { id -> l.box?.itemsById?.containsKey(id) == true }.toSet()
         val sales=j.optJSONArray("overlaySales")?:JSONArray()
-        overlaySales=(0 until sales.length()).mapNotNull { i->runCatching { val mark=sales.getJSONObject(i);OverlaySale(mark.getLong("id"),mark.getLong("scan")) }.getOrNull() }.filter { it.id in cleanupDone&&it.scan==lastScan }.distinctBy { it.id }
+        overlaySales=(0 until sales.length()).mapNotNull { i->runCatching { val mark=sales.getJSONObject(i);OverlaySale(mark.getLong("id"),mark.getLong("scan"),mark.optBoolean("kept")) }.getOrNull() }.filter { it.id in reviewedIds&&it.scan==lastScan }.distinctBy { it.id }
         syncClearedUpgradeQueue()
         upgrades.canUndoSold=overlaySales.any { mark->upgrades.queue.any { it.id==mark.id } }
         heroUpgradeMinGain = j.optDouble("heroUpgradeMinGain", 0.5)
