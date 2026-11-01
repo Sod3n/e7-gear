@@ -433,8 +433,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 SellToggle("In bag only",q.bagOnly) { update(q.copy(bagOnly=it)) }
                 SellToggle("Include locked gear",q.includeLocked) { update(q.copy(includeLocked=it)) }
                 SellToggle("Protect gear on pool heroes",q.protectPool) { update(q.copy(protectPool=it)) }
-                SellNumber("Minimum enhancement",q.minimumEnhance.toDouble(),0.0,q.maximumEnhance.toDouble(),0) { update(q.copy(minimumEnhance=(it?:0.0).toInt())) }
-                SellNumber("Maximum enhancement",q.maximumEnhance.toDouble(),q.minimumEnhance.toDouble(),15.0,0) { update(q.copy(maximumEnhance=(it?:14.0).toInt())) }
+                EnhanceRange(q.minimumEnhance,q.maximumEnhance) { lo,hi->update(q.copy(minimumEnhance=lo,maximumEnhance=hi)) }
             }
             SheetKind.SELL_SLOTS->{
                 LinkText("Any slot") { update(q.copy(slots=Slot.entries.toSet())) }
