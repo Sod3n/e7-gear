@@ -328,7 +328,8 @@ private fun SellNumber(title:String,value:Double?,minimum:Double,maximum:Double,
 @Composable
 private fun SellChoice(text:String,modifier:Modifier=Modifier,selected:Boolean,strong:Boolean=false,click:()->Unit) {
     val shape=RoundedCornerShape(10.dp)
-    Box(modifier.heightIn(min=42.dp).clip(shape).background(if(selected)C.lightPink else C.field).border(if(strong)2.5.dp else 1.5.dp,if(selected||strong)C.edge else C.line,shape).tap(click).padding(7.dp),contentAlignment=Alignment.Center) {
+    Box(modifier.heightIn(min=42.dp).then(if(selected)Modifier.padding(top=3.dp) else Modifier.padding(bottom=3.dp).hardShadow(C.shadow,0.dp,3.dp,10.dp))
+        .clip(shape).background(if(selected)C.lightPink else C.card).border(if(strong||selected)2.5.dp else 1.5.dp,C.edge,shape).tap(click).padding(7.dp),contentAlignment=Alignment.Center) {
         FitText(text,if(strong)dela(12.sp) else zen(12.sp))
     }
 }
@@ -372,15 +373,15 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 if(n in 1..50)OddsDots(n)
                 var why by remember { mutableStateOf(false) }
                 Fold("Why 1 in 20 is the best balance",why,{ why=!why }) {
-                    Text("Tested on a real inventory: 921 unfinished pieces, bar = the middle ES of its +15 pieces. Each setting stops pieces once their odds drop below it:",style=zen(12.sp))
-                    listOf(Triple("1 in 50","97%","20%"),Triple("1 in 20","93%","16%"),Triple("1 in 10","86%","13%"),Triple("1 in 5","75%","10%")).forEach { (k,found,cost)->
-                        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                            Text(k,style=if(k=="1 in 20")dela(13.sp,C.blue) else zen(12.sp),modifier=Modifier.width(70.dp))
-                            Text("finds $found of good pieces",style=zen(12.sp),modifier=Modifier.weight(1f))
-                            Text("$cost of the cost",style=zen(12.sp,color=C.muted))
-                        }
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                        Spacer(Modifier.width(66.dp))
+                        Text("Good pieces kept",style=zen(11.sp,color=C.blue),modifier=Modifier.weight(1f))
+                        Text("Enhance cost",style=zen(11.sp,color=C.deepPink),modifier=Modifier.weight(1f))
                     }
-                    Text("Cost is compared with enhancing every piece to +15. Past 1 in 20 you lose many good pieces for little saving; below it you pay more for very few extra.",style=zen(11.sp,color=C.muted))
+                    listOf(Triple("1 in 50",.97f,.20f),Triple("1 in 20",.93f,.16f),Triple("1 in 10",.86f,.13f),Triple("1 in 5",.75f,.10f)).forEach { (k,found,cost)->
+                        SharePair(k,found,cost,k=="1 in 20")
+                    }
+                    Text("Compared with enhancing every piece to +15, on a real inventory of 921 unfinished pieces. Stricter than 1 in 20 loses good pieces fast; looser costs more for few extra.",style=zen(11.sp,color=C.muted))
                 }
                 SellNumber("Exact %",q.rollOn,0.0,100.0,1) { update(q.copy(rollOn=it?:5.0)) }
                 SellToggle("Count reforging",q.reforge,"Lv85 gear reaches higher ES after reforge") { update(q.copy(reforge=it)) }

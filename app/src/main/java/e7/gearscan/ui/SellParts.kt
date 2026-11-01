@@ -88,12 +88,33 @@ internal fun OddsDots(n: Int) {
 /** A section that opens in place: a full-width row with a chevron, never a link. */
 @Composable
 internal fun Fold(title: String, open: Boolean, toggle: () -> Unit, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(C.field).border(1.5.dp, C.line, RoundedCornerShape(10.dp))
-            .tap(toggle).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Card(shadowOffset = 3.dp, radius = 14.dp, border = 2.dp, padding = PaddingValues(0.dp)) {
+        Row(Modifier.fillMaxWidth().tap(toggle).padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(title, style = zen(13.sp), modifier = Modifier.weight(1f))
-            Text("›", style = zen(15.sp, color = C.muted), modifier = Modifier.rotate(if (open) -90f else 90f))
+            Text("›", style = zen(16.sp), modifier = Modifier.rotate(if (open) -90f else 90f))
         }
-        if (open) Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
+        if (open) Column(Modifier.fillMaxWidth().background(C.field).border(1.dp, C.line).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+    }
+}
+
+/** Two short bars side by side: a share found (blue) and a share paid (pink). */
+@Composable
+internal fun SharePair(label: String, found: Float, cost: Float, best: Boolean) {
+    val shape = RoundedCornerShape(10.dp)
+    Row(Modifier.fillMaxWidth().clip(shape).background(if (best) C.lightPink else C.card).border(if (best) 2.dp else 1.dp, if (best) C.edge else C.line, shape)
+        .padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(label, style = if (best) dela(13.sp) else zen(12.sp), modifier = Modifier.width(56.dp))
+        ShareBar(found, C.blue, Modifier.weight(1f))
+        ShareBar(cost, C.deepPink, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun ShareBar(v: Float, color: androidx.compose.ui.graphics.Color, modifier: Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(C.line)) {
+            Box(Modifier.fillMaxWidth(v.coerceIn(0f, 1f)).fillMaxHeight().clip(RoundedCornerShape(4.dp)).background(color))
+        }
+        Text("${(v * 100).toInt()}%", style = zen(11.sp, color = color), modifier = Modifier.width(30.dp))
     }
 }

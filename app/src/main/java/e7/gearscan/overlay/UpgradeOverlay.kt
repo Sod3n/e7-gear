@@ -295,7 +295,15 @@ private fun PanelChoices(names: List<String>, height: Float, title: String, sele
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         if (title.isNotEmpty()) FitText(title, zen(9.sp), Modifier.height(titleHeight.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            CardGrid(names.indices.drop(page * count).take(count), columns = columns, gap = 4.dp) { index, m -> PanelAction(names[index], m) { select(index) } }
+            val shown = names.indices.drop(page * count).take(count)
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val cell = (maxWidth - 4.dp * (columns - 1)) / columns
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    for (r in 0 until (shown.size + columns - 1) / columns) Row(Modifier.fillMaxWidth().height(30.dp), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)) {
+                        shown.drop(r * columns).take(columns).forEach { index -> PanelAction(names[index], Modifier.width(cell)) { select(index) } }
+                    }
+                }
+            }
         }
         if (pages > 1) PanelPager(page, pages, "${page + 1} / $pages", "choices") { page = it }
     }
