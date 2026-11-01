@@ -354,7 +354,7 @@ internal fun PotentialNumber(value: String, hint: String, modifier: Modifier, mi
 internal fun GearPositionLabel(model: AppModel, item: Item, explicitGameScore:Boolean=false) {
     if (!item.ghost) {
         val position = model.inventoryPosition(item.id)
-        Text(position?.label()?.let { if(explicitGameScore)it.replace(" · score "," · game ES ") else it } ?: if (model.inventoryBagOnly && item.equippedOn != null) "Equipped · outside bag view" else "Position unavailable", style = zen(10.sp, FontWeight.Medium, C.blue),
+        Text(position?.label()?.let { if(explicitGameScore)it.substringBefore(" · score ") else it.replace(" · score "," · ES ") } ?: if (model.inventoryBagOnly && item.equippedOn != null) "Equipped · outside bag view" else "Position unavailable", style = zen(10.sp, FontWeight.Medium, C.blue),
             modifier = Modifier.tap { model.sheet = Sheet(SheetKind.INVENTORY_ORDER, 0) })
     }
 }

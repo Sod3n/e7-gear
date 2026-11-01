@@ -1276,6 +1276,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         upgrades.canUndoSold=overlaySales.any { it.scan==lastScan&&it.id in reviewedIds&&upgrades.queue.any { e->e.id==it.id } }
         upgrades.markSold=if(upgrades.scoreQuery!=null)({ id->markOverlaySold(id) }) else null
         upgrades.markKept=if(upgrades.scoreQuery!=null)({ id->markOverlaySold(id,keep=true) }) else null
+        upgrades.rollOn=upgrades.scoreQuery?.rollOn?:5.0
+        upgrades.esFor=upgrades.scoreQuery?.let { q->{ item:Item->
+            val b=box;val ctx=sellContext(q)
+            if(b==null||ctx==null)null else e7.gearscan.opt.EsForecast.of(item,e7.gearscan.data.InventoryOrder.score(item,if(item.enhance==b.itemsById[item.id]?.enhance)ctx.raw[item.id] else null),
+                ctx.esBar(item.slot),q.reforge,b.canReforge(item.id),ctx.coverage(item),q.forecastMs)
+        } }
         upgrades.undoSold=if(upgrades.scoreQuery!=null)({ undoOverlaySold() }) else null
         refreshScoreGoal()
         val item = upgrades.record?.item ?: return
@@ -1314,7 +1320,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val index=t.queueIndex.coerceAtLeast(0)
         overlaySales=overlaySales.filterNot { it.id==expectedId&&it.scan==lastScan }+OverlaySale(expectedId,lastScan,keep)
         if(keep)sellKept=sellKept+expectedId else cleanupDone=cleanupDone+expectedId;t.cleared=reviewedIds
-        t.invalidate();touch();save()
+        t.invalidate();save()
         val next=t.pendingQueue.getOrNull(index)?:t.pendingQueue.lastOrNull()
         next?.let { e->box?.itemsById?.get(e.id)?.let { t.select(it,lastScan,keepQueue=true) } }
         configureUpgrade()
@@ -1325,7 +1331,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val mark=overlaySales.lastOrNull { it.scan==lastScan&&it.id in reviewedIds&&t.queue.any { e->e.id==it.id } }?:return
         if(box?.itemsById?.containsKey(mark.id)!=true) { t.error="That piece is no longer in your scan.";return }
         overlaySales=overlaySales-mark;if(mark.kept)sellKept=sellKept-mark.id else cleanupDone=cleanupDone-mark.id;t.cleared=reviewedIds
-        t.invalidate();touch();save()
+        t.invalidate();save()
         t.select(box!!.itemsById.getValue(mark.id),lastScan,keepQueue=true);configureUpgrade()
     }
 
@@ -1520,12 +1526,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun markSellReview(id: Long, keep: Boolean) {
         if (id in reviewedIds) return
         if (keep) sellKept = sellKept + id else cleanupDone = cleanupDone + id
-        upgrades.cleared = reviewedIds; touch(); save()
+        upgrades.cleared = reviewedIds; save()
         toast = Toast(if (keep) "Kept · won't come back until you unlock it" else "Marked sold", "Undo") { unmarkSellReview(id) }
     }
     fun unmarkSellReview(id: Long) {
         sellKept = sellKept - id; cleanupDone = cleanupDone - id; overlaySales = overlaySales.filterNot { it.id == id }
-        upgrades.cleared = reviewedIds; touch(); save()
+        upgrades.cleared = reviewedIds; save()
     }
     private data class OverlaySale(val id:Long,val scan:Long,val kept:Boolean=false)
     private var overlaySales:List<OverlaySale> by mutableStateOf(emptyList())

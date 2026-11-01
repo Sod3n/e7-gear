@@ -202,8 +202,12 @@ private fun PieceSummary(t: UpgradeTracker, item: Item, height: Float) {
             FitText(if(t.isRollReview)t.reviewRolls?.let { "${e7.gearscan.opt.RollReview.overallWeakCount(it)}/${it.size} low" }?:"History unknown" else "${item.rank} · Lv.${item.level}", zen(9.sp, color = C.muted))
         }
         GearSearchSubs(item, t.goal?.minimums?.keys ?: emptySet())
-        t.inventoryPosition?.let { FitText(it, zen(9.sp, color = C.blue)) }
-        if (!t.hasTarget) FitText(t.title, zen(10.sp, color = C.blue))
+        val es by produceState<e7.gearscan.opt.EsForecast.Es?>(null, item, t.esFor) { value = t.esFor?.let { f -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { f(item) } } }
+        if (t.esFor != null) es?.let { e ->
+            FitText("ES ${e.now}${e.typical?.takeIf { e.finishShare > 0 }?.let { " → usually ${it.toInt()} at +15" } ?: ""}", zen(11.sp))
+            e7.gearscan.ui.esVerdict(e, t.rollOn)?.let { (text, good) -> FitText(text, zen(10.sp, color = if (good) C.blue else C.deepPink)) }
+        } else t.inventoryPosition?.let { FitText(it, zen(9.sp, color = C.blue)) }
+        if (!t.hasTarget && t.esFor == null) FitText(t.title, zen(10.sp, color = C.blue))
         if (!t.hasTarget) weakestLine(t)?.let { FitText(it, zen(9.sp, color = C.muted)) }
     }
 }

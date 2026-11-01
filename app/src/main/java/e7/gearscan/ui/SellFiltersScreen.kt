@@ -234,9 +234,8 @@ fun SellFiltersScreen(model:AppModel) {
             val guarded=result.rows.filter { it.protected&&it.item.id !in done };val unknown=result.rows.filter { it.unknown&&!it.protected&&it.item.id !in done }
             Card(shadow=null,padding=PaddingValues(12.dp)) {
                 Text("${pending.size} pieces to review",style=dela(19.sp))
-                Text("${if(result.query.minimumProcs>0)"${result.query.minimumProcs}+ upgrade rolls · " else ""}${if(result.query.sort==SellSort.INVENTORY)"game order" else if(result.query.descending)"higher overall rolls first" else "lower overall rolls first"}",style=zen(11.sp,color=C.muted))
-                Text(rollLimitText(result.query),style=zen(11.sp,color=C.blue))
-                Text("Individual stat limits at +15${if(result.query.reforge)" & eligible reforge" else " before reforge"}",style=zen(10.sp,color=C.muted))
+                Text("${if(result.query.sort==SellSort.INVENTORY)"Game order" else if(result.query.descending)"Best rolls first" else "Worst rolls first"} · worth rolling at ${fmtNum(result.query.rollOn)}%+${if(result.query.reforge)" · reforge counted" else ""}",style=zen(11.sp,color=C.muted))
+                if(result.query.minimumProcs>0||result.query.maximumTotalQuality!=null)Text("${if(result.query.minimumProcs>0)"${result.query.minimumProcs}+ upgrades · " else ""}${rollLimitText(result.query)}",style=zen(11.sp,color=C.blue))
                 if(result.query.maximumProcQuality!=null)Text("An additional upgrade-only limit is active",style=zen(11.sp,color=C.muted))
                 if(result.query.scoreFilter)Text("Additional combined-value filter applied",style=zen(11.sp,color=C.muted))
                 VSpace(7.dp);LinkText("Edit") { tab=0 }
@@ -339,7 +338,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 Text("Pieces you kept never come back into Sell review until you unlock them here.",style=zen(12.sp))
                 if(kept.isEmpty())Text("Nothing kept yet.",style=zen(12.sp,color=C.muted))
                 kept.forEach { item->Card(shadow=null,padding=PaddingValues(12.dp)) {
-                    GearSearchIdentity(model,item,explicitGameScore=true)
+                    GearSearchIdentity(model,item,explicitGameScore=false)
                     VSpace(6.dp)
                     OutlineButton("Unlock",Modifier.fillMaxWidth(),height=38.dp) { model.unmarkSellReview(item.id) }
                 } }
