@@ -366,30 +366,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 if(q.scoreFilter)CardGrid(SellSort.entries,columns=2) { key,m->SellChoice(when(key){SellSort.QUALITY->"Roll values";SellSort.INVENTORY->"Game order";SellSort.CHANCE->"Combined chance";SellSort.SCORE->"Combined score"},m,q.sort==key) { update(q.copy(sort=key)) } }
             }
             SheetKind.SELL_WORTH->{
-                val n=if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt() else 0
-                Text("Keep enhancing a piece if at least this many of its finishes reach your ES bar",style=zen(13.sp))
-                CardGrid(listOf(1000,100,20,5),columns=4) { k,m->Column(m,horizontalAlignment=Alignment.CenterHorizontally) {
-                    SellChoice("1 in $k",Modifier.fillMaxWidth(),n==k,strong=k==100) { update(q.copy(rollOn=100.0/k)) }
-                    Text(if(k==100)"default" else " ",style=zen(10.sp,color=C.muted))
-                } }
-                if(n in 1..100)OddsDots(n) else if(n>100)Text("1 of every $n finishes reaches the bar · only near-hopeless pieces stop",style=zen(11.sp,color=C.muted))
-                var why by remember { mutableStateOf(false) }
-                Fold("What each choice costs",why,{ why=!why }) {
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                        Spacer(Modifier.width(66.dp))
-                        Text("Good pieces kept",style=zen(11.sp,color=C.blue),modifier=Modifier.weight(1f))
-                        Text("Total",style=zen(11.sp,color=C.ink),modifier=Modifier.width(44.dp))
-                        Text("Each extra one",style=zen(11.sp,color=C.deepPink),modifier=Modifier.width(76.dp))
-                    }
-                    // stop-rule test (gear_cleanup/stop_rules): full +0->+15 enhances per extra good piece vs the row above
-                    // (label, good pieces, total full enhances, full enhances per extra good piece)
-                    listOf(listOf("1 in 5",64,83.4,0.0),listOf("1 in 20",79,139.3,3.6),listOf("1 in 100",84,182.5,8.8),listOf("1 in 1000",85,204.2,23.6),listOf("Finish all",85,846.1,8000.0)).forEach { r->
-                        val k=r[0] as String;val total=r[2] as Double;val extra=r[3] as Double
-                        KeptRow(k,r[1] as Int,85,EsForecast.goldText(total*EsForecast.FULL_GOLD),if(extra==0.0)"—" else EsForecast.goldText(extra*EsForecast.FULL_GOLD),k=="1 in ${n}")
-                    }
-                    Text("From a real inventory: 921 unfinished pieces, 85 of which can reach the bar (tested without reforge). Each choice stops pieces along the way once their odds drop. Total is the gold that choice spends on all of them; each extra one is the gold per good piece it keeps beyond the row above. Gold at the enhancement-stone price.",style=zen(11.sp,color=C.muted))
-                }
-                SellNumber("Exact %",q.rollOn,0.0,100.0,1) { update(q.copy(rollOn=it?:1.0)) }
+                KeepRollingSlider(q.rollOn) { update(q.copy(rollOn=it)) }
                 SellToggle("Count reforging",q.reforge,"Lv85 gear reaches higher ES after reforge") { update(q.copy(reforge=it)) }
                 SectionTitle("ES bar")
                 Text("Default: the middle ES of your own +15 pieces in that slot.",style=zen(11.sp,color=C.muted))
