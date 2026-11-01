@@ -365,7 +365,7 @@ fun CaptureScreen(model: AppModel) {
             }
         }
         if (!importing && !model.pillAllowed) LinkText("Show the scan status over the game · allow it", size = 12) { model.allowPill() }
-        Text("The capture is always kept, so any problem can be retried from here.", style = zen(12.sp, FontWeight.Medium, C.muted))
+        if (err != ScanError.NOTHING) Text("The capture is always kept, so any problem can be retried from here.", style = zen(12.sp, FontWeight.Medium, C.muted))
     }
 }
 
