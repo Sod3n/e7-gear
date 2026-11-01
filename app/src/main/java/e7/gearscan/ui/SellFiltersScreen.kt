@@ -241,7 +241,7 @@ fun SellFiltersScreen(model:AppModel) {
         if(tab==0) {
             RowCard("Worth rolling",{openSell(model,SheetKind.SELL_WORTH)},labelWidth=112.dp) { Text("1 in ${if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt().toString() else "–"} reach ${if(q.esBars.isEmpty())"your usual +15 ES" else "your ES bars"}",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("Stat safeguards",{openSell(model,SheetKind.SELL_SAFEGUARDS)},labelWidth=112.dp) { Text(when { q.keepStats.isEmpty()->"Off";q.keepStats==SellQuery.DEFAULT_GUARDS->"Default · ${q.keepStats.size} stats";else->"${q.keepStats.size} stats" },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
-            RowCard("Gear to review",{openSell(model,SheetKind.SELL_INVENTORY)},labelWidth=112.dp) { Text("${if(q.bagOnly)"Bag" else "All gear"} · +${q.minimumEnhance} to +${q.maximumEnhance}",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            RowCard("Gear to review",{openSell(model,SheetKind.SELL_INVENTORY)},labelWidth=112.dp) { Text("${if(q.bagOnly)"Bag" else "All gear"} · +${q.minimumEnhance/3*3} to +${if(q.maximumEnhance>=15)15 else q.maximumEnhance/3*3}",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("Slots",{openSell(model,SheetKind.SELL_SLOTS)},labelWidth=112.dp) { Text(if(q.slots.size==6)"Any slot" else q.slots.joinToString { it.label },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("Sets",{openSell(model,SheetKind.SELL_SETS)},labelWidth=112.dp) { Text(if(q.sets.isEmpty())"Any set" else "${q.sets.size} selected",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("Main stats",{openSell(model,SheetKind.SELL_MAINS)},labelWidth=112.dp) { Text(if(q.mains.isEmpty())"Any main" else q.mains.joinToString { it.short },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
@@ -321,11 +321,12 @@ private fun SellNumber(title:String,value:Double?,minimum:Double,maximum:Double,
     }
 }
 @Composable
-private fun SellChoice(text:String,modifier:Modifier=Modifier,selected:Boolean,strong:Boolean=false,click:()->Unit) {
+private fun SellChoice(text:String,modifier:Modifier=Modifier,selected:Boolean,strong:Boolean=false,leading:(@Composable ()->Unit)?=null,click:()->Unit) {
     val shape=RoundedCornerShape(10.dp)
     Box(modifier.heightIn(min=42.dp).then(if(selected)Modifier.padding(top=3.dp) else Modifier.padding(bottom=3.dp).hardShadow(C.shadow,0.dp,3.dp,10.dp))
         .clip(shape).background(if(selected)C.lightPink else C.card).border(if(strong||selected)2.5.dp else 1.5.dp,C.edge,shape).tap(click).padding(7.dp),contentAlignment=Alignment.Center) {
-        FitText(text,if(strong)dela(12.sp) else zen(12.sp))
+        if(leading==null)FitText(text,if(strong)dela(12.sp) else zen(12.sp))
+        else Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) { leading();FitText(text,if(strong)dela(12.sp) else zen(12.sp)) }
     }
 }
 
@@ -431,8 +432,8 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 EnhanceRange(q.minimumEnhance,q.maximumEnhance) { lo,hi->update(q.copy(minimumEnhance=lo,maximumEnhance=hi)) }
             }
             SheetKind.SELL_SLOTS->{
-                LinkText("Any slot") { update(q.copy(slots=Slot.entries.toSet())) }
-                CardGrid(Slot.entries,columns=3) { s,m->SellChoice(s.label,m,s in q.slots) { update(q.copy(slots=if(s in q.slots)q.slots-s else q.slots+s)) } }
+                OutlineButton("Any slot",Modifier.fillMaxWidth(),height=40.dp,enabled=q.slots.size<Slot.entries.size) { update(q.copy(slots=Slot.entries.toSet())) }
+                CardGrid(Slot.entries,columns=3) { s,m->SellChoice(s.label,m,s in q.slots,leading={ GearIcon(s.icon,16.dp,C.ink) }) { update(q.copy(slots=if(s in q.slots)q.slots-s else q.slots+s)) } }
             }
             SheetKind.SELL_SETS->{
                 var name by remember { mutableStateOf("") };NameFilter(name,"Name") { name=it }
@@ -442,8 +443,8 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 }
             }
             SheetKind.SELL_MAINS->{
-                LinkText("Any main") { update(q.copy(mains=emptySet())) }
-                CardGrid(GearStat.entries,columns=3) { s,m->SellChoice(s.short,m,s in q.mains) { update(q.copy(mains=if(s in q.mains)q.mains-s else q.mains+s)) } }
+                OutlineButton("Any main",Modifier.fillMaxWidth(),height=40.dp,enabled=q.mains.isNotEmpty()) { update(q.copy(mains=emptySet())) }
+                CardGrid(GearStat.entries,columns=3) { s,m->SellChoice(s.short,m,s in q.mains,leading={ StatIcon(s.stat,14.dp,C.ink) }) { update(q.copy(mains=if(s in q.mains)q.mains-s else q.mains+s)) } }
             }
             SheetKind.SELL_LEVELS->{
                 LinkText("Any level") { update(q.copy(levels=emptySet())) }

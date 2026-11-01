@@ -257,11 +257,11 @@ internal fun TypedNumber(shown: String, value: Double, active: Boolean, size: In
 }
 
 
-/** Two handles over +0..+15; the row lights up while dragging; saved when the finger lifts. */
+/** Two handles on the upgrade steps +0, +3 .. +15; a step covers the levels up to the next one (+12 holds +12..+14). */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 internal fun EnhanceRange(low: Int, high: Int, commit: (Int, Int) -> Unit) {
-    var r by remember(low, high) { mutableStateOf(low.toFloat()..high.toFloat()) }
+    var r by remember(low, high) { mutableStateOf((low / 3).toFloat()..(if (high >= 15) 5 else high / 3).toFloat()) }
     val start = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val end = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val active = start.collectIsDraggedAsState().value || end.collectIsDraggedAsState().value || start.collectIsPressedAsState().value || end.collectIsPressedAsState().value
@@ -270,12 +270,12 @@ internal fun EnhanceRange(low: Int, high: Int, commit: (Int, Int) -> Unit) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (active) C.lightPink else none).padding(horizontal = 6.dp, vertical = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Enhancement", style = zen(13.sp), modifier = Modifier.weight(1f))
-            Text("+${r.start.toInt()} to +${r.endInclusive.toInt()}", style = dela(if (active) 20.sp else 15.sp, if (active) C.deepPink else C.blue))
+            Text("+${r.start.toInt() * 3} to +${r.endInclusive.toInt() * 3}", style = dela(if (active) 20.sp else 15.sp, if (active) C.deepPink else C.blue))
         }
         val thumb = { s: androidx.compose.foundation.interaction.MutableInteractionSource -> @Composable {
             androidx.compose.material3.SliderDefaults.Thumb(s, colors = colors, thumbSize = if (active) androidx.compose.ui.unit.DpSize(8.dp, 52.dp) else androidx.compose.ui.unit.DpSize(4.dp, 44.dp)) } }
         androidx.compose.material3.RangeSlider(value = r, onValueChange = { v -> r = kotlin.math.round(v.start)..kotlin.math.round(v.endInclusive) },
-            onValueChangeFinished = { commit(r.start.toInt(), r.endInclusive.toInt()) }, valueRange = 0f..15f, steps = 14, colors = colors,
+            onValueChangeFinished = { val hi = r.endInclusive.toInt(); commit(r.start.toInt() * 3, if (hi == 5) 15 else hi * 3 + 2) }, valueRange = 0f..5f, steps = 4, colors = colors,
             startInteractionSource = start, endInteractionSource = end,
             startThumb = { thumb(start)() }, endThumb = { thumb(end)() },
             modifier = Modifier.fillMaxWidth().height(48.dp).semantics { contentDescription = "Enhancement range" })
