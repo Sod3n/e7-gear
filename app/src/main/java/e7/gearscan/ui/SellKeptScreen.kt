@@ -28,19 +28,15 @@ fun SellKeptScreen(model: AppModel) {
     Frame(model, null) {
         BackToPrevious(model); ScreenTitle("Kept pieces")
         Text("${all.size} kept · they stay out of Sell review until you unlock them", style = zen(12.sp, color = C.muted))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Slot.entries.forEach { s ->
-                Pill(s.label, selected = s in slots, onClick = { slots = if (s in slots) slots - s else slots + s; count = 30 },
-                    leading = { GearIcon(s.icon, 14.dp, if (s in slots) C.onAccent else C.ink) })
-            }
+        CardGrid(Slot.entries, columns = 3, gap = 6.dp) { s, m ->
+            Pill(s.label, m, selected = s in slots, onClick = { slots = if (s in slots) slots - s else slots + s; count = 30 },
+                leading = { GearIcon(s.icon, 14.dp, if (s in slots) C.onAccent else C.ink) })
         }
         val keptSets = all.map { it.set }.distinct().sortedBy { model.content.set(it)?.name ?: it }
-        if (keptSets.size > 1) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            keptSets.forEach { k ->
-                val set = model.content.set(k)
-                Pill(set?.name ?: k.removeSuffix("Set"), selected = k in sets, onClick = { sets = if (k in sets) sets - k else sets + k; count = 30 },
-                    leading = { SetIcon(set?.icon, 14.dp) })
-            }
+        if (keptSets.size > 1) CardGrid(keptSets, columns = 3, gap = 6.dp) { k, m ->
+            val set = model.content.set(k)
+            Pill(set?.name ?: k.removeSuffix("Set"), m, selected = k in sets, onClick = { sets = if (k in sets) sets - k else sets + k; count = 30 },
+                leading = { SetIcon(set?.icon, 14.dp) })
         }
         Segmented(listOf("Newest", "Lowest ES", "Highest ES"), sort) { sort = it }
         if (shown.isEmpty()) Card { Text(if (all.isEmpty()) "Nothing kept yet. Tap Keep in Sell review." else "No kept piece matches these filters.", style = zen(13.sp)) }

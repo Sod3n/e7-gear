@@ -7,9 +7,10 @@ METHOD="${1:-sell}"
 OUT="${2:-app/build/gallery}"
 : "${E7_FIXTURES:?set E7_FIXTURES to a folder with backup.json and content.json}"
 adb get-state >/dev/null
-./gradlew -q :app:connectedDebugAndroidTest \
-  -Pandroid.testInstrumentationRunnerArguments.class="e7.gearscan.GalleryScreens#$METHOD" \
-  -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true
+./gradlew -q :app:installDebug :app:installDebugAndroidTest
+# am instrument directly: Gradle's connected runner crashed the process on a freshly booted emulator
+RESULT=$(adb shell am instrument -w -r -e class "e7.gearscan.GalleryScreens#$METHOD" e7.gearscan.test/androidx.test.runner.AndroidJUnitRunner)
+if echo "$RESULT" | grep -qE "FAILURES!!!|shortMsg=|INSTRUMENTATION_STATUS_CODE: -2"; then echo "$RESULT" | tail -40; exit 1; fi
 rm -rf "$OUT" && mkdir -p "$OUT"
 adb pull /sdcard/Android/data/e7.gearscan/files/gallery/. "$OUT/" >/dev/null
 ls "$OUT"/*.png >/dev/null

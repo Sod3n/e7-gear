@@ -103,11 +103,11 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
             PanelAction("–", Modifier.width(30.dp), label = "Collapse tracker") { OverlayState.expanded = false; onDock(false) }
             PanelAction("×", Modifier.width(30.dp), label = "Close tracker", click = onClose)
         }
-        if (t.queue.isNotEmpty()) Row(Modifier.fillMaxWidth().height(30.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-            PanelAction("‹", Modifier.width(30.dp), enabled = t.queueIndex > 0 && !t.editing, label = "Previous gear") { t.selectQueue?.invoke(t.queueIndex - 1); pane = UpgradePane.PIECE }
+        if (t.queue.isNotEmpty()) Row(Modifier.fillMaxWidth().height(38.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+            PanelAction("‹", Modifier.width(60.dp), enabled = t.queueIndex > 0 && !t.editing, label = "Previous gear") { t.selectQueue?.invoke(t.queueIndex - 1); pane = UpgradePane.PIECE }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { FitText(if(t.sellQueueComplete)"0 remaining" else if(t.needsRollRefresh)"Refresh list for overall ranking" else if(t.isSellQueue)"${t.queueIndex + 1} / ${t.pendingQueue.size} · sell in E7 first" else "${t.queueIndex + 1} / ${t.pendingQueue.size} matches", zen(10.sp, color = C.blue)) }
             if (!t.isSellQueue) PanelAction(if (pane == UpgradePane.LIST) "Piece" else "List", Modifier.width(46.dp), enabled = !t.editing&&!t.sellQueueComplete) { pane = if (pane == UpgradePane.LIST) UpgradePane.PIECE else UpgradePane.LIST }
-            PanelAction("›", Modifier.width(30.dp), enabled = t.queueIndex < t.pendingQueue.lastIndex && !t.editing, label = "Next gear") { t.selectQueue?.invoke(t.queueIndex + 1); pane = UpgradePane.PIECE }
+            PanelAction("›", Modifier.width(60.dp), enabled = t.queueIndex < t.pendingQueue.lastIndex && !t.editing, label = "Next gear") { t.selectQueue?.invoke(t.queueIndex + 1); pane = UpgradePane.PIECE }
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 2.dp).testTag("gear-tracker-body")) {
             when {
@@ -122,7 +122,7 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                             "Final build".takeIf { !t.hasTarget && t.results.any { it.build.isNotEmpty() && (it.hits.isNotEmpty() || it.current) } },
                             (if (t.rebuilds) "This piece only" else "Allow rebuilds").takeIf { !t.hasTarget },
                             "Recheck builds".takeIf { !t.hasTarget }, "Notice".takeIf { t.notice != null })
-                    PanelChoices(options, maxHeight.value, "More") { i -> when (options[i]) {
+                    PanelChoices(options, maxHeight.value, "") { i -> when (options[i]) {
                         "Open E7 Gear" -> { pane = UpgradePane.PIECE; t.returnToApp?.invoke() }
                         "Targets", "Roll review" -> pane = UpgradePane.GOAL
                         "Build advice" -> pane = UpgradePane.ADVICE
@@ -282,15 +282,16 @@ private fun QueuePage(t: UpgradeTracker, height: Float, selected: () -> Unit) {
 @Composable
 private fun PanelChoices(names: List<String>, height: Float, title: String, select: (Int) -> Unit) {
     val scale = LocalDensity.current.fontScale
-    val rows = floor((height - 55) / 34).toInt().coerceIn(1, 3)
-    val count = rows * 2
+    val columns = if (names.size > 4) 3 else 2
+    val rows = floor((height - (if (title.isEmpty()) 8 else 55)) / 34).toInt().coerceIn(1, 3)
+    val count = rows * columns
     var page by remember(names, count) { mutableIntStateOf(0) }
     val pages = ((names.size + count - 1) / count).coerceAtLeast(1)
     val titleHeight = (12.6f * scale).coerceAtLeast(16f)
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        FitText(title, zen(9.sp), Modifier.height(titleHeight.dp))
+        if (title.isNotEmpty()) FitText(title, zen(9.sp), Modifier.height(titleHeight.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            CardGrid(names.indices.drop(page * count).take(count), columns = 2, gap = 4.dp) { index, m -> PanelAction(names[index], m) { select(index) } }
+            CardGrid(names.indices.drop(page * count).take(count), columns = columns, gap = 4.dp) { index, m -> PanelAction(names[index], m) { select(index) } }
         }
         if (pages > 1) PanelPager(page, pages, "${page + 1} / $pages", "choices") { page = it }
     }

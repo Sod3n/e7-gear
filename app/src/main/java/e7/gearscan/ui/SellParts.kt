@@ -17,8 +17,7 @@ import e7.gearscan.opt.*
 internal fun chanceText(c: Double) = when {
     c >= .995 -> "100%"
     c >= .1 -> "${(c * 100).toInt()}%"
-    c >= .01 -> String.format(java.util.Locale.US, "%.1f%%", c * 100)
-    c > 0 -> "<1%"
+    c > 0 -> "1 in ${kotlin.math.round(1 / c).toLong()}"
     else -> "0%"
 }
 
@@ -70,5 +69,17 @@ internal fun MainStatLine(item: Item, size: Int = 10) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         StatIcon(item.mainType.stat, (size + 2).dp, C.muted)
         Text("${item.mainType.format(item.mainValue)} · Lv.${item.level}", style = zen(size.sp, color = C.muted))
+    }
+}
+
+/** n dots, one lit: "1 in n" as a picture. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun OddsDots(n: Int) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            repeat(n) { i -> Box(Modifier.size(12.dp).clip(RoundedCornerShape(6.dp)).background(if (i == 0) C.blue else C.line)) }
+        }
+        Text("1 lit of $n finishes reaches the bar", style = zen(11.sp, color = C.muted))
     }
 }
