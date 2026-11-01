@@ -14,6 +14,16 @@ object EsForecast {
     private fun rate(rank: String) = if (rank == "Heroic") 1.35 else 1.5
     private fun cumulative(e: Int) = if (e <= 0) 0.0 else CUMULATIVE[e.coerceAtMost(15) - 1]
     private val FULL = CUMULATIVE[14] * xp(85) * rate("Epic")
+    /** Gold per XP: itemgrade.enchant_price (1 for Epic and Heroic) x sell_item_value 19, x0.6 when the XP comes from enhancement stones. */
+    const val GOLD_PER_XP = 19 * 0.6
+    /** Gold for one Epic Lv85 +0 -> +15 at the stone price. */
+    val FULL_GOLD = FULL * GOLD_PER_XP
+    fun goldText(gold: Double): String = when {
+        gold >= 1e9 -> String.format(java.util.Locale.US, "%.1fB", gold / 1e9)
+        gold >= 1e6 -> String.format(java.util.Locale.US, "%.1fM", gold / 1e6)
+        gold >= 1e3 -> "${(gold / 1e3).toInt()}k"
+        else -> gold.toInt().toString()
+    }
 
     /** Enhance cost from the piece's level to +15, as a share of one Epic Lv85 going +0 to +15. */
     fun finishShare(item: Item): Double =

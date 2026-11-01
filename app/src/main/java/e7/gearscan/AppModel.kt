@@ -1067,7 +1067,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     @Volatile private var sellGeneration = 0
     private val sellMutex = kotlinx.coroutines.sync.Mutex()
     private var appliedSellKey: List<Any?>? = null
-    private fun sellKey(): List<Any?> = listOf(box,lastScan,upgrades.records.filterValues { it.scan==lastScan&&it.history.size>1 },poolTiers,poolExtra,tiers,content.version,rev,sellQuery)
+    private fun sellKey(): List<Any?> = listOf(box,lastScan,upgrades.records.filterValues { it.scan==lastScan&&it.history.size>1 },poolTiers,poolExtra,tiers,content.version,rev,sellQuery.copy(rollOn=0.0))
     val sellFresh get() = sellResult!=null && appliedSellKey==sellKey() && !sellBusy
     private var sellContextKey:List<Any?>?=null
     private var cachedSellContext:e7.gearscan.opt.SellSearch.Context?=null
@@ -1098,7 +1098,10 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val item=context.items.firstOrNull { it.slot==slot }?:return null
         return context.floor(item)
     }
-    fun updateSellQuery(q:e7.gearscan.data.SellQuery) { stopSellSearch();sellQuery=if(!q.scoreFilter&&q.sort in listOf(e7.gearscan.data.SellSort.SCORE,e7.gearscan.data.SellSort.CHANCE))q.copy(sort=e7.gearscan.data.SellSort.QUALITY) else q;sellError=null;touch() }
+    fun updateSellQuery(q:e7.gearscan.data.SellQuery) {
+        // the keep-rolling chance only relabels rows; it must not stale the list or restart a search
+        if(q.copy(rollOn=0.0)==sellQuery.copy(rollOn=0.0)) { sellQuery=q;upgrades.rollOn=q.rollOn;saveSoon();return }
+        stopSellSearch();sellQuery=if(!q.scoreFilter&&q.sort in listOf(e7.gearscan.data.SellSort.SCORE,e7.gearscan.data.SellSort.CHANCE))q.copy(sort=e7.gearscan.data.SellSort.QUALITY) else q;sellError=null;touch() }
     fun stopSellSearch() {
         sellGeneration++;sellJob?.cancel();sellJob=null
         if(sellBusy)PoolService.stop(getApplication())
@@ -1301,7 +1304,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         upgrades.canUndoSold=overlaySales.any { it.scan==lastScan&&it.id in reviewedIds&&upgrades.queue.any { e->e.id==it.id } }
         upgrades.markSold=if(upgrades.scoreQuery!=null)({ id->markOverlaySold(id) }) else null
         upgrades.markKept=if(upgrades.scoreQuery!=null)({ id->markOverlaySold(id,keep=true) }) else null
-        upgrades.rollOn=upgrades.scoreQuery?.rollOn?:5.0
+        upgrades.rollOn=sellQuery.rollOn
         upgrades.esFor=upgrades.scoreQuery?.let { q->{ item:Item->
             val b=box;val ctx=sellContext(q)
             if(b==null||ctx==null)null else e7.gearscan.opt.EsForecast.of(item,e7.gearscan.data.InventoryOrder.score(item,if(item.enhance==b.itemsById[item.id]?.enhance)ctx.raw[item.id] else null),

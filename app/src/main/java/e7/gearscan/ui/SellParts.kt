@@ -5,6 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -120,7 +123,7 @@ private fun ShareBar(v: Float, color: androidx.compose.ui.graphics.Color, modifi
 }
 
 @Composable
-internal fun KeptRow(label: String, good: Int, of: Int, extra: String, chosen: Boolean) {
+internal fun KeptRow(label: String, good: Int, of: Int, total: String, extra: String, chosen: Boolean) {
     val shape = RoundedCornerShape(10.dp)
     Row(Modifier.fillMaxWidth().clip(shape).background(if (chosen) C.lightPink else C.card).border(if (chosen) 2.dp else 1.dp, if (chosen) C.edge else C.line, shape)
         .padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -131,6 +134,78 @@ internal fun KeptRow(label: String, good: Int, of: Int, extra: String, chosen: B
             }
             Text("$good", style = zen(11.sp, color = C.blue), modifier = Modifier.width(20.dp))
         }
-        Text(extra, style = zen(11.sp, color = C.deepPink), modifier = Modifier.width(108.dp))
+        Text(total, style = zen(11.sp), modifier = Modifier.width(44.dp))
+        Text(extra, style = zen(11.sp, color = C.deepPink), modifier = Modifier.width(66.dp))
+    }
+}
+
+/** Stop-rule test on a real inventory (gear_cleanup/stop_rules, sweep_p50): keep-rolling chance %, good pieces kept, full +0->+15 enhances spent. */
+internal object KeepCurve {
+    const val POSSIBLE = 85.3
+    const val ALL_COST = 846.1
+    val points: List<Triple<Double, Double, Double>> = listOf(
+        Triple(0.05, 85.24, 206.5),
+        Triple(0.1, 85.22, 204.2),
+        Triple(0.2, 85.17, 201.4),
+        Triple(0.3, 85.07, 197.8),
+        Triple(0.5, 84.91, 193.0),
+        Triple(0.75, 84.68, 188.5),
+        Triple(1.0, 84.34, 182.5),
+        Triple(1.5, 83.46, 170.4),
+        Triple(2.0, 82.96, 165.0),
+        Triple(3.0, 81.93, 156.8),
+        Triple(4.0, 80.52, 146.6),
+        Triple(5.0, 79.39, 139.3),
+        Triple(6.5, 77.30, 127.3),
+        Triple(8.0, 75.65, 120.4),
+        Triple(10.0, 73.69, 112.8),
+        Triple(12.5, 70.44, 101.3),
+        Triple(15.0, 68.07, 94.1),
+        Triple(20.0, 63.92, 83.4),
+        Triple(25.0, 58.77, 71.8),
+        Triple(30.0, 53.86, 61.8),
+        Triple(40.0, 48.01, 52.0),
+        Triple(50.0, 43.57, 45.5),
+    )
+}
+
+@Composable
+internal fun KeepRollingSlider(value: Double, commit: (Double) -> Unit) {
+    val pts = KeepCurve.points
+    var index by remember(value) { mutableIntStateOf(pts.indices.minByOrNull { kotlin.math.abs(kotlin.math.ln(pts[it].first / value.coerceAtLeast(1e-4))) } ?: 0) }
+    val (pct, good, cost) = pts[index]
+    val stricter = pts.getOrNull(index + 1)
+    val extra = stricter?.let { (cost - it.third) / (good - it.second).coerceAtLeast(1e-6) }
+    Text("Keep enhancing while a piece's chance to reach your ES bar is at least", style = zen(13.sp))
+    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(if (pct < 1) String.format(java.util.Locale.US, "%.2g%%", pct) else "${fmtNum(pct)}%", style = dela(30.sp, C.blue))
+        if (kotlin.math.abs(pct - 1.0) < 1e-9) Text("default", style = zen(12.sp, color = C.muted), modifier = Modifier.padding(bottom = 6.dp))
+    }
+    androidx.compose.material3.Slider(value = index.toFloat(), onValueChange = { index = it.toInt().coerceIn(pts.indices) }, onValueChangeFinished = { commit(pts[index].first) },
+        valueRange = 0f..(pts.size - 1).toFloat(), steps = (pts.size - 2).coerceAtLeast(0),
+        colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = C.pink, activeTrackColor = C.pink, inactiveTrackColor = C.line,
+            activeTickColor = androidx.compose.ui.graphics.Color.Transparent, inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent),
+        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Keep-rolling chance" })
+    Row(Modifier.fillMaxWidth()) {
+        Text("keep rolling more", style = zen(10.sp, color = C.muted), modifier = Modifier.weight(1f))
+        Text("stop sooner", style = zen(10.sp, color = C.muted))
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        StatTile("Good pieces kept", "${good.toInt()} of ${KeepCurve.POSSIBLE.toInt()}", (good / KeepCurve.POSSIBLE).toFloat(), C.blue, Modifier.weight(1f))
+        StatTile("Total gold", EsForecast.goldText(cost * EsForecast.FULL_GOLD), (cost / KeepCurve.ALL_COST).toFloat(), C.deepPink, Modifier.weight(1f))
+        StatTile("Each extra piece", extra?.let { EsForecast.goldText(it * EsForecast.FULL_GOLD) } ?: "—", null, C.ink, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun StatTile(label: String, value: String, fill: Float?, color: androidx.compose.ui.graphics.Color, modifier: Modifier) {
+    val shape = RoundedCornerShape(12.dp)
+    Column(modifier.padding(bottom = 3.dp).hardShadow(C.shadow, 0.dp, 3.dp, 12.dp).clip(shape).background(C.card).border(1.5.dp, C.edge, shape).padding(horizontal = 9.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(label, style = zen(10.sp, color = C.muted), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        FitText(value, dela(16.sp, color))
+        if (fill != null) Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)).background(C.line)) {
+            Box(Modifier.fillMaxWidth(fill.coerceIn(0f, 1f)).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(color))
+        } else Spacer(Modifier.height(5.dp))
     }
 }

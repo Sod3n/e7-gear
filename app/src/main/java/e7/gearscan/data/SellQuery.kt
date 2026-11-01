@@ -43,7 +43,7 @@ data class SellQuery(
     /** Per-slot game ES a finished piece should reach; a missing slot uses the median of your +15 pieces. */
     val esBars:Map<Slot,Int> = emptyMap(),
     /** Chance to reach the ES bar at which a piece counts as worth enhancing further. */
-    val rollOn:Double=5.0,
+    val rollOn:Double=1.0,
 ) {
     fun error(): String? = when {
         !score.valid() -> "Use nonnegative stat weights, with diversity from 0 to 100%."
@@ -101,7 +101,7 @@ data class SellQuery(
                 minimumProcs=j.optInt("minimumProcs",0),forecastMs=j.optInt("forecastMs",250),
                 sort=runCatching { SellSort.valueOf(j.optString("sort")) }.getOrDefault(SellSort.QUALITY).let { if(!j.optBoolean("scoreFilter",false)&&it in listOf(SellSort.SCORE,SellSort.CHANCE))SellSort.QUALITY else it },descending=j.optBoolean("descending",false),
                 scoreFilter=j.optBoolean("scoreFilter",false),keepStats=ks?.keys()?.asSequence()?.mapNotNull { k->GearStat.of(k)?.let { it to ks.getDouble(k) } }?.toMap().orEmpty(),keepChance=j.optDouble("keepChance",0.0),
-                esBars=eb?.keys()?.asSequence()?.mapNotNull { k->Slot.of(k)?.let { it to eb.getInt(k) } }?.toMap().orEmpty(),rollOn=j.optDouble("rollOn",5.0))
+                esBars=eb?.keys()?.asSequence()?.mapNotNull { k->Slot.of(k)?.let { it to eb.getInt(k) } }?.toMap().orEmpty(),rollOn=j.optDouble("rollOn",1.0))
             require(q.error()==null) { q.error().orEmpty() };return q
         }
     }

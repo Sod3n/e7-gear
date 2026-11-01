@@ -262,7 +262,9 @@ fun SellFiltersScreen(model:AppModel) {
             val guarded=result.rows.filter { it.protected&&it.item.id !in done };val unknown=result.rows.filter { it.unknown&&!it.protected&&it.item.id !in done }
             Card(shadow=null,padding=PaddingValues(12.dp)) {
                 Text("${pending.size} pieces to review",style=dela(19.sp))
-                Text("${if(result.query.sort==SellSort.INVENTORY)"Game order" else if(result.query.descending)"Best rolls first" else "Worst rolls first"} · keep rolling at 1 in ${if(result.query.rollOn>0)kotlin.math.round(100/result.query.rollOn).toInt().toString() else "–"}${if(result.query.reforge)" · reforge counted" else ""}",style=zen(11.sp,color=C.muted))
+                val rolling=pending.mapNotNull { it.es }.filter { it.finishShare>0&&it.worthRolling(q.rollOn)&&!it.reached }
+                if(rolling.isNotEmpty())Text("${rolling.size} worth rolling now",style=zen(12.sp,color=C.blue))
+                Text("${if(result.query.sort==SellSort.INVENTORY)"Game order" else if(result.query.descending)"Best rolls first" else "Worst rolls first"} · keep rolling at 1 in ${if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt().toString() else "–"}${if(result.query.reforge)" · reforge counted" else ""}",style=zen(11.sp,color=C.muted))
                 if(result.query.minimumProcs>0||result.query.maximumTotalQuality!=null)Text("${if(result.query.minimumProcs>0)"${result.query.minimumProcs}+ upgrades · " else ""}${rollLimitText(result.query)}",style=zen(11.sp,color=C.blue))
                 if(result.query.maximumProcQuality!=null)Text("An additional upgrade-only limit is active",style=zen(11.sp,color=C.muted))
                 if(result.query.scoreFilter)Text("Additional combined-value filter applied",style=zen(11.sp,color=C.muted))
@@ -292,9 +294,10 @@ fun SellFiltersScreen(model:AppModel) {
                         Row(verticalAlignment=Alignment.CenterVertically) {
                             Text("ES ${es.now}",style=dela(17.sp))
                             if(es.finishShare>0)es.typical?.let { Text("  → ${it.toInt()}",style=zen(14.sp,color=C.muted)) }
-                            Spacer(Modifier.weight(1f));EsChip(es,result.query.rollOn)
+                            Spacer(Modifier.weight(1f));EsChip(es,q.rollOn)
                         }
                         VSpace(6.dp);EsBar(es)
+                        if(es.finishShare>0) { VSpace(3.dp);Text("~${EsForecast.goldText(es.finishShare*EsForecast.FULL_GOLD)} gold to +15",style=zen(10.sp,color=C.muted)) }
                     }?:Text("Update the list to see ES",style=zen(11.sp,color=C.muted))
                     if(row.protected)row.safeguards.filter { it.active(row.keepChance) }.forEach { SafeguardReason(it,true) }
                 }
@@ -363,26 +366,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 if(q.scoreFilter)CardGrid(SellSort.entries,columns=2) { key,m->SellChoice(when(key){SellSort.QUALITY->"Roll values";SellSort.INVENTORY->"Game order";SellSort.CHANCE->"Combined chance";SellSort.SCORE->"Combined score"},m,q.sort==key) { update(q.copy(sort=key)) } }
             }
             SheetKind.SELL_WORTH->{
-                val n=if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt() else 0
-                Text("Keep enhancing a piece if at least this many of its finishes reach your ES bar",style=zen(13.sp))
-                CardGrid(listOf(50,20,10,5),columns=4) { k,m->Column(m,horizontalAlignment=Alignment.CenterHorizontally) {
-                    SellChoice("1 in $k",Modifier.fillMaxWidth(),n==k,strong=k==20) { update(q.copy(rollOn=100.0/k)) }
-                    Text(if(k==20)"default" else " ",style=zen(10.sp,color=C.muted))
-                } }
-                if(n in 1..50)OddsDots(n)
-                var why by remember { mutableStateOf(false) }
-                Fold("What each choice costs",why,{ why=!why }) {
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                        Spacer(Modifier.width(66.dp))
-                        Text("Good pieces kept",style=zen(11.sp,color=C.blue),modifier=Modifier.weight(1f))
-                        Text("Each extra one costs",style=zen(11.sp,color=C.deepPink),modifier=Modifier.width(118.dp))
-                    }
-                    listOf(Triple("1 in 5",64,"—"),Triple("1 in 10",74,"3 enhances"),Triple("1 in 20",79,"4.6 enhances"),Triple("1 in 50",83,"7 enhances"),Triple("Finish all",85,"~300 enhances")).forEach { (k,good,extra)->
-                        KeptRow(k,good,85,extra,k=="1 in ${n}")
-                    }
-                    Text("From a real inventory: 921 unfinished pieces, 85 of which can reach the bar. “Each extra one” is the full +0 → +15 enhances spent per good piece this choice keeps beyond the stricter one above it. Pick by how much enhance material you can spare.",style=zen(11.sp,color=C.muted))
-                }
-                SellNumber("Exact %",q.rollOn,0.0,100.0,1) { update(q.copy(rollOn=it?:5.0)) }
+                KeepRollingSlider(q.rollOn) { update(q.copy(rollOn=it)) }
                 SellToggle("Count reforging",q.reforge,"Lv85 gear reaches higher ES after reforge") { update(q.copy(reforge=it)) }
                 SectionTitle("ES bar")
                 Text("Default: the middle ES of your own +15 pieces in that slot.",style=zen(11.sp,color=C.muted))
@@ -517,11 +501,11 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                             val open=es.finishShare>0&&es.bar!=null&&!es.reached&&es.supported
                             Row(verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                                 val rare=open&&es.chance==0.0&&es.possible
-                                Text(if(rare)"Rare" else if(open)chanceText(es.chance) else "ES ${es.now}",style=dela(28.sp,if(!open)C.ink else if(es.worthRolling(model.sellResult!!.query.rollOn))C.blue else C.deepPink))
+                                Text(if(rare)"Rare" else if(open)chanceText(es.chance) else "ES ${es.now}",style=dela(28.sp,if(!open)C.ink else if(es.worthRolling(model.sellQuery.rollOn))C.blue else C.deepPink))
                                 Text(when { es.bar==null->"no bar for this slot";rare->"only rare rolls reach ES ${es.bar}";open->"of finishes reach ES ${es.bar}";es.reached->"at or above your bar ${es.bar}";else->"finished · below bar ${es.bar}" },style=zen(12.sp,color=C.muted),modifier=Modifier.padding(bottom=5.dp))
                             }
                             VSpace(8.dp);EsBar(es);VSpace(3.dp);EsLegend(es)
-                            if(es.finishShare>0) { VSpace(4.dp);Text("Finishing costs ${(es.finishShare*100).toInt()}% of a full +0 → +15",style=zen(10.sp,color=C.muted)) }
+                            if(es.finishShare>0) { VSpace(4.dp);Text("~${EsForecast.goldText(es.finishShare*EsForecast.FULL_GOLD)} gold to +15",style=zen(11.sp,color=C.muted)) }
                         }
                     }
                     SectionTitle("Rolls",trailing=row.rolls?.let { "${RollReview.overallWeakCount(it)} of ${it.size} low" })
