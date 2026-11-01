@@ -36,7 +36,7 @@ class NoScrollScreens {
         n.performClick(); rule.waitForIdle(); return true
     }
     private fun menu(name: String) {
-        tap("More")
+        rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle()
         repeat(10) {
             if (rule.onAllNodesWithText(name, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) { tap(name); return }
             assertTrue("Missing menu item $name", advance("choices"))
@@ -53,7 +53,7 @@ class NoScrollScreens {
     private fun check() {
         rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollBy), useUnmergedTree = true).assertCountEquals(0)
         rule.onAllNodes(hasSetTextAction(), useUnmergedTree = true).assertCountEquals(0)
-        rule.onNodeWithText("E7 Gear").assertIsDisplayed()
+        rule.onNodeWithContentDescription("More").assertIsDisplayed()
         val body = rule.onNodeWithTag("gear-tracker-body", useUnmergedTree = true).getUnclippedBoundsInRoot()
         val text = rule.onAllNodes(hasAnyAncestor(hasTestTag("gear-tracker-body")) and SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), useUnmergedTree = true)
         repeat(text.fetchSemanticsNodes().size) { i ->
@@ -130,7 +130,7 @@ class NoScrollScreens {
             menu("History"); tap("Undo last entry")
             assertEquals(14.0, tracker.record!!.item.subs[0].value, 0.0)
             shot("$label-saved")
-            tap("E7 Gear"); assertEquals(1, returned)
+            menu("Open E7 Gear"); assertEquals(1, returned)
             ui { tracker.error = "The entry could not be saved. Choose the totals shown in the game and try again. ".repeat(8) }
             shot("$label-error"); while (advance("details")) check(); tap("Back")
             assertNull(tracker.error)

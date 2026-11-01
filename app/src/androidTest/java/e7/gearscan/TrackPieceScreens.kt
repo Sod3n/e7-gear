@@ -155,7 +155,7 @@ class TrackPieceScreens {
         rule.onNodeWithText("${model.upgrades.chance}%").performClick()
         both("2-advice")
         rule.onNodeWithText("Back").performClick()
-        rule.onNodeWithText("More").performClick()
+        rule.onNodeWithContentDescription("More").performClick()
         rule.onNodeWithText("Final build").performClick()
         both("2b-final-build")
         rule.onNodeWithText("Back").performClick()

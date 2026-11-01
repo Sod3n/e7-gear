@@ -462,14 +462,19 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** Heroes whose presets were loaded with the network allowed; a cache-only load (Heroes list, low tiers) misses RTA files never fetched. */
     internal val presetsOnline = mutableSetOf<String>()
 
+    // a hero's builds file is up to ~700 KB of JSON and parsing takes many times that; dozens at once ran out of heap
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val presetIo = Dispatchers.IO.limitedParallelism(2)
+    /** Off in tests: community builds come from Fribbels' free service, which tests must never call. */
+    var presetNetwork = true
     fun ensurePresets(id: Long, force: Boolean = false) {
         val h = hero(id) ?: return
         if (presetLoading[h.code] == true) return
         if (!force && presets.containsKey(h.code) && h.code in presetsOnline) { autoPreset(id); return }
         presetLoading[h.code] = true
         viewModelScope.launch {
-            val tabs = withContext(Dispatchers.IO) {
-                Presets.load(buildsDir, content, h.code, heroName(h), allowNetwork = true)
+            val tabs = withContext(presetIo) {
+                Presets.load(buildsDir, content, h.code, heroName(h), allowNetwork = presetNetwork)
             }
             presets[h.code] = tabs
             presetsOnline += h.code
@@ -485,7 +490,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         if (presets.containsKey(h.code) && (!network || h.code in presetsOnline)) return
         presetLoading[h.code] = true
         viewModelScope.launch {
-            val tabs = withContext(Dispatchers.IO) { Presets.load(buildsDir, content, h.code, heroName(h), allowNetwork = network) }
+            val tabs = withContext(presetIo) { Presets.load(buildsDir, content, h.code, heroName(h), allowNetwork = network && presetNetwork) }
             presets[h.code] = tabs
             if (network) presetsOnline += h.code
             presetLoading[h.code] = false

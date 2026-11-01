@@ -83,9 +83,16 @@ class ScreenAudit {
             .grantRuntimePermission(ctx.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
         installImageLoader(ctx)
 
+        // offline when the fixture folder carries them: game content and hero builds fetched by an earlier run
+        val fixtureAssets = InstrumentationRegistry.getInstrumentation().context.assets
+        runCatching { fixtureAssets.open("content.json").use { i -> File(ctx.filesDir, "content.json").outputStream().use { i.copyTo(it) } } }
+        runCatching { fixtureAssets.list("builds")?.forEach { n -> File(ctx.filesDir, "builds").mkdirs()
+            fixtureAssets.open("builds/$n").use { i -> File(ctx.filesDir, "builds/$n").outputStream().use { i.copyTo(it) } } } }
         var setup by mutableStateOf(setups[0])
         var overlay by mutableStateOf(false)
         rule.runOnUiThread { model = AppModel(ctx.applicationContext as Application) }
+        // never call Fribbels from a test: builds only from the fixture cache, fixed targets otherwise
+        rule.runOnUiThread { model.presetNetwork = false }
         rule.waitUntil(20_000) { model.ready }
         // the APK carries no game data: the first start downloads it from the content site
         rule.waitUntil(60_000) { model.content.heroes.isNotEmpty() }
@@ -108,7 +115,8 @@ class ScreenAudit {
             model.pickHero(hero)
         }
         // presets come from the hero library over the network; the search must run with the one that gets applied
-        rule.waitUntil(60_000) { model.request(hero).targets.any { !it.isNaN() } }
+        runCatching { rule.waitUntil(10_000) { model.request(hero).targets.any { !it.isNaN() } } }
+        if (model.request(hero).targets.all { it.isNaN() }) ui { model.request(hero).targets[Stat.SPD.ordinal] = 200.0; model.touch() }
         rule.waitForIdle()
         // searches are slow on an emulator; run each once and show the same result in every setup
         search(model, listOf(hero)); val single = model.search
@@ -122,6 +130,11 @@ class ScreenAudit {
         // a real pool run over the tier-5 heroes, once; screens below reuse its state
         ui { model.poolTiers = setOf(5); model.poolExtra = emptySet(); model.poolHeroes().forEach { model.loadPresetsQuietly(it.id, network = true) } }
         rule.waitUntil(60_000) { model.poolHeroes().none { model.hasBuild(it.id) == null } }
+        // community builds come from Fribbels' service, which can refuse requests (403 after a burst); heroes without
+        // one get fixed test targets so the pool run always has several heroes, network or not
+        ui { model.poolHeroes().filter { model.hasBuild(it.id) != true }.forEach { h -> model.request(h.id).goal = e7.gearscan.data.Goal.TARGETS
+            model.request(h.id).targets[Stat.SPD.ordinal] = 200.0; model.touch() } }
+        check(model.poolHeroes().size >= 2) { "the pool run needs two heroes; tier-5 heroes: ${model.poolHeroes().size}" }
         val poolT0 = System.currentTimeMillis()
         ui { model.startPool() }
         // the run keeps going in the game: a foreground service shows it, and leaves when it ends
@@ -210,6 +223,17 @@ class ScreenAudit {
                 ui { model.poolSkip = emptySet(); model.pool = poolDone }
             }
         }
+
+        // Sell review: one search with its keep-rolling numbers, and Find gear: one search; every setup reuses them
+        ui { model.findSellGear() }
+        rule.waitUntil(300_000) { !model.sellBusy }
+        runCatching { rule.waitUntil(180_000) { !model.sellCurveBusy && model.sellCurve != null } }
+        if (model.sellResult?.matches.isNullOrEmpty()) add("Sell review finds nothing on the fixture, so its cards go unchecked", "sell")
+        if (model.sellCurve == null) add("the keep-rolling numbers never arrive", "sell")
+        val sellFirst = model.sellResult?.matches?.firstOrNull()?.item?.id
+        ui { model.sellResult?.matches?.drop(1)?.take(3)?.forEach { model.markSellReview(it.item.id, keep = true) }; model.toast = null }
+        ui { model.findGearPotential() }
+        runCatching { rule.waitUntil(120_000) { model.potentialResult != null } }
 
         val steps = mutableListOf<Pair<String, () -> Unit>>()
         fun screen(name: String, vararg stack: Screen) = steps.add(name to { ui { model.sheet = null; model.stack = stack.toList() } })
@@ -575,6 +599,27 @@ class ScreenAudit {
             overlay = true
         })
         steps.add("cleanup-reset" to { ui { overlay = false; model.cleanup = null; model.cleanupDone = emptySet() } })
+        // the Gear tab and its three modes
+        screen("gear-home", Screen.Gear)
+        steps.add("sell-setup" to { ui { model.sheet = null; model.confirm = null; model.sellTab = 0; model.stack = listOf(Screen.Gear, Screen.SellFilters) } })
+        steps.add("sell-matches" to { ui { model.sellTab = 1 } })
+        listOf(SheetKind.SELL_WORTH, SheetKind.SELL_SAFEGUARDS, SheetKind.SELL_INVENTORY, SheetKind.SELL_SLOTS, SheetKind.SELL_SETS, SheetKind.SELL_MAINS, SheetKind.SELL_EXTRA).forEach { k ->
+            steps.add("sell-${k.name.lowercase()}" to { ui { model.confirm = null; model.stack = listOf(Screen.Gear, Screen.SellFilters); model.sheet = Sheet(k, 0) } })
+        }
+        steps.add("sell-details" to { ui { model.stack = listOf(Screen.Gear, Screen.SellFilters); model.sellTab = 1; model.sheet = sellFirst?.let { Sheet(SheetKind.SELL_DETAILS, it) } } })
+        steps.add("sell-explain" to { ui { model.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; clickText("Total gold") })
+        steps.add("sell-confirm" to { ui { model.confirm = null; model.sheet = Sheet(SheetKind.SELL_WORTH, 0); model.askReset("Reset the ES bars?", "Every slot goes back to the middle ES of your own +15 pieces.") {} } })
+        steps.add("sell-kept" to { ui { model.confirm = null; model.sheet = null; model.sellTab = 0; model.stack = listOf(Screen.Gear, Screen.SellFilters, Screen.SellKept) } })
+        steps.add("sell-kept-back" to {
+            ui { model.back() }
+            if (model.screen != Screen.SellFilters || model.sellTab != 0) add("back from Kept pieces doesn't return to the Sell review tab you left", "sell kept: ${model.screen}, tab ${model.sellTab}")
+        })
+        steps.add("sell-overlay" to {
+            ui { model.sheet = null; model.trackSellMatches(openOverlay = false); OverlayState.upgrade = model.upgrades; OverlayState.expanded = true }
+            overlay = true
+        })
+        steps.add("improve-heroes" to { ui { overlay = false; OverlayState.upgrade = null; model.sheet = null; model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) } })
+        screen("find-gear", Screen.Gear, Screen.GearPotential)
         steps.add("scan-restart-sheet" to { ui { resetCapture(model); model.sheet = null; model.stack = listOf(Screen.Optimize, Screen.ScanData); model.sheet = Sheet(SheetKind.SCAN_RESTART, 0) } })
         steps.add("scan-restart-scan-now" to {
             // "not running" hands the scan to the screen under the sheet; with no game installed it lands on that error
@@ -682,7 +727,7 @@ class ScreenAudit {
 
         // state flips that must not move anything else: (name, open the screen, change the state)
         val sheetOn = { k: SheetKind -> ui { overlay = false; model.search = single; model.stack = listOf(Screen.Optimize); model.sheet = Sheet(k, hero) } }
-        val flips = listOf<Triple<String, () -> Unit, () -> Unit>>(
+        val flips = mutableListOf<Triple<String, () -> Unit, () -> Unit>>(
             Triple("sets: pick a 4-piece", { sheetOn(SheetKind.SETS); ui { model.request(hero).setAlts = emptyList() } }, { clickText("Speed") }),
             Triple("sets: add a second 4-piece", { sheetOn(SheetKind.SETS) }, { clickText("Revenge") }),
             Triple("sets: pick a pair", { sheetOn(SheetKind.SETS) }, { clickText("Critical") }),
@@ -735,6 +780,12 @@ class ScreenAudit {
                 { ui { OverlayState.done.indices.lastOrNull { !OverlayState.done[it] && it != OverlayState.current }?.let { OverlayState.done[it] = true } } }),
         )
 
+        flips += listOf(
+            Triple("sell: a safeguard to off", { ui { overlay = false; model.stack = listOf(Screen.Gear, Screen.SellFilters); model.sheet = Sheet(SheetKind.SELL_SAFEGUARDS, 0) } },
+                { ui { model.updateSellQuery(model.sellQuery.copy(keepStats = model.sellQuery.keepStats - e7.gearscan.data.GearStat.SPD)) } }),
+            Triple("sell: keep-rolling chance", { ui { model.updateSellQuery(model.sellQuery.copy(keepStats = e7.gearscan.data.SellQuery.DEFAULT_GUARDS)); model.sheet = Sheet(SheetKind.SELL_WORTH, 0) } },
+                { ui { model.updateSellQuery(model.sellQuery.copy(rollOn = if (model.sellQuery.rollOn == 1.0) 10.0 else 1.0)) } }),
+        )
         // flips edit the hero's request; every setup starts from the request the searches were run with
         val baseRequest = model.request(hero).copy()
         for (s in setups) {
@@ -773,6 +824,8 @@ class ScreenAudit {
                     add("crash", "$name@${s.name}: ${e.javaClass.simpleName}: ${e.message?.lineSequence()?.firstOrNull()}")
                 }
             }
+            // findings so far survive a crash in a later setup
+            File(shots, "report-partial.txt").writeText("after ${s.name}\n" + found.entries.joinToString("\n") { (k, v) -> "$k\n" + v.joinToString("\n") { "    $it" } })
             ui { overlay = false; model.sheet = null; model.request(hero).capCrit = true; model.request(hero).mods = false; model.request(hero).goal = e7.gearscan.data.Goal.TARGETS; model.setTier(hero, 5); model.poolMode = false; model.showHistory = false; model.poolTiers = setOf(5); model.poolLosses = e7.gearscan.opt.PoolLosses.SAFE; model.poolEffort = e7.gearscan.opt.PoolEffort.BALANCED; model.showMatch = true; model.request(hero).maxChanges = 6 }
         }
         Locale.setDefault(Locale.US)

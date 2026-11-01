@@ -71,7 +71,7 @@ class UpgradeScreens {
         val restored = UpgradeTracker(File(ctx.filesDir, "upgrades.json"))
         assertEquals(12, restored.record!!.item.enhance)
         assertEquals(2, restored.record!!.history.size)
-        tap("More"); tap("History"); shoot("04-history-353-big")
+        rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle(); tap("History"); shoot("04-history-353-big")
         tap("Undo last entry")
         assertEquals(9, model.upgrades.record!!.item.enhance)
         assertEquals(2, checks)

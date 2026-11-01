@@ -72,7 +72,7 @@ class QueueScreens {
         tap("Piece")
         assertEquals(25, t.queueIndex)
         ui { t.returnToApp = { returned++ } }
-        tap("E7 Gear"); assertEquals(1, returned)
+        rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle(); tap("Open E7 Gear"); assertEquals(1, returned)
         val helmet = t.queue.indexOfFirst { e -> t.records[e.id]!!.item.let { it.slot == Slot.HELMET && it.rank == "Heroic" && it.enhance == 9 } }
         assertTrue(helmet >= 0)
         ui { t.selectQueue!!.invoke(helmet) }
