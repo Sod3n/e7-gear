@@ -343,9 +343,18 @@ fun ListRow(onClick: (() -> Unit)?, modifier: Modifier = Modifier, leading: (@Co
 fun <T> CardGrid(items: List<T>, columns: Int = 2, gap: Dp = 8.dp, cell: @Composable (item: T, modifier: Modifier) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(gap)) {
         for (row in items.chunked(columns)) {
-            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(gap)) {
+            if (row.size == columns) Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(gap)) {
                 for (it in row) cell(it, Modifier.weight(1f).fillMaxHeight().testTag(CELL_TAG))
-                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+            } else Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                // a short last row sits centred; fixed gaps and weights add up as in a full row, so cells keep their width
+                val missing = columns - row.size
+                val side = Modifier.weight(missing / 2f)
+                Spacer(Modifier.width(gap * missing / 2)); Spacer(side)
+                row.forEachIndexed { i, it ->
+                    if (i > 0) Spacer(Modifier.width(gap))
+                    cell(it, Modifier.weight(1f).fillMaxHeight().testTag(CELL_TAG))
+                }
+                Spacer(side); Spacer(Modifier.width(gap * missing / 2))
             }
         }
     }
@@ -354,12 +363,12 @@ fun <T> CardGrid(items: List<T>, columns: Int = 2, gap: Dp = 8.dp, cell: @Compos
 /** A bordered row: muted label, content, chevron. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun RowCard(label: String, onClick: (() -> Unit)?, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
+fun RowCard(label: String, onClick: (() -> Unit)?, modifier: Modifier = Modifier, labelWidth: Dp? = null, content: @Composable RowScope.() -> Unit) {
     val shape = RoundedCornerShape(14.dp)
     Row(modifier.fillMaxWidth().clip(shape).background(C.card).border(2.dp, C.edge, shape).tap(onClick)
         .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(label, style = zen(12.sp, color = C.muted), modifier = Modifier.widthIn(min = 58.dp), maxLines = 1, softWrap = false)
+        Text(label, style = zen(12.sp, color = C.muted), modifier = if (labelWidth != null) Modifier.width(labelWidth) else Modifier.widthIn(min = 58.dp), maxLines = 1, softWrap = false)
         FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp),
             content = content)
         ChevronSlot(onClick != null)

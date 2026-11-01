@@ -239,15 +239,15 @@ fun SellFiltersScreen(model:AppModel) {
         }
         model.sellError?.let { Text(it,style=zen(12.sp,color=C.deepPink)) }
         if(tab==0) {
-            RowCard("Worth rolling",{openSell(model,SheetKind.SELL_WORTH)}) { Text("1 in ${if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt().toString() else "–"} reach ${if(q.esBars.isEmpty())"your usual +15 ES" else "your ES bars"}",style=zen(11.sp)) }
-            RowCard("Stat safeguards",{openSell(model,SheetKind.SELL_SAFEGUARDS)}) { Text(when { q.keepStats.isEmpty()->"Off";q.keepStats==SellQuery.DEFAULT_GUARDS->"Default · Spd 20, Cr 25, Cd 35, % stats 40";else->"${q.keepStats.size} stats" },style=zen(11.sp)) }
-            RowCard("Gear to review",{openSell(model,SheetKind.SELL_INVENTORY)}) { Text("${if(q.bagOnly)"Bag" else "All gear"} · +${q.minimumEnhance} to +${q.maximumEnhance}",style=zen(12.sp)) }
-            RowCard("Slots",{openSell(model,SheetKind.SELL_SLOTS)}) { Text(if(q.slots.size==6)"Any slot" else q.slots.joinToString { it.label },style=zen(11.sp)) }
-            RowCard("Sets",{openSell(model,SheetKind.SELL_SETS)}) { Text(if(q.sets.isEmpty())"Any set" else "${q.sets.size} selected",style=zen(12.sp)) }
-            RowCard("Main stats",{openSell(model,SheetKind.SELL_MAINS)}) { Text(if(q.mains.isEmpty())"Any main" else q.mains.joinToString { it.short },style=zen(11.sp)) }
-            RowCard("Levels",{openSell(model,SheetKind.SELL_LEVELS)}) { Text(if(q.levels.isEmpty())"Any level" else q.levels.sorted().joinToString(),style=zen(12.sp)) }
-            RowCard("More filters",{openSell(model,SheetKind.SELL_EXTRA)}) { Text(if(q.scoreFilter)"Combined score on" else "Off",style=zen(12.sp)) }
-            RowCard("Kept pieces",{model.go(Screen.SellKept)}) { Text("${model.sellKept.size} kept",style=zen(12.sp)) }
+            RowCard("Worth rolling",{openSell(model,SheetKind.SELL_WORTH)},labelWidth=112.dp) { Text("1 in ${if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt().toString() else "–"} reach ${if(q.esBars.isEmpty())"your usual +15 ES" else "your ES bars"}",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            RowCard("Stat safeguards",{openSell(model,SheetKind.SELL_SAFEGUARDS)},labelWidth=112.dp) { Text(when { q.keepStats.isEmpty()->"Off";q.keepStats==SellQuery.DEFAULT_GUARDS->"Default · ${q.keepStats.size} stats";else->"${q.keepStats.size} stats" },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            RowCard("Gear to review",{openSell(model,SheetKind.SELL_INVENTORY)},labelWidth=112.dp) { Text("${if(q.bagOnly)"Bag" else "All gear"} · +${q.minimumEnhance} to +${q.maximumEnhance}",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            RowCard("Slots",{openSell(model,SheetKind.SELL_SLOTS)},labelWidth=112.dp) { Text(if(q.slots.size==6)"Any slot" else q.slots.joinToString { it.label },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            RowCard("Sets",{openSell(model,SheetKind.SELL_SETS)},labelWidth=112.dp) { Text(if(q.sets.isEmpty())"Any set" else "${q.sets.size} selected",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            RowCard("Main stats",{openSell(model,SheetKind.SELL_MAINS)},labelWidth=112.dp) { Text(if(q.mains.isEmpty())"Any main" else q.mains.joinToString { it.short },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            RowCard("Levels",{openSell(model,SheetKind.SELL_LEVELS)},labelWidth=112.dp) { Text(if(q.levels.isEmpty())"Any level" else q.levels.sorted().joinToString(),style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            RowCard("More filters",{openSell(model,SheetKind.SELL_EXTRA)},labelWidth=112.dp) { Text(if(q.scoreFilter)"Combined score on" else "Off",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            RowCard("Kept pieces",{model.go(Screen.SellKept)},labelWidth=112.dp) { Text("${model.sellKept.size} kept",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
         }else if(result==null)Card {
             Text("Tap Find matches",style=dela(17.sp))
         }else {
