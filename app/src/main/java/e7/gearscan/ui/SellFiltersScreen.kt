@@ -364,24 +364,23 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
             }
             SheetKind.SELL_WORTH->{
                 val n=if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt() else 0
-                Text("Keep enhancing a piece if at least",style=zen(13.sp))
+                Text("Keep enhancing a piece if at least this many of its finishes reach your ES bar",style=zen(13.sp))
                 CardGrid(listOf(50,20,10,5),columns=4) { k,m->Column(m,horizontalAlignment=Alignment.CenterHorizontally) {
                     SellChoice("1 in $k",Modifier.fillMaxWidth(),n==k,strong=k==20) { update(q.copy(rollOn=100.0/k)) }
-                    Text(if(k==20)"best balance" else " ",style=zen(10.sp,color=C.blue))
+                    Text(if(k==20)"default" else " ",style=zen(10.sp,color=C.muted))
                 } }
-                Text("of its possible finishes reach your ES bar. Below that, it's a sell candidate.",style=zen(13.sp))
                 if(n in 1..50)OddsDots(n)
                 var why by remember { mutableStateOf(false) }
-                Fold("Why 1 in 20 is the best balance",why,{ why=!why }) {
+                Fold("What each choice costs",why,{ why=!why }) {
                     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                         Spacer(Modifier.width(66.dp))
                         Text("Good pieces kept",style=zen(11.sp,color=C.blue),modifier=Modifier.weight(1f))
-                        Text("Enhance cost",style=zen(11.sp,color=C.deepPink),modifier=Modifier.weight(1f))
+                        Text("Each extra one costs",style=zen(11.sp,color=C.deepPink),modifier=Modifier.width(118.dp))
                     }
-                    listOf(Triple("1 in 50",.97f,.20f),Triple("1 in 20",.93f,.16f),Triple("1 in 10",.86f,.13f),Triple("1 in 5",.75f,.10f)).forEach { (k,found,cost)->
-                        SharePair(k,found,cost,k=="1 in 20")
+                    listOf(Triple("1 in 5",64,"—"),Triple("1 in 10",74,"3 enhances"),Triple("1 in 20",79,"4.6 enhances"),Triple("1 in 50",83,"7 enhances"),Triple("Finish all",85,"~300 enhances")).forEach { (k,good,extra)->
+                        KeptRow(k,good,85,extra,k=="1 in ${n}")
                     }
-                    Text("Compared with enhancing every piece to +15, on a real inventory of 921 unfinished pieces. Stricter than 1 in 20 loses good pieces fast; looser costs more for few extra.",style=zen(11.sp,color=C.muted))
+                    Text("From a real inventory: 921 unfinished pieces, 85 of which can reach the bar. “Each extra one” is the full +0 → +15 enhances spent per good piece this choice keeps beyond the stricter one above it. Pick by how much enhance material you can spare.",style=zen(11.sp,color=C.muted))
                 }
                 SellNumber("Exact %",q.rollOn,0.0,100.0,1) { update(q.copy(rollOn=it?:5.0)) }
                 SellToggle("Count reforging",q.reforge,"Lv85 gear reaches higher ES after reforge") { update(q.copy(reforge=it)) }

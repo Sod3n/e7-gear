@@ -118,3 +118,19 @@ private fun ShareBar(v: Float, color: androidx.compose.ui.graphics.Color, modifi
         Text("${(v * 100).toInt()}%", style = zen(11.sp, color = color), modifier = Modifier.width(30.dp))
     }
 }
+
+@Composable
+internal fun KeptRow(label: String, good: Int, of: Int, extra: String, chosen: Boolean) {
+    val shape = RoundedCornerShape(10.dp)
+    Row(Modifier.fillMaxWidth().clip(shape).background(if (chosen) C.lightPink else C.card).border(if (chosen) 2.dp else 1.dp, if (chosen) C.edge else C.line, shape)
+        .padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(label, style = if (chosen) dela(12.sp) else zen(12.sp), modifier = Modifier.width(56.dp))
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(C.line)) {
+                Box(Modifier.fillMaxWidth(good.toFloat() / of).fillMaxHeight().clip(RoundedCornerShape(4.dp)).background(C.blue))
+            }
+            Text("$good", style = zen(11.sp, color = C.blue), modifier = Modifier.width(20.dp))
+        }
+        Text(extra, style = zen(11.sp, color = C.deepPink), modifier = Modifier.width(108.dp))
+    }
+}
