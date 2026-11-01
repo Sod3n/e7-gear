@@ -239,7 +239,8 @@ class ScreenAudit {
         val steps = mutableListOf<Pair<String, () -> Unit>>()
         fun screen(name: String, vararg stack: Screen) = steps.add(name to { ui { model.sheet = null; model.stack = stack.toList() } })
         screen("optimize", Screen.Optimize)
-        SheetKind.entries.forEach { k -> steps.add("sheet-${k.name.lowercase()}" to { ui { model.stack = listOf(Screen.Optimize); model.sheet = Sheet(k, hero) } }) }
+        // Improve heroes' sheets take a piece id and need a finished check: their own steps below open them
+        SheetKind.entries.filter { !it.name.startsWith("HERO_UPGRADE_") }.forEach { k -> steps.add("sheet-${k.name.lowercase()}" to { ui { model.stack = listOf(Screen.Optimize); model.sheet = Sheet(k, hero) } }) }
         steps.add("sheet-targets-edit" to { ui { model.stack = listOf(Screen.Optimize); model.sheet = Sheet(SheetKind.TARGETS, hero) }; clickText("Speed") })
         steps.add("targets-done-closes-stat" to {
             // close first: the same sheet value would keep the previous step's open stat
@@ -628,6 +629,24 @@ class ScreenAudit {
             overlay = true
         })
         steps.add("improve-heroes" to { ui { overlay = false; OverlayState.upgrade = null; model.sheet = null; model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) } })
+        // the states a player decides in need a finished check (~3 min on the emulator), run once when first asked for
+        fun heroUpgradesDone(): e7.gearscan.opt.HeroUpgrades.Result {
+            if (model.heroUpgrades?.result == null || model.heroUpgrades?.running == true) {
+                ui { model.startHeroUpgrades() }
+                rule.waitUntil(20 * 60_000) { model.heroUpgrades?.running == false && model.heroUpgrades?.result != null }
+            }
+            return model.heroUpgrades!!.result!!
+        }
+        // the audit's own fixed setups can leave every hero with nothing to gain; HeroUpgradeScreens covers real setups
+        fun upgradeHero() = model.heroUpgradeView(heroUpgradesDone()).firstOrNull { it.rows.isNotEmpty() }
+            ?: run { warn("Improve heroes found no hero with gains on the audit's setups, so its hero page and piece sheet go unchecked", "improve-heroes"); null }
+        steps.add("improve-heroes-by-hero" to { heroUpgradesDone(); ui { overlay = false; OverlayState.upgrade = null; model.sheet = null; model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) } })
+        steps.add("improve-heroes-by-piece" to { heroUpgradesDone(); ui { model.sheet = null; model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) }; clickText("By piece") })
+        steps.add("improve-heroes-settings" to { heroUpgradesDone(); ui { model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()); model.sheet = Sheet(SheetKind.HERO_UPGRADE_SETTINGS, 0) } })
+        steps.add("improve-heroes-hero" to { val h = upgradeHero() ?: return@to; ui { model.sheet = null; model.stack = listOf(Screen.Gear, Screen.HeroUpgrades(), Screen.HeroUpgrades(h.hero.id)) } })
+        steps.add("improve-heroes-piece" to { val h = upgradeHero() ?: return@to
+            ui { model.stack = listOf(Screen.Gear, Screen.HeroUpgrades(), Screen.HeroUpgrades(h.hero.id)); model.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, h.rows.first().pick.piece) } })
+        steps.add("improve-heroes-help" to { ui { model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()); model.sheet = Sheet(SheetKind.HERO_UPGRADE_HELP, 0) } })
         screen("find-gear", Screen.Gear, Screen.GearPotential)
         steps.add("scan-restart-sheet" to { ui { resetCapture(model); model.sheet = null; model.stack = listOf(Screen.Optimize, Screen.ScanData); model.sheet = Sheet(SheetKind.SCAN_RESTART, 0) } })
         steps.add("scan-restart-scan-now" to {
@@ -798,7 +817,11 @@ class ScreenAudit {
         )
         // flips edit the hero's request; every setup starts from the request the searches were run with
         val baseRequest = model.request(hero).copy()
-        for (s in setups) {
+        // a design round checks only what it touched: -e only improve-heroes*,sell-* and -e setups 353-big-en,353-ru
+        val args = InstrumentationRegistry.getArguments()
+        fun matches(list: String?, name: String) = list == null || list.split(',').map { it.trim() }.any { p -> if (p.endsWith("*")) name.startsWith(p.dropLast(1)) else name == p }
+        val only = args.getString("only"); val setupsArg = args.getString("setups")
+        for (s in setups.filter { matches(setupsArg, it.name) }) {
             ui { model.config(hero).request = baseRequest.copy() }
             Locale.setDefault(s.locale)
             setup = s
@@ -811,6 +834,7 @@ class ScreenAudit {
                 runCatching { rule.waitUntil(180_000) { !model.sellCurveBusy && model.sellCurve != null } }
             }
             for ((name, act) in steps) {
+                if (!matches(only, name)) continue
                 try {
                     act(); rule.waitForIdle()
                     overlayShown = overlay
@@ -820,6 +844,7 @@ class ScreenAudit {
                 }
             }
             for ((name, open, flip) in flips) {
+                if (!matches(only, name)) continue
                 try {
                     open(); rule.waitForIdle()
                     val before = textBounds(); val shotBefore = screenHash()

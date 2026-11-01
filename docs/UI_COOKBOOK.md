@@ -97,9 +97,14 @@ The owner is not the reviewer. A round reaches them only after:
    font and 411 dp, light and dark).
 2. **Independent review**: a fresh subagent gets only the screenshots and this file and lists everything this owner would
    object to. Fix those first.
-3. **Machine checks clean**: `E7_FIXTURES=~/Documents/epic7/gear_cleanup/fixtures tools/audit.sh` (ScreenAudit, ~8 min,
-   emulator only) and every androidTest suite that touches the change; unit tests (SourceRulesTest, ThemeRulesTest).
-   New screens and states are added to ScreenAudit in the same change.
+3. **Machine checks clean, sized to the step**:
+   - each design round: ScreenAudit filtered to the touched screens at the hardest setups (353 dp big font, Russian),
+     ~1-2 min; unit tests (SourceRulesTest, ThemeRulesTest).
+   - before a build goes to the owner's phone, and before release: the full audit
+     (`E7_FIXTURES=~/Documents/epic7/gear_cleanup/fixtures tools/audit.sh`, ~8 min, emulator only) and every androidTest
+     suite that touches the change.
+   - New screens and states are added to ScreenAudit in the same change, including the states where the player decides
+     something (with results, not only empty or intro states).
 4. **Only real product choices go to the owner**, each with what it changes for the player.
 
 When a correction comes in anyway: fix it, find the principle it falls under (or add one here, in the owner's words), and

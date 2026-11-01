@@ -1,6 +1,7 @@
 #!/bin/sh
 # Unit rules and the screen audit on an emulator (never a phone: it replaces the box). Lint runs with every release build.
 # Usage: E7_FIXTURES=<folder with gear.txt> tools/audit.sh     -> screenshots and report in app/build/audit/
+# A design round checks only what it touched: AUDIT_ONLY='improve-heroes*' AUDIT_SETUPS='353-big-en,353-ru' (comma lists, * = prefix)
 set -e
 cd "$(dirname "$0")/.."
 : "${E7_FIXTURES:?set E7_FIXTURES to a folder holding gear.txt}"
@@ -16,7 +17,10 @@ rm -rf app/build/audit
 "$ADB" shell pm clear e7.gearscan >/dev/null 2>&1 || true
 ./gradlew -q testDebugUnitTest
 status=0
-./gradlew -q connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=e7.gearscan.ScreenAudit \
+set -- -Pandroid.testInstrumentationRunnerArguments.class=e7.gearscan.ScreenAudit
+[ -n "$AUDIT_ONLY" ] && set -- "$@" "-Pandroid.testInstrumentationRunnerArguments.only=$AUDIT_ONLY"
+[ -n "$AUDIT_SETUPS" ] && set -- "$@" "-Pandroid.testInstrumentationRunnerArguments.setups=$AUDIT_SETUPS"
+./gradlew -q connectedDebugAndroidTest "$@" \
 	-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true || status=1
 "$ADB" pull /sdcard/Android/data/e7.gearscan/files/audit app/build/audit >/dev/null 2>&1 || true
 { cat app/build/audit/report.txt && echo; } 2>/dev/null || echo "no report (the audit did not run)"

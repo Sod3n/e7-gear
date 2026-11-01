@@ -80,7 +80,7 @@ sealed class Screen {
     data class PoolHero(val id: Long, val setup: Boolean) : Screen()
 }
 
-enum class SheetKind { PRESET, TARGETS, ADVANCED, BONUS, SETS, MAINS, GOALS, SHOW, HERO_PICK, ARTIFACT, POOL_PICK, POOL_WORSE, POOL_LOW, POOL_HEROES, POOL_LIST, POOL_TRADES, SCAN_RESTART, POTENTIAL_HELP, POTENTIAL_TARGETS, POTENTIAL_SLOTS, POTENTIAL_SETS, POTENTIAL_MAINS, POTENTIAL_OPTIONS, POTENTIAL_PIECE, SELL_SCORE, SELL_WEIGHTS, SELL_FLOORS, SELL_CUSTOMS, SELL_HEROES, SELL_INVENTORY, SELL_SLOTS, SELL_SETS, SELL_MAINS, SELL_LEVELS, SELL_QUALITY, SELL_DETAILS, SELL_HELP, SELL_SAFEGUARDS, SELL_EXTRA, SELL_WORTH, HERO_UPGRADE_PIECE, HERO_UPGRADE_HELP, HERO_UPGRADE_BUILD }
+enum class SheetKind { PRESET, TARGETS, ADVANCED, BONUS, SETS, MAINS, GOALS, SHOW, HERO_PICK, ARTIFACT, POOL_PICK, POOL_WORSE, POOL_LOW, POOL_HEROES, POOL_LIST, POOL_TRADES, SCAN_RESTART, POTENTIAL_HELP, POTENTIAL_TARGETS, POTENTIAL_SLOTS, POTENTIAL_SETS, POTENTIAL_MAINS, POTENTIAL_OPTIONS, POTENTIAL_PIECE, SELL_SCORE, SELL_WEIGHTS, SELL_FLOORS, SELL_CUSTOMS, SELL_HEROES, SELL_INVENTORY, SELL_SLOTS, SELL_SETS, SELL_MAINS, SELL_LEVELS, SELL_QUALITY, SELL_DETAILS, SELL_HELP, SELL_SAFEGUARDS, SELL_EXTRA, SELL_WORTH, HERO_UPGRADE_PIECE, HERO_UPGRADE_HELP, HERO_UPGRADE_SETTINGS, HERO_UPGRADE_BUILD }
 
 /** [back] is the sheet to return to when this one finishes; null closes. */
 data class Sheet(val kind: SheetKind, val heroId: Long, val back: SheetKind? = null)
@@ -1788,6 +1788,38 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                     scoredStats(s, items), row.typical, if (rebuilds) "The best build with a usual finish of this piece" else "What the hero wears, with a usual finish of this piece in its slot")
             }
             finalBuild = fb; finalBuildBusy = false
+        }
+    }
+
+    private var usualInputs: Pair<List<Any?>, Pair<List<Setup>, List<Item>>>? = null
+
+    /**
+     * The hero's stat changes from [row], for cards: with This piece only, the row's usual finish put in the hero's slot
+     * against what it wears; with rebuilds, the best finish's changes the check stored. Only stats the setup scores.
+     */
+    suspend fun heroUpgradeStatChanges(heroId: Long, row: HeroUpgradeRow): List<Pair<Stat, Double>> {
+        if (heroUpgradeRebuilds) return row.changes.split(" · ").mapNotNull { part ->
+            val name = part.substringBeforeLast(' '); val v = part.substringAfterLast(' ').toDoubleOrNull() ?: return@mapNotNull null
+            Stat.entries.firstOrNull { it.short == name }?.let { it to v }
+        }
+        val r = heroUpgrades?.result ?: return emptyList()
+        val key = listOf(r, lastScan, rev, cleanupDone)
+        return withContext(Dispatchers.Default) {
+            val (setups, pieces) = synchronized(this@AppModel) {
+                usualInputs?.takeIf { it.first == key }?.second ?: run {
+                    val (s, p, _) = heroUpgradeInputs() ?: return@withContext emptyList()
+                    (s to p).also { usualInputs = key to it }
+                }
+            }
+            val s = setups.firstOrNull { it.hero.id == heroId } ?: return@withContext emptyList()
+            val piece = pieces.firstOrNull { it.id == row.pick.piece } ?: return@withContext emptyList()
+            val f = e7.gearscan.opt.Finish.of(piece, r.sims)[row.usual.takeIf { it >= 0 } ?: 0]
+            val finish = Item(piece.id, f.slot, f.set, f.rank, f.level, 15, f.mainType, f.mainValue, f.subs, piece.locked, piece.equippedOn, main15 = f.main15)
+            val worn = s.current().values.toList().takeIf { it.size == 6 } ?: return@withContext emptyList()
+            scoredStats(s, worn.map { if (it.slot == piece.slot) finish else it }).mapNotNull { (stat, now, after) ->
+                val d = Math.round(after - now).toDouble()
+                if (d == 0.0) null else stat to d
+            }
         }
     }
 

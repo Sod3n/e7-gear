@@ -7,6 +7,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import e7.gearscan.data.Stat
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -68,10 +72,7 @@ fun HeroUpgradesScreen(model: AppModel, heroId: Long?) {
     }) {
         BackToPrevious(model)
         // a hero's long name leaves no room for the kana beside it
-        if (heroId == null) ScreenTitle("Improve heroes", "キョウカ") else ScreenTitle(model.hero(heroId)?.let(model::heroName) ?: "Improve heroes")
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            LinkText("How it works") { model.sheet = Sheet(SheetKind.HERO_UPGRADE_HELP, 0) }
-        }
+        if (heroId == null) ScreenTitle("Improve heroes", "キョウカ")
         if (running) Card(padding = PaddingValues(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Spinner()
@@ -86,54 +87,59 @@ fun HeroUpgradesScreen(model: AppModel, heroId: Long?) {
             if (!running) Intro(model)
             return@Frame
         }
-        Notices(model, result)
-        SectionTitle("Smallest gain")
-        Segmented(GAINS.map { it.second }, GAINS.indexOfFirst { it.first == minGain }.coerceAtLeast(0)) { model.useHeroUpgradeMinGain(GAINS[it].first) }
-        SectionTitle("Builds")
-        Segmented(listOf("This piece only", "Allow rebuilds"), if (model.heroUpgradeRebuilds) 1 else 0) { model.useHeroUpgradeRebuilds(it == 1) }
-        Text(if (model.heroUpgradeRebuilds) "The best build with the finished piece, even if other pieces or sets change."
-            else "The finished piece goes into the hero's slot; everything else the hero wears stays.", style = zen(11.sp, FontWeight.Medium, C.muted))
+        if (model.heroUpgradesStale) Notice("Your gear or setups changed since this check. Pieces that are gone dropped out; check again for the current answer.")
         if (one != null || heroId != null) {
             if (one == null) Text("This hero has no saved setup in this check.", style = zen(12.sp, FontWeight.Medium, C.muted))
             else HeroPage(model, one)
         } else {
+            RowCard("Showing", { model.sheet = Sheet(SheetKind.HERO_UPGRADE_SETTINGS, 0) }, labelWidth = 84.dp) {
+                Text("${GAINS.firstOrNull { it.first == minGain }?.second ?: "Any"} or more · ${if (model.heroUpgradeRebuilds) "rebuilds allowed" else "this piece only"}",
+                    style = zen(12.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
             Segmented(listOf("By hero", "By piece"), tab) { tab = it }
-            if (tab == 0) ByHero(model, view!!, st) else ByPiece(model, view!!)
+            Summary(model, view!!, st, result)
+            if (tab == 0) ByHero(model, view) else ByPiece(model, view)
+        }
+        ListRow({ model.sheet = Sheet(SheetKind.HERO_UPGRADE_HELP, 0) }, Modifier.padding(vertical = 6.dp)) {
+            Text("How the check works", style = zen(13.sp, color = C.muted))
         }
     }
 }
 
 @Composable
 private fun Intro(model: AppModel) {
+    val heroes = model.heroUpgradeHeroes()
     Card(padding = PaddingValues(12.dp)) {
-        Text("Finds pieces below +15 that could make your heroes better once you enhance them.", style = zen(13.sp))
+        Text("Which unfinished pieces would make your heroes better?", style = zen(15.sp, FontWeight.Bold))
         VSpace(8.dp)
-        Text("· Heroes: the ${model.heroUpgradeHeroes().size} with a saved setup. Each one's bar is the best build it can make now " +
-            "from its own gear and spares, with every piece at its current level.", style = zen(12.sp, FontWeight.Medium))
-        VSpace(4.dp)
-        Text("· Every piece gets ${HeroUpgrades.SIMS} simulated finishes. A finish counts when the hero's best complete build with it " +
-            "beats that bar, with the setup's sets, mains and limits.", style = zen(12.sp, FontWeight.Medium))
-        VSpace(8.dp)
-        Text("Gear on heroes of your pool run stays with them. Takes a minute or two; it keeps going if you leave the app.",
-            style = zen(11.sp, FontWeight.Medium, C.muted))
+        Text("Checks the ${heroes.size} ${if (heroes.size == 1) "hero" else "heroes"} with a saved setup:", style = zen(12.sp, FontWeight.Medium, C.muted))
+        VSpace(6.dp)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            heroes.take(7).forEach { Face(model.face(it), 30.dp, ringWidth = 2.dp) }
+            if (heroes.size > 7) Text("+${heroes.size - 7}", style = zen(12.sp, FontWeight.Medium, C.muted))
+        }
     }
     if (model.heroUpgradesResumable) Text("The last check stopped before the end; it picks up where it was.", style = zen(11.sp, FontWeight.Medium, C.muted))
     if (model.pool?.running == true || model.cleanup?.running == true) Text("Starts after the other gear check.", style = zen(11.sp, FontWeight.Medium, C.muted))
 }
 
 @Composable
-private fun Notices(model: AppModel, r: HeroUpgrades.Result) {
-    if (model.heroUpgradesStale) Notice("Your gear or setups changed since this check. Pieces that are gone dropped out; check again for the current answer.")
-    if (r.unknownSteps > 0 && model.heroUpgrades?.running != true) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(C.lightPink).padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Text("${r.unknownSteps} searches ran out of time; some finishes are still open.", style = zen(12.sp), modifier = Modifier.weight(1f))
-        LinkText("Check the rest") { model.startHeroUpgrades(more = true) }
-    }
-}
-
-@Composable
 private fun Notice(text: String) {
     Text(text, style = zen(11.sp, FontWeight.Medium, C.deepPink))
+}
+
+/** Smallest gain and whether other pieces may move: what the lists count, edited in one place. */
+@Composable
+internal fun HeroUpgradeSettingsSheet(model: AppModel) {
+    SheetBody("Showing", button = "Done", onButton = { model.sheet = null }) {
+        SectionTitle("Smallest gain")
+        Segmented(GAINS.map { it.second }, GAINS.indexOfFirst { it.first == model.heroUpgradeMinGain }.coerceAtLeast(0)) { model.useHeroUpgradeMinGain(GAINS[it].first) }
+        Text("One roll is an average substat roll toward the hero's targets, such as 4 speed.", style = zen(11.sp, FontWeight.Medium, C.muted))
+        SectionTitle("Builds")
+        Segmented(listOf("This piece only", "Allow rebuilds"), if (model.heroUpgradeRebuilds) 1 else 0) { model.useHeroUpgradeRebuilds(it == 1) }
+        Text(if (model.heroUpgradeRebuilds) "The best build with the finished piece, even if other pieces or sets change."
+            else "The finished piece goes into the hero's slot; everything else the hero wears stays.", style = zen(11.sp, FontWeight.Medium, C.muted))
+    }
 }
 
 private fun reason(h: AppModel.HeroUpgradeHero) = when {
@@ -144,17 +150,38 @@ private fun reason(h: AppModel.HeroUpgradeHero) = when {
     else -> "No finish gains this much"
 }
 
+/** Seen in this few of the finishes: a lucky outcome, folded away from the likely ones. */
+private const val LONG_SHOT = 2
+
+/** "~60%" over "18 of 30 tries": the chance is an estimate from a fixed number of simulated finishes. */
 @Composable
-private fun ByHero(model: AppModel, view: List<AppModel.HeroUpgradeHero>, st: e7.gearscan.HeroUpgradeState) {
+private fun Odds(r: AppModel.HeroUpgradeRow, big: Boolean = true) {
+    Column(horizontalAlignment = Alignment.End) {
+        FitText("~${r.chance}%", dela(if (big) 18.sp else 13.sp, C.blue))
+        FitText("${r.hits} of ${r.sims} tries", zen(9.sp, FontWeight.Medium, C.muted))
+    }
+}
+
+@Composable
+private fun Summary(model: AppModel, view: List<AppModel.HeroUpgradeHero>, st: e7.gearscan.HeroUpgradeState, r: HeroUpgrades.Result) {
     val better = view.filter { it.rows.isNotEmpty() }
     Card(padding = PaddingValues(12.dp)) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("${better.size}", style = dela(32.sp).pinkShadow())
             Text(if (better.size == 1) "hero can get better" else "heroes can get better", style = zen(13.sp), modifier = Modifier.padding(bottom = 6.dp))
         }
-        Text("${better.flatMap { h -> h.rows.map { it.pick.piece } }.distinct().size} pieces · of ${view.size} heroes with a setup · checked ${model.scannedLabelOf(st.finishedAt)}",
+        Text("${better.flatMap { h -> h.rows.map { it.pick.piece } }.distinct().size} pieces · checked ${model.scannedLabelOf(st.finishedAt)}",
             style = zen(11.sp, FontWeight.Medium, C.muted))
+        if (r.unknownSteps > 0 && !st.running) Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("${r.unknownSteps} ${if (r.unknownSteps == 1) "check" else "checks"} not finished", style = zen(11.sp, FontWeight.Medium, C.deepPink), modifier = Modifier.weight(1f))
+            Pill("Finish them", onClick = { model.startHeroUpgrades(more = true) })
+        }
     }
+}
+
+@Composable
+private fun ByHero(model: AppModel, view: List<AppModel.HeroUpgradeHero>) {
+    val better = view.filter { it.rows.isNotEmpty() }
     if (better.isNotEmpty()) SectionTitle("Can get better", trailing = "${better.size}")
     better.forEach { h -> HeroRow(model, h) }
     val rest = view.filter { it.rows.isEmpty() }
@@ -167,17 +194,18 @@ private fun ByHero(model: AppModel, view: List<AppModel.HeroUpgradeHero>, st: e7
 @Composable
 private fun HeroRow(model: AppModel, h: AppModel.HeroUpgradeHero) {
     ListRow({ model.go(Screen.HeroUpgrades(h.hero.id)) }, leading = { Face(model.face(h.hero), 40.dp) }, trailing = {
-        Slot(44.dp) { h.bestNow?.let { MatchChip(it) } }
+        Slot(48.dp) { h.bestNow?.let { Column(horizontalAlignment = Alignment.CenterHorizontally) { MatchChip(it); Text("now", style = zen(9.sp, FontWeight.Medium, C.muted)) } } }
     }) {
-        Text(model.heroName(h.hero), style = zen(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        val top = h.rows.firstOrNull()
-        val pieces = "${h.rows.size} ${if (h.rows.size == 1) "piece" else "pieces"}"
+        Text(model.heroName(h.hero), style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        val top = h.rows.maxByOrNull { it.hits }
+        val likely = h.rows.count { it.hits > LONG_SHOT }
+        val pieces = "$likely ${if (likely == 1) "piece" else "pieces"}"
         Text(when {
             top == null -> reason(h)
-            h.base.value == null -> "$pieces could make a build · top: ${top.chance}% chance"
-            else -> "$pieces · top: ${top.chance}% chance of ${top.typical}"
-        },
-            style = zen(11.sp, FontWeight.Medium, if (top == null) C.muted else C.blue), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            h.base.value == null -> "${h.rows.size} ${if (h.rows.size == 1) "piece" else "pieces"} could make a build"
+            likely == 0 -> "only long shots · best ~${top.chance}%"
+            else -> "$pieces · best ~${top.chance}%"
+        }, style = zen(11.sp, FontWeight.Medium, if (top == null) C.muted else C.blue), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -190,101 +218,116 @@ private fun piecesOf(model: AppModel, view: List<AppModel.HeroUpgradeHero>): Lis
 
 @Composable
 private fun ByPiece(model: AppModel, view: List<AppModel.HeroUpgradeHero>) {
-    val pieces = remember(view) { piecesOf(model, view) }
+    val all = remember(view) { piecesOf(model, view) }
+    val (likely, long) = all.partition { (_, hs) -> hs.maxOf { it.second.hits } > LONG_SHOT }
     var count by remember(view) { mutableIntStateOf(20) }
-    Text("${pieces.size} pieces · for your highest tiers first", style = zen(11.sp, FontWeight.Medium, C.muted))
-    pieces.take(count).forEach { (id, heroes) ->
+    var showLong by remember(view) { mutableStateOf(false) }
+    val shown = likely + if (showLong) long else emptyList()
+    shown.take(count).forEach { (id, heroes) ->
         val item = heroUpgradeItem(model, id) ?: return@forEach
+        val r0 = heroes.first().second
         Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp), onClick = { model.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, id) }) {
-            GearSearchIdentity(model, item) {
-                Column(Modifier.width(72.dp), horizontalAlignment = Alignment.End) {
-                    FitText("${heroes.first().second.chance}%", dela(15.sp, C.blue))
-                    Text("best chance", style = zen(9.sp, FontWeight.Medium, C.muted))
-                }
-            }
+            GearSearchIdentity(model, item, owner = true) { Odds(r0) }
             VSpace(8.dp)
             heroes.take(3).forEach { (h, r) -> HeroLine(model, h, r) }
             if (heroes.size > 3) Text("and ${heroes.size - 3} more heroes", style = zen(10.sp, FontWeight.Medium, C.muted))
-            VSpace(4.dp)
-            OwnerLine(model, item)
         }
     }
-    if (count < pieces.size) OutlineButton("Show 20 more", Modifier.fillMaxWidth(), height = 42.dp) { count += 20 }
+    if (count < shown.size) OutlineButton("Show 20 more", Modifier.fillMaxWidth(), height = 42.dp) { count += 20 }
+    if (long.isNotEmpty()) LongShots(long.size, showLong) { showLong = !showLong }
+}
+
+@Composable
+private fun LongShots(n: Int, open: Boolean, toggle: () -> Unit) {
+    ListRow(toggle, Modifier.padding(vertical = 4.dp), trailing = { Slot(48.dp) { Text("$n", style = zen(12.sp, color = C.muted)) } }) {
+        Text(if (open) "Hide long shots" else "Long shots", style = zen(13.sp, FontWeight.Bold))
+        Text("seen in only 1 or 2 of the tries", style = zen(11.sp, FontWeight.Medium, C.muted))
+    }
 }
 
 @Composable
 private fun HeroLine(model: AppModel, h: AppModel.HeroUpgradeHero, r: AppModel.HeroUpgradeRow) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Face(model.face(h.hero), 20.dp, ringWidth = 1.5.dp)
-        Text(model.heroName(h.hero), style = zen(11.sp), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        FitText("${r.chance}% · ${r.typical}", zen(11.sp, color = C.blue))
+    Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Face(model.face(h.hero), 24.dp, ringWidth = 1.5.dp)
+        Text(model.heroName(h.hero), style = zen(12.sp, FontWeight.Bold), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        FitText("~${r.chance}%", zen(12.sp, color = C.blue))
+    }
+    StatChanges(model, h, r)
+}
+
+/** The hero's stat changes from a usual finish (or the best one, with rebuilds), marked as an estimate; space kept while they load. */
+@Composable
+private fun StatChanges(model: AppModel, h: AppModel.HeroUpgradeHero, r: AppModel.HeroUpgradeRow) {
+    val changes by produceState<List<Pair<Stat, Double>>?>(null, r, model.heroUpgradeRebuilds) { value = model.heroUpgradeStatChanges(h.hero.id, r) }
+    Row(Modifier.fillMaxWidth().heightIn(min = 26.dp).padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        val list = changes ?: return@Row
+        Text(if (model.heroUpgradeRebuilds) "best finish ~" else "usual finish ~", style = zen(10.sp, FontWeight.Medium, C.muted))
+        if (list.isEmpty()) Text("no stat change", style = zen(10.sp, FontWeight.Medium, C.muted))
+        list.take(4).forEach { (stat, d) -> StatChangeChip(stat, d) }
     }
 }
 
 @Composable
-private fun OwnerLine(model: AppModel, item: Item) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(gearOwner(model, item), style = zen(10.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text("Finish to +15", style = zen(10.sp, color = C.blue))
-        Spacer(Modifier.width(7.dp)); ChevronSlot(true)
+private fun StatChangeChip(stat: Stat, d: Double) {
+    val up = d > 0
+    Row(Modifier.clip(RoundedCornerShape(999.dp)).background(if (up) C.ghostBg else C.lightPink).padding(horizontal = 6.dp, vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        StatIcon(stat, 11.dp, if (up) C.blue else C.red)
+        FitText((if (up) "+" else "−") + fmtNum(kotlin.math.abs(d)), zen(11.sp, FontWeight.Bold, if (up) C.blue else C.red))
     }
 }
 
 @Composable
 private fun HeroPage(model: AppModel, h: AppModel.HeroUpgradeHero) {
-    Card(padding = PaddingValues(12.dp)) {
+    val rebuilds = model.heroUpgradeRebuilds
+    Card(padding = PaddingValues(12.dp), onClick = { model.go(Screen.HeroDetail(h.hero.id)) }) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Face(model.face(h.hero), 52.dp)
-            Column(Modifier.weight(1f)) {
-                val rebuilds = model.heroUpgradeRebuilds
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(model.heroName(h.hero), style = dela(17.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(when {
                     rebuilds && h.base.value == null && !h.base.unresolved -> "No build meets the setup yet"
                     !rebuilds && h.base.worn == null -> "What it wears doesn't meet its setup"
-                    h.bestNow != null -> if (rebuilds) "Best build now: ${h.bestNow}% match" else "Wearing now: ${h.bestNow}% match"
-                    else -> if (rebuilds) "Best build now is the bar" else "What it wears is the bar"
-                }, style = zen(13.sp))
-                Text(if (rebuilds) "Gains are over the best build this hero can make now, from its own gear and spares."
-                    else "Gains are over what this hero wears now, with only this piece changed.", style = zen(11.sp, FontWeight.Medium, C.muted))
+                    h.bestNow != null -> if (rebuilds) "Best build now · ${h.bestNow}% match" else "Wearing now · ${h.bestNow}% match"
+                    else -> if (rebuilds) "Gains are over its best build now" else "Gains are over what it wears"
+                }, style = zen(12.sp, FontWeight.Medium, C.muted))
+                h.bestNow?.let { Bar(it / 100f) }
             }
+            ChevronSlot(true)
         }
-        VSpace(6.dp)
-        LinkText("Hero details") { model.go(Screen.HeroDetail(h.hero.id)) }
     }
     // what it wears is behind its best build: optimizing comes before any upgrade
     val best = h.base.value; val worn = h.base.worn
-    if (!model.heroUpgradeRebuilds && best != null && worn != null && best > worn + HeroUpgrades.MIN_GAIN * h.base.unit) Card(shadow = null, padding = PaddingValues(12.dp)) {
-        Text("Your best build now is ${model.heroGainLabel(h.hero.id, HeroUpgrades.Base(h.hero.id, worn, emptyList(), false, h.base.unit, 0), best)} better than what it wears.",
-            style = zen(12.sp))
-        Text("Optimize it first: that needs no upgrade.", style = zen(11.sp, FontWeight.Medium, C.muted))
-        LinkText("Optimize ${model.heroName(h.hero)}") { model.pickHero(h.hero.id); model.team = listOf(h.hero.id); model.tab(Screen.Optimize) }
-    }
+    if (!rebuilds && best != null && worn != null && best > worn + HeroUpgrades.MIN_GAIN * h.base.unit)
+        Card(shadow = null, padding = PaddingValues(12.dp), onClick = { model.pickHero(h.hero.id); model.team = listOf(h.hero.id); model.tab(Screen.Optimize) }) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Optimize first: a better build from gear you have is " +
+                        model.heroGainLabel(h.hero.id, HeroUpgrades.Base(h.hero.id, worn, emptyList(), false, h.base.unit, 0), best) + " ahead.", style = zen(12.sp))
+                }
+                ChevronSlot(true)
+            }
+        }
     if (h.rows.isEmpty()) {
         Text(reason(h), style = zen(12.sp, FontWeight.Medium, C.muted))
         return
     }
+    val rows = h.rows.filter { it.pick.piece !in model.cleanupDone }
+    val (likely, long) = rows.partition { it.hits > LONG_SHOT }
     var count by remember(h) { mutableIntStateOf(20) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("${h.rows.size} pieces", style = dela(16.sp), modifier = Modifier.weight(1f))
-        Text("Most to gain first", style = zen(11.sp, color = C.muted))
-    }
-    h.rows.filter { it.pick.piece !in model.cleanupDone }.take(count).forEach { r ->
+    var showLong by remember(h) { mutableStateOf(false) }
+    SectionTitle("${likely.size} ${if (likely.size == 1) "piece" else "pieces"} could help")
+    val shown = likely + if (showLong) long else emptyList()
+    shown.take(count).forEach { r ->
         val item = heroUpgradeItem(model, r.pick.piece) ?: return@forEach
         Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp), onClick = { model.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, r.pick.piece) }) {
-            GearSearchIdentity(model, item) {
-                Column(Modifier.width(72.dp), horizontalAlignment = Alignment.End) {
-                    FitText("${r.chance}%", dela(15.sp, C.blue))
-                    Text("chance", style = zen(9.sp, FontWeight.Medium, C.muted))
-                }
-            }
-            VSpace(8.dp)
-            Text(if (h.base.value == null) "Makes a build possible" else "Usually ${r.typical} · up to ${r.best}", style = zen(12.sp, color = C.blue))
+            GearSearchIdentity(model, item, owner = true) { Odds(r) }
+            if (h.base.value == null) Text("Makes a build possible", style = zen(12.sp, color = C.blue)) else StatChanges(model, h, r)
             RebuildLine(model, r)
-            if (r.changes.isNotEmpty()) Text("Best finish: ${r.changes}", style = zen(10.sp, FontWeight.Medium, C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            VSpace(4.dp)
-            OwnerLine(model, item)
         }
     }
-    if (count < h.rows.size) OutlineButton("Show 20 more", Modifier.fillMaxWidth(), height = 42.dp) { count += 20 }
+    if (count < shown.size) OutlineButton("Show 20 more", Modifier.fillMaxWidth(), height = 42.dp) { count += 20 }
+    if (long.isNotEmpty()) LongShots(long.size, showLong) { showLong = !showLong }
     if (h.open > 0) Text("${h.open} pieces still have finishes the check couldn't settle in time.", style = zen(11.sp, FontWeight.Medium, C.muted))
 }
 
@@ -295,27 +338,29 @@ internal fun HeroUpgradePieceSheet(model: AppModel, id: Long) {
     val heroes = remember(result, model.heroUpgradeMinGain, model.rev) {
         model.heroUpgradeView(result).mapNotNull { h -> h.rows.firstOrNull { it.pick.piece == id }?.let { h to it } }
     }
-    SheetBody("Equipment", button = "Track over game", onButton = { model.sheet = null; model.trackHeroUpgrade(id) }) {
-        Card(shadow = null, padding = PaddingValues(12.dp)) { GearSearchIdentity(model, item) }
-        SectionTitle("Heroes it could improve", trailing = "${heroes.size}")
+    SheetBody("Worth enhancing?", button = "Enhance over the game", onButton = { model.sheet = null; model.trackHeroUpgrade(id) }) {
+        Card(shadow = null, padding = PaddingValues(12.dp)) { GearSearchIdentity(model, item, owner = true) }
         heroes.forEach { (h, r) ->
             Card(shadow = null, padding = PaddingValues(12.dp), onClick = { model.sheet = null; model.go(Screen.HeroUpgrades(h.hero.id)) }) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Face(model.face(h.hero), 36.dp)
-                    Column(Modifier.weight(1f)) {
-                        Text(model.heroName(h.hero), style = zen(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${r.hits} of ${r.sims} finishes · " + if (h.base.value == null) "makes a build possible" else "usually ${r.typical}, up to ${r.best}",
-                            style = zen(11.sp, color = C.blue))
-                    }
+                    Text(model.heroName(h.hero), style = zen(13.sp, FontWeight.Bold), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Odds(r)
                     ChevronSlot(true)
                 }
+                if (h.base.value == null) Text("Makes a build possible", style = zen(12.sp, color = C.blue)) else StatChanges(model, h, r)
                 RebuildLine(model, r)
-                if (r.changes.isNotEmpty()) Text("Best finish: ${r.changes}", style = zen(10.sp, FontWeight.Medium, C.muted))
-                LinkText("Final build") { model.openFinalBuild(h.hero.id, r); model.sheet = Sheet(SheetKind.HERO_UPGRADE_BUILD, id, back = SheetKind.HERO_UPGRADE_PIECE) }
+                ListRow({ model.openFinalBuild(h.hero.id, r); model.sheet = Sheet(SheetKind.HERO_UPGRADE_BUILD, id, back = SheetKind.HERO_UPGRADE_PIECE) },
+                    Modifier.padding(top = 6.dp)) {
+                    Text("Final build with this piece", style = zen(12.sp))
+                }
             }
         }
-        Text(gearOwner(model, item), style = zen(11.sp, FontWeight.Medium, C.muted))
-        Text("Track over game records each +3 and rechecks whether to keep going.", style = zen(11.sp, FontWeight.Medium, C.muted))
+        val share = e7.gearscan.opt.EsForecast.finishShare(item)
+        if (share > 0) Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Cost to +15", style = zen(12.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f))
+            Text("~${e7.gearscan.opt.EsForecast.goldText(share * e7.gearscan.opt.EsForecast.FULL_GOLD)} gold", style = zen(13.sp, FontWeight.Bold))
+        }
     }
 }
 
@@ -351,23 +396,7 @@ internal fun HeroUpgradeBuildSheet(model: AppModel) {
                 Text(fb.note + " · usually ${fb.gain}", style = zen(11.sp, FontWeight.Medium, C.muted))
             }
         }
-        fb.items.forEachIndexed { i, it ->
-            val mine = it.id == fb.pieceId
-            Card(shadow = if (mine) C.pink else null, radius = 12.dp, border = 2.dp, padding = PaddingValues(10.dp)) {
-                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GearTile(it, 40.dp, setIcon = model.content.set(it.set)?.icon)
-                    Column(Modifier.weight(1f)) {
-                        Text("${model.content.set(it.set)?.name ?: it.set.removeSuffix("Set")} ${it.slot.label} · ${it.mainType.short} ${it.mainType.format(it.mainValue)}",
-                            style = zen(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(fb.from[i], style = zen(11.sp, color = if (mine) C.deepPink else if (fb.from[i] == "Stays") C.muted else C.blue))
-                        if (mine) GearSearchSubs(it)
-                    }
-                }
-            }
-        }
         Card(shadow = null, padding = PaddingValues(12.dp)) {
-            Text(if (fb.sets.first == fb.sets.second) "Sets stay: ${fb.sets.second}" else "Sets: ${fb.sets.first} → ${fb.sets.second}", style = zen(12.sp))
-            VSpace(6.dp)
             fb.stats.forEach { (stat, now, after) ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatIcon(stat, 14.dp)
@@ -378,6 +407,26 @@ internal fun HeroUpgradeBuildSheet(model: AppModel) {
             VSpace(4.dp)
             Text("Now is what the hero wears in your scan.", style = zen(10.sp, FontWeight.Medium, C.muted))
         }
+        // only the slots that change: a column of "Stays" hid the one that matters
+        val changed = fb.items.indices.filter { fb.from[it] != "Stays" }
+        changed.forEach { i ->
+            val it = fb.items[i]
+            val mine = it.id == fb.pieceId
+            Card(shadow = if (mine) C.pink else null, radius = 12.dp, border = 2.dp, padding = PaddingValues(10.dp)) {
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    GearTile(it, 40.dp, setIcon = model.content.set(it.set)?.icon)
+                    Column(Modifier.weight(1f)) {
+                        Text("${model.content.set(it.set)?.name ?: it.set.removeSuffix("Set")} ${it.slot.label}", style = zen(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(fb.from[i], style = zen(11.sp, color = if (mine) C.deepPink else C.blue))
+                        if (mine) GearSearchSubs(it)
+                    }
+                }
+            }
+        }
+        val stay = fb.items.size - changed.size
+        Text((if (stay > 0) "$stay other ${if (stay == 1) "piece stays" else "pieces stay"} · " else "") +
+            (if (fb.sets.first == fb.sets.second) "sets stay: ${fb.sets.second}" else "sets: ${fb.sets.first} → ${fb.sets.second}"),
+            style = zen(11.sp, FontWeight.Medium, C.muted))
     }
 }
 

@@ -161,7 +161,8 @@ internal fun finishAction(match: AppModel.PotentialMatch, q: PotentialQuery) = w
 
 /** The app's gear tile and 2-column stat grid, with no nested item card. */
 @Composable
-internal fun GearSearchIdentity(model: AppModel, original: Item, highlight: Set<GearStat> = emptySet(), explicitGameScore:Boolean=false, trailing: (@Composable () -> Unit)? = null) {
+internal fun GearSearchIdentity(model: AppModel, original: Item, highlight: Set<GearStat> = emptySet(), explicitGameScore:Boolean=false,
+                                owner: Boolean = false, trailing: (@Composable () -> Unit)? = null) {
     val item = if (original.enhance < 15) UpgradeRecord.fromScan(original) else original
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.padding(top = 4.dp)) { GearTile(item, 46.dp, setIcon = model.content.set(item.set)?.icon) }
@@ -169,15 +170,28 @@ internal fun GearSearchIdentity(model: AppModel, original: Item, highlight: Set<
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text("${model.content.set(item.set)?.name ?: item.set.removeSuffix("Set")} ${item.slot.label}", style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text("${item.mainType.short} ${item.mainType.format(item.mainValue)} · Lv.${item.level}", style = zen(10.sp, FontWeight.Medium, C.muted))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        StatValue(item.mainType.stat, item.mainType.format(item.mainValue), C.ink, 12)
+                        Text("Lv.${item.level}", style = zen(10.sp, FontWeight.Medium, C.muted))
+                    }
                 }
                 trailing?.invoke()
             }
             VSpace(2.dp)
             GearSearchSubs(item, highlight)
-            GearPositionLabel(model, item,explicitGameScore)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GearPositionLabel(model, item,explicitGameScore)
+                if (owner) item.equippedOn?.let { model.hero(it) }?.let { h -> OwnerTag(model.heroName(h)) }
+            }
         }
     }
+}
+
+/** Which hero wears the piece now, as a small outlined tag. */
+@Composable
+internal fun OwnerTag(name: String) {
+    Text("on $name", style = zen(10.sp, FontWeight.Bold, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.border(1.dp, C.muted, RoundedCornerShape(5.dp)).padding(horizontal = 5.dp))
 }
 
 @Composable
