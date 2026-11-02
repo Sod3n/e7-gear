@@ -18,7 +18,7 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
     var secondsPerHero by saved("secondsPerHero", 3.0, Codecs.double)
     var pending by saved("pending", null, Codecs.nullable(Codecs.long))
     var lastPool by saved("lastPool", null, LAST)
-    val run = work<Unit>("Pool run", Weight.Heavy)
+    val run = work<Unit>("Pool run", Weight.Heavy, notice = "Optimizing pool")
 
     private companion object {
         val LAST: Codec<Pair<Long, Int>?> = Codecs.nullable(

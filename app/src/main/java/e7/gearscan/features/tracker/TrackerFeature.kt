@@ -7,5 +7,5 @@ import e7.gearscan.state.Weight
 class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
     val upgrades = savedFile("upgrades.json", backup = true, path = "upgrades.json")
     val checklist = savedFile("checklist.json", backup = false, path = "checklist.json")
-    val check = work<Unit>("Upgrade check", Weight.Yielding, foreground = true)
+    val check = work<Unit>("Upgrade check", Weight.Yielding, foreground = true, notice = "Checking this upgrade")
 }

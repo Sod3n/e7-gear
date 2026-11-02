@@ -30,7 +30,7 @@ class WorkService : Service(), ForegroundHost {
             Launcher.shownWork?.cancel()
             return START_NOT_STICKY
         }
-        val n = notification(this, Launcher.shownWork?.name.orEmpty(), "Starting…", 0, 0)
+        val n = notification(this, Launcher.shownWork?.notice.orEmpty(), "Starting…", 0, 0)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) startForeground(ID, n)
         else startForeground(ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         // a run that hangs must not drain the battery
@@ -49,7 +49,7 @@ class WorkService : Service(), ForegroundHost {
     override fun shown(work: Work<*>?) {}
 
     override fun progress(work: Work<*>, text: String, done: Int, total: Int) {
-        getSystemService(NotificationManager::class.java).notify(ID, notification(this, work.name, text, done, total))
+        getSystemService(NotificationManager::class.java).notify(ID, notification(this, work.notice, text, done, total))
     }
 
     class Launcher(private val app: Application) : ForegroundHost {

@@ -88,6 +88,7 @@ class Work<R>(
     val weight: Weight,
     private val progress: SavedFile? = null,
     val foreground: Boolean = weight == Weight.Heavy,
+    val notice: String = name,
 ) {
     var busy: Boolean by mutableStateOf(false)
         private set
