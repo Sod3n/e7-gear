@@ -2,6 +2,7 @@ package e7.gearscan.state
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.setValue
 import java.io.File
 import java.nio.file.AtomicMoveNotSupportedException
@@ -47,7 +48,7 @@ class SavedField<T> internal constructor(
     val keepOnErase: Boolean,
     private val store: Store,
 ) : ReadWriteProperty<Any?, T> {
-    private var value by mutableStateOf(default)
+    private var value by mutableStateOf(default, referentialEqualityPolicy())
 
     override fun getValue(thisRef: Any?, property: KProperty<*>): T = value
 
@@ -62,10 +63,16 @@ class SavedField<T> internal constructor(
 }
 
 class SavedFile internal constructor(val name: String, val backup: Boolean, val keepOnErase: Boolean, private val disk: Disk) {
+    val file: File get() = disk.file(name)
     val exists: Boolean get() = disk.file(name).isFile
     fun read(): String? = disk.read(name)
     fun write(text: String) = disk.write(name, text)
     fun delete() = disk.delete(name)
+}
+
+class SavedDir internal constructor(val name: String, val keepOnErase: Boolean, private val disk: Disk) {
+    val dir: File get() = disk.file(name)
+    fun delete() { dir.deleteRecursively() }
 }
 
 class Store(
@@ -77,6 +84,12 @@ class Store(
 ) {
     private val fields = LinkedHashMap<String, SavedField<*>>()
     private val files = LinkedHashMap<String, SavedFile>()
+    private val dirs = LinkedHashMap<String, SavedDir>()
+    var beforeSave: (() -> Unit)? = null
+    var afterLoad: (() -> Unit)? = null
+    internal val fieldKeys: Set<String> get() = fields.keys
+    internal val registeredFiles: List<SavedFile> get() = files.values.toList()
+    internal val registeredDirs: List<SavedDir> get() = dirs.values.toList()
     private var pending: Job? = null
 
     fun <T> field(key: String, default: T, codec: Codec<T>, keepOnErase: Boolean = false): SavedField<T> {
@@ -89,13 +102,26 @@ class Store(
         return SavedFile(name, backup, keepOnErase, disk).also { files[name] = it }
     }
 
+    fun dir(name: String, keepOnErase: Boolean = false): SavedDir {
+        require(name !in dirs) { "dir $name is registered twice" }
+        return SavedDir(name, keepOnErase, disk).also { dirs[name] = it }
+    }
+
     fun load() {
         val text = disk.read(fileName)
         val json = text?.let { runCatching { JSONObject(it) }.getOrNull() }
+        if (json != null) {
+            val from = json.optInt("version", 1)
+            if (from < version && disk.read(legacyName(from)) == null) disk.write(legacyName(from), text)
+        }
         applyFields(json?.let(::migrate)?.optJSONObject("fields"))
+        afterLoad?.invoke()
     }
 
+    private fun legacyName(from: Int) = "$fileName.v$from"
+
     fun backup(): JSONObject {
+        beforeSave?.invoke()
         val f = JSONObject()
         fields.values.forEach { f.put(it.key, it.write()) }
         val fs = JSONObject()
@@ -106,8 +132,10 @@ class Store(
     fun restore(json: JSONObject) {
         val m = migrate(json)
         applyFields(m.optJSONObject("fields"))
+        afterLoad?.invoke()
         val fs = m.optJSONObject("files")
-        files.values.filter { it.backup }.forEach { file ->
+        val untouched = m.optJSONArray("untouched")?.let { a -> (0 until a.length()).map(a::getString).toSet() }.orEmpty()
+        files.values.filter { it.backup && it.name !in untouched }.forEach { file ->
             val text = fs?.optString(file.name, "")?.takeIf { it.isNotEmpty() }
             if (text != null) file.write(text) else file.delete()
         }
@@ -118,6 +146,8 @@ class Store(
         pending?.cancel()
         fields.values.filter { !it.keepOnErase }.forEach { it.reset() }
         files.values.filter { !it.keepOnErase }.forEach { it.delete() }
+        dirs.values.filter { !it.keepOnErase }.forEach { it.delete() }
+        migrations.forEach { disk.delete(legacyName(it.from)) }
         saveNow()
     }
 
@@ -127,6 +157,7 @@ class Store(
     }
 
     fun saveNow() {
+        beforeSave?.invoke()
         pending?.cancel()
         val f = JSONObject()
         fields.values.forEach { f.put(it.key, it.write()) }

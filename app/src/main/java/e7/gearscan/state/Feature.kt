@@ -7,7 +7,10 @@ abstract class Feature(protected val g: AppGraph, val id: String) {
     protected fun <T> saved(key: String, default: T, codec: Codec<T>, keepOnErase: Boolean = false) =
         g.store.field("$id.$key", default, codec, keepOnErase)
 
-    protected fun savedFile(name: String, backup: Boolean = true) = g.store.file("$id/$name", backup)
+    protected fun savedFile(name: String, backup: Boolean = true, keepOnErase: Boolean = false, path: String = "$id/$name") =
+        g.store.file(path, backup, keepOnErase)
+
+    protected fun savedDir(name: String, keepOnErase: Boolean = false) = g.store.dir(name, keepOnErase)
 
     protected fun <R> work(name: String, weight: Weight = Weight.Light, progress: SavedFile? = null) =
         Work<R>(name, g.work, weight, progress)
