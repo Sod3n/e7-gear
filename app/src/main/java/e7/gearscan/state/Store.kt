@@ -8,6 +8,7 @@ import java.io.File
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.Executors
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 import kotlinx.coroutines.CoroutineScope
@@ -19,11 +20,24 @@ import org.json.JSONObject
 class Disk(val dir: File) {
     internal var beforeRename: (() -> Unit)? = null
 
+    private var writerThread: Thread? = null
+    private val writer = Executors.newSingleThreadExecutor { r -> Thread(r, "disk-writer").apply { isDaemon = true; writerThread = this } }
+    private val pending = HashMap<String, Int>()
+    private var failure: Throwable? = null
+
     fun file(name: String) = File(dir, name)
 
-    fun read(name: String): String? = file(name).takeIf { it.isFile }?.readText()
+    fun read(name: String): String? {
+        awaitPending(name)
+        return file(name).takeIf { it.isFile }?.readText()
+    }
 
-    fun write(name: String, text: String) {
+    fun exists(name: String): Boolean {
+        awaitPending(name)
+        return file(name).isFile
+    }
+
+    fun write(name: String, text: String) = queue(name) {
         val target = file(name)
         target.parentFile?.mkdirs()
         val tmp = File(target.path + ".tmp")
@@ -36,7 +50,39 @@ class Disk(val dir: File) {
         }
     }
 
-    fun delete(name: String) { file(name).delete() }
+    fun append(name: String, text: String) = queue(name) {
+        val target = file(name)
+        target.parentFile?.mkdirs()
+        target.appendText(text)
+    }
+
+    fun delete(name: String) = queue(name) { file(name).delete() }
+
+    fun deleteTree(name: String) = queue(name) { file(name).deleteRecursively() }
+
+    fun flush() {
+        writer.submit {}.get()
+        val failed = synchronized(pending) { failure.also { failure = null } }
+        if (failed != null) throw failed
+    }
+
+    private fun queue(name: String, op: () -> Unit) {
+        synchronized(pending) { pending.merge(name, 1, Int::plus) }
+        writer.execute {
+            try {
+                op()
+            } catch (e: Throwable) {
+                synchronized(pending) { if (failure == null) failure = e }
+            } finally {
+                synchronized(pending) { if (pending.merge(name, -1, Int::plus) == 0) pending.remove(name) }
+            }
+        }
+    }
+
+    private fun awaitPending(name: String) {
+        if (Thread.currentThread() === writerThread) return
+        if (synchronized(pending) { name in pending }) writer.submit {}.get()
+    }
 }
 
 class Migration(val from: Int, val apply: (JSONObject) -> JSONObject)
@@ -64,15 +110,16 @@ class SavedField<T> internal constructor(
 
 class SavedFile internal constructor(val name: String, val backup: Boolean, val keepOnErase: Boolean, private val disk: Disk) {
     val file: File get() = disk.file(name)
-    val exists: Boolean get() = disk.file(name).isFile
+    val exists: Boolean get() = disk.exists(name)
     fun read(): String? = disk.read(name)
     fun write(text: String) = disk.write(name, text)
+    fun append(text: String) = disk.append(name, text)
     fun delete() = disk.delete(name)
 }
 
 class SavedDir internal constructor(val name: String, val keepOnErase: Boolean, private val disk: Disk) {
     val dir: File get() = disk.file(name)
-    fun delete() { dir.deleteRecursively() }
+    fun delete() = disk.deleteTree(name)
 }
 
 class Store(

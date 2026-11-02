@@ -27,7 +27,7 @@
   "lastPoolAt": 1760999000000,
   "lastPoolScore": 88,
   "cleanup": {"scan": 1761000000000, "finishedAt": 1761000001000, "unknown": 2, "picks": []},
-  "cleanupDone": [21, 22, 23],
+  "clearedIds": [21, 22, 23],
   "sellKept": [31, 32],
   "overlaySales": [{"id": 41, "scan": 1761000000000, "kept": true}, {"id": 42, "scan": 1761000000000, "kept": false}],
   "potentialQuery": {"minimumChance": "12", "show": 2, "rareOnly": false, "reforge": false},

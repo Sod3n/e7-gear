@@ -591,24 +591,6 @@ class ScreenAudit {
         val older = org.json.JSONObject(gear).apply { val a = getJSONArray("items"); repeat(5) { a.remove(0) } }.toString()
         steps.add("scan-result" to { ui { resetCapture(model); model.importBox(older); model.importBox(gear); model.stack = listOf(Screen.Optimize, Screen.ScanData, Screen.ScanResult) } })
         (0..2).forEach { screen("diff-$it", Screen.ScanResult, Screen.DiffItems(it)) }
-        // Make room: the check takes minutes, so these states use the rules' list without it (the same rows and reasons)
-        val members = model.poolMembers().map { it.id }.toSet()
-        val inUse = model.box!!.items.filter { it.equippedOn in members }.map { it.id }.toSet()
-        val cleanupPicks = e7.gearscan.opt.Cleanup.duplicates(model.box!!, inUse) + e7.gearscan.opt.Cleanup.stock(model.box!!, inUse)
-        steps.add("cleanup-intro" to { ui { model.cleanup = null; model.cleanupDone = emptySet(); model.stack = listOf(Screen.Optimize, Screen.ScanData, Screen.Cleanup) } })
-        steps.add("cleanup-running" to { ui { model.cleanup = CleanupState(model.lastScan, emptyList(), running = true, done = 120, total = 735) } })
-        steps.add("cleanup-results" to {
-            ui { model.cleanup = CleanupState(model.lastScan, cleanupPicks, running = false, finishedAt = System.currentTimeMillis()) }
-            if (cleanupPicks.isEmpty()) add("cleanup lists nothing on the fixture, so its rows go unchecked", "cleanup-results")
-        })
-        steps.add("cleanup-ticked" to { ui { cleanupPicks.firstOrNull()?.let { model.markCleaned(it.item.id, true) } } })
-        steps.add("cleanup-stale" to { ui { model.cleanup = model.cleanup?.copy(scan = model.lastScan - 1) } })
-        steps.add("overlay-cleanup" to {
-            ui { model.cleanup = model.cleanup?.copy(scan = model.lastScan); model.loadCleanupChecklist(); OverlayState.expanded = true; OverlayState.tab = 0 }
-            if (OverlayState.build?.title != "Clear") add("the cleanup checklist didn't load", "overlay-cleanup")
-            overlay = true
-        })
-        steps.add("cleanup-reset" to { ui { overlay = false; model.cleanup = null; model.cleanupDone = emptySet() } })
         // the Gear tab and its three modes
         screen("gear-home", Screen.Gear)
         steps.add("sell-setup" to { ui { model.sheet = null; model.confirm = null; model.sellTab = 0; model.stack = listOf(Screen.Gear, Screen.SellFilters) } })

@@ -68,7 +68,7 @@ class NavTest {
     ))
 
     @Test fun replaceKeepsOptimizeUnderTheOnlyScreen() = check(listOf(
-        replace(Screen.Gear), back, back, replace(Screen.Optimize), replace(Screen.Optimize), go(Screen.Cleanup), replace(Screen.Gear),
+        replace(Screen.Gear), back, back, replace(Screen.Optimize), replace(Screen.Optimize), go(Screen.Results), replace(Screen.Gear),
     ))
 
     @Test fun confirmIsDismissedBeforeSheetAndStack() = check(listOf(

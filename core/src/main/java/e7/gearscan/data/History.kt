@@ -125,16 +125,16 @@ object History {
     /** Older entries drop off; a pool run is a few KB. */
     const val KEEP = 60
 
-    fun load(f: File): List<HistoryEntry> =
-        if (!f.exists()) {
-            emptyList()
-        } else {
-            runCatching {
-                JSONArray(f.readText()).let { a ->
-                    (0 until a.length()).mapNotNull { runCatching { HistoryEntry.fromJson(a.getJSONObject(it)) }.getOrNull() }
-                }
-            }.getOrDefault(emptyList())
-        }
+    fun load(f: File): List<HistoryEntry> = if (!f.exists()) emptyList() else decode(runCatching { f.readText() }.getOrDefault(""))
+
+    fun decode(text: String): List<HistoryEntry> =
+        runCatching {
+            JSONArray(text).let { a ->
+                (0 until a.length()).mapNotNull { runCatching { HistoryEntry.fromJson(a.getJSONObject(it)) }.getOrNull() }
+            }
+        }.getOrDefault(emptyList())
+
+    fun encode(entries: List<HistoryEntry>): String = JSONArray(entries.take(KEEP).map { it.toJson() }).toString()
 
     fun save(
         f: File,
@@ -142,7 +142,7 @@ object History {
     ) {
         // whole-file replace, so a write cut short never leaves half a history
         val tmp = File(f.parentFile, f.name + ".tmp")
-        tmp.writeText(JSONArray(entries.take(KEEP).map { it.toJson() }).toString())
+        tmp.writeText(encode(entries))
         tmp.renameTo(f)
     }
 }

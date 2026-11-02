@@ -125,7 +125,7 @@ class SellFiltersScreens {
         rule.onNodeWithText("Sold ›").assertIsDisplayed()
         val soldId=t.selected!!;val history=t.record!!.history.size
         tap("Sold ›")
-        assertTrue(soldId in model.cleanupDone);assertEquals(n-1,t.pendingQueue.size);assertNotEquals(soldId,t.selected)
+        assertTrue(soldId in model.clearedIds);assertEquals(n-1,t.pendingQueue.size);assertNotEquals(soldId,t.selected)
         shot("19-sold-next",true)
         val afterSale=model.backupText()
         val interrupted=JSONObject(afterSale);interrupted.getJSONObject("upgrades").put("selected",soldId)
@@ -134,16 +134,16 @@ class SellFiltersScreens {
         val stale=JSONObject(afterSale);stale.getJSONObject("upgrades").put("queueScan",model.lastScan-1)
         val remaining=t.selected!!
         ui { assertTrue(model.restore(stale.toString()));model.markOverlaySold(remaining) }
-        assertFalse(remaining in model.cleanupDone);assertNotNull(t.error)
+        assertFalse(remaining in model.clearedIds);assertNotNull(t.error)
         ui { assertTrue(model.restore(afterSale)) }
         // Repeated events from the old button cannot mark the new piece.
         ui { model.markOverlaySold(soldId) };assertEquals(n-1,t.pendingQueue.size)
         rule.onNodeWithContentDescription("Undo last mark").performClick();rule.waitForIdle()
-        assertFalse(soldId in model.cleanupDone);assertEquals(n,t.pendingQueue.size);assertEquals(soldId,t.selected)
+        assertFalse(soldId in model.clearedIds);assertEquals(n,t.pendingQueue.size);assertEquals(soldId,t.selected)
         assertEquals(history,t.record!!.history.size);shot("20-undo-sold-mark",true)
         ui { overlay=false;assertTrue(model.restore(afterSale));model.go(Screen.Upgrade) }
-        assertTrue(soldId in model.cleanupDone);assertEquals(n-1,t.pendingQueue.size);assertTrue(t.canUndoSold)
-        ui { model.undoOverlaySold() };assertEquals(soldId,t.selected);assertFalse(soldId in model.cleanupDone)
+        assertTrue(soldId in model.clearedIds);assertEquals(n-1,t.pendingQueue.size);assertTrue(t.canUndoSold)
+        ui { model.undoOverlaySold() };assertEquals(soldId,t.selected);assertFalse(soldId in model.clearedIds)
         ui { OverlayState.expanded=true;overlay=true }
         shot("21-sold-mark-restored",true)
         var returned=0;ui { t.returnToApp={returned++} };rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Open E7 Gear");assertEquals(1,returned)
@@ -157,10 +157,10 @@ class SellFiltersScreens {
         val only=model.sellResult!!.matches.first().item.id
         ui { model.trackSellMatches(only,openOverlay=false);OverlayState.expanded=true;overlay=true }
         tap("Sold ›");assertTrue(t.sellQueueComplete);assertEquals(0,t.pendingQueue.size)
-        assertTrue(only in model.cleanupDone);shot("22-all-marked",true)
+        assertTrue(only in model.clearedIds);shot("22-all-marked",true)
         ui { model.markOverlaySold(only) };assertEquals(0,t.pendingQueue.size)
         tap("Undo mark");assertFalse(t.sellQueueComplete);assertEquals(1,t.pendingQueue.size)
-        assertFalse(only in model.cleanupDone);shot("23-final-mark-undone",true)
+        assertFalse(only in model.clearedIds);shot("23-final-mark-undone",true)
         ui { overlay=false }
         File(ctx.getExternalFilesDir(null),"sell-filters/receipt.txt").writeText("$n real-inventory review matches tracked; $protected left out by chosen Speed20 safeguard; default safeguards, point-free primary UI, combined score toggle, freshness, live procs/forecasts, Sold/Undo, pending positions, restored sale marks, last-item completion, queue and backup restore passed; query=${lastQuery.toJson()}\n")
         ui { OverlayState.upgrade=null;OverlayState.usableHeightDp=0f }

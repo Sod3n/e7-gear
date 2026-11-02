@@ -16,7 +16,7 @@ object Migrations {
         "poolLosses" to "pool.losses", "poolEffort" to "pool.effort", "poolSecondsPerHero" to "pool.secondsPerHero",
         "pendingPool" to "pool.pending",
         "contentCheckedAt" to "content.checkedAt", "contentMirror" to "content.mirror",
-        "cleanup" to "marks.cleanup", "cleanupDone" to "marks.cleared", "sellKept" to "marks.kept", "overlaySales" to "marks.sold",
+        "clearedIds" to "marks.cleared", "sellKept" to "marks.kept", "overlaySales" to "marks.sold",
         "sellQuery" to "sellReview.query", "potentialQuery" to "findGear.query",
         "heroUpgradeMinGain" to "improveHeroes.minGain", "heroUpgradeRebuilds" to "improveHeroes.rebuilds",
     )

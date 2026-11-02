@@ -19,11 +19,11 @@
 			<property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
 				android:value="Floating checklist the user opens to copy a gear build into the game"/>
 		</service>
-		<service android:name=".PoolService"
+		<service android:name=".WorkService"
 				android:exported="false"
 				android:foregroundServiceType="specialUse">
 			<property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-				android:value="Gear optimization the user started, kept running while they play"/>
+				android:value="Gear search the user started, kept running while they play"/>
 		</service>
 		<provider android:name="androidx.core.content.FileProvider"
 				android:authorities="e7.gearscan.updates"

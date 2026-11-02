@@ -73,7 +73,7 @@ class StoreTest {
         assertTrue(f.longList.isEmpty()); assertEquals(Q(0), f.obj)
         assertEquals("mine", f.kept)
         assertFalse(f.backed.exists); assertFalse(f.local.exists); assertTrue(f.keptFile.exists)
-        val reloaded = Fixture(this).also { it.disk.dir.let { d -> f.dir.copyRecursively(d, true) } }
+        val reloaded = Fixture(this).also { f.disk.flush(); it.disk.dir.let { d -> f.dir.copyRecursively(d, true) } }
         reloaded.store.load()
         assertEquals("mine", reloaded.kept); assertEquals(1, reloaded.int)
     }
@@ -83,7 +83,7 @@ class StoreTest {
         f.fill()
         f.store.saveNow()
         val g = Fixture(this)
-        f.dir.copyRecursively(g.dir, true)
+        f.disk.flush(); f.dir.copyRecursively(g.dir, true)
         g.store.load()
         g.assertFilled()
     }
@@ -109,24 +109,25 @@ class StoreTest {
 
     @Test fun writeIsAtomic() = runTest {
         val f = Fixture(this)
-        f.disk.write("a.json", "old")
+        f.disk.write("a.json", "old"); f.disk.flush()
         f.disk.beforeRename = { assertEquals("old", f.disk.read("a.json")); throw IllegalStateException("killed") }
-        try { f.disk.write("a.json", "new"); fail() } catch (_: IllegalStateException) {}
+        try { f.disk.write("a.json", "new"); f.disk.flush(); fail() } catch (_: IllegalStateException) {}
         assertEquals("old", f.disk.read("a.json"))
         f.disk.beforeRename = null
-        f.disk.write("a.json", "new")
+        f.disk.write("a.json", "new"); f.disk.flush()
         assertEquals("new", f.disk.read("a.json"))
         assertFalse(File(f.dir, "a.json.tmp").exists())
     }
 
     @Test fun debounceSavesOnceAfterQuickSets() = runTest(StandardTestDispatcher()) {
         val f = Fixture(this)
-        var writes = 0
-        f.disk.beforeRename = { writes++ }
+        val count = java.util.concurrent.atomic.AtomicInteger()
+        fun writes(): Int { f.disk.flush(); return count.get() }
+        f.disk.beforeRename = { count.incrementAndGet() }
         f.int = 1; f.int = 2; advanceTimeBy(300); f.int = 3; advanceTimeBy(300)
-        assertEquals(0, writes)
+        assertEquals(0, writes())
         advanceTimeBy(300)
-        assertEquals(1, writes)
+        assertEquals(1, writes())
         assertEquals(3, JSONObject(f.disk.read("store.json")!!).getJSONObject("fields").getInt("int"))
     }
 }

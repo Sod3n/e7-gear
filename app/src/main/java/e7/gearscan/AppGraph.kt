@@ -13,8 +13,10 @@ import e7.gearscan.features.sellreview.SellReviewFeature
 import e7.gearscan.features.settings.SettingsFeature
 import e7.gearscan.features.tracker.TrackerFeature
 import e7.gearscan.state.Disk
+import e7.gearscan.state.ForegroundHost
 import e7.gearscan.state.Migrations
 import e7.gearscan.state.Nav
+import e7.gearscan.state.NoForeground
 import e7.gearscan.state.Store
 import e7.gearscan.state.WorkHost
 import e7.gearscan.ui.Messages
@@ -22,9 +24,9 @@ import kotlinx.coroutines.CoroutineScope
 
 const val STATE_VERSION = 2
 
-class AppGraph(val disk: Disk, val scope: CoroutineScope) {
+class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: ForegroundHost = NoForeground) {
     val store = Store(disk, version = STATE_VERSION, migrations = Migrations.all, scope = scope, fileName = "state.json")
-    val work = WorkHost(scope)
+    val work = WorkHost(scope, foreground)
     val messages = Messages()
     val nav = Nav(Screen.Optimize, messages::dismissConfirm)
     val content = ContentFeature(this)
@@ -49,6 +51,7 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope) {
         if (loaded) return false
         loaded = true
         store.load()
+        disk.delete("cleanup_progress.json")
         return true
     }
 }

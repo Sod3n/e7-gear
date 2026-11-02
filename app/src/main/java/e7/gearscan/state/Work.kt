@@ -10,22 +10,34 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.concurrent.thread
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import org.json.JSONObject
 
 enum class Weight { Light, Heavy, Yielding }
 
 interface ForegroundHost {
     fun shown(work: Work<*>?)
+    fun progress(work: Work<*>, text: String, done: Int, total: Int) {}
 }
 
 object NoForeground : ForegroundHost {
     override fun shown(work: Work<*>?) {}
 }
 
-class WorkHost(internal val scope: CoroutineScope, private val foreground: ForegroundHost = NoForeground) {
+class WorkHost(
+    internal val scope: CoroutineScope,
+    private val foreground: ForegroundHost = NoForeground,
+    private val clock: () -> Long = System::currentTimeMillis,
+) {
     var active: List<Work<*>> by mutableStateOf(emptyList())
         private set
-    private var shownHeavy: Work<*>? = null
+    var shown: Work<*>? = null
+        private set
+    private var lastProgressAt = 0L
 
     fun cancelAll() { active.toList().forEach { it.cancel() } }
 
@@ -47,20 +59,36 @@ class WorkHost(internal val scope: CoroutineScope, private val foreground: Foreg
         refresh()
     }
 
-    private fun refresh() {
-        val heavy = active.firstOrNull { it.weight == Weight.Heavy }
-        if (heavy !== shownHeavy) { shownHeavy = heavy; foreground.shown(heavy) }
+    internal fun progressed(work: Work<*>, text: String?, done: Int, total: Int) {
+        if (work !== shown) return
+        val now = clock()
+        if (now - lastProgressAt < PROGRESS_MS) return
+        lastProgressAt = now
+        foreground.progress(work, text ?: "$done of $total", done, total)
     }
+
+    private fun refresh() {
+        val next = active.firstOrNull { it.weight == Weight.Heavy } ?: active.firstOrNull { it.foreground }
+        if (next !== shown) { shown = next; lastProgressAt = 0L; foreground.shown(next) }
+    }
+
+    private companion object { const val PROGRESS_MS = 1000L }
 }
 
 interface WorkScope : CoroutineScope {
     val resumeFrom: JSONObject?
-    fun progress(done: Int, total: Int)
+    fun progress(done: Int, total: Int, text: String? = null)
     suspend fun checkpoint(state: JSONObject)
     fun onCancel(action: () -> Unit)
 }
 
-class Work<R>(val name: String, private val host: WorkHost, val weight: Weight, private val progress: SavedFile? = null) {
+class Work<R>(
+    val name: String,
+    private val host: WorkHost,
+    val weight: Weight,
+    private val progress: SavedFile? = null,
+    val foreground: Boolean = weight == Weight.Heavy,
+) {
     var busy: Boolean by mutableStateOf(false)
         private set
     var fraction: Float? by mutableStateOf(null)
@@ -74,12 +102,19 @@ class Work<R>(val name: String, private val host: WorkHost, val weight: Weight, 
 
     private inner class Run : WorkScope {
         var job: Job? = null
-        val cancelActions = ArrayList<() -> Unit>()
-        override val coroutineContext get() = job!!
+        val cancelActions = CopyOnWriteArrayList<() -> Unit>()
+        override val coroutineContext get() = host.scope.coroutineContext.minusKey(Job) + job!!
         override val resumeFrom: JSONObject? = progress?.read()?.let { runCatching { JSONObject(it) }.getOrNull() }
-        override fun progress(done: Int, total: Int) { if (run === this && total > 0) fraction = (done.toFloat() / total).coerceIn(0f, 1f) }
+        override fun progress(done: Int, total: Int, text: String?) {
+            if (run !== this || total <= 0) return
+            fraction = (done.toFloat() / total).coerceIn(0f, 1f)
+            host.progressed(this@Work, text, done, total)
+        }
         override suspend fun checkpoint(state: JSONObject) { progress?.write(state.toString()) }
-        override fun onCancel(action: () -> Unit) { cancelActions += action }
+        override fun onCancel(action: () -> Unit) {
+            cancelActions += action
+            if (run !== this) action()
+        }
     }
 
     fun start(block: suspend WorkScope.() -> R): Outcome {
@@ -123,5 +158,11 @@ class Work<R>(val name: String, private val host: WorkHost, val weight: Weight, 
         busy = false
         fraction = null
         host.remove(this)
+    }
+}
+
+suspend fun <T> blocking(name: String, body: () -> T): T = suspendCancellableCoroutine { c ->
+    thread(name = name) {
+        try { c.resume(body()) } catch (e: Throwable) { c.resumeWithException(e) }
     }
 }
