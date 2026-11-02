@@ -100,6 +100,7 @@ class RegistryTest {
         assertEquals(2, backup.getInt("version"))
 
         g.store.erase()
+        env.disk.flush()
         val erased = fieldsOf(g)
         fill.keys.forEach {
             val want = if (it in keptKeys) filled.opt(it) else defaults.opt(it)
@@ -124,6 +125,7 @@ class RegistryTest {
         val env = Env(this)
         fillers(env.g).values.forEach { it() }
         env.g.store.saveNow()
+        env.disk.flush()
         val again = Env(this, env.dir)
         again.g.store.load()
         assertTrue(same(fieldsOf(env.g), fieldsOf(again.g)))
@@ -179,10 +181,12 @@ class RegistryTest {
         assertEquals(stateV1(), env.text("state.json.v1"))
         env.g.store.saveNow()
         assertEquals(2, JSONObject(env.text("state.json")!!).getInt("version"))
+        env.disk.flush()
         val again = Env(this, env.dir)
         again.g.store.load()
         assertV1Fields(again.g)
         again.g.store.erase()
+        again.disk.flush()
         assertFalse(File(env.dir, "state.json.v1").exists())
     }
 

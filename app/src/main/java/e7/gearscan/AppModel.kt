@@ -183,8 +183,6 @@ data class HeroUpgradeState(
 class AppModel(app: Application) : AndroidViewModel(app) {
     val graph = getApplication<E7GearApp>().graph
     private val files = app.filesDir
-    private val boxFile = graph.scan.boxFile.file
-    private val historyFile = graph.history.file.file
     internal val buildsDir = graph.heroes.builds.dir
     val limitMs = 15_000L
     val longLimitMs = 60_000L
@@ -851,7 +849,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         lastScan = System.currentTimeMillis()
         if (team.isEmpty() || team.any { nb.hero(it) == null }) team = listOfNotNull(defaultHero(nb))
         tiers = tiers.filterKeys { nb.hero(it) != null }
-        boxFile.writeText(text)
+        graph.scan.boxFile.write(text)
         touch(); save()
         team.firstOrNull()?.let { ensurePresets(it) }
     }
@@ -1102,6 +1100,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var sellDone by mutableIntStateOf(0); private set
     var sellTotal by mutableIntStateOf(0); private set
     var sellError: String? by mutableStateOf(null); private set
+    private val sellLog = object : e7.gearscan.opt.SellSearch.Log {
+        private val file = graph.sellReview.progress
+        override fun lines() = file.read()?.let { java.io.StringReader(it).readLines() }
+        override fun replace(text: String) = file.write(text)
+        override fun append(text: String) = file.append(text)
+    }
     private val sellMutex = kotlinx.coroutines.sync.Mutex()
     private var appliedSellKey: List<Any?>? = null
     private fun sellKey(): List<Any?> = listOf(box,lastScan,upgrades.records.filterValues { it.scan==lastScan&&it.history.size>1 },poolTiers,poolExtra,tiers,content.version,rev,sellQuery.copy(rollOn=0.0))
@@ -1156,7 +1160,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 val result=sellMutex.withLock {
                     withContext(Dispatchers.Default) {
                         val context=e7.gearscan.opt.SellSearch.Context(Box.parse(text),records,scan,removed,members,names,q,content.version)
-                        e7.gearscan.opt.SellSearch.run(context,graph.sellReview.progress.file,cancelled={ !scope.isActive }) { done,total->
+                        e7.gearscan.opt.SellSearch.run(context,sellLog,cancelled={ !scope.isActive }) { done,total->
                             if(done%20==0||done==total)kotlinx.coroutines.runBlocking(Dispatchers.Main) {
                                 if(scope.isActive) { sellDone=done;sellTotal=total;scope.progress(done,total,"$done/$total pieces")
                                     android.util.Log.i("E7Sell","checkpoint $done/$total pieces") }
@@ -1284,7 +1288,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- upgrade observations (separate from the scan) ----
-    val upgrades = e7.gearscan.overlay.UpgradeTracker(graph.tracker.upgrades.file)
+    val upgrades = e7.gearscan.overlay.UpgradeTracker(graph.tracker.upgrades.file) { graph.tracker.upgrades.write(it) }
 
     fun openUpgradeOverlay() {
         val r = upgrades.record ?: return
@@ -1994,8 +1998,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     private fun record(e: e7.gearscan.data.HistoryEntry) {
         history = (listOf(e) + history.filter { it.at != e.at }).take(e7.gearscan.data.History.KEEP)
-        val snap = history
-        viewModelScope.launch(Dispatchers.IO) { e7.gearscan.data.History.save(historyFile, snap) }
+        graph.history.file.write(e7.gearscan.data.History.encode(history))
     }
 
     /** A stored build on today's gear (a mod put back on its piece); null if the hero or a piece is gone. */
@@ -2128,7 +2131,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     // ---- reports ----
     private fun saveScanLog() {
         val t = Capture.logText()
-        viewModelScope.launch(Dispatchers.IO) { graph.scan.logFile.file.writeText(t) }
+        graph.scan.logFile.write(t)
     }
 
     fun scanLog(): String = Capture.logText().ifEmpty { graph.scan.logFile.file.takeIf { it.exists() }?.readText().orEmpty() }
@@ -2196,7 +2199,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun backupText(): String {
         box?.let { graph.scan.boxFile.write(it.toText()) }
-        if (history.isNotEmpty() || historyFile.exists()) e7.gearscan.data.History.save(historyFile, history)
+        if (history.isNotEmpty() || graph.history.file.exists) graph.history.file.write(e7.gearscan.data.History.encode(history))
+        graph.disk.flush()
         return graph.store.backup().toString()
     }
 
@@ -2266,7 +2270,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         }.getOrNull() } }
         heroUpgradesResumable = runCatching { JSONObject(graph.improveHeroes.progress.read().orEmpty()).let { !it.getBoolean("finished") && it.getString("light") == heroUpgradeKey() } }
             .getOrDefault(false)
-        history = e7.gearscan.data.History.load(historyFile)
+        history = graph.history.file.read()?.let(e7.gearscan.data.History::decode).orEmpty()
     }
 
     private fun syncTrackerMarks() {
@@ -2277,8 +2281,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun save() { graph.store.saveNow() }
 
     private fun saveBox() {
-        val text = box?.toText() ?: return
-        viewModelScope.launch(Dispatchers.IO) { graph.scan.boxFile.write(text) }
+        graph.scan.boxFile.write(box?.toText() ?: return)
     }
 
     fun showCapture() {

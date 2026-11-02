@@ -10,7 +10,7 @@ import org.json.JSONObject
 import java.io.File
 
 /** Own file: observations and completed hero checks are atomic, synchronous checkpoints. */
-class UpgradeTracker(private val file: File) {
+class UpgradeTracker(private val file: File, private val write: ((String) -> Unit)? = null) {
     var records: Map<Long, UpgradeRecord> by mutableStateOf(emptyMap()); private set
     var selected: Long? by mutableStateOf(null); private set
     val record get() = records[selected]
@@ -232,8 +232,10 @@ class UpgradeTracker(private val file: File) {
     }
     fun clear() { restore(JSONObject()) }
     private fun persist() {
+        val text = toJson().toString()
+        write?.let { it(text); return }
         val tmp = File(file.path + ".tmp")
-        tmp.writeText(toJson().toString())
+        tmp.writeText(text)
         check(tmp.renameTo(file)) { "Could not save upgrade history" }
     }
 }

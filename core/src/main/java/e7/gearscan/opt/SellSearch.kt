@@ -367,19 +367,56 @@ object SellSearch {
         return row.forecast.chance * 100 <= q.maximumChance + 1e-9
     }
 
+    /** Where finished rows are kept between runs. */
+    interface Log {
+        fun lines(): List<String>?
+
+        fun replace(text: String)
+
+        fun append(text: String)
+    }
+
+    private class FileLog(
+        private val f: File,
+    ) : Log {
+        override fun lines() = if (f.exists()) f.readLines() else null
+
+        override fun replace(text: String) {
+            f.parentFile?.mkdirs()
+            val tmp = File(f.path + ".tmp")
+            tmp.writeText(text)
+            check(tmp.renameTo(f))
+        }
+
+        override fun append(text: String) = f.appendText(text)
+    }
+
     fun run(
         context: Context,
         file: File?,
         cancelled: () -> Boolean = { false },
         progress: (Int, Int) -> Unit = { _, _ -> },
+    ): Result = execute(context, file?.let(::FileLog), cancelled, progress)
+
+    fun run(
+        context: Context,
+        log: Log,
+        cancelled: () -> Boolean = { false },
+        progress: (Int, Int) -> Unit = { _, _ -> },
+    ): Result = execute(context, log, cancelled, progress)
+
+    private fun execute(
+        context: Context,
+        log: Log?,
+        cancelled: () -> Boolean,
+        progress: (Int, Int) -> Unit,
     ): Result {
         val started = System.nanoTime()
         val q = context.query
         require(q.error() == null)
         val signature = context.signature()
         val saved = LinkedHashMap<Long, JSONObject>()
-        if (file?.exists() == true) {
-            val lines = file.readLines()
+        log?.lines()?.let { lines ->
             val header = lines.firstOrNull()?.let { runCatching { JSONObject(it) }.getOrNull() }
             if (header?.optString("signature") ==
                 signature
@@ -391,14 +428,9 @@ object SellSearch {
                 }
             }
         }
-        file?.let { f ->
-            f.parentFile?.mkdirs()
-            val tmp = File(f.path + ".tmp")
-            tmp.writeText(
-                JSONObject().put("signature", signature).toString() + "\n" + saved.values.joinToString("") { it.toString() + "\n" },
-            )
-            check(tmp.renameTo(f))
-        }
+        log?.replace(
+            JSONObject().put("signature", signature).toString() + "\n" + saved.values.joinToString("") { it.toString() + "\n" },
+        )
         val candidates = context.items.filter { q.includes(it, context.pool) }
         val rows = ArrayList<Row>()
         var done = 0
@@ -483,7 +515,7 @@ object SellSearch {
                         context.es(item),
                     ).also { row ->
                         if (cancelled())throw CancellationException()
-                        file?.appendText(row.toJson().toString() + "\n")
+                        log?.append(row.toJson().toString() + "\n")
                     }
                 }
             rows += row
