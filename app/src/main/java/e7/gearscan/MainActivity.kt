@@ -46,21 +46,21 @@ class MainActivity : ComponentActivity() {
 
     /** In the phone's floating or split window the app follows the window; full screen it stays portrait. */
     private fun updateFloating() {
-        model.floating = isInMultiWindowMode
+        model.graph.overlay.floating = isInMultiWindowMode
         requestedOrientation = if (isInMultiWindowMode) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
     }
 
     override fun onResume() {
         super.onResume()
-        e7.gearscan.overlay.OverlayState.appInFront = true
+        model.graph.overlay.appInFront = true
         updateFloating()
         model.graph.appUpdate.resumed()
     }
 
     override fun onPause() {
         super.onPause()
-        e7.gearscan.overlay.OverlayState.appInFront = false
+        model.graph.overlay.appInFront = false
     }
 
     override fun onNewIntent(intent: Intent) {

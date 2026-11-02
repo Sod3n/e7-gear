@@ -83,7 +83,7 @@ class SellFiltersScreens {
             val d=LocalDensity.current;val c=Configuration(LocalConfiguration.current).apply { screenWidthDp=width;screenHeightDp=if(overlay)240 else 850 }
             CompositionLocalProvider(LocalDensity provides Density(d.density,font),LocalConfiguration provides c) {
                 Box(Modifier.width(width.dp).then(if(overlay)Modifier.height(240.dp) else Modifier.fillMaxHeight())) {
-                    if(overlay)UpgradeOverlay(model.upgrades,{_,_->},{},{}) else App(model){}
+                    if(overlay)UpgradeOverlay(model.graph,{_,_->},{},{}) else App(model){}
                 }
             }
         }
@@ -112,13 +112,13 @@ class SellFiltersScreens {
         tap("$protected kept by safeguards");noPoints();shot("11-stat-safeguards-applied");tap("$protected kept by safeguards")
         val n=result.matches.size
         ui { model.graph.sellReview.trackMatches(openOverlay=false) }
-        val t=model.upgrades
+        val t=model.graph.tracker
         assertEquals(n,t.queue.size);assertTrue(t.isRollReview);assertTrue(t.queue.all { it.scoreGoal==null&&it.goal==null });noPoints();shot("12-review-tracker")
-        ui { OverlayState.expanded=true;OverlayState.usableHeightDp=240f;overlay=true }
+        ui { model.graph.overlay.expanded=true;model.graph.overlay.usableHeightDp=240f;overlay=true }
         noPoints();shot("13-overlay-review",true)
         rule.onNodeWithContentDescription("Next gear").performClick();rule.waitForIdle();assertEquals(1,t.queueIndex);shot("14-overlay-next",true)
         val index=t.queue.indexOfFirst { e->t.records[e.id]!!.item.let { it.rank=="Epic"&&it.enhance<15 } }
-        assertTrue(index>=0);ui { t.selectQueue!!.invoke(index) }
+        assertTrue(index>=0);ui { t.selectInQueue(index) }
         rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Roll review");noPoints();shot("16-overlay-roll-evidence",true);tap("Back")
         val before=t.record!!.item;val countBefore=t.reviewRolls!!.size;val statText=t.reviewStatText
         val next=(before.enhance/3+1)*3
@@ -138,36 +138,36 @@ class SellFiltersScreens {
         assertNotEquals(soldId,t.selected);assertTrue(t.queueIndex>=0)
         val stale=withTracker(afterSale) { it.put("queueScan",model.lastScan-1) }
         val remaining=t.selected!!
-        ui { assertTrue(model.graph.scan.restore(stale));model.markOverlaySold(remaining) }
+        ui { assertTrue(model.graph.scan.restore(stale));model.graph.tracker.markSold(remaining) }
         assertFalse(remaining in model.clearedIds);assertNotNull(t.error)
         ui { assertTrue(model.graph.scan.restore(afterSale)) }
         // Repeated events from the old button cannot mark the new piece.
-        ui { model.markOverlaySold(soldId) };assertEquals(n-1,t.pendingQueue.size)
+        ui { model.graph.tracker.markSold(soldId) };assertEquals(n-1,t.pendingQueue.size)
         rule.onNodeWithContentDescription("Undo last mark").performClick();rule.waitForIdle()
         assertFalse(soldId in model.clearedIds);assertEquals(n,t.pendingQueue.size);assertEquals(soldId,t.selected)
         assertEquals(history,t.record!!.history.size);shot("20-undo-sold-mark",true)
         ui { overlay=false;assertTrue(model.graph.scan.restore(afterSale));model.go(Screen.Upgrade) }
         assertTrue(soldId in model.clearedIds);assertEquals(n-1,t.pendingQueue.size);assertTrue(t.canUndoSold)
-        ui { model.undoOverlaySold() };assertEquals(soldId,t.selected);assertFalse(soldId in model.clearedIds)
-        ui { OverlayState.expanded=true;overlay=true }
+        ui { model.graph.tracker.undoSold() };assertEquals(soldId,t.selected);assertFalse(soldId in model.clearedIds)
+        ui { model.graph.overlay.expanded=true;overlay=true }
         shot("21-sold-mark-restored",true)
-        var returned=0;ui { t.returnToApp={returned++} };rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Open E7 Gear");assertEquals(1,returned)
+        ui { model.graph.overlay.floating=true;model.graph.overlay.floatingPanel=true };rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Open E7 Gear");assertFalse(model.graph.overlay.floatingPanel);ui { model.graph.overlay.floating=false;model.graph.overlay.floatingPanel=true }
         val backup=model.graph.scan.backupText();val saved=JSONObject(backup)
         assertEquals(model.graph.sellReview.query,SellQuery.of(saved.getJSONObject("fields").getJSONObject("sellReview.query")))
-        val reopened=UpgradeTracker(File(ctx.filesDir,"upgrades.json"));assertTrue(reopened.isRollReview);assertEquals(t.reviewRolls,reopened.reviewRolls);assertEquals(t.queue,reopened.queue)
+        val reopened=reopenTracker(model.graph,ctx.filesDir);assertTrue(reopened.isRollReview);assertEquals(t.reviewRolls,reopened.reviewRolls);assertEquals(t.queue,reopened.queue)
         val lastQuery=model.graph.sellReview.query
         ui { overlay=false;assertTrue(model.graph.scan.restore(backup));model.go(Screen.SellFilters) }
         assertEquals(lastQuery,model.graph.sellReview.query);assertFalse(model.graph.sellReview.query.scoreFilter);noPoints()
         ui { model.graph.sellReview.find() };rule.waitUntil(90_000) { !model.graph.sellReview.busy }
         val only=model.graph.sellReview.result!!.matches.first().item.id
-        ui { model.graph.sellReview.trackMatches(only,openOverlay=false);OverlayState.expanded=true;overlay=true }
+        ui { model.graph.sellReview.trackMatches(only,openOverlay=false);model.graph.overlay.expanded=true;overlay=true }
         tap("Sold ›");assertTrue(t.sellQueueComplete);assertEquals(0,t.pendingQueue.size)
         assertTrue(only in model.clearedIds);shot("22-all-marked",true)
-        ui { model.markOverlaySold(only) };assertEquals(0,t.pendingQueue.size)
+        ui { model.graph.tracker.markSold(only) };assertEquals(0,t.pendingQueue.size)
         tap("Undo mark");assertFalse(t.sellQueueComplete);assertEquals(1,t.pendingQueue.size)
         assertFalse(only in model.clearedIds);shot("23-final-mark-undone",true)
         ui { overlay=false }
         File(ctx.getExternalFilesDir(null),"sell-filters/receipt.txt").writeText("$n real-inventory review matches tracked; $protected left out by chosen Speed20 safeguard; default safeguards, point-free primary UI, combined score toggle, freshness, live procs/forecasts, Sold/Undo, pending positions, restored sale marks, last-item completion, queue and backup restore passed; query=${lastQuery.toJson()}\n")
-        ui { OverlayState.upgrade=null;OverlayState.usableHeightDp=0f }
+        ui { model.graph.tracker.hide();model.graph.overlay.usableHeightDp=0f }
     }
 }

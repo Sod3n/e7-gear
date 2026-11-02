@@ -2,7 +2,7 @@ package e7.gearscan
 
 import e7.gearscan.data.*
 import e7.gearscan.opt.*
-import e7.gearscan.overlay.UpgradeTracker
+import e7.gearscan.features.tracker.TrackerFeature
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -124,12 +124,12 @@ class SellFiltersTest {
         assertEquals(4,q.count);assertEquals((.5+.5+1.0+0.0)/4*100,q.proc!!,1e-9)
     }
     @Test fun scoreQueueUpdatesAfterSavingProcsAndSurvivesRestore() {
-        val p=item();val file=File.createTempFile("score-queue",".json").also { it.delete() };val t=UpgradeTracker(file)
-        val q=SellQuery(reforge=false,maximumChance=100.0);val entry=UpgradeTracker.QueueEntry(p.id,null,"Speed",null,goal(106.0))
+        val p=item();val env=TrackerEnv(kotlin.io.path.createTempDirectory("score-queue").toFile());val t=env.t
+        val q=SellQuery(reforge=false,maximumChance=100.0);val entry=TrackerFeature.QueueEntry(p.id,null,"Speed",null,goal(106.0))
         t.startQueue(listOf(p to entry),99,q);val before=t.goalOutcome!!.chance
         assertTrue(before in 0.0..1.0);assertTrue(before<1)
         assertTrue(t.commit(2700.0,listOf(17.0,5.0,4.0,8.0),null,false));assertEquals(1.0,t.goalOutcome!!.chance,0.0)
-        val restored=UpgradeTracker(file);assertEquals(q,restored.scoreQuery);assertEquals(t.scoreGoal,restored.scoreGoal);assertEquals(t.queue,restored.queue)
+        val restored=env.reopen().t;assertEquals(q,restored.scoreQuery);assertEquals(t.scoreGoal,restored.scoreGoal);assertEquals(t.queue,restored.queue)
         assertEquals("Comparison reached",restored.title);restored.undo();assertEquals(before,restored.goalOutcome!!.chance,1e-12)
     }
     @Test fun realReviewPiecesMatchTheIndependentExactPythonReference() {

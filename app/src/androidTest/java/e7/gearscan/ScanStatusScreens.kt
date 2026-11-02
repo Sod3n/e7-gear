@@ -98,7 +98,7 @@ class ScanStatusScreens {
         rule.setContent { Box(Modifier.fillMaxSize().background(Color(0xFF1B2A4A))) }
         val tap = PendingIntent.getActivity(ctx, 0, Intent(), PendingIntent.FLAG_IMMUTABLE)
         lateinit var pill: ScanPill
-        ui { e7.gearscan.overlay.OverlayState.appInFront = false; pill = ScanPill(ctx, tap) }
+        ui { (ctx.applicationContext as E7GearApp).graph.overlay.appInFront = false; pill = ScanPill(ctx, tap) }
         for (step in ScanStep.entries) {
             ui { pill.show(step) }
             Thread.sleep(600)

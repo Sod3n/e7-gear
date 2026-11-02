@@ -39,7 +39,7 @@ fun GearScreen(model: AppModel) {
         val found = model.graph.findGear.result?.matches?.size
         ModeCard("Find gear", "Pieces that can still reach the substats you ask for, with the chance.",
             found?.let { "${e7.gearscan.value.Count(it).of("piece")} found last time" } ?: "Choose a target") { model.go(Screen.GearPotential) }
-        if (model.upgrades.queue.isNotEmpty() || model.upgrades.record != null)
+        if (model.graph.tracker.queue.isNotEmpty() || model.graph.tracker.record != null)
             RowCard("Over the game", { model.go(Screen.Upgrade) }) { Text("Continue tracking", style = zen(12.sp)) }
         if (model.graph.marks.kept.isNotEmpty())
             RowCard("Kept pieces", { model.go(Screen.SellKept) }) { Text("${model.graph.marks.kept.size} kept", style = zen(12.sp)) }

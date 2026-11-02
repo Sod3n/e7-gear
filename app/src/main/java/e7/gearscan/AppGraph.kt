@@ -14,8 +14,11 @@ import e7.gearscan.features.pool.PoolFeature
 import e7.gearscan.features.scan.ScanFeature
 import e7.gearscan.features.sellreview.SellReviewFeature
 import e7.gearscan.features.settings.SettingsFeature
+import e7.gearscan.features.tracker.ChecklistFeature
+import e7.gearscan.features.tracker.OverGame
 import e7.gearscan.features.tracker.TrackerFeature
 import e7.gearscan.features.update.AppUpdateFeature
+import e7.gearscan.overlay.OverlayWindow
 import e7.gearscan.state.Disk
 import e7.gearscan.state.ForegroundHost
 import e7.gearscan.state.Migrations
@@ -46,10 +49,13 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
     val sellReview = SellReviewFeature(this)
     val improveHeroes = ImproveHeroesFeature(this)
     val findGear = FindGearFeature(this)
+    val overlay = OverlayWindow()
+    val overGame = OverGame(this)
     val tracker = TrackerFeature(this)
+    val checklist = ChecklistFeature(this)
     val settings = SettingsFeature(this)
     val feedback = FeedbackFeature(this)
-    val features = listOf(content, appUpdate, scan, heroes, marks, optimize, pool, history, sellReview, improveHeroes, findGear, tracker, settings, feedback)
+    val features = listOf(content, appUpdate, scan, heroes, marks, optimize, pool, history, sellReview, improveHeroes, findGear, tracker, checklist, settings, feedback)
     private var loaded = false
 
     init {

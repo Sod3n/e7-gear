@@ -25,7 +25,11 @@ interface Platform {
 
     fun openGameSettings(game: String)
 
+    fun startOverlay()
+
     fun stopOverlay(onlyWhenTracking: Boolean = false)
+
+    fun showApp()
 
     fun export(
         name: String,
@@ -82,7 +86,11 @@ object NoPlatform : Platform {
 
     override fun openGameSettings(game: String) {}
 
+    override fun startOverlay() {}
+
     override fun stopOverlay(onlyWhenTracking: Boolean) {}
+
+    override fun showApp() {}
 
     override fun export(
         name: String,

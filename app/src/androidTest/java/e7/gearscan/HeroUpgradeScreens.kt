@@ -221,9 +221,9 @@ class HeroUpgradeScreens {
             top(); shoot("8-dark-hero")
             ui { Themes.set(ctx, false) }
         }
-        ui { model.trackHeroUpgrades(hero.rows.map { it.pick.piece }) }
-        check(model.upgrades.queue.size == hero.rows.size) { "the tracker list has ${model.upgrades.queue.size} of ${hero.rows.size} pieces" }
-        check(model.upgrades.queueSource == "heroes") { "the tracker doesn't know the list came from Improve heroes" }
+        ui { model.graph.tracker.trackPieces(hero.rows.map { it.pick.piece }) }
+        check(model.graph.tracker.queue.size == hero.rows.size) { "the tracker list has ${model.graph.tracker.queue.size} of ${hero.rows.size} pieces" }
+        check(model.graph.tracker.queueSource == "heroes") { "the tracker doesn't know the list came from Improve heroes" }
         e7.gearscan.overlay.OverlayService.stop(ctx)
         ui { model.go(Screen.Upgrade) }
         each("9-tracker")

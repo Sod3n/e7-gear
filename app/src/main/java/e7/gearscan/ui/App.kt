@@ -45,12 +45,13 @@ private fun AppContent(model: AppModel, onExit: () -> Unit) {
     if (!model.ready) { Box(Modifier.fillMaxSize().background(C.paper)); return }
     if (model.graph.content.content.heroes.isEmpty()) { GameDataScreen(model); return }
     // in the phone's floating window, a loaded tracker or checklist is all the window shows
-    val loaded = e7.gearscan.overlay.OverlayState.upgrade != null || e7.gearscan.overlay.OverlayState.build != null
-    if (model.floating && model.floatingPanel && loaded) { FloatingPanel(model); return }
+    val window = model.graph.overlay
+    val loaded = model.graph.tracker.shown || model.graph.checklist.build != null
+    if (window.floating && window.floatingPanel && loaded) { FloatingPanel(model); return }
     androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
     // the whole app in the floating window: a slim bar above it goes back to the panel, covering nothing
-    if (model.floating && loaded) Row(Modifier.fillMaxWidth().background(C.pink).tap { model.floatingPanel = true }.padding(horizontal = 14.dp, vertical = 7.dp)) {
-        Text("‹ Back to the " + if (e7.gearscan.overlay.OverlayState.upgrade != null) "tracker" else "checklist", style = zen(13.sp, color = C.onAccent))
+    if (window.floating && loaded) Row(Modifier.fillMaxWidth().background(C.pink).tap { window.floatingPanel = true }.padding(horizontal = 14.dp, vertical = 7.dp)) {
+        Text("‹ Back to the " + if (model.graph.tracker.shown) "tracker" else "checklist", style = zen(13.sp, color = C.onAccent))
     }
     Box(Modifier.fillMaxWidth().weight(1f)) {
         val nav = model.graph.nav

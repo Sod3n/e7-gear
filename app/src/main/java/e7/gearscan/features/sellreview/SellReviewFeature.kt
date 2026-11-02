@@ -8,11 +8,9 @@ import e7.gearscan.AppGraph
 import e7.gearscan.calc.Reforge
 import e7.gearscan.data.Box
 import e7.gearscan.data.GearStat
-import e7.gearscan.data.Item
 import e7.gearscan.data.SellQuery
 import e7.gearscan.data.SellSort
 import e7.gearscan.data.Slot
-import e7.gearscan.data.UpgradeRecord
 import e7.gearscan.opt.GearBounds
 import e7.gearscan.opt.KeepCurve
 import e7.gearscan.opt.SellSearch
@@ -30,23 +28,13 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 interface SellHost {
-    val records: Map<Long, UpgradeRecord>
     val contentVersion: String
-
-    fun startQueue(rows: List<Pair<Item, SellSearch.Row>>, query: SellQuery, openOverlay: Boolean)
-
-    fun rollOnChanged(rollOn: Double)
 
     fun touch()
 }
 
 object NoSellHost : SellHost {
-    override val records = emptyMap<Long, UpgradeRecord>()
     override val contentVersion = ""
-
-    override fun startQueue(rows: List<Pair<Item, SellSearch.Row>>, query: SellQuery, openOverlay: Boolean) {}
-
-    override fun rollOnChanged(rollOn: Double) {}
 
     override fun touch() {}
 }
@@ -93,7 +81,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
         listOf(
             g.scan.box,
             g.scan.lastScan,
-            host.records.filterValues { it.scan == g.scan.lastScan && it.history.size > 1 },
+            g.tracker.recordedSteps,
             settingsKey(),
             query.copy(rollOn = 0.0),
         )
@@ -104,7 +92,6 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
     fun edit(q: SellQuery) {
         if (q.copy(rollOn = 0.0) == query.copy(rollOn = 0.0)) {
             query = q
-            host.rollOnChanged(q.rollOn)
             g.store.saveSoon()
             return
         }
@@ -124,7 +111,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
         val b = g.scan.box ?: return Outcome.Done
         val text = b.toText()
         val scan = g.scan.lastScan
-        val records = host.records.filterValues { it.scan == scan && it.history.size > 1 }
+        val records = g.tracker.recordedSteps
         val removed = g.marks.reviewed
         val members = g.pool.members().map { it.id }.toSet()
         val names = b.allHeroes.associate { it.id to g.heroes.heroName(it) }
@@ -172,8 +159,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
             found.matches.filter { id == null || it.item.id == id }
                 .mapNotNull { row -> b.itemsById[row.item.id]?.takeIf { it.id !in reviewed }?.let { it to row } }
         if (rows.isEmpty()) return Outcome.Failed("No matching pieces remain. Update the search.")
-        host.startQueue(rows, found.query, openOverlay)
-        return Outcome.Done
+        return g.tracker.trackSellQueue(rows, found.query, openOverlay)
     }
 
     fun reset() {
@@ -185,12 +171,12 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
 
     fun context(q: SellQuery): SellSearch.Context? {
         val b = g.scan.box ?: return null
-        val key = listOf(b, g.scan.lastScan, host.records, g.marks.reviewed, settingsKey(), q)
+        val key = listOf(b, g.scan.lastScan, g.tracker.records, g.marks.reviewed, settingsKey(), q)
         if (key != contextKey) {
             cachedContext =
                 SellSearch.Context(
                     b,
-                    host.records.filterValues { it.scan == g.scan.lastScan && it.history.size > 1 },
+                    g.tracker.recordedSteps,
                     g.scan.lastScan,
                     g.marks.reviewed,
                     g.pool.members().map { it.id }.toSet(),

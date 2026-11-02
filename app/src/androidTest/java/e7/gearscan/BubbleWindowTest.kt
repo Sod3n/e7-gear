@@ -20,6 +20,8 @@ import java.io.File
  * Screenshots under bubble/ in the app's external files dir. Emulator only.
  */
 class BubbleWindowTest {
+    private val graph get() = (InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as E7GearApp).graph
+    private val win get() = graph.overlay
     private val inst get() = InstrumentationRegistry.getInstrumentation()
     private val ctx get() = inst.targetContext
     private val d get() = ctx.resources.displayMetrics.density
@@ -54,7 +56,7 @@ class BubbleWindowTest {
 
     private var lastFinger: PointF? = null
 
-    private fun bubble() = checkNotNull(OverlayState.bubbleOnScreen) { "the bubble isn't on screen" }
+    private fun bubble() = checkNotNull(win.bubbleOnScreen) { "the bubble isn't on screen" }
     private fun center() = bubble().let { PointF(it.exactCenterX(), it.exactCenterY()) }
     /** The usable area (between the system bars) in display coordinates. */
     private fun area() = ctx.getSystemService(android.view.WindowManager::class.java).currentWindowMetrics.let { m ->
@@ -67,7 +69,7 @@ class BubbleWindowTest {
     private fun waitForTrackerBubble() {
         val end = SystemClock.uptimeMillis() + 10_000
         while (SystemClock.uptimeMillis() < end) {
-            OverlayState.bubbleOnScreen?.let { r ->
+            win.bubbleOnScreen?.let { r ->
                 val shot = inst.uiAutomation.takeScreenshot()
                 // the slate face left of the gear glyph (the badge covers the top)
                 val px = shot.getPixel((r.centerX() - 18 * d).toInt(), r.centerY())
@@ -76,7 +78,7 @@ class BubbleWindowTest {
             }
             Thread.sleep(200)
         }
-        fail("the tracker bubble never showed: ${OverlayState.bubbleOnScreen}")
+        fail("the tracker bubble never showed: ${win.bubbleOnScreen}")
     }
     private fun onRight() = bubble().right == area().right
     private fun onLeft() = bubble().left == area().left
@@ -86,9 +88,7 @@ class BubbleWindowTest {
         fun gear(id: Long, slot: Slot) = Item(id, slot, "SpeedSet", "Epic", 85, 9, GearStat.CR, 40.0,
             listOf(Substat(GearStat.SPD, 7.0, 2, false), Substat(GearStat.CD, 8.0, 2, false), Substat(GearStat.HP_P, 12.0, 2, false)), false, null, main15 = 60.0)
         val piece = gear(1, Slot.NECKLACE)
-        val probe = File(ctx.filesDir, "bubble-window-test.json").also { it.delete() }
-        lateinit var tracker: UpgradeTracker
-        main { tracker = UpgradeTracker(probe); tracker.select(piece, 1) }
+        main { graph.tracker.select(piece, 1) }
         shell("appops set e7.gearscan SYSTEM_ALERT_WINDOW allow")
         if (Build.VERSION.SDK_INT >= 33) inst.uiAutomation.grantRuntimePermission(ctx.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
         dir.deleteRecursively()
@@ -97,7 +97,7 @@ class BubbleWindowTest {
             it.source = InputDevice.SOURCE_TOUCHSCREEN; inst.uiAutomation.injectInputEvent(it, true); it.recycle() }
         val log = StringBuilder()
         try {
-            main { OverlayState.bubbleLeft = false; OverlayState.upgrade = tracker; OverlayState.expanded = false; OverlayState.appInFront = false; OverlayService.start(ctx) }
+            main { win.bubbleLeft = false; graph.tracker.show(); win.expanded = false; win.appInFront = false; OverlayService.start(ctx) }
             shell("am start -a android.intent.action.VIEW -d about:blank -p com.android.chrome")
             waitForTrackerBubble()
             assertTrue("the bubble starts on the right: ${bubble()} in ${area()}", onRight())
@@ -111,7 +111,7 @@ class BubbleWindowTest {
             log.appendLine("slow drop at ${drop}: ${bubble()}")
             assertTrue("a slow drop left of the middle didn't go left: ${bubble()}", onLeft())
             assertEquals("the bubble moved up or down after a slow drop", drop.y, center().y, 40 * d)
-            assertTrue("the bubble rests left but doesn't know it", OverlayState.bubbleLeft)
+            assertTrue("the bubble rests left but doesn't know it", win.bubbleLeft)
             shot("2-snapped-left")
 
             // a short quick fling right, still left of the middle: the fling picks the side
@@ -140,12 +140,12 @@ class BubbleWindowTest {
                 }
                 moveTo(target, 500)
                 Thread.sleep(300)
-                assertTrue("the target didn't take the bubble", OverlayState.captured)
+                assertTrue("the target didn't take the bubble", win.captured)
                 // out and up at a steady pace; the finger is still moving when the bubble is measured
                 moveTo(PointF(target.x, target.y - a.height() * 0.35f), 700)
                 val finger = lastFinger!!
                 val lag = Math.hypot((center().x - finger.x).toDouble(), (center().y - finger.y).toDouble()) / d
-                val held = OverlayState.captured
+                val held = win.captured
                 log.appendLine("out of the target: bubble ${center()} finger $finger, lag ${"%.1f".format(lag)} dp")
                 shot("3b-out-of-target")
                 // lifted before asserting: a finger left down makes the next run's touches inconsistent
@@ -159,15 +159,15 @@ class BubbleWindowTest {
 
             // onto the dismiss target: it holds the bubble, letting go closes the overlay
             drag(center(), PointF(target.x + 30 * d, target.y - 40 * d), 700, hold = 400) {
-                assertTrue("the target didn't take the bubble", OverlayState.captured)
+                assertTrue("the target didn't take the bubble", win.captured)
                 shot("4-held-by-target")
             }
             Thread.sleep(900)
-            log.appendLine("dropped on the target: running=${OverlayState.running}")
-            assertFalse("dropping on the target didn't close the overlay", OverlayState.running)
+            log.appendLine("dropped on the target: running=${win.running}")
+            assertFalse("dropping on the target didn't close the overlay", win.running)
 
             // landscape: the bubble snaps there too and a tap opens the panel
-            main { OverlayState.upgrade = tracker; OverlayState.expanded = false; OverlayService.start(ctx) }
+            main { graph.tracker.show(); win.expanded = false; OverlayService.start(ctx) }
             shell("settings put system accelerometer_rotation 0")
             shell("settings put system user_rotation 1")
             for (i in 0 until 30) { if (area().width() > area().height()) break; Thread.sleep(200) }
@@ -184,7 +184,7 @@ class BubbleWindowTest {
             val down = SystemClock.uptimeMillis()
             inject(down, MotionEvent.ACTION_DOWN, c); Thread.sleep(60); inject(down, MotionEvent.ACTION_UP, c)
             Thread.sleep(800)
-            assertTrue("a tap didn't open the panel", OverlayState.expanded)
+            assertTrue("a tap didn't open the panel", win.expanded)
             shot("7-landscape-panel")
             main { OverlayService.stop(ctx) }
             Thread.sleep(400)
@@ -195,7 +195,7 @@ class BubbleWindowTest {
                 OverlayPiece(piece, null, "Crit 60%", emptyList(), "in bag", false),
                 OverlayPiece(gear(2, Slot.RING), null, "Atk 65%", emptyList(), "on Silk", false),
                 OverlayPiece(gear(3, Slot.BOOTS), null, "Spd 45", emptyList(), "on now", true)), emptyList())
-            main { OverlayState.load(build); OverlayState.appInFront = false; OverlayState.bubbleLeft = false; OverlayService.start(ctx) }
+            main { graph.checklist.load(build) {}; win.appInFront = false; win.bubbleLeft = false; OverlayService.start(ctx) }
             // a new service composes its windows anew: give its first frame time on a slow emulator
             Thread.sleep(2500)
             shot("8-checklist-bubble-hint")
@@ -205,10 +205,10 @@ class BubbleWindowTest {
             shot("9-checklist-bubble-left")
         } finally {
             File(dir, "result.txt").writeText(log.toString())
-            main { OverlayService.stop(ctx); OverlayState.upgrade = null; OverlayState.build = null; OverlayState.appInFront = true; OverlayState.bubbleLeft = false }
+            main { OverlayService.stop(ctx); graph.tracker.hide(); graph.checklist.unload(); win.appInFront = true; win.bubbleLeft = false }
             shell("settings put system user_rotation 0")
             shell("settings put system accelerometer_rotation 1")
-            probe.delete()
+            main { graph.tracker.restore(org.json.JSONObject()) }
         }
     }
 }

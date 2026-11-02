@@ -16,7 +16,7 @@ import e7.gearscan.data.*
 @Composable
 fun UpgradeScreen(model: AppModel) {
     val box = model.box ?: return
-    val t = model.upgrades
+    val t = model.graph.tracker
     val selected = t.record?.takeIf { it.scan == model.lastScan && it.item.id in box.itemsById }
     var choosing by rememberSaveable { mutableStateOf(selected == null) }
     var set by rememberSaveable { mutableStateOf<String?>(null) }
@@ -25,7 +25,7 @@ fun UpgradeScreen(model: AppModel) {
     var count by rememberSavedFor(set to slot, 20)
     Frame(null, null, actions = {
         PinkButton(if (choosing) "Use selected piece" else "Track over game", Modifier.weight(1f), enabled = selected != null) {
-            if (choosing) choosing = false else model.openUpgradeOverlay()
+            if (choosing) choosing = false else model.graph.messages.show(t.openOverlay())
         }
     }) {
         BackToPrevious()
@@ -41,7 +41,7 @@ fun UpgradeScreen(model: AppModel) {
         if(t.sellQueueComplete)Card(shadow=C.pink,padding=PaddingValues(14.dp)) {
             Text("List complete",style=dela(18.sp));VSpace(7.dp)
             Text("All pieces in this list are marked cleared.",style=zen(12.sp))
-            if(t.canUndoSold)LinkText("Undo sold mark") { model.undoOverlaySold() }
+            if(t.canUndoSold)LinkText("Undo sold mark") { t.undoSold() }
         }else if (!choosing && selected != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SectionTitle("Your piece", modifier = Modifier.weight(1f))
@@ -69,9 +69,9 @@ fun UpgradeScreen(model: AppModel) {
                     VSpace(4.dp)
                 }
                 if (!t.hasTarget && selected.item.enhance == 15) {
-                    if (selected.item.level == 85 && t.canReforge?.invoke(selected.item.id) == true) LinkText("Record the reforge") { t.reforge() }
-                    if (t.equippedOn == null) t.equipHeroes.forEach { h -> LinkText("Record equipped on ${h.name}") { t.equipOn?.invoke(h.id) } }
-                    else LinkText("Undo: equipped on ${t.equippedOn}") { t.undoEquip?.invoke() }
+                    if (selected.item.level == 85 && t.canReforge(selected.item.id)) LinkText("Record the reforge") { t.reforge() }
+                    if (t.equippedOn == null) t.equipHeroes.forEach { h -> LinkText("Record equipped on ${h.name}") { t.equip(h.id) } }
+                    else LinkText("Undo: equipped on ${t.equippedOn}") { t.undoEquip() }
                     VSpace(6.dp)
                 }
                 Text(if(t.isRollReview)"Record each upgrade to update its actual roll history." else if (t.hasTarget) "Record each upgrade to see your chance change." else "Checks how this piece could help your saved hero builds.", style = zen(12.sp, FontWeight.Medium, C.muted))
@@ -111,7 +111,7 @@ fun UpgradeScreen(model: AppModel) {
             items.take(count).forEach { original ->
                 val item = t.records[original.id]?.takeIf { it.scan == model.lastScan }?.item ?: UpgradeRecord.fromScan(original)
                 Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp)) {
-                    Column(Modifier.tap { model.selectUpgrade(original.id); choosing = false }) {
+                    Column(Modifier.tap { t.selectPiece(original.id); choosing = false }) {
                         GearSearchIdentity(model, item)
                         VSpace(8.dp)
                         Row(verticalAlignment = Alignment.CenterVertically) {

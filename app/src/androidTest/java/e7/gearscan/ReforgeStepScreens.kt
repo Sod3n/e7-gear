@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import e7.gearscan.data.Slot
-import e7.gearscan.overlay.OverlayState
 import e7.gearscan.overlay.OverlayUi
 import e7.gearscan.ui.App
 import e7.gearscan.ui.PINNED_BACK_TAG
@@ -73,7 +72,7 @@ class ReforgeStepScreens {
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, font)) {
-                Box(Modifier.width(width.dp).fillMaxHeight()) { if (overlay) OverlayUi({ _, _ -> }, {}, {}) else App(model) {} }
+                Box(Modifier.width(width.dp).fillMaxHeight()) { if (overlay) OverlayUi(model.graph, { _, _ -> }, {}, {}) else App(model) {} }
             }
         }
 
@@ -83,17 +82,17 @@ class ReforgeStepScreens {
             box.gearOf(h.id).values.any { it.reforgeable && box.canReforge(it.id) } }
         val build = model.graph.heroes.currentBuild(hero.id)!!
         val toReforge = build.items.filter { it.reforgeable && box.canReforge(it.id) }.map { it.id }.toSet()
-        ui { model.loadBuildChecklist(hero.id, build, "Reforge check"); OverlayState.expanded = true; overlay = true }
-        val steps = OverlayState.build!!.pieces
+        ui { model.loadBuildChecklist(hero.id, build, "Reforge check"); model.graph.overlay.expanded = true; overlay = true }
+        val steps = model.graph.checklist.build!!.pieces
         check(steps.filter { it.reforgeStep }.map { it.item.id }.toSet() == toReforge) { "reforge steps ${steps.filter { it.reforgeStep }.map { it.item.id }} vs $toReforge" }
         // equipping comes first, then reforging, then modifying
         check(steps.map { it.menu } == steps.map { it.menu }.sorted()) { "steps out of menu order" }
         for ((w, f) in listOf(353 to 1.3f, 411 to 1f)) { ui { width = w; font = f }; shoot("1-checklist-$w") }
-        ui { OverlayState.focus = steps.indexOfFirst { it.reforgeStep } }
+        ui { model.graph.checklist.focus = steps.indexOfFirst { it.reforgeStep } }
         shoot("2-reforge-step-open-353")
 
         // finishing records the reforges into the box; Undo takes them back
-        ui { for (i in steps.indices) OverlayState.done[i] = true; OverlayState.finish(); overlay = false }
+        ui { for (i in steps.indices) model.graph.checklist.done[i] = true; model.graph.checklist.finish(); overlay = false }
         val after = model.box!!
         check(toReforge.all { after.itemsById.getValue(it).level == 90 }) { "reforged pieces not level 90 after finishing" }
         check(toReforge.all { after.itemsById.getValue(it).equippedOn == hero.id }) { "reforged pieces left the hero" }
@@ -115,7 +114,7 @@ class ReforgeStepScreens {
         rule.waitForIdle()
         check(model.stack.size == depth - 1) { "pinned back didn't go back" }
         File(shots, "result.txt").writeText("hero ${hero.name}: ${toReforge.size} reforge steps of ${steps.size}; pinned back ok\n")
-        ui { OverlayState.build = null }
+        ui { model.graph.checklist.unload() }
     }
 
     /** A modification step asks what the game rolled; finishing writes that substat into the box, Undo takes it back. */
@@ -135,7 +134,7 @@ class ReforgeStepScreens {
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, 1.3f)) {
-                Box(Modifier.width(353.dp).fillMaxHeight()) { if (overlay) OverlayUi({ _, _ -> }, {}, {}) else App(model) {} }
+                Box(Modifier.width(353.dp).fillMaxHeight()) { if (overlay) OverlayUi(model.graph, { _, _ -> }, {}, {}) else App(model) {} }
             }
         }
         fun shot(name: String) { rule.waitForIdle(); val bmp = rule.onRoot().captureToImage().asAndroidBitmap()
@@ -153,20 +152,20 @@ class ReforgeStepScreens {
         val build = e7.gearscan.opt.Build(cur.items.map { if (it.id == modded.id) modded else it }, cur.value, cur.final, cur.ratings, cur.fromOthers)
         val original = box.itemsById.getValue(modded.id).subs[m.index]
 
-        ui { model.loadBuildChecklist(hero.id, build, "Mod check"); OverlayState.expanded = true; overlay = true }
-        val at = OverlayState.build!!.pieces.indexOfFirst { it.modStep }
+        ui { model.loadBuildChecklist(hero.id, build, "Mod check"); model.graph.overlay.expanded = true; overlay = true }
+        val at = model.graph.checklist.build!!.pieces.indexOfFirst { it.modStep }
         check(at >= 0) { "no mod step" }
         shot("1-checklist-before-mod-step")
-        ui { OverlayState.focus = at }
+        ui { model.graph.checklist.focus = at }
         shot("2-mod-step")
         rule.onNodeWithContentDescription("Rolled value up").performClick()
         rule.onNodeWithContentDescription("Rolled value up").performClick()
         rule.waitForIdle()
-        val range = e7.gearscan.opt.Mods.range(m.to, OverlayState.build!!.pieces[at].orig.subs[m.index].rolls)
+        val range = e7.gearscan.opt.Mods.range(m.to, model.graph.checklist.build!!.pieces[at].orig.subs[m.index].rolls)
         val want = (m.toValue + 2).coerceAtMost(range.last.toDouble())
-        check(OverlayState.rolledValue(at) == want) { "rolled ${OverlayState.rolledValue(at)}, wanted $want" }
+        check(model.graph.checklist.rolledValue(at) == want) { "rolled ${model.graph.checklist.rolledValue(at)}, wanted $want" }
         shot("3-rolled-set")
-        ui { for (i in OverlayState.done.indices) OverlayState.done[i] = true; OverlayState.finish(); overlay = false }
+        ui { for (i in model.graph.checklist.done.indices) model.graph.checklist.done[i] = true; model.graph.checklist.finish(); overlay = false }
         val written = model.box!!.itemsById.getValue(modded.id).subs[m.index]
         check(written.type == m.to && written.value == want && written.modified) { "box has ${written.type} ${written.value} modified=${written.modified}" }
         val toast = checkNotNull(model.toast) { "no toast after recording" }
@@ -185,6 +184,6 @@ class ReforgeStepScreens {
         check(model.box!!.itemsById.getValue(modded.id).subs[m.index].value == original.value) { "Undo after Equip in app" }
         File(dir, "result.txt").writeText("${hero.name}: ${modded.slot} ${m.from.short} ${m.fromValue} -> ${m.to.short} planned ${m.toValue}, rolled $want; " +
             "recorded, undone; Equip in app wrote the planned value\n")
-        ui { OverlayState.build = null }
+        ui { model.graph.checklist.unload() }
     }
 }

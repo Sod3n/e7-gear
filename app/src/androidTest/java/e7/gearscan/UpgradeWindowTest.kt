@@ -22,6 +22,7 @@ class UpgradeWindowTest {
     @get:Rule val rule = createComposeRule()
     private val inst get() = InstrumentationRegistry.getInstrumentation()
     private val ctx get() = inst.targetContext
+    private val graph get() = (ctx.applicationContext as E7GearApp).graph
     private fun shell(cmd: String) = inst.uiAutomation.executeShellCommand(cmd).use { fd -> android.os.ParcelFileDescriptor.AutoCloseInputStream(fd).bufferedReader().use { it.readText() } }
     private fun main(f: () -> Unit) = inst.runOnMainSync(f)
     private fun tapAt(x: Float, y: Float) {
@@ -44,19 +45,18 @@ class UpgradeWindowTest {
 
     @Test fun realWindowOverBrowser() {
         assumeTrue(Build.FINGERPRINT.contains("generic") || Build.HARDWARE.contains("ranchu"))
-        val source = UpgradeTracker(File(ctx.filesDir, "upgrades.json"))
-        val piece = source.record?.history?.firstOrNull() ?: Item(1, Slot.HELMET, "SpeedSet", "Heroic", 85, 9, GearStat.HP, 1512.0,
+        val tracker = graph.tracker
+        val piece = tracker.record?.history?.firstOrNull() ?: Item(1, Slot.HELMET, "SpeedSet", "Heroic", 85, 9, GearStat.HP, 1512.0,
             listOf(Substat(GearStat.SPD, 7.0, 2, false), Substat(GearStat.CR, 8.0, 2, false), Substat(GearStat.HP_P, 12.0, 2, false)), false, null, main15 = 2700.0)
-        val probeFile = File(ctx.filesDir, "upgrade-window-test.json").also { it.delete() }
-        lateinit var tracker: UpgradeTracker
-        main { tracker = UpgradeTracker(probeFile); tracker.select(piece, source.record?.scan ?: 1) }
+        val scan = tracker.record?.scan ?: 1
+        main { tracker.select(piece, scan) }
         shell("appops set e7.gearscan SYSTEM_ALERT_WINDOW allow")
         val info = inst.uiAutomation.serviceInfo
         info.flags = info.flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
         inst.uiAutomation.serviceInfo = info
         if (Build.VERSION.SDK_INT >= 33) inst.uiAutomation.grantRuntimePermission(ctx.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
         try {
-            main { OverlayState.upgrade = tracker; OverlayState.expanded = true; OverlayState.appInFront = false; OverlayService.start(ctx) }
+            main { graph.tracker.show(); graph.overlay.expanded = true; graph.overlay.appInFront = false; OverlayService.start(ctx) }
             Thread.sleep(700)
             // the overlay's compositions run on this rule's clock too: let the panel's opening animation finish
             rule.mainClock.advanceTimeBy(1000); rule.waitForIdle()
@@ -95,13 +95,13 @@ class UpgradeWindowTest {
             val topInset = if (Build.VERSION.SDK_INT >= 30) ctx.getSystemService(android.view.WindowManager::class.java).currentWindowMetrics.windowInsets
                 .getInsetsIgnoringVisibility(android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout()).top else 0
             tapAt((14 + PANEL_WIDTH - 58) * density, topInset + (6 + 26) * density)
-            assertFalse(OverlayState.expanded)
+            assertFalse(graph.overlay.expanded)
             shot("10-bubble-landscape")
         } finally {
-            main { OverlayService.stop(ctx); OverlayState.upgrade = null; OverlayState.appInFront = true }
+            main { OverlayService.stop(ctx); graph.tracker.hide(); graph.overlay.appInFront = true }
             shell("settings put system user_rotation 0")
             shell("settings put system accelerometer_rotation 1")
-            probeFile.delete()
+            main { tracker.restore(org.json.JSONObject()) }
         }
     }
 }

@@ -2,11 +2,8 @@ package e7.gearscan.features.sellreview
 
 import e7.gearscan.AppGraph
 import e7.gearscan.data.Box
-import e7.gearscan.data.Item
 import e7.gearscan.data.Mirror
-import e7.gearscan.data.SellQuery
 import e7.gearscan.data.UpgradeRecord
-import e7.gearscan.opt.SellSearch
 import e7.gearscan.state.Disk
 import e7.gearscan.testing.SyntheticBox
 import e7.gearscan.ui.Outcome
@@ -34,14 +31,15 @@ class SellReviewFeatureTest {
     }
 
     private class Host : SellHost {
-        override var records: Map<Long, UpgradeRecord> = emptyMap()
         override val contentVersion = "test"
 
-        override fun startQueue(rows: List<Pair<Item, SellSearch.Row>>, query: SellQuery, openOverlay: Boolean) {}
-
-        override fun rollOnChanged(rollOn: Double) {}
-
         override fun touch() {}
+    }
+
+    private fun records(g: AppGraph, scan: Long) {
+        val item = tiny.items.first()
+        val record = UpgradeRecord(scan, listOf(UpgradeRecord.fromScan(item), UpgradeRecord.fromScan(item)))
+        g.tracker.restore(org.json.JSONObject().put("records", org.json.JSONArray(listOf(record.toJson()))), save = false)
     }
 
     private val tiny = Box.parse(SyntheticBox.generate(2).gearText)
@@ -71,11 +69,11 @@ class SellReviewFeatureTest {
         g.pool.tiers = setOf(2)
         assertTrue(g.sellReview.stale)
         g.pool.tiers = setOf(5, 4, 3)
-        host.records = mapOf(5L to UpgradeRecord(1, listOf(UpgradeRecord.fromScan(tiny.items.first()), UpgradeRecord.fromScan(tiny.items.first()))))
+        records(g, 1)
         assertTrue(g.sellReview.stale)
-        host.records = mapOf(5L to UpgradeRecord(9, listOf(UpgradeRecord.fromScan(tiny.items.first()), UpgradeRecord.fromScan(tiny.items.first()))))
+        records(g, 9)
         assertFalse(g.sellReview.stale)
-        host.records = emptyMap()
+        g.tracker.reset()
         assertFalse(g.sellReview.stale)
 
         g.sellReview.edit(g.sellReview.query.copy(rollOn = 7.0))

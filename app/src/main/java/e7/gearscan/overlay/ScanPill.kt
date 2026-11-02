@@ -27,10 +27,12 @@ class ScanPill(private val ctx: Context, private val onTap: PendingIntent) {
     private var label: TextView? = null
     private var params: WindowManager.LayoutParams? = null
 
+    private fun appInFront() = (ctx.applicationContext as e7.gearscan.E7GearApp).graph.overlay.appInFront
+
     private fun dp(v: Float) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, ctx.resources.displayMetrics)
 
     fun show(step: ScanStep) {
-        if (!Settings.canDrawOverlays(ctx) || OverlayState.appInFront) { hide(); return }
+        if (!Settings.canDrawOverlays(ctx) || appInFront()) { hide(); return }
         if (root == null) create()
         if (root == null) return
         label!!.text = step.pill

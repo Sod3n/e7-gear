@@ -47,15 +47,14 @@ class UpgradeScreens {
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, font)) {
-                Box(Modifier.width(width.dp).fillMaxHeight()) { if (overlay) OverlayUi({ _, _ -> }, {}, {}) else App(model) {} }
+                Box(Modifier.width(width.dp).fillMaxHeight()) { if (overlay) OverlayUi(model.graph, { _, _ -> }, {}, {}) else App(model) {} }
             }
         }
-        ui { model.selectUpgrade(piece.id); model.go(Screen.Upgrade) }
+        ui { model.graph.tracker.selectPiece(piece.id); model.go(Screen.Upgrade) }
         shoot("01-picker-411")
         ui { width = 353; font = 1.3f }
         shoot("01-picker-353-big")
-        var checks = 0
-        ui { model.upgrades.requestCheck = { checks++ }; OverlayState.upgrade = model.upgrades; OverlayState.expanded = true; overlay = true }
+        ui { model.graph.tracker.show(); model.graph.overlay.expanded = true; overlay = true }
         shoot("02-panel-353-big")
         tap("Record +12")
         shoot("03-editor-353-big")
@@ -64,38 +63,38 @@ class UpgradeScreens {
         tap("${first.type.short}: ${fmtNum(first.value)}")
         repeat(4 - e7.gearscan.opt.Finish.range(first.type, piece.level).first) { rule.onNodeWithContentDescription("Increase value").performClick() }
         tap("Apply total"); tap("Save +12")
-        assertEquals(1, checks)
-        assertEquals(12, model.upgrades.record!!.item.enhance)
-        assertEquals(first.value + 4, model.upgrades.record!!.item.subs[firstIndex].value, 0.0)
+        rule.waitUntil(30_000) { model.graph.tracker.signature.isNotEmpty() }
+        assertEquals(12, model.graph.tracker.record!!.item.enhance)
+        assertEquals(first.value + 4, model.graph.tracker.record!!.item.subs[firstIndex].value, 0.0)
         // Data survives a brand-new controller, with no dependence on in-memory overlay state.
-        val restored = UpgradeTracker(File(ctx.filesDir, "upgrades.json"))
+        val restored = reopenTracker(model.graph, ctx.filesDir)
         assertEquals(12, restored.record!!.item.enhance)
         assertEquals(2, restored.record!!.history.size)
         rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle(); tap("History"); shoot("04-history-353-big")
         tap("Undo last entry")
-        assertEquals(9, model.upgrades.record!!.item.enhance)
-        assertEquals(2, checks)
+        assertEquals(9, model.graph.tracker.record!!.item.enhance)
+        rule.waitUntil(30_000) { model.graph.tracker.signature.isNotEmpty() }
         ui { width = 411; font = 1f }
         tap("Record +12"); shoot("03-editor-411")
-        ui { model.upgrades.editing = false }
+        ui { model.graph.tracker.cancelEdit() }
         // Actual local full-build assessment on the restored account, with per-hero checkpoints.
-        ui { model.upgrades.requestCheck = model::checkUpgrade; model.checkUpgrade() }
-        rule.waitUntil(260_000) { !model.upgrades.busy }
-        assertNull(model.upgrades.error)
-        assertTrue(model.upgrades.results.isNotEmpty())
+        ui { model.graph.tracker.runCheck() }
+        rule.waitUntil(260_000) { !model.graph.tracker.busy }
+        assertNull(model.graph.tracker.error)
+        assertTrue(model.graph.tracker.results.isNotEmpty())
         shoot("05-assessment-411")
         ui { width = 353; font = 1.3f }
         shoot("05-assessment-353-big")
-        File(shots, "assessment.txt").writeText(model.upgrades.toJson().toString(2))
+        File(shots, "assessment.txt").writeText(model.graph.tracker.toJson().toString(2))
         // Real system-overlay windows: save a screenshot separately from the Compose preview.
         inst.uiAutomation.executeShellCommand("appops set e7.gearscan SYSTEM_ALERT_WINDOW allow").let { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).use { s -> s.readBytes() } }
         if (Build.VERSION.SDK_INT >= 33) inst.uiAutomation.grantRuntimePermission(ctx.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
-        ui { OverlayState.expanded = true; OverlayState.appInFront = false; OverlayService.start(ctx) }
-        rule.waitUntil(10_000) { OverlayState.running }
+        ui { model.graph.overlay.expanded = true; model.graph.overlay.appInFront = false; OverlayService.start(ctx) }
+        rule.waitUntil(10_000) { model.graph.overlay.running }
         // the overlay's compositions run on this rule's clock too: let the panel's opening animation finish
         rule.mainClock.advanceTimeBy(1000); rule.waitForIdle()
         Thread.sleep(500)
         inst.uiAutomation.takeScreenshot().let { b -> File(shots, "06-system-window.png").outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) } }
-        ui { OverlayService.stop(ctx); OverlayState.upgrade = null; OverlayState.appInFront = true }
+        ui { OverlayService.stop(ctx); model.graph.tracker.hide(); model.graph.overlay.appInFront = true }
     }
 }
