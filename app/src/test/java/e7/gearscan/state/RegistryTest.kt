@@ -58,7 +58,6 @@ class RegistryTest {
         "marks.cleared" to { g.marks.cleared = setOf(21L, 22L) },
         "marks.kept" to { g.marks.kept = setOf(31L) },
         "marks.sold" to { g.marks.sold = listOf(MarksFeature.Sale(41, 99, true), MarksFeature.Sale(42, 99, false)) },
-        "marks.cleanup" to { g.marks.cleanup = JSONObject().put("scan", 5).put("finishedAt", 6).put("picks", JSONArray()) },
         "sellReview.query" to { g.sellReview.query = SellQuery.of(JSONObject().put("maximumChance", 7.5)) },
         "findGear.query" to { g.findGear.query = PotentialQuery.of(JSONObject().put("show", 2).put("minimumChance", "12")) },
         "improveHeroes.minGain" to { g.improveHeroes.minGain = 1.5 },
@@ -130,6 +129,16 @@ class RegistryTest {
         assertTrue(same(fieldsOf(env.g), fieldsOf(again.g)))
     }
 
+    @Test fun aV2StateFileWithAMakeRoomResultStillLoads() = runTest {
+        val env = Env(this)
+        val fields = JSONObject().put("marks.cleanup", JSONObject().put("scan", 5).put("picks", JSONArray())).put("marks.cleared", JSONArray(listOf(21, 22)))
+        env.disk.write("state.json", JSONObject().put("version", 2).put("fields", fields).toString())
+        env.g.loadOnce()
+        assertEquals(setOf(21L, 22L), env.g.marks.cleared)
+        env.g.store.saveNow()
+        assertFalse(env.text("state.json")!!.contains("marks.cleanup"))
+    }
+
     private fun stateV1() = javaClass.getResource("/state_v1.json")!!.readText()
     private fun backupV1() = javaClass.getResource("/backup_v1.json")!!.readText()
 
@@ -155,7 +164,6 @@ class RegistryTest {
         assertEquals(4.75, g.pool.secondsPerHero, 0.0); assertEquals(1_760_999_999_000L, g.pool.pending)
         assertEquals(1_760_999_000_000L to 88, g.pool.lastPool)
         assertEquals(1_760_000_000_000L, g.content.checkedAt); assertTrue(g.content.mirror)
-        assertEquals(1_761_000_001_000L, g.marks.cleanup!!.getLong("finishedAt"))
         assertEquals(setOf(21L, 22L, 23L), g.marks.cleared); assertEquals(setOf(31L, 32L), g.marks.kept)
         assertEquals(listOf(MarksFeature.Sale(41, 1_761_000_000_000L, true), MarksFeature.Sale(42, 1_761_000_000_000L, false)), g.marks.sold)
         assertEquals(2, g.findGear.query.show); assertEquals("12", g.findGear.query.minimumChance); assertFalse(g.findGear.query.rareOnly)
@@ -226,7 +234,7 @@ class RegistryTest {
         assertEquals(state.optJSONObject("configs")?.length() ?: 0, env.g.heroes.configs.size)
         assertEquals(state.optJSONObject("tiers")?.length() ?: 0, env.g.heroes.tiers.size)
         assertEquals(state.optJSONArray("sellKept")?.length() ?: 0, env.g.marks.kept.size)
-        assertEquals(state.optJSONArray("cleanupDone")?.length() ?: 0, env.g.marks.cleared.size)
+        assertEquals(state.optJSONArray("clearedIds")?.length() ?: 0, env.g.marks.cleared.size)
         assertEquals(state.optJSONArray("overlaySales")?.length() ?: 0, env.g.marks.sold.size)
         assertEquals(state.optJSONArray("poolExtra")?.length() ?: 0, env.g.pool.extra.size)
         assertEquals(src.optJSONArray("history")?.length() ?: 0, JSONArray(env.g.history.file.read() ?: "[]").length())

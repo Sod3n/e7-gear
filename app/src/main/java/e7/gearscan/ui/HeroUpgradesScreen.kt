@@ -2,11 +2,13 @@ package e7.gearscan.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import e7.gearscan.data.Stat
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.layout.heightIn
@@ -51,19 +53,19 @@ fun HeroUpgradesScreen(model: AppModel, heroId: Long?) {
     val result = st?.result
     val running = st?.running == true
     val minGain = model.heroUpgradeMinGain
-    val view = remember(result, minGain, model.heroUpgradeRebuilds, model.rev, model.box, model.cleanupDone) { result?.let { model.heroUpgradeView(it, minGain) } }
+    val view = remember(result, minGain, model.heroUpgradeRebuilds, model.rev, model.box, model.clearedIds) { result?.let { model.heroUpgradeView(it, minGain) } }
     val one = heroId?.let { id -> view?.firstOrNull { it.hero.id == id } }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val listed = when {
         one != null -> one.rows.map { it.pick.piece }
         tab == 1 -> view?.let { piecesOf(model, it).map { p -> p.first } }.orEmpty()
         else -> view?.flatMap { h -> h.rows.map { it.pick.piece } }?.distinct().orEmpty()
-    }.filter { it !in model.cleanupDone }
+    }.filter { it !in model.clearedIds }
     Frame(null, null, actions = {
         when {
             running -> OutlineButton("Stop", Modifier.weight(1f)) { model.stopHeroUpgrades() }
             result == null -> PinkButton(if (model.heroUpgradesResumable) "Continue the check" else "Check my gear", Modifier.weight(1f),
-                enabled = model.pool?.running != true && model.cleanup?.running != true) { model.startHeroUpgrades() }
+                enabled = model.pool?.running != true) { model.startHeroUpgrades() }
             else -> {
                 OutlineButton(if (model.heroUpgradesResumable) "Continue" else "Check again", Modifier.weight(1f)) { model.startHeroUpgrades() }
                 PinkButton("Track all ${listed.size}", Modifier.weight(1f), enabled = listed.isNotEmpty(), short = "Track ${listed.size}") { model.trackHeroUpgrades(listed) }
@@ -126,7 +128,7 @@ private fun Intro(model: AppModel) {
         }
     }
     if (model.heroUpgradesResumable) Text("The last check stopped before the end; it picks up where it was.", style = zen(11.sp, FontWeight.Medium, C.muted))
-    if (model.pool?.running == true || model.cleanup?.running == true) Text("Starts after the other gear check.", style = zen(11.sp, FontWeight.Medium, C.muted))
+    if (model.pool?.running == true) Text("Starts after the other gear check.", style = zen(11.sp, FontWeight.Medium, C.muted))
 }
 
 @Composable
@@ -325,7 +327,7 @@ private fun HeroPage(model: AppModel, h: AppModel.HeroUpgradeHero) {
         Text(reason(h), style = zen(12.sp, FontWeight.Medium, C.muted))
         return
     }
-    val rows = h.rows.filter { it.pick.piece !in model.cleanupDone }
+    val rows = h.rows.filter { it.pick.piece !in model.clearedIds }
     val (likely, long) = rows.partition { it.hits > LONG_SHOT }
     var count by rememberSavedFor(h, 20)
     var showLong by rememberSavedFor(h, false)
@@ -464,5 +466,13 @@ internal fun HeroUpgradeHelpSheet(model: AppModel) {
         SectionTitle("Not covered")
         Text("Pieces that only help together with another upgrade, modification stones, Rare and older gear, and heroes without a " +
             "saved setup. Level 85 pieces count as reforged when the setup counts reforging, as in Optimize.", style = zen(12.sp, FontWeight.Medium))
+    }
+}
+
+@Composable
+private fun Bar(f: Float) {
+    val shape = RoundedCornerShape(999.dp)
+    Box(Modifier.fillMaxWidth().height(8.dp).clip(shape).background(C.line)) {
+        Box(Modifier.fillMaxWidth(f.coerceIn(0f, 1f)).height(8.dp).clip(shape).background(C.pink))
     }
 }

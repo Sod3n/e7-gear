@@ -104,7 +104,7 @@ fun UpgradeScreen(model: AppModel) {
             CardGrid(listOf<Slot?>(null) + Slot.entries, columns = 3, gap = 6.dp) { s, m ->
                 Pill(s?.label ?: "All", selected = slot == s, modifier = m, onClick = { slot = s })
             }
-            val items = box.items.filter { it.id !in model.cleanupDone && UpgradeRecord.supported(it) && (it.enhance < 15 || t.records[it.id]?.scan == model.lastScan) && (slot == null || it.slot == slot) }
+            val items = box.items.filter { it.id !in model.clearedIds && UpgradeRecord.supported(it) && (it.enhance < 15 || t.records[it.id]?.scan == model.lastScan) && (slot == null || it.slot == slot) }
                 .filter { set == null || it.set == set }
                 .sortedWith(compareByDescending<Item> { t.records[it.id]?.scan == model.lastScan }.thenBy { it.slot.ordinal }.thenByDescending { it.enhance })
             SectionTitle("Your gear", trailing = "${items.size}")

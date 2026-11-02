@@ -77,7 +77,6 @@ private fun AppContent(model: AppModel, onExit: () -> Unit) {
             Screen.OverlayIntro -> OverlayIntroScreen(model)
             is Screen.Feedback -> FeedbackScreen(model, s.error)
             Screen.PoolRun -> PoolRunScreen(model)
-            Screen.Cleanup -> CleanupScreen(model)
             Screen.Upgrade -> UpgradeScreen(model)
             Screen.GearPotential -> GearPotentialScreen(model)
             Screen.SellFilters -> SellFiltersScreen(model)

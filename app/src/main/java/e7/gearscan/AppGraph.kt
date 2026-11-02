@@ -51,6 +51,7 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
         if (loaded) return false
         loaded = true
         store.load()
+        disk.delete("cleanup_progress.json")
         return true
     }
 }
