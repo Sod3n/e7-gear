@@ -68,6 +68,8 @@ class AppGraph(app: Application) {
     val sellReview = SellReviewFeature(this)
     val improveHeroes = ImproveHeroesFeature(this)
     val findGear = FindGearFeature(this)
+    val overlay = OverlayWindow()             // what only the overlay window knows: size, tab, bubble, app in front
+    val overGame = OverGame(this)             // opens the tracker or a checklist over the game
     val tracker = TrackerFeature(this)        // upgrade tracker, shown in the overlay
     val checklist = ChecklistFeature(this)    // equip and pool checklists over the game
     val settings = SettingsFeature(this)
@@ -149,7 +151,7 @@ with an exhaustive `when`, so a new screen without a route or a title does not c
 | Service | Job |
 |---|---|
 | `WorkService` | The foreground notification while any `Work` with `foreground = true` runs; Stop cancels it. Wake lock at most 1 h. |
-| `OverlayService` | Draws the tracker and checklist pages over the game; reads and writes only `graph.tracker` and `graph.checklist`. |
+| `OverlayService` | Draws the tracker and checklist pages over the game; reads and writes only `graph.tracker`, `graph.checklist` and `graph.overlay` (window state). |
 | `CaptureVpnService` | Local VPN (hev-socks5-tunnel, native, from SocksTun) that reads the game's traffic during a scan. It writes into `graph.scan.capture`, the scan feature's `CaptureSession`. |
 
 ## :kit
