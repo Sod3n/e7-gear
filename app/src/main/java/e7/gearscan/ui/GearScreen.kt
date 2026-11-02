@@ -38,7 +38,7 @@ fun GearScreen(model: AppModel) {
             heroes?.let { "$it heroes can get better" } ?: "Not checked yet") { model.go(Screen.HeroUpgrades()) }
         val found = model.graph.findGear.result?.matches?.size
         ModeCard("Find gear", "Pieces that can still reach the substats you ask for, with the chance.",
-            found?.let { "$it pieces found last time" } ?: "Choose a target") { model.go(Screen.GearPotential) }
+            found?.let { "${e7.gearscan.value.Count(it).of("piece")} found last time" } ?: "Choose a target") { model.go(Screen.GearPotential) }
         if (model.upgrades.queue.isNotEmpty() || model.upgrades.record != null)
             RowCard("Over the game", { model.go(Screen.Upgrade) }) { Text("Continue tracking", style = zen(12.sp)) }
         if (model.sellKept.isNotEmpty())

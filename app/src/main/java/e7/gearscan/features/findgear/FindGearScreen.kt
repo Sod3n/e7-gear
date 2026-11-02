@@ -14,16 +14,28 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import e7.gearscan.AppModel
 import e7.gearscan.Sheet
 import e7.gearscan.SheetKind
 import e7.gearscan.data.*
+import e7.gearscan.value.Count
 import e7.gearscan.features.findgear.FindGearMatch
 
-private fun targets(q: PotentialQuery) = q.targets.entries.joinToString(" · ") { (t, v) ->
+private fun targetPieces(q: PotentialQuery) = q.targets.entries.map { (t, v) ->
     "${if (t.percentOfBase) t.stat.short else t.short} ${v.ifEmpty { "?" }}${if (t.showsPercent) "%" else ""}+"
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TargetsLine(q: PotentialQuery, style: TextStyle, empty: String = "") {
+    val pieces = targetPieces(q)
+    if (pieces.isEmpty()) { Text(empty, style = style); return }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        pieces.forEachIndexed { i, piece -> Text(if (i < pieces.lastIndex) "$piece ·" else piece, style = style, softWrap = false) }
+    }
 }
 private fun slots(q: PotentialQuery) = when (q.slots) {
     Slot.entries.toSet() -> "Any slot"
@@ -53,7 +65,7 @@ fun FindGearScreen(model: AppModel) {
             PinkButton(if (model.f.busy) "Searching" else "Find gear", Modifier.weight(1f), enabled = !model.f.busy) { model.show(model.f.find()) }
         }) else if (result != null && result.matches.isNotEmpty()) ({
             val fresh = !model.f.stale
-            PinkButton(if (fresh) "Track all ${result.matches.size} matches" else "Update matches", Modifier.weight(1f), enabled = !model.f.busy) {
+            PinkButton(if (fresh) Count(result.matches.size).of("match", "matches").let { "Track all $it" } else "Update matches", Modifier.weight(1f), enabled = !model.f.busy) {
                 model.show(if (fresh) model.f.trackAll() else model.f.find())
             }
         }) else null) {
@@ -66,7 +78,7 @@ fun FindGearScreen(model: AppModel) {
             if (tab == 0) {
                 Card(shadow = C.pink, padding = PaddingValues(12.dp)) {
                     ListRow({ open(model, SheetKind.POTENTIAL_TARGETS) }, leading = { Tag("GOAL") }) {
-                        Text(targets(q).ifEmpty { "Choose substats" }, style = dela(16.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        TargetsLine(q, dela(16.sp), "Choose substats")
                         Text("On one piece at +15", style = zen(11.sp, FontWeight.Medium, C.muted))
                     }
                 }
@@ -105,20 +117,17 @@ fun FindGearScreen(model: AppModel) {
                 Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Column(Modifier.weight(1f)) {
-                            Text(targets(applied), style = zen(13.sp, color = C.blue))
-                            Text("${slots(applied)} · ${sets(model, applied)}", style = zen(11.sp, FontWeight.Medium, C.muted))
+                            TargetsLine(applied, zen(13.sp, color = C.blue))
+                            if (model.f.stale) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Search changed", style = zen(11.sp, FontWeight.Medium, C.deepPink))
+                                LinkText("Update", size = 11) { model.show(model.f.find()) }
+                            } else Text("${slots(applied)} · ${sets(model, applied)}", style = zen(11.sp, FontWeight.Medium, C.muted))
                         }
                         Pill("Edit", onClick = { tab = 0 })
                     }
                 }
-                if (model.f.stale) {
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(C.lightPink).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Search changed", style = zen(12.sp), modifier = Modifier.weight(1f))
-                        LinkText("Update") { model.show(model.f.find()) }
-                    }
-                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${result.matches.size} pieces", style = dela(16.sp), modifier = Modifier.weight(1f))
+                    CountText(Count(result.matches.size), "piece", style = dela(16.sp), modifier = Modifier.weight(1f))
                     Text("Best odds first", style = zen(11.sp, color = C.muted))
                 }
                 if (model.f.busy) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
