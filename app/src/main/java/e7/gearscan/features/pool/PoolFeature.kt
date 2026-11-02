@@ -57,6 +57,12 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
     /** Run order: higher tiers first; inside a tier the hero furthest from their build picks first (name breaks ties). */
     fun heroes(): List<OwnedHero> = members().filter { it.id !in skip }
 
+    /** Pieces worn by heroes of the pool run stay where they are; everything else is spare. */
+    fun inUse(b: Box): Set<Long> {
+        val members = members().map { it.id }.toSet()
+        return b.items.filter { it.equippedOn in members }.map { it.id }.toSet()
+    }
+
     /** The run's heroes including those kept as they are. */
     fun members(): List<OwnedHero> =
         g.scan.box?.heroes.orEmpty()
@@ -265,6 +271,18 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
             ids, e.beforeMatch, ids.associateWith { id -> e.builds[id]?.firstOrNull()?.let { g.history.restoreBuild(id, it) } }, e.afterMatch,
             null, null, false, e.at, e.at, reviewed = e.reviewed, fromHistory = fromHistory,
         )
+    }
+
+    /** Opens a past pool run (the pending one live); false while a run is going, which it would replace. */
+    fun openFromHistory(e: HistoryEntry): Boolean {
+        if (state?.running == true) return false
+        if (e.at == pending) {
+            openPending()
+            return true
+        }
+        state = stateOf(e, fromHistory = true)
+        g.nav.go(Screen.PoolRun)
+        return true
     }
 
     /** Brings the pending run back as a live result (equip allowed), from its history entry. */

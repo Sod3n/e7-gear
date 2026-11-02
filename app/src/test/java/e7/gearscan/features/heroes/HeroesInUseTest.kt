@@ -39,7 +39,7 @@ class HeroesInUseTest {
         assertTrue(members.isNotEmpty())
         val expected = worn(g, members)
         assertTrue(expected.isNotEmpty())
-        assertEquals(expected, g.heroes.inUse(b))
+        assertEquals(expected, g.pool.inUse(b))
     }
 
     @Test fun inUseChangesWhenThePoolTiersChange() = runTest(UnconfinedTestDispatcher()) {
@@ -47,16 +47,16 @@ class HeroesInUseTest {
         val b = g.scan.box!!
         g.pool.tiers = emptySet()
         g.pool.extra = emptySet()
-        assertTrue(g.heroes.inUse(b).isEmpty())
+        assertTrue(g.pool.inUse(b).isEmpty())
 
         val hero = b.heroes.first { b.gearOf(it.id).isNotEmpty() && g.heroes.gameHero(it) != null }.id
         g.heroes.setTier(hero, 4)
         g.pool.tiers = setOf(4)
-        assertEquals(worn(g, g.pool.members().map { it.id }), g.heroes.inUse(b))
-        assertTrue(worn(g, listOf(hero)).all { it in g.heroes.inUse(b) })
+        assertEquals(worn(g, g.pool.members().map { it.id }), g.pool.inUse(b))
+        assertTrue(worn(g, listOf(hero)).all { it in g.pool.inUse(b) })
 
         g.pool.tiers = setOf(5)
-        assertTrue(worn(g, listOf(hero)).none { it in g.heroes.inUse(b) })
+        assertTrue(worn(g, listOf(hero)).none { it in g.pool.inUse(b) })
     }
 
     @Test fun anExtraHeroPutsItsPiecesInUseWhateverItsTier() = runTest(UnconfinedTestDispatcher()) {
@@ -65,6 +65,6 @@ class HeroesInUseTest {
         g.pool.tiers = emptySet()
         val hero = b.heroes.first { b.gearOf(it.id).isNotEmpty() && g.heroes.gameHero(it) != null }.id
         g.pool.extra = setOf(hero)
-        assertEquals(worn(g, listOf(hero)), g.heroes.inUse(b))
+        assertEquals(worn(g, listOf(hero)), g.pool.inUse(b))
     }
 }
