@@ -27,6 +27,7 @@ import kotlin.math.round
 
 /** Numeric entry is touch controls only. No editable text or input connection. */
 @Composable
+@OptIn(LinkStyle::class)
 fun NumberValue(value: Double, label: String, minimum: Double, maximum: Double, modifier: Modifier = Modifier,
                 decimal: Boolean = true, precision: Int = if(decimal)1 else 0, allowUnset: Boolean = true, onChange: (Double) -> Unit) {
     var open by remember { mutableStateOf(false) }

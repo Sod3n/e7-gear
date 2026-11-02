@@ -40,6 +40,7 @@ fun NameFilter(value: String, hint: String = "Name", onChange: (String) -> Unit)
 
 /** Free text arrives only from an explicit Paste action, so none of these controls summon an IME. */
 @Composable
+@OptIn(LinkStyle::class)
 fun PasteField(value: String, hint: String, limit: Int, multiline: Boolean = false, onChange: (String) -> Unit) {
     val clipboard = LocalClipboardManager.current
     val shape = RoundedCornerShape(12.dp)

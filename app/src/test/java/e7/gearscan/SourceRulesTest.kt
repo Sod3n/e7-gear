@@ -21,14 +21,12 @@ class SourceRulesTest {
     }
 
     @Test
-    fun keyboardInputIsLimitedToLegacyStatControls() {
+    fun appHasNoRawTextFields() {
         val forbidden = Regex("""\b(?:BasicTextField|TextField|OutlinedTextField|EditText|AutoCompleteTextView)\b""")
-        val hits = sources().filter { it.extension == "kt" && it.name != "LegacyStatInput.kt" }.flatMap { f ->
+        val hits = src.walk().filter { it.extension == "kt" }.flatMap { f ->
             f.readLines().withIndex().filter { forbidden.containsMatchIn(it.value) }.map { "${f.name}:${it.index + 1}" }
         }.toList()
-        val callers = sources().filter { it.extension == "kt" && it.name !in setOf("LegacyStatInput.kt", "Sheets.kt", "SellParts.kt") }.filter { Regex("""LegacyStatField(Value)?\(""").containsMatchIn(it.readText()) }.toList()
-        assertTrue("Legacy stat keyboard reused elsewhere: $callers", callers.isEmpty())
-        assertTrue("Keyboard input is allowed only in the existing optimizer stat controls: " + hits.joinToString(), hits.isEmpty())
+        assertTrue("Keyboard input goes through the kit's @KeyboardInput fields only: " + hits.joinToString(), hits.isEmpty())
     }
 
     @Test

@@ -114,6 +114,7 @@ fun OptimizeScreen(graph: AppGraph) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 private fun NoBox(graph: AppGraph) {
     Card {
         Text("No heroes yet", style = dela(17.sp))
@@ -142,6 +143,7 @@ fun heroSubtitle(graph: AppGraph, h: OwnedHero): String {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 private fun SingleSetup(graph: AppGraph, h: OwnedHero) {
     val req = graph.heroes.request(h.id)
     Card(padding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
@@ -168,6 +170,7 @@ private fun SingleSetup(graph: AppGraph, h: OwnedHero) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 internal fun PresetCard(graph: AppGraph, h: OwnedHero, req: Request) {
     val loading = graph.heroes.presetLoading[h.code] == true
     val shape = RoundedCornerShape(14.dp)
@@ -259,6 +262,7 @@ fun ratingText(r: Rating, v: Double) = when (r) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 fun ResultsScreen(graph: AppGraph) {
     graph.scan.rev
     val s = graph.optimize.search ?: run { OptimizeScreen(graph); return }
@@ -345,6 +349,7 @@ fun ResultsScreen(graph: AppGraph) {
 
 /** A box scanned more than a day ago gives stale results; say so where results are made. */
 @Composable
+@OptIn(LinkStyle::class)
 fun StaleBox(graph: AppGraph) {
     val age = if (graph.scan.lastScan > 0) (System.currentTimeMillis() - graph.scan.lastScan) / 3_600_000 else return
     if (age < 24) return
@@ -358,6 +363,7 @@ fun StaleBox(graph: AppGraph) {
 
 /** Says whether substat mods were part of this search, so a list without 改 is not a mystery. */
 @Composable
+@OptIn(LinkStyle::class)
 private fun ModsLine(graph: AppGraph, s: e7.gearscan.features.optimize.SearchState, req: Request) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("改", style = dela(12.sp, if (req.mods) C.deepPink else C.muted))
@@ -466,6 +472,7 @@ private fun SkeletonCard(i: Int) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 fun CompareScreen(graph: AppGraph, index: Int, poolHero: Long?, review: Boolean = false) {
     graph.scan.rev
     val s = graph.optimize.search

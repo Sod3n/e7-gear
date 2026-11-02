@@ -249,6 +249,7 @@ private fun PresetSkeleton() {
 }
 
 @Composable
+@OptIn(KeyboardInput::class)
 private fun NumBox(value: Double, pink: Boolean, modifier: Modifier = Modifier, onChange: (Double) -> Unit) {
     var text by remember(value) { mutableStateOf(if (value.isNaN()) "" else fmtNum(value)) }
     val shape = RoundedCornerShape(8.dp)
@@ -264,6 +265,7 @@ private fun NumBox(value: Double, pink: Boolean, modifier: Modifier = Modifier, 
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 private fun TargetsSheet(graph: AppGraph, heroId: Long) {
     graph.scan.rev
     val req = graph.heroes.request(heroId)
@@ -376,6 +378,7 @@ private fun TargetEditor(graph: AppGraph, req: Request, st: Stat, now: Double?, 
 
 /** − value + box; empty shows "—", the first + starts from the current stat. */
 @Composable
+@OptIn(KeyboardInput::class)
 private fun Stepper(label: String, value: Double, step: Double, start: Double, modifier: Modifier, onChange: (Double) -> Unit) {
     val focus = LocalFocusManager.current
     var text by remember(value) { mutableStateOf(if (value.isNaN()) "" else fmtNum(value)) }
@@ -520,6 +523,7 @@ private fun ToggleRow(title: String, sub: String?, on: Boolean, onChange: (Boole
 }
 
 @Composable
+@OptIn(LinkStyle::class, KeyboardInput::class)
 private fun BonusSheet(graph: AppGraph, heroId: Long) {
     graph.scan.rev
     val h = graph.heroes.hero(heroId) ?: return
@@ -627,7 +631,7 @@ private fun ArtifactSheet(graph: AppGraph, sheet: Sheet) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, LinkStyle::class)
 @Composable
 private fun SetsSheet(graph: AppGraph, heroId: Long) {
     graph.scan.rev
@@ -701,7 +705,7 @@ fun SetChoiceSummary(graph: AppGraph, c: SetChoice, size: androidx.compose.ui.un
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, LinkStyle::class)
 @Composable
 private fun MainsSheet(graph: AppGraph, heroId: Long) {
     graph.scan.rev

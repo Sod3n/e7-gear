@@ -244,6 +244,7 @@ internal fun SliderTrack(value: Float, change: (Float) -> Unit, done: () -> Unit
 }
 
 /** The value; tapping it opens the number keyboard, Done or leaving the field applies it. */
+@OptIn(KeyboardInput::class)
 @Composable
 internal fun TypedNumber(shown: String, value: Double, active: Boolean, size: Int = 15, dim: Boolean = false, apply: (Double) -> Unit) {
     var editing by remember { mutableStateOf(false) }

@@ -74,6 +74,7 @@ fun rememberStartScan(graph: AppGraph): () -> Unit {
 
 /** Fresh session for a scan: Android lets no app close another, so the player taps Force stop on the game's page. */
 @Composable
+@OptIn(LinkStyle::class)
 fun ScanRestartSheet(graph: AppGraph) {
     SheetBody("Start the game fresh", button = "Restart Epic Seven", onButton = {
         graph.nav.sheet = null; graph.scan.afterRestart = true; graph.scan.openGameSettings()
@@ -102,6 +103,7 @@ private fun rememberScanNow(graph: AppGraph): () -> Unit {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 fun ScanIntroScreen(graph: AppGraph) {
     var agree by remember { mutableStateOf(graph.settings.consent) }
     Frame(null, null,
@@ -271,6 +273,7 @@ private fun DataRow(title: String, sub: String?, enabled: Boolean, onClick: () -
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 fun CaptureScreen(graph: AppGraph) {
     val start = rememberStartScan(graph)
     val ctx = LocalContext.current
@@ -360,6 +363,7 @@ fun CaptureScreen(graph: AppGraph) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 private fun ErrorCard(err: ScanError, graph: AppGraph) {
     val (title, body) = when (err) {
         ScanError.NOTHING -> "Nothing captured" to "The scan has to see the game's login. Try again: E7 Gear restarts the game for you, then log in until the lobby."

@@ -57,6 +57,7 @@ fun ArtifactIcon(graph: AppGraph, art: e7.gearscan.data.Artifact?, size: android
 
 /** Shown after the app crashed: what happened, with a one-tap report. */
 @Composable
+@OptIn(LinkStyle::class)
 fun CrashCard(graph: AppGraph) {
     val crash = graph.feedback.lastCrash ?: return
     Card(shadow = null, radius = 14.dp, border = 2.dp) {

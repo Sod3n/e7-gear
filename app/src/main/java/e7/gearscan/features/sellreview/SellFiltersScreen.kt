@@ -115,6 +115,7 @@ private fun FinishComparison(row:SellSearch.Row) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 private fun ScoringControls(graph: AppGraph) {
     val q=graph.sellReview.query
     val example=remember(graph.scan.lastScan) { graph.sellReview.floorPreview(Slot.HELMET)?.item?:graph.scan.box?.items?.firstOrNull() }
@@ -350,6 +351,7 @@ private fun SellChoice(text:String,modifier:Modifier=Modifier,selected:Boolean,s
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 fun SellSheet(graph: AppGraph,sheet:Sheet) {
     val q=graph.sellReview.query
     fun update(v:SellQuery)=graph.sellReview.edit(v)

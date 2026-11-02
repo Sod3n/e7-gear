@@ -43,6 +43,7 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 
 @Composable
+@OptIn(LinkStyle::class)
 fun OverlayIntroScreen(graph: AppGraph) {
     val ctx = LocalContext.current
     var waiting by remember { mutableStateOf(false) }

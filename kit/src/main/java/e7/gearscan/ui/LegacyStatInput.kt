@@ -9,6 +9,7 @@ import androidx.compose.ui.text.TextStyle
 
 /** User's explicit exceptions: the optimizer's existing numeric stat fields (Sheets.kt) and, on tap of the value,
  * the Sell review sliders (SellParts.kt, user 2026-11-01: "keep option to just press on number to use keyboard"). */
+@KeyboardInput
 @Composable
 fun LegacyStatField(value: String, onValueChange: (String) -> Unit, textStyle: TextStyle,
                              singleLine: Boolean = true, keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
@@ -18,6 +19,7 @@ fun LegacyStatField(value: String, onValueChange: (String) -> Unit, textStyle: T
 }
 
 /** Same exception, with selection: the Sell review value opens with its text selected. */
+@KeyboardInput
 @Composable
 fun LegacyStatFieldValue(value: androidx.compose.ui.text.input.TextFieldValue, onValueChange: (androidx.compose.ui.text.input.TextFieldValue) -> Unit, textStyle: TextStyle,
                                   keyboardOptions: KeyboardOptions, keyboardActions: KeyboardActions, modifier: Modifier = Modifier) {

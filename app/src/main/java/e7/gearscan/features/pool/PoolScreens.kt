@@ -47,6 +47,7 @@ import kotlinx.coroutines.delay
 
 /** 4a: the Optimize screen's "Whole pool" mode. */
 @Composable
+@OptIn(LinkStyle::class)
 fun PoolSetup(graph: AppGraph) {
     // drawn inside Frame's content, which skips unless it reads the change counter itself
     graph.scan.rev
@@ -184,6 +185,7 @@ private fun ago(at: Long): String {
 
 /** 4c while running, 4d when done. */
 @Composable
+@OptIn(LinkStyle::class)
 fun PoolRunScreen(graph: AppGraph) {
     val p = graph.pool.state ?: run { graph.nav.back(); return }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -315,6 +317,7 @@ private fun TierBars(graph: AppGraph, p: PoolState, running: Boolean) {
 
 /** 4b, as flexible as one-hero setup: a role to start from (no community build), then the usual preset, sets, mains, targets. */
 @Composable
+@OptIn(LinkStyle::class)
 fun PoolHeroScreen(graph: AppGraph, heroId: Long, setup: Boolean) {
     graph.scan.rev
     val h = graph.heroes.hero(heroId) ?: run { graph.nav.back(); return }
@@ -424,6 +427,7 @@ fun PoolWorseSheet(graph: AppGraph) {
 /** Every hero of the run, before → after; tap one to compare its new build with what it wears now. */
 /** Everyone the pool run will optimize, in run order; tap one to edit it, or carry on the review where it stopped. */
 @Composable
+@OptIn(LinkStyle::class)
 fun PoolListSheet(graph: AppGraph) {
     graph.scan.rev
     val heroes = graph.pool.members()

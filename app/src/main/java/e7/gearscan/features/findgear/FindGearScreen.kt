@@ -50,6 +50,7 @@ private fun sets(graph: AppGraph, q: PotentialQuery) = when {
 internal fun open(graph: AppGraph, kind: SheetKind, id: Long = 0) { graph.nav.sheet = Sheet(kind, id) }
 
 @Composable
+@OptIn(LinkStyle::class)
 fun FindGearScreen(graph: AppGraph) {
     val q = graph.findGear.query
     val result = graph.findGear.result

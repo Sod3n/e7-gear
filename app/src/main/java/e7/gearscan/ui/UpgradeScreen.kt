@@ -14,6 +14,7 @@ import e7.gearscan.Screen
 import e7.gearscan.data.*
 
 @Composable
+@OptIn(LinkStyle::class)
 fun UpgradeScreen(graph: AppGraph) {
     val box = graph.scan.box ?: return
     val t = graph.tracker
