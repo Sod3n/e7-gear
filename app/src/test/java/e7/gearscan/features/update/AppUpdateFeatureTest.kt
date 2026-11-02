@@ -76,7 +76,7 @@ class AppUpdateFeatureTest {
         val g = graph(this, phone)
         g.appUpdate.release = withApk
         g.appUpdate.update()
-        awaitIdle(g)
+        awaitUntil { phone.installed.size == 1 }
         assertEquals(1, phone.installed.size)
         assertNull(g.appUpdate.problem)
     }
@@ -86,14 +86,14 @@ class AppUpdateFeatureTest {
         val g = graph(this, phone)
         g.appUpdate.release = withApk
         g.appUpdate.update()
-        awaitIdle(g)
+        awaitUntil { g.appUpdate.problem == "Download stopped. Tap to try again." }
         assertEquals("Download stopped. Tap to try again.", g.appUpdate.problem)
         assertTrue(phone.installed.isEmpty())
 
         phone.downloadFails = null
         phone.refuse = "it isn't signed with this app's key"
         g.appUpdate.update()
-        awaitIdle(g)
+        awaitUntil { g.appUpdate.problem == "Not installed: it isn't signed with this app's key." }
         assertEquals("Not installed: it isn't signed with this app's key.", g.appUpdate.problem)
         assertFalse(phone.updateFile("1.0.1").exists())
     }
@@ -103,7 +103,7 @@ class AppUpdateFeatureTest {
         val g = graph(this, phone)
         g.appUpdate.release = withApk
         g.appUpdate.update()
-        awaitIdle(g)
+        awaitUntil { g.appUpdate.problem == "Allow installs from E7 Gear, then come back." }
         assertEquals("Allow installs from E7 Gear, then come back.", g.appUpdate.problem)
         assertEquals(1, phone.asked)
         g.appUpdate.resumed()
@@ -114,7 +114,7 @@ class AppUpdateFeatureTest {
         assertNull(g.appUpdate.problem)
     }
 
-    private suspend fun awaitIdle(g: AppGraph) = withContext(Dispatchers.Default) {
-        withTimeout(10_000) { while (g.appUpdate.progress != null) delay(5) }
+    private suspend fun awaitUntil(condition: () -> Boolean) = withContext(Dispatchers.Default) {
+        withTimeout(10_000) { while (!condition()) delay(5) }
     }
 }

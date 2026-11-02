@@ -76,16 +76,21 @@ class AppUpdateFeature(g: AppGraph) : Feature(g, "appUpdate") {
                         g.platform.refusal(apk)
                     }.getOrElse { if (it is IOException) "" else "the download failed (${it.message})" }
                 }
-            progress = null
+            // the problem is set before progress clears, so an idle state never shows without it
             when {
                 failed != null -> {
                     apk.delete()
                     problem = if (failed.isEmpty()) "Download stopped. Tap to try again." else "Not installed: $failed."
+                    progress = null
                 }
-                g.platform.canInstall -> g.platform.install(apk)
+                g.platform.canInstall -> {
+                    progress = null
+                    g.platform.install(apk)
+                }
                 else -> {
                     installWhenAllowed = apk
                     problem = "Allow installs from E7 Gear, then come back."
+                    progress = null
                     g.platform.allowInstalls()
                 }
             }
