@@ -81,6 +81,19 @@ class AppGraph(app: Application) {
 `(application as E7GearApp).graph`. There are no other global objects with state. There is no dependency-injection
 framework: the graph is plain code a newcomer can read top to bottom.
 
+Screens are functions of the graph (or of one feature): `App(graph)` routes `graph.nav` to a screen, and each screen
+reads and calls the features it shows. Nothing sits between a screen and a feature.
+
+Startup is `AppGraph.start()`: it loads the saved state and the box, shows the first screen (`ready` flips), and runs the
+daily content and update checks. `MainActivity` starts it through `Session`, a three-line `ViewModel` that cancels the
+startup job and all running work when the player leaves the app for good (not on rotation or a window resize).
+`Platform` is the only way a feature reaches the phone (VPN, launching the game, Downloads, installer, notifications);
+`OverlayWindow` holds what only the overlay window knows (size, tab, bubble, app in front); `OverGame` opens the
+tracker or a checklist over the game. Features call each other through the graph (`g.heroes`, `g.pool`, ...); there are
+no host interfaces left. Data a feature shows or searches comes from the feature that owns it: setups, names, build
+origins and gain labels from `HeroesFeature`, the overlay checklists from `ChecklistFeature`, Improve heroes from
+`ImproveHeroesFeature`.
+
 ### A feature
 
 A feature owns one mode's state and actions. It is the only place that changes that state.
@@ -117,12 +130,12 @@ Rules:
 |---|---|---|
 | `saved(key, default, codec)` | One declaration puts a field in the state file, backups, restore and erase, and saves it 0.5 s after a change. A field marked `keepOnErase` (theme, proxy) survives erase. | `stateJson()`, `apply()`, `eraseAll()` lists and `touch()` calls |
 | `savedFile(name, backup = true)` | The same for whole documents (history, results, progress); atomic writes. | hand-made files per feature |
-| `Store` | Backup = every field and file; restore = every one (defaults for missing keys); erase = every one; numbered migrations for old state files. | per-field code in `AppModel` |
+| `Store` | Backup = every field and file; restore = every one (defaults for missing keys); erase = every one; numbered migrations for old state files. | per-field code in one shared state class |
 | `work(name, weight)` → `Work<R>` | `start { }` cancels the previous run; a cancelled run never publishes; `busy`, `progress`, `cancel()`; `foreground = true` shows the shared notification with Stop; `checkpoint(...)` and `resumeFrom` make long runs resumable. | job + generation counter + busy flag + `PoolService.start/stop` per feature |
 | `freshWork(name) { inputs }` → `FreshWork<K, R>` | The result remembers the inputs it was computed from; `stale` compares them with today's. Every screen, button and action uses the same check. | hand-written comparisons in several places |
 | `Outcome` | `Done`, `Note(text)`, `Failed(text)`; shown as a toast by `Messages`. | inline error fields |
 | `Confirmed` | Only `Messages.confirm(title, body)` can create one (its constructor is internal to `:kit`). | per-button confirmation checks |
-| `Nav` | A stack of `Entry(screen)`; `App` wraps each entry in a `SaveableStateProvider`, so `rememberSaveable` state (tabs, open sections, list length) survives leaving the screen and coming back. The back link's label is the previous entry's title. | screen state in `AppModel` or lost in `remember` |
+| `Nav` | A stack of `Entry(screen)`; `App` wraps each entry in a `SaveableStateProvider`, so `rememberSaveable` state (tabs, open sections, list length) survives leaving the screen and coming back. The back link's label is the previous entry's title (`Nav.backLabel`). | screen state in a shared class or lost in `remember` |
 
 Each primitive has its own JVM tests. Two generic tests cover every feature, present and future:
 - every `saved` field and `savedFile` survives backup → restore with a non-default value;
