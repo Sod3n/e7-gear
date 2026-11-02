@@ -1,0 +1,209 @@
+{
+ "app": "e7gear",
+ "version": 1,
+ "state": {
+  "consent": true,
+  "proxyOn": true,
+  "proxy": "127.0.0.1:8080",
+  "lastScan": 1761000000000,
+  "decodeSec": 42,
+  "lastDiff": {
+   "newItems": [
+    101,
+    102
+   ],
+   "removedItems": [
+    103
+   ],
+   "enhanced": [
+    104
+   ],
+   "moved": [
+    105,
+    106
+   ],
+   "newHeroes": [
+    "Zio"
+   ]
+  },
+  "tiers": {
+   "1001": 4,
+   "1002": 2
+  },
+  "team": [
+   1002,
+   1001
+  ],
+  "configs": {
+   "1001": {
+    "artifact": "a_one",
+    "stars": 5,
+    "ee": 12.5,
+    "bonus": [
+     1.5,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "saved": [
+     {
+      "name": "Raid",
+      "items": [
+       11,
+       12,
+       13
+      ]
+     }
+    ]
+   },
+   "1002": {
+    "artifact": null,
+    "stars": 6,
+    "ee": null,
+    "bonus": [],
+    "saved": []
+   }
+  },
+  "showRating": "EHP",
+  "overlaySeen": true,
+  "overGameNative": true,
+  "nativeSeen": true,
+  "poolTiers": [
+   5,
+   2
+  ],
+  "poolExtra": [
+   1003,
+   1004
+  ],
+  "poolSkip": [
+   1005
+  ],
+  "poolLosses": "SMALL",
+  "poolEffort": "REBUILD",
+  "pendingPool": 1760999999000,
+  "contentCheckedAt": 1760000000000,
+  "poolSecondsPerHero": 4.75,
+  "contentMirror": true,
+  "lastPoolAt": 1760999000000,
+  "lastPoolScore": 88,
+  "cleanup": {
+   "scan": 1761000000000,
+   "finishedAt": 1761000001000,
+   "unknown": 2,
+   "picks": []
+  },
+  "cleanupDone": [
+   21,
+   22,
+   23
+  ],
+  "sellKept": [
+   31,
+   32
+  ],
+  "overlaySales": [
+   {
+    "id": 41,
+    "scan": 1761000000000,
+    "kept": true
+   },
+   {
+    "id": 42,
+    "scan": 1761000000000,
+    "kept": false
+   }
+  ],
+  "potentialQuery": {
+   "minimumChance": "12",
+   "show": 2,
+   "rareOnly": false,
+   "reforge": false
+  },
+  "heroUpgradeMinGain": 1.25,
+  "heroUpgradeRebuilds": true,
+  "sellQuery": {
+   "maximumChance": 7.5,
+   "minimumEnhance": 3
+  }
+ },
+ "box": {
+  "heroes": [
+   {
+    "id": 1001
+   }
+  ],
+  "items": [
+   {
+    "id": 11
+   }
+  ]
+ },
+ "history": [
+  {
+   "at": 1760999999000,
+   "pool": true,
+   "title": "Whole pool",
+   "detail": "Safe",
+   "before": 50,
+   "after": 61,
+   "moves": 9,
+   "builds": {
+    "1001": [
+     [
+      {
+       "id": 11
+      },
+      {
+       "id": 12
+      }
+     ]
+    ]
+   },
+   "beforeMatch": {
+    "1001": 40
+   },
+   "afterMatch": {
+    "1001": 70
+   },
+   "reviewed": [
+    1001
+   ]
+  },
+  {
+   "at": 1760000000000,
+   "pool": false,
+   "title": "Zio",
+   "detail": "Speed",
+   "before": 10,
+   "after": 20,
+   "moves": 2,
+   "builds": {
+    "1002": [
+     [
+      {
+       "id": 13
+      }
+     ]
+    ]
+   }
+  }
+ ],
+ "upgrades": {
+  "queue": [],
+  "records": [],
+  "selected": null,
+  "signature": "sig",
+  "attempt": 1,
+  "expected": 3,
+  "results": []
+ }
+}
