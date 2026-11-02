@@ -79,7 +79,7 @@ class UpgradeReadout(private val t: TrackerFeature, private val scan: ScanFeatur
             t.error != null -> "Check needs attention"
             t.checkRun.expected < 0 -> "Ready to check saved setups"
             t.checkRun.expected == 0 -> "Add hero setups to get advice"
-            t.worn.equippedOn != null -> "Equipped on $t.worn.equippedOn"
+            t.worn.equippedOn != null -> "Equipped on ${t.worn.equippedOn}"
             t.record?.item?.enhance == 15 ->
                 if (t.checkRun.equipHeroes.isNotEmpty()) {
                     "Finished · upgrade for ${t.checkRun.equipHeroes.first().name}"

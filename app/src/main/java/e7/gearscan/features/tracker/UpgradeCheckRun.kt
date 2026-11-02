@@ -104,7 +104,7 @@ class UpgradeCheckRun(private val t: TrackerFeature, private val ctx: FeatureCon
         val r = t.record ?: return
         val b0 = scan.box
         if (r.scan != scan.lastScan || b0?.itemsById?.containsKey(r.item.id) != true) {
-            t.error = "Your g.scan.lastScan changed. Choose the piece again in Track upgrades."
+            t.error = "Your scan changed. Choose the piece again in Track upgrades."
             return
         }
         val observed = records.records.values.filter { it.scan == scan.lastScan }.associate { it.item.id to it.item }

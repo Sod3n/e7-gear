@@ -28,7 +28,7 @@ class WornPiece(private val t: TrackerFeature, private val ctx: FeatureContext, 
         val b = scan.box ?: return
         val r = t.record ?: return
         if (r.scan != scan.lastScan || b.itemsById[r.item.id] == null) {
-            t.error = "Your g.scan.lastScan changed. Choose the piece again."
+            t.error = "Your scan changed. Choose the piece again."
             return
         }
         val owner = b.itemsById.getValue(r.item.id).equippedOn
