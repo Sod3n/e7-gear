@@ -40,6 +40,15 @@ class SourceRulesTest {
     }
 
     @Test
+    fun chancesReadAsPercents() {
+        val bad = Regex(""""[^"\n]*\b1 in [\d$]""")
+        val hits = sources().filter { it.extension == "kt" }.flatMap { f ->
+            f.readLines().withIndex().filter { bad.containsMatchIn(it.value) }.map { "${f.name}:${it.index + 1}: ${it.value.trim()}" }
+        }.toList()
+        assertTrue("Chances are shown as percents through Chance, never \"1 in N\":\n" + hits.joinToString("\n"), hits.isEmpty())
+    }
+
+    @Test
     fun textsHoldNoCodeLeftByRenames() {
         // a rename that also hit a message ("Your g.scan.lastScan changed"), or a lost brace: "$t.worn.equippedOn" prints t itself
         val literal = Regex(""""((?:[^"\\\n]|\\.)*)"""")

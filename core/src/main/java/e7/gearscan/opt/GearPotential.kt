@@ -2,6 +2,7 @@ package e7.gearscan.opt
 
 import e7.gearscan.calc.Reforge
 import e7.gearscan.data.*
+import e7.gearscan.value.Chance
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 
@@ -53,7 +54,7 @@ object GearPotential {
                 !supported -> "Not forecast"
                 rareOnly -> "Rare rolls needed"
                 !possible -> "Cannot reach targets"
-                else -> percent(chance)
+                else -> Chance(chance).text
             }
     }
 
@@ -166,13 +167,4 @@ object GearPotential {
         }
         return Outcome(probability.coerceIn(0.0, 1.0), possible, true, now)
     }
-
-    fun percent(p: Double): String =
-        when {
-            p <= 0 -> "0%"
-            p >= 1 - 1e-10 -> "100%"
-            p < 0.0001 -> "<0.01%"
-            p < 0.01 -> "%.2f%%".format(java.util.Locale.US, p * 100)
-            else -> "%.1f%%".format(java.util.Locale.US, p * 100).replace(".0%", "%")
-        }
 }

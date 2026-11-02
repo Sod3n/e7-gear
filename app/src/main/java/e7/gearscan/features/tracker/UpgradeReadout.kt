@@ -1,6 +1,7 @@
 package e7.gearscan.features.tracker
 
 import e7.gearscan.features.scan.ScanFeature
+import e7.gearscan.value.Chance
 import e7.gearscan.features.sellreview.SellReviewFeature
 import e7.gearscan.data.GearStat
 import e7.gearscan.data.InventoryOrder
@@ -34,7 +35,7 @@ class UpgradeReadout(private val t: TrackerFeature, private val scan: ScanFeatur
                 when {
                     g.now -> "already reached"
                     !g.known -> "future unknown"
-                    g.chance > 0 -> GearPotential.percent(g.chance)
+                    g.chance > 0 -> Chance(g.chance).text
                     g.possible -> "rare possibility, odds unknown"
                     else -> "not reachable"
                 }

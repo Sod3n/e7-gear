@@ -1,6 +1,7 @@
 package e7.gearscan.ui
 
 import androidx.compose.runtime.setValue
+import e7.gearscan.value.Chance
 import androidx.compose.runtime.getValue
 import e7.gearscan.features.scan.ScanPhase
 import androidx.compose.foundation.background
@@ -692,10 +693,9 @@ fun GhostBuildScreen(graph: AppGraph) {
             }
             VSpace(8.dp)
             val q = req.ghostQuality.coerceIn(0, 2)
-            val oneIn = maxOf(1, Math.round(1 / gp.odds.coerceAtLeast(1e-4)).toInt())
             val replaced = best.items.firstOrNull { it.slot == gp.slot }
-            Text("About 1 in $oneIn Epic ${set(graph, gp)} ${gp.slot.label.lowercase()} with this main and 3 useful starting substats " +
-                "beats your current one by +15" + (if (req.reforged) " (level 85, then reforged)" else "") +
+            Text("About ${Chance(gp.odds).text} of Epic ${set(graph, gp)} ${gp.slot.label.lowercase()} with this main and 3 useful starting substats " +
+                "beat your current one by +15" + (if (req.reforged) " (level 85, then reforged)" else "") +
                 ". This ghost is a ${listOf("typical", "top 25%", "top 5%")[q]} one of those.", style = zen(12.sp, FontWeight.Medium))
             if (replaced != null) {
                 VSpace(4.dp)

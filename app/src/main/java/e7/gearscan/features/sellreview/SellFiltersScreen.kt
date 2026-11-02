@@ -1,6 +1,7 @@
 package e7.gearscan.features.sellreview
 
 import androidx.compose.runtime.saveable.rememberSaveable
+import e7.gearscan.value.Chance
 import e7.gearscan.state.then
 import e7.gearscan.ui.*
 
@@ -34,7 +35,7 @@ private fun scoreText(v:Double)=String.format(java.util.Locale.US,"%.4f",v).trim
 private fun rollLimitText(q:SellQuery)=when(q.maximumTotalQuality) {
     null->"All overall roll values";0.0->"Only minimum rolls";25.0->"Average in bottom quarter";50.0->"Average at/below midrange";100.0->"Average up to usual maximum";else->"Average within lower ${fmtNum(q.maximumTotalQuality!!)}% of range"
 }
-private fun chanceText(r:SellSearch.Row)=if(!r.forecast.supported)"Unknown" else if(r.forecast.rareOnly)"Rare only" else GearPotential.percent(r.forecast.chance)
+private fun chanceText(r:SellSearch.Row)=if(!r.forecast.supported)"Unknown" else if(r.forecast.rareOnly)"Rare only" else Chance(r.forecast.chance).text
 
 private fun referenceText(goal:GearScore.Goal)=goal.referenceLabel()
 
@@ -142,9 +143,9 @@ internal fun esVerdict(es:EsForecast.Es,rollOn:Double):Pair<String,Boolean>? = w
     !es.supported||es.bar==null->null
     es.reached->"At your ES bar ${es.bar}" to true
     es.finishShare==0.0->"Finished below your bar ${es.bar}" to false
-    es.worthRolling(rollOn)->"Worth rolling · ${GearPotential.percent(es.chance)} to reach ${es.bar}" to true
+    es.worthRolling(rollOn)->"Worth rolling · ${Chance(es.chance).text} to reach ${es.bar}" to true
     es.possible&&es.chance==0.0->"Only rare rolls reach ${es.bar}" to false
-    else->"Below your ${fmtNum(rollOn)}% · ${GearPotential.percent(es.chance)} to reach ${es.bar}" to false
+    else->"Below your ${Chance(rollOn/100).text} · ${Chance(es.chance).text} to reach ${es.bar}" to false
 }
 
 @Composable
@@ -228,7 +229,7 @@ private fun RawRolls(rolls:List<RollReview.Roll>?,starting:Boolean=false) {
 @Composable
 private fun SafeguardReason(guard:RollReview.Safeguard,active:Boolean) {
     val target="${guard.stat.short} ${guard.stat.format(guard.minimum)}"
-    val text=when { guard.now->"Already has $target";!guard.known->"$target: future unknown";guard.chance>0->"$target: ${GearPotential.percent(guard.chance)} chance";guard.possible->"$target: rare rolls could reach it; odds unknown";else->"$target: cannot reach in this forecast" }
+    val text=when { guard.now->"Already has $target";!guard.known->"$target: future unknown";guard.chance>0->"$target: ${Chance(guard.chance).text} chance";guard.possible->"$target: rare rolls could reach it; odds unknown";else->"$target: cannot reach in this forecast" }
     Text(text,style=zen(11.sp,color=if(active)C.blue else C.muted))
 }
 
@@ -271,7 +272,7 @@ fun SellFiltersScreen(graph: AppGraph) {
             RowCard("Kept pieces",{graph.nav.go(Screen.SellKept)},labelWidth=112.dp) { Text("${graph.marks.kept.size} kept",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             SectionTitle("Final step")
             Box(Modifier.fillMaxWidth().hardShadow(C.pink,4.dp,4.dp,14.dp)) {
-                RowCard("Worth rolling",{openSell(graph,SheetKind.SELL_WORTH)},labelWidth=112.dp) { Text("1 in ${if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt().toString() else "–"} reach ${if(q.esBars.isEmpty())"your usual +15 ES" else "your ES bars"}",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+                RowCard("Worth rolling",{openSell(graph,SheetKind.SELL_WORTH)},labelWidth=112.dp) { Text("${Chance(q.rollOn/100).text}+ to reach ${if(q.esBars.isEmpty())"your usual +15 ES" else "your ES bars"}",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             }
         }else if(result==null)Card {
             Text("Tap Find matches",style=dela(17.sp))
@@ -501,7 +502,7 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                             val open=es.finishShare>0&&es.bar!=null&&!es.reached&&es.supported
                             Row(verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                                 val rare=open&&es.chance==0.0&&es.possible
-                                Text(if(rare)"Rare" else if(open)chanceText(es.chance) else "ES ${es.now}",style=dela(28.sp,if(!open)C.ink else if(es.worthRolling(graph.sellReview.query.rollOn))C.blue else C.deepPink))
+                                Text(if(rare)"Rare" else if(open)Chance(es.chance).text else "ES ${es.now}",style=dela(28.sp,if(!open)C.ink else if(es.worthRolling(graph.sellReview.query.rollOn))C.blue else C.deepPink))
                                 Text(when { es.bar==null->"no bar for this slot";rare->"only rare rolls reach ES ${es.bar}";open->"of finishes reach ES ${es.bar}";es.reached->"at or above your bar ${es.bar}";else->"finished · below bar ${es.bar}" },style=zen(12.sp,color=C.muted),modifier=Modifier.padding(bottom=5.dp))
                             }
                             VSpace(8.dp);EsBar(es);VSpace(3.dp);EsLegend(es)

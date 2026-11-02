@@ -24,13 +24,15 @@ or put them behind a tap.
 - Said: "Remove ALL text that doesnt provide ACTUALLY important information and what user will dont just ignore as noise";
   "this text is reduntant"; "something user would ignore"; "too much text".
 - Ask: if this line disappeared, would a player miss it? Does another element already say it?
-- Example: "1 in 10" next to a bar that already showed it was removed; explanations of the keep-rolling tiles live behind a tap.
+- Example: a chance repeated next to a bar that already showed it was removed; explanations of the keep-rolling tiles live behind a tap.
 
 ### 3. Speak the game, in the player's units
 Use the game's own terms and quantities (ES, gold, rolls, +3 steps, pieces), not our model's internals or ratios against
 an internal baseline.
 - Said: "games equipment score will feel more native"; "what means 22% more cost should mean for player?" → gold;
   "enchancment filter does make sense only on upgrade steps, not for each level".
+- Said (2026-11-03): "can you show percents instead of \"1 in x\" metric? Everywhere in app." Chances are percents
+  through `Chance` (two significant digits; 0% and 100% only when certain); SourceRulesTest bans "1 in N".
 - Ask: could a player check this number against something in the game? Is the unit one they already think in?
 - Example: GS became the game's Equipment Score; cost became gold; enhancement filters step +0/+3/…/+15.
 

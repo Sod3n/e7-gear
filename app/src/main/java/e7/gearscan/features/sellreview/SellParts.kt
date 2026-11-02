@@ -1,6 +1,7 @@
 package e7.gearscan.features.sellreview
 
 import e7.gearscan.ui.*
+import e7.gearscan.value.Chance
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,13 +25,6 @@ import androidx.compose.ui.unit.sp
 import e7.gearscan.data.*
 import e7.gearscan.opt.*
 
-internal fun chanceText(c: Double) = when {
-    c >= .995 -> "100%"
-    c >= .1 -> "${(c * 100).toInt()}%"
-    c > 0 -> "1 in ${kotlin.math.round(1 / c).toLong()}"
-    else -> "0%"
-}
-
 /** Short chip: how many finishes reach the bar, coloured by the keep-rolling chance. */
 @Composable
 internal fun EsChip(es: EsForecast.Es, rollOn: Double) {
@@ -39,7 +33,7 @@ internal fun EsChip(es: EsForecast.Es, rollOn: Double) {
         es.reached -> "At bar ${es.bar}" to true
         es.finishShare == 0.0 -> "Below bar ${es.bar}" to false
         es.chance == 0.0 && es.possible -> "Rare only" to false
-        else -> "${chanceText(es.chance)} reach ${es.bar}" to es.worthRolling(rollOn)
+        else -> "${Chance(es.chance).text} reach ${es.bar}" to es.worthRolling(rollOn)
     }
     val shape = RoundedCornerShape(999.dp)
     val tint = when (good) { true -> C.blue; false -> C.deepPink; null -> C.muted }
@@ -79,18 +73,6 @@ internal fun MainStatLine(item: Item, size: Int = 10) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         StatIcon(item.mainType.stat, (size + 2).dp, C.muted)
         Text("${item.mainType.format(item.mainValue)} · Lv.${item.level}", style = zen(size.sp, color = C.muted))
-    }
-}
-
-/** n dots, one lit: "1 in n" as a picture. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-internal fun OddsDots(n: Int) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            repeat(n) { i -> Box(Modifier.size(12.dp).clip(RoundedCornerShape(6.dp)).background(if (i == 0) C.blue else C.line)) }
-        }
-        Text("1 lit of $n finishes reaches the bar", style = zen(11.sp, color = C.muted))
     }
 }
 
@@ -145,7 +127,7 @@ internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.R
     val active = source.collectIsDraggedAsState().value || source.collectIsPressedAsState().value
     fun nearest(p: Double) = ts.indices.minByOrNull { kotlin.math.abs(kotlin.math.ln(ts[it] * 100 / p.coerceAtLeast(1e-4))) } ?: 0
     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        TypedNumber(if (pct < 1) String.format(java.util.Locale.US, "%.2g%%", pct) else "${fmtNum(pct)}%", pct, active, 30) { p -> index = nearest(p); commit(ts[index] * 100) }
+        TypedNumber(Chance(ts[index]).text, pct, active, 30) { p -> index = nearest(p); commit(ts[index] * 100) }
         if (kotlin.math.abs(pct - 1.0) < 1e-9) Text("default", style = zen(12.sp, color = C.muted), modifier = Modifier.padding(bottom = 6.dp))
     }
     Row(Modifier.clip(RoundedCornerShape(12.dp)).background(if (active) C.lightPink else androidx.compose.ui.graphics.Color.Transparent).padding(4.dp),
@@ -167,7 +149,7 @@ internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.R
         } else {
             val good = curve.good[index]; val gold = curve.gold[index]
             val extra = if (index + 1 < ts.size) (gold - curve.gold[index + 1]) / (good - curve.good[index + 1]).coerceAtLeast(1e-6) else null
-            val at = if (pct < 1) String.format(java.util.Locale.US, "%.2g%%", pct) else "${fmtNum(pct)}%"
+            val at = Chance(ts[index]).text
             val g = kotlin.math.round(good).toInt(); val all = kotlin.math.round(curve.possible).toInt()
             // estimates: shown rounded and with ~ so they never read as exact
             fun rough(x: Double): String { val m = x / 1e6; return "~" + when { m >= 100 -> "${kotlin.math.round(m).toLong()}M"; m >= 1 -> String.format(java.util.Locale.US, "%.1fM", m); else -> "${kotlin.math.round(x / 1e3).toLong()}k" } }

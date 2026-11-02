@@ -205,7 +205,7 @@ The kit is the only module that touches Compose layout details. Screens compose 
 | `SheetBody(title, primary)` / `TallSheet` | Sheets end at their content; only `TallSheet` may fill the screen. |
 | `Panel` (overlay) | Sizes to its main page and keeps that height while one thing is shown; pages split themselves to fit. |
 | Text roles: `Title`, `Heading`, `Body`, `Note`, `Value`, `Label` | Size, weight, colour and line rule per role. One-line roles shrink to fit or end in "…". |
-| Values: `ChanceText`, `GoldText`, `CountText`, `StatAmount` | One way to write each kind of number: "25%", "1 in 12", "~730k gold", "1 piece / 2 pieces", icon + value. |
+| Values: `Chance`, `GoldText`, `Count`, `StatAmount` | One way to write each kind of number: chances as percents with two significant digits ("25%", "8.3%", "0.42%"; never "1 in N"), "~730k gold", "1 piece / 2 pieces", icon + value. |
 | Rows and grids: `RowCard`, `ListRow`, `CardGrid`, `Fold`, `Pill` | Even rows, fixed trailing slots, centred short last row. |
 | Controls: `ValueSlider`, `Segmented`, `Toggle`, chips | Snapped stops; the value opens the keyboard only with `@OptIn(KeyboardInput::class)`. |
 | Messages host | Toasts, tap-to-explain, the confirm dialog that issues `Confirmed`. |
@@ -226,7 +226,7 @@ decision in review:
 Structure can't express everything. These stay as tests:
 - `:core` — the gear math against brute force and recorded results.
 - `SourceRulesTest` — fonts cover every character used; every icon exists in the image store; no game data in the
-  APK; locale-proof number formatting; one-line texts say they are cut; grids go through `CardGrid`; requests go
+  APK; locale-proof number formatting; chances as percents, never "1 in N"; one-line texts say they are cut; grids go through `CardGrid`; requests go
   through `Http`; the upgrade tracker overlay has no scroll containers; `:app` has no raw text fields.
 - `ScreenAudit` (emulator) — every screen at 353 dp with large text and 411 dp, English and Russian: text cut or
   broken mid-word, past the edge, layout shift when a state flips, frames with large empty areas. It runs on the

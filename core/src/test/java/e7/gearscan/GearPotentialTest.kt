@@ -157,7 +157,6 @@ class GearPotentialTest {
     }
 
     @Test fun tinyOddsStayVisibleAndProgressCannotReduceMinimumOnlyOdds() {
-        assertEquals("<0.01%", GearPotential.percent(.000001))
         assertTrue(chance(item(0, 3.0, 1), GearStat.SPD to 20.0).chance > 0)
         assertEquals(1.0, chance(item(3, 20.0, 2), GearStat.SPD to 20.0).chance, 1e-12)
     }
