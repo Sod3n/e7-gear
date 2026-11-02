@@ -8,8 +8,8 @@ behaviour. A step that turns out to need a behaviour change stops and goes to th
 ## Where we start (measured on cb3a872)
 
 - 15 feature classes, each constructed with the whole graph; 100 screen functions take `graph: AppGraph`.
-- Feature logic (screens excluded) references other features along 52 paths: 37 point down the layer order below,
-  15 point up or sideways in a loop. Measured with `tools/check_layers.py` (step 0 adds it).
+- Feature logic (screens excluded) connects to other features along 52 paths: 38 point down the layer order below,
+  14 point up (34 references). Measured with `tools/check_layers.py` (step 0 adds it).
 - `TrackerFeature.kt` is 803 lines and 47 functions: records, queue, editing, equip/sold marks, the upgrade check and
   the overlay in one class.
 - Global objects with state: `Http` (`agent`, `blockThirdParty`), `Mirror.active`, `Themes` (`choice`, `systemDark`),
@@ -34,7 +34,7 @@ behaviour. A step that turns out to need a behaviour change stops and goes to th
 | 12 | checklist, then overGame |
 | UI | screens and sheets: may read any feature (decided: they keep taking the graph) |
 
-## The 15 wrong-way references and their fix
+## The 14 wrong-way connections and their fix
 
 | From -> to | Where | Fix |
 |---|---|---|
@@ -42,7 +42,7 @@ behaviour. A step that turns out to need a behaviour change stops and goes to th
 | content -> scan, settings -> scan (`scan.touch()`) | ContentFeature.kt:71, SettingsFeature.kt:20 | `rev` is an app-wide "inputs changed" counter, not a scan field: move it to `AppGraph.rev` (27 reads in 9 files, 33 `scan.touch()` calls become `rev.bump()`) (step 1). |
 | feedback <-> scan (scan log) | FeedbackFeature.kt:44-46, ScanFeature.kt:222-226 | `saveScanLog(text)` takes the text; the Feedback screen passes the live log. Feedback no longer knows scan (step 2). |
 | heroes -> pool (`pool.members()`) | HeroesFeature.kt:176 `inUse` | `inUse` is "gear worn by pool members": move it to `PoolFeature`; its two callers (improveHeroes, tracker) are above pool (step 3). |
-| optimize -> history, history -> pool, history -> optimize | OptimizeFeature.kt:114, HistoryFeature.kt:41-60 | History becomes the log below optimize and pool (entries, `record`, `restoreBuild`, `flag`). `openHistory` moves out: `pool.openFromHistory(e)` and `optimize.openFromHistory(e)`; the History screen picks one (step 3). |
+| history -> pool, history -> optimize | OptimizeFeature.kt:114, HistoryFeature.kt:41-60 | History becomes the log below optimize and pool, so optimize -> history points down (entries, `record`, `restoreBuild`, `flag`). `openHistory` moves out: `pool.openFromHistory(e)` and `optimize.openFromHistory(e)`; the History screen picks one (step 3). |
 | sellReview, improveHeroes, findGear -> tracker (records) | SellReviewFeature.kt:71,109,169,174; ImproveHeroesFeature.kt:131-147; FindGearFeature.kt:43,63,98 | Records (`records`, `recordedSteps`, `upgrades.json`, `syncMarks`) move into a new `RecordsFeature` at layer 5 (step 4). |
 | same three -> tracker (`track*`) | ImproveHeroesFeature.kt:252-254 (pass-throughs), FindGearFeature.kt:102,116, SellReviewFeature.kt:157 | The tools return what to track; their screens call `graph.tracker.track...` (step 4). |
 
@@ -66,7 +66,7 @@ gate after each merge. Step 6 runs alone after that, because it touches every fe
 
 ## Acceptance (all must hold; checked by me, numbers in the merge commit)
 
-1. `tools/check_layers.py`: 0 wrong-way references in feature classes (today 15); no feature constructor takes `AppGraph`.
+1. `tools/check_layers.py`: 0 wrong-way connections between feature classes (today 14); no feature constructor takes `AppGraph`.
 2. No `object` holding a `var` in `:core`, `:kit` or `:app` main code except `Ghost.nextId` (today 4 objects, 6 vars).
 3. `TrackerFeature.kt` under 450 lines; no file under `features/` over 800 lines.
 4. The step 0 tests pass unchanged from cb3a872 to the end.
