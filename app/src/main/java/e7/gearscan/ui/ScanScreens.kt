@@ -104,12 +104,11 @@ private fun rememberScanNow(graph: AppGraph): () -> Unit {
 @Composable
 fun ScanIntroScreen(graph: AppGraph) {
     var agree by remember { mutableStateOf(graph.settings.consent) }
-    Frame(null, null, actions = {
-        PinkButton("Continue", Modifier.weight(1f), enabled = agree) {
+    Frame(null, null,
+        primary = Action("Continue", enabled = agree) {
             graph.settings.consent = true; graph.store.saveNow(); graph.nav.replace(Screen.ScanData)
-        }
-        OutlineButton("Not now") { graph.settings.consent = agree; graph.store.saveNow(); graph.nav.replace(Screen.Optimize) }
-    }) {
+        },
+        secondary = Secondary("Not now") { graph.settings.consent = agree; graph.store.saveNow(); graph.nav.replace(Screen.Optimize) }) {
         CrashCard(graph)
         VSpace(6.dp)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -192,9 +191,7 @@ fun ScanDataScreen(graph: AppGraph) {
     }
     val box = graph.scan.box
     graph.scan.rev
-    Frame(null, null, actions = {
-        PinkButton("Scan now", Modifier.weight(1f)) { if (!graph.settings.consent) graph.nav.go(Screen.ScanIntro) else start() }
-    }) {
+    Frame(null, null, primary = Action("Scan now") { if (!graph.settings.consent) graph.nav.go(Screen.ScanIntro) else start() }) {
         BackToPrevious()
         ScreenTitle("Scan & data", "読取")
         Card(padding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
@@ -281,29 +278,26 @@ fun CaptureScreen(graph: AppGraph) {
     val capturing = graph.scan.phase == ScanPhase.CAPTURING
     val importing = graph.scan.phase == ScanPhase.IMPORTING
     val step = graph.scan.step
-    Frame(null, null, actions = {
-        when {
-            importing -> PinkButton("Importing…", Modifier.weight(1f), enabled = false) {}
-            // the main button is the next step: back to the game until the box arrives, then importing it
-            capturing && step == ScanStep.LOBBY -> {
-                PinkButton("Import", Modifier.weight(1f)) { graph.scan.stopAndImport() }
-                OutlineButton("Game", Modifier.width(96.dp)) { graph.scan.openGame() }
-            }
-            capturing && step == ScanStep.LATE -> {
-                PinkButton("Restart game", Modifier.weight(1f)) { graph.scan.restartGameDuringScan() }
-                OutlineButton("Game", Modifier.width(96.dp)) { graph.scan.openGame() }
-            }
-            capturing -> {
-                PinkButton("Back to the game", Modifier.weight(1f)) { graph.scan.openGame() }
-                OutlineButton("Stop", Modifier.width(96.dp)) { if (graph.scan.bytes > 0) graph.scan.stopAndImport() else graph.scan.returnedEarly = true }
-            }
-            err == ScanError.SERVER -> PinkButton("Send again", Modifier.weight(1f)) { graph.scan.stopAndImport() }
-            err == ScanError.NOT_INSTALLED -> PinkButton("Open Play Store", Modifier.weight(1f)) {
+    val game = Secondary("Game", Span.Fixed(96.dp)) { graph.scan.openGame() }
+    // the main button is the next step: back to the game until the box arrives, then importing it
+    Frame(null, null,
+        primary = when {
+            importing -> Action("Importing…", enabled = false) {}
+            capturing && step == ScanStep.LOBBY -> Action("Import") { graph.scan.stopAndImport() }
+            capturing && step == ScanStep.LATE -> Action("Restart game") { graph.scan.restartGameDuringScan() }
+            capturing -> Action("Back to the game") { graph.scan.openGame() }
+            err == ScanError.SERVER -> Action("Send again") { graph.scan.stopAndImport() }
+            err == ScanError.NOT_INSTALLED -> Action("Open Play Store") {
                 ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=Epic%20Seven")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
-            else -> PinkButton(if (err != null) "Try again" else "Start", Modifier.weight(1f)) { start() }
-        }
-    }) {
+            else -> Action(if (err != null) "Try again" else "Start") { start() }
+        },
+        secondary = when {
+            importing -> null
+            capturing && (step == ScanStep.LOBBY || step == ScanStep.LATE) -> game
+            capturing -> Secondary("Stop", Span.Fixed(96.dp)) { if (graph.scan.bytes > 0) graph.scan.stopAndImport() else graph.scan.returnedEarly = true }
+            else -> null
+        }) {
         // leaving keeps the scan running; the header chip on the main screens shows it
         if (graph.nav.stack.size > 1) BackToPrevious()
         if (capturing) {
@@ -406,9 +400,7 @@ private fun Milestone(text: String, done: Boolean) {
 fun ScanResultScreen(graph: AppGraph) {
     val box = graph.scan.box ?: return
     val d = graph.scan.lastDiff
-    Frame(null, null, actions = {
-        PinkButton("Go to optimizer", Modifier.weight(1f)) { graph.nav.tab(Screen.Optimize) }
-    }) {
+    Frame(null, null, primary = Action("Go to optimizer") { graph.nav.tab(Screen.Optimize) }) {
         if (graph.nav.stack.size > 1) BackToPrevious()
         ScreenTitle("Imported", "取込")
         Card(padding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {

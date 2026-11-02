@@ -126,20 +126,15 @@ private fun PendingCard(graph: AppGraph) {
 
 /** 4a's button: hero count plus a time estimate. */
 @Composable
-fun RowScope.PoolButton(graph: AppGraph) {
+fun poolAction(graph: AppGraph): Action {
     graph.scan.rev
     val heroes = graph.pool.heroes()
     val ready = heroes.count { graph.heroes.hasBuild(it.id) == true }
     val skipped = heroes.count { graph.heroes.hasBuild(it.id) == false }
     val seconds = ready * graph.pool.secondsPerHero
     val time = if (seconds < 60) "about ${maxOf(5, Math.round(seconds / 5).toInt() * 5)} s" else "about ${Math.round(seconds / 60)} min"
-    val shape = RoundedCornerShape(999.dp)
-    Column(Modifier.weight(1f).height(56.dp).then(if (ready > 0) Modifier.hardShadow(C.shadow, 3.dp, 4.dp, 28.dp) else Modifier).clip(shape)
-        .background(if (ready > 0) C.pink else C.line).border(2.5.dp, C.edge, shape)
-        .tap(if (ready > 0) ({ if (graph.pool.start()) graph.nav.go(Screen.PoolRun) }) else null),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        FitText("Optimize $ready heroes", dela(16.sp, if (ready > 0) C.onAccent else C.ink))
-        FitText(time + if (skipped > 0) " · $skipped skipped unless set up" else "", zen(10.sp, FontWeight.Medium))
+    return Action("Optimize $ready heroes", enabled = ready > 0, detail = time + if (skipped > 0) " · $skipped skipped unless set up" else "") {
+        if (graph.pool.start()) graph.nav.go(Screen.PoolRun)
     }
 }
 
@@ -224,15 +219,14 @@ fun PoolRunScreen(graph: AppGraph) {
         } }
         Text("A piece moves only when the hero taking it gains more than its wearer loses, counting higher tiers more. Stop any time and keep what's done. You can leave the app; we'll notify you.",
             style = zen(11.sp, FontWeight.Medium, C.muted))
-    } else Frame(null, null, actions = ({
+    } else Frame(null, null,
         // moves happen in the game, so the checklist comes first; its last step records them here
-        PinkButton("Checklist", Modifier.weight(1f)) {
+        primary = Action("Checklist") {
             if (graph.checklist.loadPool()) {
                 graph.overGame.open()
             }
-        }
-        if (!p.fromHistory) OutlineButton("Just record") { graph.pool.equip(); graph.nav.tab(Screen.Optimize) }
-    })) {
+        },
+        secondary = if (!p.fromHistory) Secondary("Just record") { graph.pool.equip(); graph.nav.tab(Screen.Optimize) } else null) {
         BackToPrevious()
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FitText("Pool done", TitleStyle, Modifier.weight(1f, fill = false)); Stamp("済")
@@ -335,12 +329,11 @@ fun PoolHeroScreen(graph: AppGraph, heroId: Long, setup: Boolean) {
     val req = graph.heroes.request(heroId)
     val noBuilds = graph.heroes.presets[h.code]?.let { it.mostUsed.isEmpty() && it.rta.isEmpty() } ?: (graph.heroes.presetLoading[h.code] != true)
     fun goNext() { if (next != null) graph.nav.replace(Screen.PoolHero(next.id, setup)) else graph.nav.back() }
-    Frame(null, null, actions = {
+    val prev = queue.getOrNull(i - 1)
+    Frame(null, null,
+        primary = Action(if (next != null) "Next · ${graph.heroes.heroName(next)} ›" else "Done", short = "Next ›".takeIf { next != null }) { req.reviewed = true; graph.store.saveNow(); goNext() },
         // always laid out (dimmed on the first hero) so Next keeps its place
-        val prev = queue.getOrNull(i - 1)
-        OutlineButton("‹ Previous", Modifier.width(118.dp), enabled = prev != null) { graph.store.saveNow(); prev?.let { graph.nav.replace(Screen.PoolHero(it, setup)) } }
-        PinkButton(if (next != null) "Next · ${graph.heroes.heroName(next)} ›" else "Done", Modifier.weight(1f), short = "Next ›".takeIf { next != null }) { req.reviewed = true; graph.store.saveNow(); goNext() }
-    }) {
+        secondary = Secondary("‹ Previous", Span.Fixed(118.dp), enabled = prev != null, before = true) { graph.store.saveNow(); prev?.let { graph.nav.replace(Screen.PoolHero(it, setup)) } }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BackToPrevious(Modifier.weight(1f))
             // tapping the stamp takes the mark off, so this hero comes up again in the walk

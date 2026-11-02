@@ -59,14 +59,14 @@ fun FindGearScreen(graph: AppGraph) {
     var seenResult by rememberSaveable { mutableStateOf(resultId) }
     LaunchedEffect(result) { if (result != null && seenResult != resultId) tab = 1; seenResult = resultId }
     key(tab, result) {
-        Frame(null, null, actions = if (tab == 0) ({
-            PinkButton(if (graph.findGear.busy) "Searching" else "Find gear", Modifier.weight(1f), enabled = !graph.findGear.busy) { graph.messages.show(graph.findGear.find()) }
-        }) else if (result != null && result.matches.isNotEmpty()) ({
-            val fresh = !graph.findGear.stale
-            PinkButton(if (fresh) Count(result.matches.size).of("match", "matches").let { "Track all $it" } else "Update matches", Modifier.weight(1f), enabled = !graph.findGear.busy) {
+        val fresh = !graph.findGear.stale
+        Frame(null, null, primary = if (tab == 0) {
+            Action(if (graph.findGear.busy) "Searching" else "Find gear", enabled = !graph.findGear.busy) { graph.messages.show(graph.findGear.find()) }
+        } else if (result != null && result.matches.isNotEmpty()) {
+            Action(if (fresh) Count(result.matches.size).of("match", "matches").let { "Track all $it" } else "Update matches", enabled = !graph.findGear.busy) {
                 graph.messages.show(if (fresh) graph.findGear.trackAll() else graph.findGear.find())
             }
-        }) else null) {
+        } else null) {
             BackToPrevious()
             ScreenTitle("Find gear")
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -108,7 +108,7 @@ fun FindGearScreen(graph: AppGraph) {
                     VSpace(6.dp)
                     Text("Set the stats you want, then search your gear.", style = zen(12.sp, FontWeight.Medium, C.muted))
                     VSpace(12.dp)
-                    PinkButton("Set up search", Modifier.fillMaxWidth()) { tab = 0 }
+                    CardAction(Action("Set up search") { tab = 0 })
                 }
             } else {
                 val applied = result.query

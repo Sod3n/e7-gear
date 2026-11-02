@@ -23,10 +23,8 @@ fun UpgradeScreen(graph: AppGraph) {
     var choosingSet by rememberSaveable { mutableStateOf(false) }
     var slot by rememberSaveable { mutableStateOf<Slot?>(null) }
     var count by rememberSavedFor(set to slot, 20)
-    Frame(null, null, actions = {
-        PinkButton(if (choosing) "Use selected piece" else "Track over game", Modifier.weight(1f), enabled = selected != null) {
-            if (choosing) choosing = false else graph.messages.show(t.openOverlay())
-        }
+    Frame(null, null, primary = Action(if (choosing) "Use selected piece" else "Track over game", enabled = selected != null) {
+        if (choosing) choosing = false else graph.messages.show(t.openOverlay())
     }) {
         BackToPrevious()
         ScreenTitle("Track upgrades")

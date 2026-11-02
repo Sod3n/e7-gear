@@ -63,12 +63,10 @@ fun OverlayIntroScreen(graph: AppGraph) {
         else if (waiting) blocked = true
         onPauseOrDispose { }
     }
-    Frame(null, null, actions = {
-        PinkButton(if (native || graph.platform.pillAllowed) "Open game" else "Allow and open game", Modifier.weight(1f)) {
-            if (native || graph.platform.pillAllowed) go() else {
-                waiting = true
-                ctx.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${ctx.packageName}")))
-            }
+    Frame(null, null, primary = Action(if (native || graph.platform.pillAllowed) "Open game" else "Allow and open game") {
+        if (native || graph.platform.pillAllowed) go() else {
+            waiting = true
+            ctx.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${ctx.packageName}")))
         }
     }) {
         BackToPrevious()
@@ -135,9 +133,8 @@ fun FeedbackScreen(graph: AppGraph, error: String?) {
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         shot = uri?.let { u -> runCatching { jpegBase64(ctx.contentResolver.openInputStream(u)!!.use { it.readBytes() }) }.getOrNull() }
     }
-    Frame(null, null, actions = {
-        when (outcome?.first) {
-            null -> PinkButton(if (sending) "Sending…" else "Send report", Modifier.weight(1f), enabled = text.isNotBlank() && !sending) {
+    Frame(null, null, primary = when (outcome?.first) {
+            null -> Action(if (sending) "Sending…" else "Send report", enabled = text.isNotBlank() && !sending) {
                 sending = true
                 val id = Reports.newId()
                 val r = JSONObject().put("id", id).put("created", System.currentTimeMillis())
@@ -153,9 +150,8 @@ fun FeedbackScreen(graph: AppGraph, error: String?) {
                 shot?.let { r.put("screenshot", it) }
                 graph.feedback.send(r) { o -> sending = false; outcome = o to id }
             }
-            else -> PinkButton("Done", Modifier.weight(1f)) { graph.nav.back() }
-        }
-    }) {
+            else -> Action("Done") { graph.nav.back() }
+        }) {
         BackToPrevious()
         ScreenTitle("Feedback", "報告")
         if (error != null && outcome == null) StateCard("Opened from an error", "Topic is set to Bug and the error is attached: ${error.lineSequence().first()}")
@@ -259,7 +255,7 @@ private fun jpegBase64(bytes: ByteArray): String {
 @Composable
 fun GameDataScreen(graph: AppGraph) {
     val failed = graph.content.status?.startsWith("Couldn't") == true
-    Frame(null, null, actions = if (failed) ({ PinkButton("Try again", Modifier.weight(1f)) { graph.content.checkNow() } }) else null) {
+    Frame(null, null, primary = if (failed) Action("Try again") { graph.content.checkNow() } else null) {
         ScreenTitle("Game data")
         Text(if (failed) "Couldn't get the game data" else "Getting game data…", style = dela(16.sp))
         Text("Heroes, artifacts and sets come from the app's content site, so new heroes arrive without an app update. " +

@@ -205,12 +205,11 @@ fun HeroDetailScreen(graph: AppGraph, id: Long) {
     val gear = graph.scan.box?.gearOf(id) ?: emptyMap()
     val cfg = graph.heroes.config(id)
     val tier = graph.heroes.tier(id)
-    Frame(graph, Screen.Heroes, actions = {
-        PinkButton("Optimize ${graph.heroes.heroName(h)}", Modifier.weight(1f), enabled = graph.heroes.gameHero(h) != null, short = "Optimize") {
+    Frame(graph, Screen.Heroes,
+        primary = Action("Optimize ${graph.heroes.heroName(h)}", enabled = graph.heroes.gameHero(h) != null, short = "Optimize") {
             graph.heroes.pickHero(id); graph.heroes.team = listOf(id); graph.nav.tab(Screen.Optimize)
-        }
-        OutlineButton("Bonus stats") { graph.nav.sheet = Sheet(SheetKind.BONUS, id) }
-    }) {
+        },
+        secondary = Secondary("Bonus stats") { graph.nav.sheet = Sheet(SheetKind.BONUS, id) }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BackToPrevious(Modifier.weight(1f))
             Text("Tier $tier", style = zen(12.sp, color = C.muted))

@@ -238,13 +238,18 @@ fun SellFiltersScreen(graph: AppGraph) {
     var jump by remember { mutableStateOf(false) }
     LaunchedEffect(result) { if(result!=null&&jump) { tab=1;jump=false } }
     LaunchedEffect(result==null) { if(result==null)tab=0 }
-    Frame(null,null,actions={
-        if(graph.sellReview.busy)OutlineButton("Stop",Modifier.weight(1f)) { graph.sellReview.stop() }
-        else if(tab==1&&result!=null&&result.matches.any { it.item.id !in graph.marks.reviewed }&&graph.sellReview.fresh&&category==0) {
-            OutlineButton("Edit filters",Modifier.weight(1f)) { tab=0 }
-            PinkButton("Review over game",Modifier.weight(1f),short="Over game") { graph.trackSell() }
-        }else PinkButton(if(result!=null&&!graph.sellReview.fresh)"Update matches" else "Find matches",Modifier.weight(1f)) { jump=true;graph.findSell() }
-    }) {
+    val reviewing = tab==1&&result!=null&&result.matches.any { it.item.id !in graph.marks.reviewed }&&graph.sellReview.fresh&&category==0
+    Frame(null,null,
+        primary=when {
+            graph.sellReview.busy -> null
+            reviewing -> Action("Review over game",short="Over game") { graph.trackSell() }
+            else -> Action(if(result!=null&&!graph.sellReview.fresh)"Update matches" else "Find matches") { jump=true;graph.findSell() }
+        },
+        secondary=when {
+            graph.sellReview.busy -> Secondary("Stop",Span.Fill) { graph.sellReview.stop() }
+            reviewing -> Secondary("Edit filters",Span.Fill,before=true) { tab=0 }
+            else -> null
+        }) {
         BackToPrevious();ScreenTitle("Sell review")
         Segmented(listOf("Set up","Matches"),tab) { tab=it }
         if(graph.sellReview.busy)Card(shadow=null,padding=PaddingValues(12.dp)) {

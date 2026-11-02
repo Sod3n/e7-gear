@@ -22,10 +22,11 @@ fun Frame(
     graph: AppGraph?,
     tab: Screen?,
     scroll: Boolean = true,
-    actions: (@Composable RowScope.() -> Unit)? = null,
+    primary: Action? = null,
+    secondary: Secondary? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Frame(scroll = scroll, actions = actions, tabBar = if (tab != null && graph != null) ({ TabBar(graph, tab) }) else null, content = content)
+    Frame(scroll = scroll, primary = primary, secondary = secondary, tabBar = if (tab != null && graph != null) ({ TabBar(graph, tab) }) else null, content = content)
 }
 
 @Composable
