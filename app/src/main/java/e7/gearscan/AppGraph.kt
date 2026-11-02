@@ -30,6 +30,7 @@ import e7.gearscan.state.Nav
 import e7.gearscan.state.NoForeground
 import e7.gearscan.state.NoPlatform
 import e7.gearscan.state.Platform
+import e7.gearscan.state.Revision
 import e7.gearscan.state.Store
 import e7.gearscan.state.WorkHost
 import e7.gearscan.ui.Messages
@@ -43,6 +44,7 @@ const val STATE_VERSION = 2
 
 class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: ForegroundHost = NoForeground, val platform: Platform = NoPlatform) {
     val store = Store(disk, version = STATE_VERSION, migrations = Migrations.all, scope = scope, fileName = "state.json")
+    val rev = Revision { store.saveSoon() }
     val work = WorkHost(scope, foreground)
     val messages = Messages()
     val nav = Nav(Screen.Optimize, { id -> heroes.heroName(id) }, { pool.state?.running == true }, messages::dismissConfirm)
@@ -74,9 +76,19 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
         store.afterLoad = { Mirror.active = content.mirror }
     }
 
+    fun boxReplacing() = features.forEach { it.onBoxReplacing() }
+
     fun boxChanged(old: Box?, new: Box?) {
         features.forEach { it.onBoxChanged(old, new) }
     }
+
+    fun boxAdopted(box: Box?) = features.forEach { it.onBoxAdopted(box) }
+
+    fun imported() = features.forEach { it.onImported() }
+
+    fun restored() = features.forEach { it.onRestored() }
+
+    fun erased() = features.forEach { it.onErased() }
 
     fun loadOnce(): Boolean {
         if (loaded) return false

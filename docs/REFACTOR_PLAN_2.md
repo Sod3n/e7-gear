@@ -9,7 +9,7 @@ behaviour. A step that turns out to need a behaviour change stops and goes to th
 
 - 15 feature classes, each constructed with the whole graph; 100 screen functions take `graph: AppGraph`.
 - Feature logic (screens excluded) connects to other features along 52 paths: 38 point down the layer order below,
-  14 point up (34 references). Measured with `tools/check_layers.py` (step 0 adds it).
+  14 point up (34 references). `FeatureLayersTest` (step 0) checks this in the unit gate.
 - `TrackerFeature.kt` is 803 lines and 47 functions: records, queue, editing, equip/sold marks, the upgrade check and
   the overlay in one class.
 - Global objects with state: `Http` (`agent`, `blockThirdParty`), `Mirror.active`, `Themes` (`choice`, `systemDark`),
@@ -50,8 +50,8 @@ behaviour. A step that turns out to need a behaviour change stops and goes to th
 
 | Step | What | Files (main) | Who |
 |---|---|---|---|
-| 0 | Characterisation tests on cb3a872, green before anything moves: what `adopt`/`import`/`restore`/`erase` leave behind (sell review and find gear results cleared, improve heroes reloaded, `afterImport` effects, marks synced, tracker reset); opening a pool and a single history entry; `inUse`; `rev` bumps and freshness. Seam commit: `Revision`, the box-event hooks (empty), `AppGraph.rev`, `RecordsFeature` shell. `tools/check_layers.py` with the table above. | app/src/test, state/Feature.kt, AppGraph.kt, tools/ | me |
-| 1 | Box events + `rev` move | ScanFeature, ContentFeature, SettingsFeature, the 9 `rev` readers, the 5 features that get hooks | agent A |
+| 0 | Characterisation tests on cb3a872, green before anything moves: what `adopt`/`import`/`restore`/`erase` leave behind (sell review and find gear results cleared, improve heroes reloaded, `afterImport` effects, marks synced, tracker reset); opening a pool and a single history entry; `inUse`; `rev` bumps and freshness. Seam commit: `Revision` and `AppGraph.rev`; the box-event hooks on `Feature`, raised by `AppGraph` and already used by `ScanFeature` (its 8 direct calls become 5 overrides; done here so step 4 does not collide with step 1 in the tracker). `FeatureLayersTest`: the table above as a unit test with a list of connections not yet fixed that may only shrink. | app/src/test, state/, AppGraph.kt, ScanFeature and the 5 features with hooks | me + 1 agent (tests) |
+| 1 | `rev` move: `scan.rev`/`scan.touch()` become `g.rev.value`/`g.rev.bump()` | ScanFeature, ContentFeature, SettingsFeature and every `rev` reader and `touch()` caller | agent A |
 | 2 | Feedback below scan | FeedbackFeature, ScanFeature (3 lines), Feedback screen | agent A |
 | 3 | `inUse` to pool; history as a log; `openFromHistory` | HeroesFeature, PoolFeature, HistoryFeature, OptimizeFeature, HistoryScreen, ImproveHeroesFeature:155, TrackerFeature:668 | agent B |
 | 4 | Tracker split: `RecordsFeature` (records, `recordedSteps`, `upgrades.json`, reload/reset/restore, `syncMarks`); `UpgradeCheckRun` (results, `expected`, `busy`, `error`, goals, `runCheck`/`begin`/`checkpoint`/`invalidate` and the derived counts) owned by the tracker; `TrackerFeature` keeps queue, selection, editing, equip/sold and the overlay (target under 450 lines). Tools read records; `track*` calls move to screens. | features/tracker, sellreview, improveheroes, findgear and their screens | agent C |
@@ -66,7 +66,7 @@ gate after each merge. Step 6 runs alone after that, because it touches every fe
 
 ## Acceptance (all must hold; checked by me, numbers in the merge commit)
 
-1. `tools/check_layers.py`: 0 wrong-way connections between feature classes (today 14); no feature constructor takes `AppGraph`.
+1. `FeatureLayersTest`: its not-yet-fixed list is empty (14 at cb3a872, 9 after step 0); no feature constructor takes `AppGraph`.
 2. No `object` holding a `var` in `:core`, `:kit` or `:app` main code except `Ghost.nextId` (today 4 objects, 6 vars).
 3. `TrackerFeature.kt` under 450 lines; no file under `features/` over 800 lines.
 4. The step 0 tests pass unchanged from cb3a872 to the end.

@@ -93,11 +93,9 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
     fun adopt(b: Box? = readBox()) {
         val old = box
         replaceBox(b)
-        g.sellReview.reset()
-        g.findGear.reset()
+        g.boxReplacing()
         g.boxChanged(old, b)
-        g.tracker.syncMarks()
-        g.improveHeroes.reload(b)
+        g.boxAdopted(b)
     }
 
     fun import(text: String) {
@@ -112,7 +110,7 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
         boxFile.write(text)
         touch()
         g.store.saveNow()
-        g.heroes.afterImport()
+        g.imported()
     }
 
     fun backupText(): String {
@@ -129,15 +127,14 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
             stopAll()
             g.store.restore(j)
             adopt()
-            g.tracker.reload()
-            g.tracker.syncMarks()
+            g.restored()
             true
         }.getOrDefault(false)
 
     fun erase(confirmed: Confirmed) {
         stopAll()
         g.store.erase()
-        g.tracker.reset()
+        g.erased()
         adopt()
         g.nav.stack = listOf(Screen.ScanIntro)
     }

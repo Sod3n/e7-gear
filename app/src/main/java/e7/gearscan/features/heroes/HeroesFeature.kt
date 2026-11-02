@@ -406,6 +406,10 @@ class HeroesFeature(g: AppGraph) : Feature(g, "heroes") {
     fun moddedNote(before: List<Pair<Long, JSONObject>>, planned: Boolean) =
         if (before.isEmpty()) "" else " · ${before.size} modified" + if (planned) " (planned values; rescan for the rolls)" else ""
 
+    override fun onImported() {
+        afterImport()
+    }
+
     fun afterImport() {
         g.store.saveNow()
         team.firstOrNull()?.let { ensurePresets(it) }

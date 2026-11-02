@@ -584,6 +584,19 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
     }
 
     // a piece of a sell list marked elsewhere is passed over
+    override fun onBoxAdopted(box: Box?) {
+        syncMarks()
+    }
+
+    override fun onRestored() {
+        reload()
+        syncMarks()
+    }
+
+    override fun onErased() {
+        reset()
+    }
+
     fun syncMarks() {
         if (isSellQueue && queueScan == scan && selected in g.marks.reviewed) {
             pendingQueue.firstOrNull()?.let { e ->

@@ -49,6 +49,10 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
         query = q
     }
 
+    override fun onBoxReplacing() {
+        reset()
+    }
+
     fun reset() = search.clear()
 
     fun resetSearch(confirmed: Confirmed) = edit(PotentialQuery())

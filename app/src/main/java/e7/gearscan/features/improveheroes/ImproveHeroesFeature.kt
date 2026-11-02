@@ -403,6 +403,10 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
     }
 
     /** Reads the saved result back for [b] (none for no box) and whether a stopped check is waiting. */
+    override fun onBoxAdopted(box: Box?) {
+        reload(box)
+    }
+
     fun reload(b: Box?) {
         // results saved before the swap fields existed can't answer "this piece only": they are dropped
         heroUpgrades =

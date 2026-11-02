@@ -157,6 +157,10 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
         return g.tracker.trackSellQueue(rows, found.query, openOverlay)
     }
 
+    override fun onBoxReplacing() {
+        reset()
+    }
+
     fun reset() {
         stop()
         result = null
