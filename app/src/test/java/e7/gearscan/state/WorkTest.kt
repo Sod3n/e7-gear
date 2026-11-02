@@ -115,4 +115,53 @@ class WorkTest {
         assertEquals("boom", w.error)
         assertFalse(w.busy)
     }
+
+    @Test fun yieldingForegroundWorkIsShownUntilAHeavyOneStarts() = runTest(UnconfinedTestDispatcher()) {
+        val seen = mutableListOf<String?>()
+        val h = host(this, object : ForegroundHost { override fun shown(work: Work<*>?) { seen += work?.name } })
+        val check = Work<Int>("check", h, Weight.Yielding, foreground = true)
+        val pool = Work<Int>("pool", h, Weight.Heavy)
+        val light = Work<Int>("light", h, Weight.Light)
+        check.start { CompletableDeferred<Unit>().await(); 1 }
+        light.start { CompletableDeferred<Unit>().await(); 1 }
+        pool.start { CompletableDeferred<Unit>().await(); 2 }
+        assertEquals(listOf("check", null, "pool"), seen)
+        h.cancelAll()
+        assertEquals(listOf("check", null, "pool", null), seen)
+    }
+
+    @Test fun notificationProgressIsThrottledToOncePerSecondForTheShownWork() = runTest(UnconfinedTestDispatcher()) {
+        var now = 10_000L
+        val texts = mutableListOf<String>()
+        val fg = object : ForegroundHost {
+            override fun shown(work: Work<*>?) {}
+            override fun progress(work: Work<*>, text: String, done: Int, total: Int) { texts += text }
+        }
+        val h = WorkHost(this, fg) { now }
+        val w = Work<Int>("pool", h, Weight.Heavy)
+        val quiet = Work<Int>("curve", h, Weight.Light)
+        val gate = CompletableDeferred<Unit>()
+        quiet.start { progress(1, 2, "quiet"); gate.await(); 0 }
+        w.start {
+            progress(1, 10)
+            now += 400; progress(2, 10, "two")
+            now += 700; progress(3, 10, "three")
+            gate.await(); 1
+        }
+        assertEquals(listOf("1 of 10", "three"), texts)
+        assertEquals(0.3f, w.fraction)
+        h.cancelAll()
+    }
+
+    @Test fun secondHeavyStartIsRefusedWhateverThePathToIt() = runTest(UnconfinedTestDispatcher()) {
+        val h = host(this)
+        val pool = Work<Int>("Pool run", h, Weight.Heavy)
+        val sell = Work<Int>("Sell review", h, Weight.Heavy)
+        val check = Work<Int>("Upgrade check", h, Weight.Yielding, foreground = true)
+        pool.start { CompletableDeferred<Unit>().await(); 1 }
+        assertEquals(Outcome.Failed("Finish or stop Pool run first"), sell.start { 2 })
+        assertEquals(Outcome.Failed("Finish or stop Pool run first"), check.start { 3 })
+        assertFalse(sell.busy || check.busy)
+        h.cancelAll()
+    }
 }

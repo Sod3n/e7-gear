@@ -12,8 +12,8 @@ abstract class Feature(protected val g: AppGraph, val id: String) {
 
     protected fun savedDir(name: String, keepOnErase: Boolean = false) = g.store.dir(name, keepOnErase)
 
-    protected fun <R> work(name: String, weight: Weight = Weight.Light, progress: SavedFile? = null) =
-        Work<R>(name, g.work, weight, progress)
+    protected fun <R> work(name: String, weight: Weight = Weight.Light, progress: SavedFile? = null, foreground: Boolean = weight == Weight.Heavy) =
+        Work<R>(name, g.work, weight, progress, foreground)
 
     protected fun <K, R> freshWork(name: String, weight: Weight = Weight.Light, inputs: () -> K) =
         FreshWork<K, R>(name, g.work, weight, inputs)
