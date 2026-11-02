@@ -438,7 +438,7 @@ fun PoolListSheet(graph: AppGraph) {
             Text("$reviewed of ${heroes.size} reviewed", style = zen(12.sp, color = C.muted))
             // dimmed rather than hidden at 0, so the header never moves
             Box(Modifier.alpha(if (reviewed > 0) 1f else 0.35f)) {
-                LinkText("Clear") { if (reviewed > 0) { heroes.forEach { graph.heroes.request(it.id).reviewed = false }; graph.scan.touch() } }
+                LinkText("Clear") { if (reviewed > 0) graph.messages.askReset("Clear the reviewed marks?", "Every hero in this run comes up for review again.") { graph.pool.clearReviewed(heroes.map { h -> h.id }, it) } }
             }
         }
     },

@@ -9,6 +9,7 @@ import e7.gearscan.opt.GearPotential
 import e7.gearscan.features.tracker.TrackerFeature
 import e7.gearscan.state.Codecs
 import e7.gearscan.state.Feature
+import e7.gearscan.ui.Confirmed
 import e7.gearscan.ui.Outcome
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -49,6 +50,8 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
     }
 
     fun reset() = search.clear()
+
+    fun resetSearch(confirmed: Confirmed) = edit(PotentialQuery())
 
     fun find(): Outcome {
         val q = query

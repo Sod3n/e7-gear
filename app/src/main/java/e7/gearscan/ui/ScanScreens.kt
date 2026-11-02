@@ -175,7 +175,6 @@ private fun Step(n: Int, title: String, sub: String) {
 fun ScanDataScreen(graph: AppGraph) {
     val ctx = LocalContext.current
     val start = rememberStartScan(graph)
-    var erase by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf<String?>(null) }
     val restore = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { graph.scan.readUri(it) }?.let {
@@ -244,8 +243,10 @@ fun ScanDataScreen(graph: AppGraph) {
             DataRow("Game content", graph.content.status ?: ("Version ${graph.content.content.version}" +
                 if (graph.content.checkedAt > 0) " · checked ${graph.scan.scannedLabelOf(graph.content.checkedAt)}" else ""), true) { graph.content.checkNow() }
             DataRow("Report a bug", null, true) { graph.nav.go(Screen.Feedback()) }
-            Row(Modifier.fillMaxWidth().tap { if (erase) graph.scan.erase() else erase = true }.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                Text(if (erase) "Tap again to erase everything" else "Erase all data", style = zen(13.sp, color = C.deepPink))
+            Row(Modifier.fillMaxWidth().tap {
+                graph.messages.confirm("Erase all data?", "Your scanned gear, hero setups, history and marks are removed from this phone. Theme, proxy and overlay look stay.", "Erase", graph.scan::erase)
+            }.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                Text("Erase all data", style = zen(13.sp, color = C.deepPink))
             }
         }
         SectionTitle("Credits")

@@ -30,6 +30,7 @@ import e7.gearscan.opt.Setup
 import e7.gearscan.state.Codec
 import e7.gearscan.state.Codecs
 import e7.gearscan.state.Feature
+import e7.gearscan.ui.Confirmed
 import e7.gearscan.ui.Outcome
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -291,14 +292,20 @@ class HeroesFeature(g: AppGraph) : Feature(g, "heroes") {
         g.store.saveNow()
     }
 
-    fun presetReset(id: Long): (() -> Unit)? {
+    fun presetReset(id: Long): ((Confirmed) -> Unit)? {
         val label = config(id).request?.presetLabel ?: return null
         val tab = label.substringBefore(" · ")
         val name = label.substringAfter(" · ")
-        if (tab == "Role") return Role.entries.firstOrNull { it.label == name }?.let { r -> { applyRole(id, r) } }
+        if (tab == "Role") return Role.entries.firstOrNull { it.label == name }?.let { r -> { _: Confirmed -> applyRole(id, r) } }
         val t = hero(id)?.let { presets[it.code] } ?: return null
         val p = t.names.indexOf(tab).takeIf { it >= 0 }?.let { i -> t.tab(i).firstOrNull { it.label == name } } ?: return null
-        return { applyPreset(id, p, tab) }
+        return { _: Confirmed -> applyPreset(id, p, tab) }
+    }
+
+    fun clearTargets(id: Long, confirmed: Confirmed) {
+        val req = request(id)
+        req.targets.fill(Double.NaN); req.mins.fill(Double.NaN); req.maxs.fill(Double.NaN); req.weights.fill(0); req.fromPreset.fill(false)
+        g.scan.touch(); g.store.saveNow()
     }
 
     fun equip(heroId: Long, build: Build): Map<Long, Long?> {

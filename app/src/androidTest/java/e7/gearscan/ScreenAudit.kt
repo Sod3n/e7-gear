@@ -378,7 +378,7 @@ class ScreenAudit {
             // Clear in Heroes in this run takes every mark off
             val ids = graph.pool.members().map { it.id }
             ui { graph.nav.stack = listOf(Screen.Optimize); ids.take(3).forEach { graph.heroes.request(it).reviewed = true }; graph.nav.sheet = Sheet(SheetKind.POOL_LIST, 0) }
-            runCatching { clickText("Clear") }.onFailure { add("can't tap Clear: ${it.message?.take(60)}", "pool list") }
+            runCatching { clickText("Clear"); clickText("Reset") }.onFailure { add("can't tap Clear: ${it.message?.take(60)}", "pool list") }
             if (ids.any { graph.heroes.request(it).reviewed }) add("Clear leaves heroes reviewed", "pool list")
         })
         steps.add("pool-rules" to { ui { graph.nav.stack = listOf(Screen.Optimize); graph.nav.sheet = Sheet(SheetKind.ADVANCED, e7.gearscan.features.pool.POOL_RULES) } })
@@ -817,7 +817,7 @@ class ScreenAudit {
                 ui { graph.pool.losses = if (graph.pool.losses == e7.gearscan.opt.PoolLosses.SAFE) e7.gearscan.opt.PoolLosses.SMALL else e7.gearscan.opt.PoolLosses.SAFE }
             }),
             Triple("pool: clear reviewed", { ui { graph.nav.sheet = null; graph.pool.mode = true; graph.nav.stack = listOf(Screen.Optimize); graph.pool.members().take(3).forEach { graph.heroes.request(it.id).reviewed = true }
-                graph.scan.touch(); graph.nav.sheet = Sheet(SheetKind.POOL_LIST, 0) } }, { clickText("Clear") }),
+                graph.scan.touch(); graph.nav.sheet = Sheet(SheetKind.POOL_LIST, 0) } }, { clickText("Clear"); clickText("Reset") }),
             Triple("hero: change tier", { ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Heroes, Screen.HeroDetail(hero)) } }, { ui { graph.heroes.setTier(hero, 1) } }),
             Triple("capture: the box arrives", { ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.ScanData, Screen.Capture) }; capture(graph, 20_000) },
                 { capture(graph, 300_000) }),

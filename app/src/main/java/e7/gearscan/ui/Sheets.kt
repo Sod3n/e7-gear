@@ -282,11 +282,8 @@ private fun TargetsSheet(graph: AppGraph, heroId: Long) {
     val rows = first + sorted.filter { it !in first }
     SheetBody("Stat targets", trailing = {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            graph.heroes.presetReset(heroId)?.let { reset -> LinkText("Reset to preset") { graph.messages.askReset("Reset to the preset?", "Your target changes for this hero are replaced by the preset's.") { reset(); open = null } } }
-            LinkText("Clear") {
-                req.targets.fill(Double.NaN); req.mins.fill(Double.NaN); req.maxs.fill(Double.NaN); req.weights.fill(0); req.fromPreset.fill(false)
-                graph.scan.touch(); graph.store.saveNow()
-            }
+            graph.heroes.presetReset(heroId)?.let { reset -> LinkText("Reset to preset") { graph.messages.askReset("Reset to the preset?", "Your target changes for this hero are replaced by the preset's.") { reset(it); open = null } } }
+            LinkText("Clear") { graph.messages.askReset("Clear the targets?", "Every stat target, minimum, maximum and weight for this hero is removed.") { graph.heroes.clearTargets(heroId, it) } }
         }
     }, button = open?.let { "Done with ${it.label}" } ?: "Done", onButton = {
         // with a stat open the button finishes that stat; the sheet closes only from the list

@@ -164,7 +164,7 @@ class ScanFeatureTest {
         g.pool.run.start { CompletableDeferred<Unit>().await() }
         g.nav.go(Screen.Heroes)
         g.tracker.restore(JSONObject().put("signature", "sig"), save = false)
-        g.scan.erase()
+        g.scan.erase(e7.gearscan.userConfirmed())
         g.disk.flush()
         assertTrue(g.work.active.isEmpty())
         assertEquals("", g.tracker.signature)

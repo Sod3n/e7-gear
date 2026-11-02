@@ -60,7 +60,7 @@ class HistoryFeatureTest {
         val g = graph(this, createTempDirectory("history").toFile())
         g.scan.import(SyntheticBox.generate(1).gearText)
         g.history.record(entry(1))
-        g.scan.erase()
+        g.scan.erase(e7.gearscan.userConfirmed())
         assertTrue(g.history.entries.isEmpty())
     }
 }

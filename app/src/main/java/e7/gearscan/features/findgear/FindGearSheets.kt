@@ -112,7 +112,7 @@ internal fun PotentialOptionsSheet(graph: AppGraph) {
             Text("Include rare-roll possibilities", style = zen(12.sp), modifier = Modifier.weight(1f))
             Toggle(q.rareOnly) { graph.findGear.edit(q.copy(rareOnly = it)) }
         }
-        LinkText("Reset to Speed 20, no boots") { graph.messages.askReset("Reset the search?", "Targets and filters go back to Speed 20, no boots.") { graph.findGear.edit(PotentialQuery()) } }
+        LinkText("Reset to Speed 20, no boots") { graph.messages.askReset("Reset the search?", "Targets and filters go back to Speed 20, no boots.", graph.findGear::resetSearch) }
     }
 }
 
