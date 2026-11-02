@@ -50,14 +50,14 @@ class GearPotentialScreens {
         ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.consent = true
             e7.gearscan.ui.Themes.set(ctx, false); model.graph.findGear.edit(PotentialQuery()) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
-        if (images.isDirectory) e7.gearscan.ui.GameImages.base = images.toURI().toString()
+        if (images.isDirectory) model.graph.content.imageBase = images.toURI().toString()
         var width by mutableStateOf(411)
         var font by mutableStateOf(1f)
         var overlay by mutableStateOf(false)
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, font)) {
-                Box(Modifier.testTag("frame").width(width.dp).fillMaxHeight()) { if (overlay) OverlayUi({ _, _ -> }, {}, {}) else App(model) {} }
+                Box(Modifier.testTag("frame").width(width.dp).fillMaxHeight()) { if (overlay) androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides model.graph.content.imageBase) { OverlayUi({ _, _ -> }, {}, {}) } else App(model) {} }
             }
         }
         fun snap(name: String) {
@@ -180,14 +180,14 @@ class GearPotentialScreens {
         rule.waitUntil(20_000) { model.ready }
         ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.go(Screen.GearPotential) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
-        if (images.isDirectory) e7.gearscan.ui.GameImages.base = images.toURI().toString()
+        if (images.isDirectory) model.graph.content.imageBase = images.toURI().toString()
         var width by mutableStateOf(411)
         var font by mutableStateOf(1f)
         var overlay by mutableStateOf(false)
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, font)) {
-                Box(Modifier.width(width.dp).fillMaxHeight()) { if (overlay) OverlayUi({ _, _ -> }, {}, {}) else App(model) {} }
+                Box(Modifier.width(width.dp).fillMaxHeight()) { if (overlay) androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides model.graph.content.imageBase) { OverlayUi({ _, _ -> }, {}, {}) } else App(model) {} }
             }
         }
         shot("01-filters-411")

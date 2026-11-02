@@ -72,7 +72,7 @@ class SellFiltersScreens {
         rule.waitUntil(20_000) { model.ready }
         ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() }));model.go(Screen.SellFilters) }
         val images=File(ctx.getExternalFilesDir(null),"audit-images")
-        if(images.isDirectory)e7.gearscan.ui.GameImages.base=images.toURI().toString()
+        if(images.isDirectory)model.graph.content.imageBase = images.toURI().toString()
         var width by mutableIntStateOf(411);var font by mutableFloatStateOf(1f);var overlay by mutableStateOf(false)
         rule.setContent {
             val d=LocalDensity.current;val c=Configuration(LocalConfiguration.current).apply { screenWidthDp=width;screenHeightDp=if(overlay)240 else 850 }

@@ -36,14 +36,14 @@ fun App(model: AppModel, onExit: () -> Unit) {
             override fun go() { model.back() }
         }
     }
-    CompositionLocalProvider(LocalBack provides back) { AppContent(model, onExit) }
+    CompositionLocalProvider(LocalBack provides back, LocalImageBase provides model.graph.content.imageBase) { AppContent(model, onExit) }
 }
 
 @Composable
 private fun AppContent(model: AppModel, onExit: () -> Unit) {
     BackHandler { if (!model.back()) onExit() }
     if (!model.ready) { Box(Modifier.fillMaxSize().background(C.paper)); return }
-    if (model.content.heroes.isEmpty()) { GameDataScreen(model); return }
+    if (model.graph.content.content.heroes.isEmpty()) { GameDataScreen(model); return }
     // in the phone's floating window, a loaded tracker or checklist is all the window shows
     val loaded = e7.gearscan.overlay.OverlayState.upgrade != null || e7.gearscan.overlay.OverlayState.build != null
     if (model.floating && model.floatingPanel && loaded) { FloatingPanel(model); return }

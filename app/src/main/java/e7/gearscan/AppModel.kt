@@ -171,8 +171,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     val limitMs = 15_000L
     val longLimitMs = 60_000L
 
-    var content: Content by mutableStateOf(loadContent())
-        private set
+    val content get() = graph.content.content
     val box get() = graph.scan.box
     val rev get() = graph.scan.rev
     private val configs get() = graph.heroes.configs
@@ -249,14 +248,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun back(): Boolean = graph.nav.back()
 
-    // ---- content ----
-    private fun loadContent(): Content {
-        // the APK carries no game data: the last download, or nothing until the first one arrives
-        val downloaded = runCatching { Content.parse(File(getApplication<Application>().filesDir, "content.json").readText()) }.getOrNull()
-        return (downloaded?.takeIf { it.schema <= e7.gearscan.data.ContentUpdate.SCHEMA } ?: Content.EMPTY)
-            .also { e7.gearscan.ui.GameImages.base = it.imageBase }
-    }
-
     /** A newer app version on GitHub Releases, found by the daily check. */
     var appUpdate: e7.gearscan.data.AppUpdate.Release? by mutableStateOf(null)
         internal set
@@ -325,46 +316,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         installWhenAllowed = null
         updateProblem = null
         AppInstall.install(app, apk)
-    }
-
-    /** Last content check and what it found, for Scan & data. */
-    var contentCheckedAt get() = graph.content.checkedAt
-        set(v) { graph.content.checkedAt = v }
-    var contentStatus: String? by mutableStateOf(null)
-        private set
-
-    /** Fetches newer content from the content site; [quiet] for the daily check, which shows nothing unless it updates. */
-    fun checkContent(quiet: Boolean = false) {
-        val current = content
-        contentStatus = if (quiet) contentStatus else "Checking…"
-        viewModelScope.launch {
-            val out = withContext(Dispatchers.IO) {
-                runCatching {
-                    e7.gearscan.data.ContentUpdate.check(current) { site ->
-                        e7.gearscan.data.Mirror.fetch(site, siteFirst = true) { url ->
-                            val c = e7.gearscan.data.Http.open(url) as java.net.HttpURLConnection
-                            c.connectTimeout = 8000; c.readTimeout = 20000; c.useCaches = false
-                            if (c.responseCode != 200) throw IOException("HTTP ${c.responseCode} for $url")
-                            c.inputStream.use { it.readBytes() }
-                        }
-                    }.also { o ->
-                        // whole-file replace, so a write cut short never leaves half a content file
-                        o.bytes?.let { b -> File(files, "content.json.tmp").apply { writeBytes(b); renameTo(File(files, "content.json")) } }
-                    }
-                }
-            }
-            contentCheckedAt = System.currentTimeMillis()
-            out.onSuccess { o ->
-                contentStatus = when (o.result) {
-                    e7.gearscan.data.ContentUpdate.Result.UPDATED -> {
-                        content = o.content!!; e7.gearscan.ui.GameImages.base = content.imageBase; touch(); "Updated to ${o.version}"
-                    }
-                    e7.gearscan.data.ContentUpdate.Result.NEEDS_APP -> "Content ${o.version} needs a newer app"
-                    e7.gearscan.data.ContentUpdate.Result.CURRENT -> if (quiet) contentStatus else "Up to date"
-                }
-            }.onFailure { if (!quiet) contentStatus = "Couldn't check: ${it.message?.take(80)}" }
-            save()
-        }
     }
 
     // every change is saved shortly after: Android may close the app while the player is in the game
@@ -1916,8 +1867,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             stack = listOf(if (!consent && box == null) Screen.ScanIntro else Screen.Optimize)
             ready = true
             team.firstOrNull()?.let { ensurePresets(it) }
-            if (content.heroes.isEmpty()) checkContent()
-            else if (System.currentTimeMillis() - contentCheckedAt > 24 * 3600 * 1000L) checkContent(quiet = true)
+            if (content.heroes.isEmpty()) graph.content.checkNow()
+            else if (System.currentTimeMillis() - graph.content.checkedAt > 24 * 3600 * 1000L) graph.content.checkNow(quiet = true)
             checkAppUpdate()
             withContext(Dispatchers.IO) { AppInstall.clean(getApplication(), appVersion) }
             withContext(Dispatchers.IO) { Reports.flush(reportsDir, content.feedbackUrl) }

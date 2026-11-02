@@ -51,7 +51,7 @@ fun TabBar(model: AppModel, current: Screen) {
 
 @Composable
 fun ArtifactIcon(model: AppModel, art: e7.gearscan.data.Artifact?, size: androidx.compose.ui.unit.Dp) {
-    ArtifactIcon(art, size) { model.content.artifactIcon(it) }
+    ArtifactIcon(art, size) { model.graph.content.content.artifactIcon(it) }
 }
 
 /** Shown after the app crashed: what happened, with a one-tap report. */

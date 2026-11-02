@@ -259,12 +259,12 @@ private fun jpegBase64(bytes: ByteArray): String {
 /** First start: the APK carries no game data, so heroes, artifacts and sets come from the content site once. */
 @Composable
 fun GameDataScreen(model: e7.gearscan.AppModel) {
-    val failed = model.contentStatus?.startsWith("Couldn't") == true
-    Frame(null, null, actions = if (failed) ({ PinkButton("Try again", Modifier.weight(1f)) { model.checkContent() } }) else null) {
+    val failed = model.graph.content.status?.startsWith("Couldn't") == true
+    Frame(null, null, actions = if (failed) ({ PinkButton("Try again", Modifier.weight(1f)) { model.graph.content.checkNow() } }) else null) {
         ScreenTitle("Game data")
         Text(if (failed) "Couldn't get the game data" else "Getting game data…", style = dela(16.sp))
         Text("Heroes, artifacts and sets come from the app's content site, so new heroes arrive without an app update. " +
             "This happens once; after that the app checks for newer data at most once a day.", style = zen(13.sp, FontWeight.Medium, C.muted))
-        if (failed) Text((model.contentStatus ?: "") + ". Check the connection and try again.", style = zen(12.sp, color = C.deepPink))
+        if (failed) Text((model.graph.content.status ?: "") + ". Check the connection and try again.", style = zen(12.sp, color = C.deepPink))
     }
 }

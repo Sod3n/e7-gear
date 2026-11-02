@@ -69,7 +69,7 @@ class NoScrollScreens {
     @Test fun fittedPagesAtShortHeightsAndLargeText() {
         assumeTrue(Build.FINGERPRINT.contains("generic") || Build.HARDWARE.contains("ranchu"))
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
-        if (images.isDirectory) e7.gearscan.ui.GameImages.base = images.toURI().toString()
+        val imageBase = if (images.isDirectory) images.toURI().toString() else Content.DEFAULT_IMAGE_BASE
         val assets = InstrumentationRegistry.getInstrumentation().context.assets
         val content = Content.parse(assets.open("content.json").bufferedReader().use { it.readText() })
         var t by mutableStateOf<UpgradeTracker?>(null)
@@ -78,7 +78,7 @@ class NoScrollScreens {
         rule.setContent {
             val d = LocalDensity.current
             val c = Configuration(LocalConfiguration.current).apply { screenHeightDp = height; screenWidthDp = 353 }
-            CompositionLocalProvider(LocalDensity provides Density(d.density, font), LocalConfiguration provides c) {
+            CompositionLocalProvider(LocalDensity provides Density(d.density, font), LocalConfiguration provides c, e7.gearscan.ui.LocalImageBase provides imageBase) {
                 Box(Modifier.width(353.dp).height(height.dp)) { key(t) { t?.let { UpgradeOverlay(it, { _, _ -> }, {}, {}) } } }
             }
         }

@@ -315,7 +315,9 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private fun composeView(content: @androidx.compose.runtime.Composable () -> Unit) = ComposeView(this).apply {
         setViewTreeLifecycleOwner(this@OverlayService)
         setViewTreeSavedStateRegistryOwner(this@OverlayService)
-        setContent(content)
+        setContent {
+            androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides (application as e7.gearscan.E7GearApp).graph.content.imageBase) { content() }
+        }
     }
 
     private fun setBodyAlpha(a: Float) {

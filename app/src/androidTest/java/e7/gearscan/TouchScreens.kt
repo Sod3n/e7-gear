@@ -47,7 +47,7 @@ class TouchScreens {
         rule.waitUntil(20_000) { model.ready }
         ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.go(Screen.Heroes) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
-        if (images.isDirectory) e7.gearscan.ui.GameImages.base = images.toURI().toString()
+        if (images.isDirectory) model.graph.content.imageBase = images.toURI().toString()
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, 1.3f)) { Box(Modifier.width(353.dp).fillMaxHeight()) { App(model) {} } }

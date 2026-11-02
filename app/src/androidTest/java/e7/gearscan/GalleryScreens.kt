@@ -56,7 +56,7 @@ class GalleryScreens {
         rule.waitUntil(20_000) { m.ready }
         ui { check(m.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
-        if (images.isDirectory) e7.gearscan.ui.GameImages.base = images.toURI().toString()
+        if (images.isDirectory) m.graph.content.imageBase = images.toURI().toString()
         return m
     }
 

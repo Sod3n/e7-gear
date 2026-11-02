@@ -43,12 +43,12 @@ class QueueScreens {
         rule.waitUntil(20_000) { model.ready }
         ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.go(Screen.GearPotential) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
-        if (images.isDirectory) e7.gearscan.ui.GameImages.base = images.toURI().toString()
+        if (images.isDirectory) model.graph.content.imageBase = images.toURI().toString()
         var overlay by mutableStateOf(false)
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, 1.3f)) {
-                Box(Modifier.width(353.dp).fillMaxHeight()) { if (overlay) OverlayUi({ _, _ -> }, {}, {}) else App(model) {} }
+                Box(Modifier.width(353.dp).fillMaxHeight()) { if (overlay) androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides model.graph.content.imageBase) { OverlayUi({ _, _ -> }, {}, {}) } else App(model) {} }
             }
         }
         rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle(); rule.waitUntil(30_000) { !model.graph.findGear.busy }

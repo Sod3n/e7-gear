@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -71,11 +72,10 @@ import e7.gearscan.data.Item
 import e7.gearscan.data.Stat
 
 /** Game-derived images live on the content site, not in the APK; the content names the base, so it can move. */
-object GameImages {
-    @Volatile var base: String = e7.gearscan.data.Content.DEFAULT_IMAGE_BASE
-}
+val LocalImageBase = staticCompositionLocalOf { e7.gearscan.data.Content.DEFAULT_IMAGE_BASE }
 
-fun gameImage(path: String) = GameImages.base + path
+@Composable
+fun gameImage(path: String) = LocalImageBase.current + path
 
 val MissingImage get() = androidx.compose.ui.graphics.painter.ColorPainter(C.line)
 

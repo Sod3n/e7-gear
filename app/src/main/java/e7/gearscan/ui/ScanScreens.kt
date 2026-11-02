@@ -242,8 +242,8 @@ fun ScanDataScreen(model: AppModel) {
             }
             DataRow("Restore from a backup", null, true) { restore.launch(arrayOf("application/json", "text/plain", "*/*")) }
             DataRow("Import a gear.txt file", null, true) { importGear.launch(arrayOf("text/plain", "application/json", "*/*")) }
-            DataRow("Game content", model.contentStatus ?: ("Version ${model.content.version}" +
-                if (model.contentCheckedAt > 0) " · checked ${model.graph.scan.scannedLabelOf(model.contentCheckedAt)}" else ""), true) { model.checkContent() }
+            DataRow("Game content", model.graph.content.status ?: ("Version ${model.graph.content.content.version}" +
+                if (model.graph.content.checkedAt > 0) " · checked ${model.graph.scan.scannedLabelOf(model.graph.content.checkedAt)}" else ""), true) { model.graph.content.checkNow() }
             DataRow("Report a bug", null, true) { model.go(Screen.Feedback()) }
             Row(Modifier.fillMaxWidth().tap { if (erase) model.graph.scan.erase() else erase = true }.padding(horizontal = 12.dp, vertical = 10.dp)) {
                 Text(if (erase) "Tap again to erase everything" else "Erase all data", style = zen(13.sp, color = C.deepPink))
@@ -442,7 +442,7 @@ fun ScanResultScreen(model: AppModel) {
             val preview = d.newItems.take(5).mapNotNull { box.itemsById[it] }
             if (preview.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(top = 6.dp)) {
-                preview.forEach { GearTile(it, 40.dp, setIcon = model.content.set(it.set)?.icon) }
+                preview.forEach { GearTile(it, 40.dp, setIcon = model.graph.content.content.set(it.set)?.icon) }
                 Text("Tap a row to see the items.", style = zen(11.sp, FontWeight.Medium, C.muted))
             }
         }
@@ -473,7 +473,7 @@ fun DiffItemsScreen(model: AppModel, kind: Int) {
 fun ItemRow(model: AppModel, it: Item, owner: String? = null) {
     Card(shadow = null, radius = 12.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            GearTile(it, 44.dp, setIcon = model.content.set(it.set)?.icon)
+            GearTile(it, 44.dp, setIcon = model.graph.content.content.set(it.set)?.icon)
             Column(Modifier.weight(1f)) {
                 Row {
                     Text("${it.mainType.short} ${it.mainType.format(it.mainValue)}", style = zen(13.sp), modifier = Modifier.weight(1f))
