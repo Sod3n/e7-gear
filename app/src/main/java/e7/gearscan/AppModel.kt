@@ -1838,43 +1838,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---- files ----
-    fun backupText(): String {
-        box?.let { graph.scan.boxFile.write(it.toText()) }
-        if (history.isNotEmpty() || graph.history.file.exists) graph.history.file.write(e7.gearscan.data.History.encode(history))
-        graph.disk.flush()
-        return graph.store.backup().toString()
-    }
-
-    fun restore(text: String): Boolean = runCatching {
-        val j = JSONObject(text)
-        if (j.optString("app") != "e7gear") return false
-        if (!j.has("state") && !j.has("fields")) return false
-        stopAllWork()
-        graph.store.restore(j)
-        graph.scan.adopt()
-        upgrades.restore(runCatching { JSONObject(graph.tracker.upgrades.read().orEmpty()) }.getOrDefault(JSONObject()))
-        syncTrackerMarks()
-        true
-    }.getOrDefault(false)
-
     private fun cancelAllWork() {
         graph.work.cancelAll()
-    }
-
-    private fun stopAllWork() {
-        cancelAllWork()
-        e7.gearscan.overlay.OverlayService.stop(getApplication())
-    }
-
-    fun eraseAll() {
-        stopAllWork()
-        graph.store.erase()
-        e7.gearscan.overlay.OverlayState.upgrade = null
-        upgrades.restore(JSONObject(), write = false)
-        presets.clear(); search = null; pool = null
-        graph.scan.adopt()
-        stack = listOf(Screen.ScanIntro)
     }
 
     // ---- persistence ----
@@ -1922,6 +1887,18 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 team.firstOrNull()?.let { ensurePresets(it) }
             }
             override fun adopted(box: Box?) = this@AppModel.adopted(box)
+            override fun beforeBackup() {
+                if (history.isNotEmpty() || graph.history.file.exists) graph.history.file.write(e7.gearscan.data.History.encode(history))
+            }
+            override fun restored() {
+                upgrades.restore(runCatching { JSONObject(graph.tracker.upgrades.read().orEmpty()) }.getOrDefault(JSONObject()))
+                syncTrackerMarks()
+            }
+            override fun erased() {
+                e7.gearscan.overlay.OverlayState.upgrade = null
+                upgrades.restore(JSONObject(), write = false)
+                presets.clear(); search = null; pool = null
+            }
         }
         e7.gearscan.overlay.OverlayState.progressFile = graph.tracker.checklist.file
         upgrades.cancelCheck = { graph.tracker.check.cancel() }

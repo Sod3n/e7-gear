@@ -126,6 +126,38 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
         host.imported(nb)
     }
 
+    fun backupText(): String {
+        saveBox()
+        host.beforeBackup()
+        g.disk.flush()
+        return g.store.backup().toString()
+    }
+
+    fun restore(text: String): Boolean =
+        runCatching {
+            val j = JSONObject(text)
+            if (j.optString("app") != "e7gear") return false
+            if (!j.has("state") && !j.has("fields")) return false
+            stopAll()
+            g.store.restore(j)
+            adopt()
+            host.restored()
+            true
+        }.getOrDefault(false)
+
+    fun erase() {
+        stopAll()
+        g.store.erase()
+        host.erased()
+        adopt()
+        g.nav.setScreens(listOf(Screen.ScanIntro))
+    }
+
+    private fun stopAll() {
+        g.work.cancelAll()
+        g.platform.stopOverlay()
+    }
+
     fun otherVpnActive() = g.platform.otherVpnActive() && phase != ScanPhase.CAPTURING
 
     fun onVpnGranted() {

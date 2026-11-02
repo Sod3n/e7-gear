@@ -178,7 +178,7 @@ fun ScanDataScreen(model: AppModel) {
     var note by remember { mutableStateOf<String?>(null) }
     val restore = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { model.graph.scan.readUri(it) }?.let {
-            if (model.restore(it)) { model.tab(Screen.Optimize); model.showToast("Backup restored") } else note = "That file is not a backup from this app."
+            if (model.graph.scan.restore(it)) { model.tab(Screen.Optimize); model.showToast("Backup restored") } else note = "That file is not a backup from this app."
         }
     }
     val importGear = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -234,7 +234,7 @@ fun ScanDataScreen(model: AppModel) {
                 model.graph.scan.exportGear()?.let { (uri, name) -> model.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "text/plain") } }
             }
             DataRow("Back up everything", "Heroes, builds, tiers, settings · saved to Downloads/E7GearScan", true) {
-                val (uri, name) = model.graph.scan.export("e7gear-backup.json", model.backupText())
+                val (uri, name) = model.graph.scan.export("e7gear-backup.json", model.graph.scan.backupText())
                 model.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "application/json") }
             }
             DataRow("Over the game", if (model.overGameNative) "Phone's floating window · tap to use E7 Gear's panel" else "E7 Gear's panel · tap to use the phone's floating window", true) {
@@ -245,7 +245,7 @@ fun ScanDataScreen(model: AppModel) {
             DataRow("Game content", model.contentStatus ?: ("Version ${model.content.version}" +
                 if (model.contentCheckedAt > 0) " · checked ${model.graph.scan.scannedLabelOf(model.contentCheckedAt)}" else ""), true) { model.checkContent() }
             DataRow("Report a bug", null, true) { model.go(Screen.Feedback()) }
-            Row(Modifier.fillMaxWidth().tap { if (erase) model.eraseAll() else erase = true }.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(Modifier.fillMaxWidth().tap { if (erase) model.graph.scan.erase() else erase = true }.padding(horizontal = 12.dp, vertical = 10.dp)) {
                 Text(if (erase) "Tap again to erase everything" else "Erase all data", style = zen(13.sp, color = C.deepPink))
             }
         }

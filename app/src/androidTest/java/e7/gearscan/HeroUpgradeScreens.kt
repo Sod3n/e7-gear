@@ -68,7 +68,7 @@ class HeroUpgradeScreens {
         File(ctx.filesDir, "hero_upgrades.json").writeText(saved!!)
         rule.runOnUiThread { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        ui { check(model.restore(backup)); model.consent = true; Themes.set(ctx, false) }
+        ui { check(model.graph.scan.restore(backup)); model.consent = true; Themes.set(ctx, false) }
         File(ctx.filesDir, "hero_upgrades.json").takeIf { !it.exists() }?.writeText(saved)
         rule.runOnUiThread { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
@@ -114,7 +114,7 @@ class HeroUpgradeScreens {
         rule.waitUntil(20_000) { model.ready }
         check(model.content.heroes.isNotEmpty()) { "no game content" }
         var ok = false
-        ui { ok = model.restore(backup); model.consent = true; Themes.set(ctx, false) }
+        ui { ok = model.graph.scan.restore(backup); model.consent = true; Themes.set(ctx, false) }
         check(ok) { "restore failed" }
         File(ctx.filesDir, "hero_upgrades.json").delete(); File(ctx.filesDir, "hero_upgrades_progress.json").delete()
         ui { model.heroUpgrades = null }

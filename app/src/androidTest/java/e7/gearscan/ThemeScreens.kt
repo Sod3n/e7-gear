@@ -41,7 +41,7 @@ class ThemeScreens {
         lateinit var model: AppModel
         ui { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        ui { check(model.restore(assets.open("backup.json").bufferedReader().use { it.readText() })) }
+        ui { check(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })) }
         rule.setContent { Box(Modifier.width(411.dp).fillMaxHeight()) { App(model) {} } }
         val hero = model.box!!.heroes.first { model.gameHero(it) != null && model.box!!.gearOf(it.id).size == 6 }.id
         val screens = listOf("optimize" to Screen.Optimize, "heroes" to Screen.Heroes, "hero" to Screen.HeroDetail(hero),

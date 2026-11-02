@@ -45,7 +45,7 @@ class TouchScreens {
         lateinit var model: AppModel
         ui { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        ui { assertTrue(model.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.go(Screen.Heroes) }
+        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.go(Screen.Heroes) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
         if (images.isDirectory) e7.gearscan.ui.GameImages.base = images.toURI().toString()
         rule.setContent {
@@ -77,6 +77,6 @@ class TouchScreens {
         tap("Paste"); shot("26-feedback-paste-353-big")
         rule.onAllNodesWithText("Local screenshot audit, never sent.").assertCountEquals(1)
         // Nothing is sent. Reset only the isolated emulator state.
-        ui { model.restore(assets.open("backup.json").bufferedReader().use { it.readText() }) }
+        ui { model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() }) }
     }
 }

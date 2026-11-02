@@ -4,6 +4,7 @@ import e7.gearscan.AppGraph
 import e7.gearscan.data.Box
 import e7.gearscan.data.Mirror
 import e7.gearscan.state.Disk
+import e7.gearscan.Screen
 import e7.gearscan.state.Feature
 import e7.gearscan.testing.SyntheticBox
 import java.io.File
@@ -13,10 +14,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -113,5 +117,69 @@ class ScanFeatureTest {
         a.scan.capture.clear()
         assertEquals(0, a.scan.capture.count())
         assertFalse(a.scan.capture.vpnRunning)
+    }
+
+    private fun backupV1() = javaClass.getResource("/backup_v1.json")!!.readText()
+
+    @Test fun restoringAV1BackupCancelsWorkAndLoadsTheBoxHistoryAndFields() = runTest(UnconfinedTestDispatcher()) {
+        val g = graph(this)
+        g.scan.import(text)
+        g.pool.run.start { CompletableDeferred<Unit>().await() }
+        var restored = 0
+        g.scan.host = object : ScanFeature.Host {
+            override fun restored() { restored++ }
+        }
+        assertTrue(g.scan.restore(backupV1()))
+        assertTrue(g.work.active.isEmpty())
+        assertEquals(1, restored)
+        assertNotNull(g.scan.box)
+        assertTrue(JSONObject(backupV1()).getJSONObject("box").similar(JSONObject(g.scan.boxFile.read()!!)))
+        assertEquals(1_761_000_000_000L, g.scan.lastScan)
+        assertEquals(42, g.scan.decodeSec)
+        assertEquals(2, JSONArray(g.history.file.read()!!).length())
+        assertTrue(JSONObject(backupV1()).getJSONObject("upgrades").similar(JSONObject(g.tracker.upgrades.read()!!)))
+        assertTrue(g.marks.cleared.isEmpty())
+    }
+
+    @Test fun aFileThatIsNotABackupIsRefusedAndChangesNothing() = runTest(UnconfinedTestDispatcher()) {
+        val g = graph(this)
+        g.scan.import(text)
+        val before = g.scan.box
+        assertFalse(g.scan.restore("not json"))
+        assertFalse(g.scan.restore("""{"app":"other","state":{}}"""))
+        assertFalse(g.scan.restore("""{"app":"e7gear"}"""))
+        assertTrue(before === g.scan.box)
+    }
+
+    @Test fun backupTextCarriesTheCurrentBoxAndRestoresIntoAnotherGraph() = runTest(UnconfinedTestDispatcher()) {
+        val a = graph(this)
+        a.scan.import(text)
+        a.scan.decodeSec = 9
+        val backup = a.scan.backupText()
+        val b = graph(this)
+        assertTrue(b.scan.restore(backup))
+        assertEquals(box.items.size, b.scan.box!!.items.size)
+        assertEquals(9, b.scan.decodeSec)
+    }
+
+    @Test fun eraseCancelsWorkClearsTheBoxAndReturnsToTheIntro() = runTest(UnconfinedTestDispatcher()) {
+        val g = graph(this)
+        g.scan.import(text)
+        g.marks.markReviewed(box.items.first().id, keep = false)
+        g.pool.run.start { CompletableDeferred<Unit>().await() }
+        g.nav.go(Screen.Heroes)
+        var erased = 0
+        g.scan.host = object : ScanFeature.Host {
+            override fun erased() { erased++ }
+        }
+        g.scan.erase()
+        g.disk.flush()
+        assertTrue(g.work.active.isEmpty())
+        assertEquals(1, erased)
+        assertNull(g.scan.box)
+        assertEquals(0L, g.scan.lastScan)
+        assertTrue(g.marks.cleared.isEmpty())
+        assertFalse(g.scan.boxFile.exists)
+        assertEquals(listOf<Screen>(Screen.ScanIntro), g.nav.screens())
     }
 }

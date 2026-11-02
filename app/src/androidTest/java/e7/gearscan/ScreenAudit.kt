@@ -910,10 +910,10 @@ class ScreenAudit {
         // ~650 screens in one process leave little heap: a second JSON tree of the backup ran out of memory and lost the report
         try {
             val runs = model.history.size
-            val text = model.backupText()
+            val text = model.graph.scan.backupText()
             if (historyLength(text) != runs) add("a backup doesn't carry the history", "backup")
             var ok = false
-            ui { ok = model.restore(text) }
+            ui { ok = model.graph.scan.restore(text) }
             if (!ok || model.history.size != runs || runs == 0) add("restoring a backup loses the history", "backup: $runs runs before, ${model.history.size} after, ${text.length / 1024} KB, heap ${heapMb()}")
         } catch (e: OutOfMemoryError) {
             add("the backup step ran out of memory", "heap ${heapMb()}")

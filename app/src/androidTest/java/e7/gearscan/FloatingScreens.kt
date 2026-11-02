@@ -53,7 +53,7 @@ class FloatingScreens {
         rule.runOnUiThread { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
         var restored = false
-        ui { restored = model.restore(backup); model.upgrades.clear() }
+        ui { restored = model.graph.scan.restore(backup); model.upgrades.clear() }
         check(restored) { "restore failed" }
         rule.setContent { Box(Modifier.width(353.dp).height(571.dp)) { App(model) {} } }
 

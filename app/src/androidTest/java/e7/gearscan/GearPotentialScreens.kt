@@ -47,7 +47,7 @@ class GearPotentialScreens {
         lateinit var model: AppModel
         ui { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        ui { assertTrue(model.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.consent = true
+        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.consent = true
             e7.gearscan.ui.Themes.set(ctx, false); model.graph.findGear.edit(PotentialQuery()) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
         if (images.isDirectory) e7.gearscan.ui.GameImages.base = images.toURI().toString()
@@ -178,7 +178,7 @@ class GearPotentialScreens {
         lateinit var model: AppModel
         ui { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        ui { assertTrue(model.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.go(Screen.GearPotential) }
+        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.go(Screen.GearPotential) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
         if (images.isDirectory) e7.gearscan.ui.GameImages.base = images.toURI().toString()
         var width by mutableStateOf(411)
@@ -291,7 +291,7 @@ class GearPotentialScreens {
         assertEquals(model.upgrades.goal, restored.goal)
         assertEquals(15, restored.record!!.item.enhance)
         shot("10-missed-target-353-big")
-        val backup = JSONObject(model.backupText())
+        val backup = JSONObject(model.graph.scan.backupText())
         assertEquals(model.graph.findGear.query, PotentialQuery.of(backup.getJSONObject("state").getJSONObject("potentialQuery")))
         ui { OverlayState.upgrade = null }
     }
