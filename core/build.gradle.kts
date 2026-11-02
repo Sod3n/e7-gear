@@ -29,7 +29,7 @@ dependencies {
 }
 
 tasks.register<JavaExec>("syntheticFixtures") {
-    description = "Writes gear.txt, backup.json and content.json for the screen audit to build/fixtures/synthetic"
+    description = "Writes gear.txt, backup.json, content.json and builds/ for the screen audit to build/fixtures/synthetic"
     group = "verification"
     classpath = sourceSets["testFixtures"].runtimeClasspath + configurations["testRuntimeClasspath"]
     mainClass.set("e7.gearscan.testing.SyntheticBox")

@@ -1,6 +1,9 @@
 package e7.gearscan.testing
 
 import e7.gearscan.TestContent
+import e7.gearscan.calc.Calc
+import e7.gearscan.calc.Reforge
+import e7.gearscan.data.Box
 import e7.gearscan.data.GearStat
 import e7.gearscan.data.Goal
 import e7.gearscan.data.HeroConfig
@@ -11,6 +14,8 @@ import e7.gearscan.data.SavedBuild
 import e7.gearscan.data.Slot
 import e7.gearscan.data.Stat
 import e7.gearscan.opt.Finish
+import e7.gearscan.opt.Objectives
+import e7.gearscan.opt.Setup
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -21,6 +26,7 @@ object SyntheticBox {
     class Result(
         val gearText: String,
         val backupText: String,
+        val builds: Map<String, String> = emptyMap(),
     )
 
     const val PIECES_PER_SLOT = 50
@@ -39,6 +45,21 @@ object SyntheticBox {
             Slot.NECKLACE to listOf(GearStat.ATK_P, GearStat.HP_P, GearStat.DEF_P, GearStat.CR, GearStat.CD),
             Slot.RING to listOf(GearStat.ATK_P, GearStat.HP_P, GearStat.DEF_P, GearStat.EFF, GearStat.RES),
             Slot.BOOTS to listOf(GearStat.ATK_P, GearStat.HP_P, GearStat.DEF_P, GearStat.SPD),
+        )
+
+    private val rawKeys =
+        mapOf(
+            GearStat.ATK to "att",
+            GearStat.ATK_P to "att_rate",
+            GearStat.HP to "max_hp",
+            GearStat.HP_P to "max_hp_rate",
+            GearStat.DEF to "def",
+            GearStat.DEF_P to "def_rate",
+            GearStat.SPD to "speed",
+            GearStat.CR to "cri",
+            GearStat.CD to "cri_dmg",
+            GearStat.EFF to "acc",
+            GearStat.RES to "res",
         )
 
     fun mainsOf(slot: Slot) = mains.getValue(slot)
@@ -67,7 +88,91 @@ object SyntheticBox {
                 .put("state", state(heroes, items, wearers, setKeys, rnd))
                 .put("box", JSONObject(gear.toString()))
                 .put("history", JSONArray(history(heroes, items, wearers, rnd).map { it.toJson() }))
-        return Result(gear.toString(), backup.toString())
+        return Result(gear.toString(), backup.toString(), builds(gear.toString(), heroes))
+    }
+
+    private fun builds(
+        gearText: String,
+        heroes: List<Hero>,
+    ): Map<String, String> {
+        val content = TestContent.content
+        val box = Box.parse(gearText)
+        val sets = content.sets.map { it.key }
+
+        fun game(counts: Map<String, Int>) =
+            JSONObject().also { o -> counts.forEach { (k, n) -> o.put(content.set(k)!!.game, n.toString()) } }
+        return heroes.indices.associate { i ->
+            val owned = box.allHeroes[i]
+            val gh = content.heroes.getValue(owned.code)
+            val setup = Setup(owned, gh, HeroConfig().also { it.artifact = heroes[i].artifact }, Request(), box, content, { true })
+            val worn = box.gearOf(owned.id).toMutableMap()
+            for (slot in Slot.entries) {
+                if (slot !in
+                    worn
+                ) {
+                    box.items
+                        .filter { it.slot == slot && it.equippedOn == null }
+                        .maxByOrNull { it.enhance }
+                        ?.let { worn[slot] = it }
+                }
+            }
+            val final =
+                setup
+                    .build(worn.values.toList())
+                    .final.stats
+                    .copyOf()
+            val roll = Objectives.rollSize(setup.hb)
+            val floor = setup.hb.fixed.copyOf()
+            floor[0] += 525 * setup.hb.mult[0]
+            floor[1] += 2835 * setup.hb.mult[1]
+            floor[2] += 310 * setup.hb.mult[2]
+            val kept = listOf(Slot.NECKLACE, Slot.RING, Slot.BOOTS).mapNotNull { worn[it]?.mainType?.stat?.ordinal }.toSet()
+            val common = setOf(0, 1, 2)
+            val rolls = if (kept.any { it !in common }) 8 else 13
+            for (x in 0 until 8) {
+                final[x] =
+                    when {
+                        x !in kept -> minOf(final[x], floor[x] + 3 * roll[x])
+                        x in common -> floor[x] + rolls * roll[x]
+                        else -> maxOf(final[x], floor[x] + 13 * roll[x])
+                    }
+            }
+            val own = Calc.setCounts(worn.values, content).associate { (d, n) -> d.key to n }
+            val four = listOf("SpeedSet", "DestructionSet", "AttackSet", "CounterSet", "ImmunitySet").filter { it in sets }
+            val two = listOf("HitSet", "CriticalSet", "HealthSet", "DefenseSet", "ResistSet").filter { it in sets }
+            val groups =
+                listOf(
+                    own,
+                    mapOf(four[i % four.size] to 4, two[i % two.size] to 2),
+                    mapOf(four[(i + 2) % four.size] to 4, two[(i + 3) % two.size] to 2),
+                )
+            val shape = listOf(doubleArrayOf(1.0, 1.0, 1.0, 0.0), doubleArrayOf(0.97, 1.03, 5.0, 5.0), doubleArrayOf(1.05, 0.96, 3.0, 10.0))
+            val rows = JSONArray()
+            for (r in 0 until 12) {
+                val g = if (r < 6) 0 else (r - 6) / 3 + 1
+                val lead = r == 0 || r == 6 || r == 9
+                val sh = shape[g]
+                val jitter = if (lead) 0.0 else 1.0 + (r % 3)
+                rows.put(
+                    JSONObject()
+                        .put("artifactCode", heroes[i].artifact ?: JSONObject.NULL)
+                        .put("atk", Math.round(final[0] * sh[0] - jitter * 10))
+                        .put("hp", Math.round(final[1] * sh[1] - jitter * 60))
+                        .put("def", Math.round(final[2] - jitter * 8))
+                        .put("spd", Math.round(final[3] + sh[2] - 10 * jitter))
+                        .put("chc", Math.round(final[4] + sh[3] - jitter))
+                        .put("chd", Math.round(final[5] - jitter))
+                        .put("eff", Math.round(final[6] - jitter))
+                        .put("efr", Math.round(final[7] - jitter))
+                        .put("gs", 450 + (if (lead) 20 else 0) + r % 5)
+                        .put("createDate", "2026-01-${10 + r}")
+                        .put("sets", game(groups[g]))
+                        .put("unitCode", owned.code)
+                        .put("unitName", owned.name),
+                )
+            }
+            owned.code to JSONObject().put("data", rows).toString()
+        }
     }
 
     private class Hero(
@@ -102,6 +207,7 @@ object SyntheticBox {
         val main: GearStat,
         val main15: Int,
         val subs: List<Triple<GearStat, Int, Int>>,
+        val events: List<Pair<GearStat, Int>>,
         val locked: Boolean,
     ) {
         fun json(wearer: Long?): JSONObject {
@@ -114,10 +220,17 @@ object SyntheticBox {
                 .put("level", level)
                 .put("enhance", enhance)
                 .put("l", locked)
+                .put("mainStatId", "cra6_${slot.icon}_m")
                 .put("ingameEquippedId", wearer?.toString() ?: "None")
                 .put("main", JSONObject().put("type", main.key).put("value", main15))
-                .put("op", JSONArray().put(JSONArray().put(main.key).put(if (pct) main15 / 500.0 else main15 / 5.0)))
                 .put(
+                    "op",
+                    JSONArray().put(JSONArray().put(rawKeys.getValue(main)).put(if (pct) main15 / 500.0 else main15 / 5.0)).also { a ->
+                        events.forEach { (t, v) ->
+                            a.put(JSONArray().put(rawKeys.getValue(t)).put(if (t.showsPercent) v / 100.0 else v.toDouble()))
+                        }
+                    },
+                ).put(
                     "substats",
                     JSONArray(
                         subs.map { (t, v, r) ->
@@ -193,38 +306,24 @@ object SyntheticBox {
         val types = ArrayList<GearStat>()
         if (fast) types += GearStat.SPD
         types += pool.filter { it !in types }.shuffled(rnd).take((if (rank == "Heroic") 3 else 4) - types.size)
-        val vals = types.map { rollOf(it, level, rnd, fast && it == GearStat.SPD) }.toMutableList()
-        val rolls = types.map { 1 }.toMutableList()
+        val events = ArrayList<Pair<GearStat, Int>>()
+        for (t in types) events += t to rollOf(t, level, rnd, fast && t == GearStat.SPD)
         for (step in 1..enhance / 3) {
             if (rank == "Heroic" && step == 4) {
                 val t = pool.filter { it !in types }.random(rnd)
                 types += t
-                vals += rollOf(t, level, rnd, false)
-                rolls += 1
+                events += t to rollOf(t, level, rnd, false)
             } else {
-                val i = if (fast) types.indexOf(GearStat.SPD) else rnd.nextInt(types.size)
-                vals[i] += rollOf(types[i], level, rnd, fast && types[i] == GearStat.SPD)
-                rolls[i] += 1
+                val t = if (fast) GearStat.SPD else types[rnd.nextInt(types.size)]
+                events += t to rollOf(t, level, rnd, fast && t == GearStat.SPD)
             }
         }
-        if (fast) {
-            val i = types.indexOf(GearStat.SPD)
-            while (vals[i] < 20) vals[i] += 1
-        }
-        return Piece(
-            id,
-            slot,
-            set,
-            rank,
-            level,
-            enhance,
-            main,
-            main15(main, level),
-            types.indices.map {
-                Triple(types[it], vals[it], rolls[it])
-            },
-            locked,
-        )
+        val subs =
+            types.map { t ->
+                val of = events.filter { it.first == t }
+                Triple(t, of.sumOf { it.second } + (if (level == 90) Reforge.gain(t, of.size).toInt() else 0), of.size)
+            }
+        return Piece(id, slot, set, rank, level, enhance, main, main15(main, level), subs, events, locked)
     }
 
     private fun rollOf(
@@ -233,7 +332,7 @@ object SyntheticBox {
         rnd: Random,
         high: Boolean,
     ): Int {
-        val r = Finish.range(t, level)
+        val r = Finish.range(t, if (level == 90) 85 else level)
         return if (high) r.last else rnd.nextInt(r.first, r.last + 1)
     }
 
@@ -353,5 +452,6 @@ object SyntheticBox {
         File(dir, "gear.txt").writeText(r.gearText)
         File(dir, "backup.json").writeText(r.backupText)
         File(dir, "content.json").writeText(TestContent.text)
+        File(dir, "builds").apply { mkdirs() }.let { b -> r.builds.forEach { (code, text) -> File(b, "$code.json").writeText(text) } }
     }
 }
