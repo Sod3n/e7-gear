@@ -52,6 +52,8 @@ private class UpgradeDraft(val record: UpgradeRecord, val correction: Boolean) {
     var page by mutableStateOf(EntryPage.CHOOSE)
     val type get() = if (reveal) added!! else item.subs[field].type
     val bounds get() = if (reveal) GearBounds.newLine(type, item.level) else GearBounds.existingLine(item, field, next, correction)
+    val stepOptions get() = listOf(1.0, 10.0, 100.0, 1000.0).filter { it <= bounds.maximum - bounds.minimum }
+    val choiceNames get() = if (reveal) UpgradeRecord.allowedNew(item).map { it.short } else item.subs.mapIndexed { i, s -> "${s.type.short}: ${fmtNum(values[i])}" }
     fun choose(index: Int) {
         if (!correction) values = item.subs.map { it.value }
         if (reveal) { added = UpgradeRecord.allowedNew(item)[index]; newValue = null } else field = index
@@ -77,6 +79,15 @@ private const val PANEL_CHROME = 96f
 
 /** The least room number entry needs to stay readable. */
 private const val BODY_FLOOR = 96f
+
+/** Height PanelChoices needs to show every choice on one page, or 0 when the draft page is not a chooser. */
+private fun UpgradeDraft.chooserNeed(): Float {
+    val count = when (page) { EntryPage.CHOOSE -> choiceNames.size; EntryPage.STEP -> stepOptions.size; else -> return 0f }
+    return 55f + 34f * choiceRows(count)
+}
+
+private fun choiceRows(count: Int) = (count + choiceColumns(count) - 1) / choiceColumns(count)
+private fun choiceColumns(count: Int) = if (count > 4) 3 else 2
 
 /** The tracker is a panel that ends at its piece page. Lists, long explanations and editing use explicit pages, never scroll containers. */
 @Composable
@@ -132,7 +143,7 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
             if (!t.isSellQueue) PanelAction(if (pane == UpgradePane.LIST) "Piece" else "List", Modifier.width(46.dp), enabled = !t.editing&&!t.sellQueueComplete) { pane = if (pane == UpgradePane.LIST) UpgradePane.PIECE else UpgradePane.LIST }
             PanelAction("›", Modifier.width(60.dp), enabled = t.queueIndex < t.pendingQueue.lastIndex && !t.editing, label = "Next gear") { t.selectInQueue(t.queueIndex + 1); pane = UpgradePane.PIECE }
         }
-        PanelBody(Modifier.fillMaxWidth(), floor = BODY_FLOOR.dp, cap = bodyCap.dp, extra = if (t.queue.isNotEmpty() && !queueRow) QUEUE_SLOT.dp else 0.dp,
+        PanelBody(Modifier.fillMaxWidth(), floor = BODY_FLOOR.dp, cap = bodyCap.dp, need = (draft?.chooserNeed() ?: 0f).dp, extra = if (t.queue.isNotEmpty() && !queueRow) QUEUE_SLOT.dp else 0.dp,
             natural = { PieceSummary(t, item, 10_000f, es, measure = true) }) {
         BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 2.dp).testTag("gear-tracker-body")) {
             when {
@@ -212,12 +223,12 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
 
 /** As tall as [natural] (the piece page drawn with room to spare) for every page of this piece, so the buttons below don't move. */
 @Composable
-private fun PanelBody(modifier: Modifier, floor: Dp, cap: Dp, extra: Dp, natural: @Composable () -> Unit, content: @Composable () -> Unit) {
+private fun PanelBody(modifier: Modifier, floor: Dp, cap: Dp, need: Dp, extra: Dp, natural: @Composable () -> Unit, content: @Composable () -> Unit) {
     SubcomposeLayout(modifier) { c ->
         val width = c.maxWidth
         val measured = subcompose("natural") { Box(Modifier.padding(horizontal = 2.dp)) { natural() } }.maxOfOrNull { it.measure(Constraints(maxWidth = width)).height } ?: 0
         val capPx = cap.roundToPx()
-        val height = measured.coerceIn(minOf(floor.roundToPx(), capPx), capPx) + extra.roundToPx()
+        val height = maxOf(measured.coerceIn(minOf(floor.roundToPx(), capPx), capPx), minOf(need.roundToPx(), capPx)) + extra.roundToPx()
         val placeables = subcompose("body", content).map { it.measure(Constraints.fixed(width, height)) }
         layout(width, height) { placeables.forEach { it.place(0, 0) } }
     }
@@ -281,11 +292,10 @@ private fun EsBlockSpace() {
 private fun DraftBody(d: UpgradeDraft, height: Float) {
     when (d.page) {
         EntryPage.CHOOSE -> {
-            val names = if (d.reveal) UpgradeRecord.allowedNew(d.item).map { it.short } else d.item.subs.mapIndexed { i, s -> "${s.type.short}: ${fmtNum(d.values[i])}" }
-            PanelChoices(names, height, if (d.reveal) "New fourth substat" else if (d.correction) "Correct totals · +${d.next}" else "Which stat increased?") { d.choose(it) }
+            PanelChoices(d.choiceNames, height, if (d.reveal) "New fourth substat" else if (d.correction) "Correct totals · +${d.next}" else "Which stat increased?") { d.choose(it) }
         }
-        EntryPage.STEP -> PanelChoices(listOf(1.0, 10.0, 100.0, 1000.0).filter { it <= d.bounds.maximum - d.bounds.minimum }.map { fmtNum(it) }, height, "Change by") { i ->
-            d.step = listOf(1.0, 10.0, 100.0, 1000.0).filter { it <= d.bounds.maximum - d.bounds.minimum }[i]; d.page = EntryPage.VALUE
+        EntryPage.STEP -> PanelChoices(d.stepOptions.map { fmtNum(it) }, height, "Change by") { i ->
+            d.step = d.stepOptions[i]; d.page = EntryPage.VALUE
         }
         EntryPage.VALUE -> Column(verticalArrangement = Arrangement.spacedBy(if (height < 95) 2.dp else 3.dp)) {
             Row(Modifier.height(if (height < 95) 21.dp else 24.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -343,7 +353,7 @@ private fun QueuePage(t: TrackerFeature, height: Float, selected: () -> Unit) {
 @Composable
 private fun PanelChoices(names: List<String>, height: Float, title: String, select: (Int) -> Unit) {
     val scale = LocalDensity.current.fontScale
-    val columns = if (names.size > 4) 3 else 2
+    val columns = choiceColumns(names.size)
     val rows = floor((height - (if (title.isEmpty()) 8 else 55)) / 34).toInt().coerceIn(1, 3)
     val count = rows * columns
     var page by remember(names, count) { mutableIntStateOf(0) }
