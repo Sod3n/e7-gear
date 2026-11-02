@@ -1,4 +1,7 @@
-package e7.gearscan.ui
+package e7.gearscan.features.sellreview
+
+import androidx.compose.runtime.saveable.rememberSaveable
+import e7.gearscan.ui.*
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,6 +18,13 @@ import androidx.compose.ui.unit.sp
 import e7.gearscan.*
 import e7.gearscan.data.*
 import e7.gearscan.opt.*
+
+private fun AppModel.findSell() = graph.messages.show(graph.sellReview.find())
+private fun AppModel.trackSell(id:Long?=null) = graph.messages.show(graph.sellReview.trackMatches(id))
+private fun AppModel.markSell(id:Long,keep:Boolean) {
+    val outcome=graph.marks.markReviewed(id,keep)
+    if(outcome is Outcome.Note)showToast(outcome.text,"Undo") { graph.marks.unmark(id) }
+}
 
 private fun openSell(m:AppModel,k:SheetKind,id:Long=0) { m.sheet=Sheet(k,id) }
 private fun scoreText(v:Double)=String.format(java.util.Locale.US,"%.4f",v).trimEnd('0').trimEnd('.')
@@ -65,7 +75,7 @@ private fun ComparisonOwner(model:AppModel,item:Item) {
 
 @Composable
 private fun BenchmarkCard(model:AppModel,slot:Slot) {
-    val q=model.sellQuery;val auto=model.sellFloorPreview(slot);val custom=q.floors[slot]
+    val q=model.graph.sellReview.query;val auto=model.graph.sellReview.floorPreview(slot);val custom=q.floors[slot]
     val points=(custom?:auto?.value)?.times(q.floorPercent/100)
     Card(shadow=null,padding=PaddingValues(12.dp)) {
         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -106,11 +116,11 @@ private fun FinishComparison(row:SellSearch.Row) {
 
 @Composable
 private fun ScoringControls(model:AppModel) {
-    val q=model.sellQuery
-    val example=remember(model.lastScan) { model.sellFloorPreview(Slot.HELMET)?.item?:model.box?.items?.firstOrNull() }
+    val q=model.graph.sellReview.query
+    val example=remember(model.lastScan) { model.graph.sellReview.floorPreview(Slot.HELMET)?.item?:model.box?.items?.firstOrNull() }
     Text("Main stat + substats = points. Higher means more weighted stats; it does not measure a complete hero build.",style=zen(12.sp))
-    SellNumber("Diversity penalty %",q.score.diversity.toDouble(),0.0,100.0,0) { model.updateSellQuery(q.copy(score=q.score.copy(diversity=(it?:0.0).toInt()))) }
-    CardGrid(listOf(0,25,50,100),columns=4) { n,m->SellChoice("$n%",m,q.score.diversity==n) { model.updateSellQuery(q.copy(score=q.score.copy(diversity=n))) } }
+    SellNumber("Diversity penalty %",q.score.diversity.toDouble(),0.0,100.0,0) { model.graph.sellReview.edit(q.copy(score=q.score.copy(diversity=(it?:0.0).toInt()))) }
+    CardGrid(listOf(0,25,50,100),columns=4) { n,m->SellChoice("$n%",m,q.score.diversity==n) { model.graph.sellReview.edit(q.copy(score=q.score.copy(diversity=n))) } }
     Text("0%: every substat counts in full. 100%: only the strongest substat group counts. The main stat is separate.",style=zen(11.sp,color=C.muted))
     if(example!=null)Card(shadow=null,padding=PaddingValues(12.dp)) {
         Text("See it on your gear",style=dela(15.sp))
@@ -121,7 +131,7 @@ private fun ScoringControls(model:AppModel) {
         VSpace(6.dp);LinkText(if(calculation)"Hide point calculation" else "Show point calculation") { calculation=!calculation }
     }
     LinkText("Edit stat weights & main") { openSell(model,SheetKind.SELL_WEIGHTS) }
-    LinkText("Reset score model") { model.askReset("Reset the score model?","Weights and diversity go back to the game's values.") { model.updateSellQuery(q.copy(score=GearScore.Model())) } }
+    LinkText("Reset score model") { model.askReset("Reset the score model?","Weights and diversity go back to the game's values.") { model.graph.sellReview.edit(q.copy(score=GearScore.Model())) } }
 }
 
 internal fun esVerdict(es:EsForecast.Es,rollOn:Double):Pair<String,Boolean>? = when {
@@ -220,8 +230,8 @@ private fun SafeguardReason(guard:RollReview.Safeguard,active:Boolean) {
 
 @Composable
 fun SellFiltersScreen(model:AppModel) {
-    val q=model.sellQuery;val result=model.sellResult
-    var tab by model::sellTab
+    val q=model.graph.sellReview.query;val result=model.graph.sellReview.result
+    var tab by rememberSaveable { mutableIntStateOf(0) }
     var count by rememberSavedFor(result, 20)
     var category by rememberSavedFor(result, 0)
     // only the main button moves to Matches; Show my numbers in a sheet keeps the player on Set up
@@ -229,18 +239,17 @@ fun SellFiltersScreen(model:AppModel) {
     LaunchedEffect(result) { if(result!=null&&jump) { tab=1;jump=false } }
     LaunchedEffect(result==null) { if(result==null)tab=0 }
     Frame(null,null,actions={
-        if(model.sellBusy)OutlineButton("Stop",Modifier.weight(1f)) { model.stopSellSearch() }
-        else if(tab==1&&result!=null&&result.matches.any { it.item.id !in model.reviewedIds }&&model.sellFresh&&category==0) {
+        if(model.graph.sellReview.busy)OutlineButton("Stop",Modifier.weight(1f)) { model.graph.sellReview.stop() }
+        else if(tab==1&&result!=null&&result.matches.any { it.item.id !in model.reviewedIds }&&model.graph.sellReview.fresh&&category==0) {
             OutlineButton("Edit filters",Modifier.weight(1f)) { tab=0 }
-            PinkButton("Review over game",Modifier.weight(1f),short="Over game") { model.trackSellMatches() }
-        }else PinkButton(if(result!=null&&!model.sellFresh)"Update matches" else "Find matches",Modifier.weight(1f)) { jump=true;model.findSellGear() }
+            PinkButton("Review over game",Modifier.weight(1f),short="Over game") { model.trackSell() }
+        }else PinkButton(if(result!=null&&!model.graph.sellReview.fresh)"Update matches" else "Find matches",Modifier.weight(1f)) { jump=true;model.findSell() }
     }) {
         BackToPrevious();ScreenTitle("Sell review")
         Segmented(listOf("Set up","Matches"),tab) { tab=it }
-        if(model.sellBusy)Card(shadow=null,padding=PaddingValues(12.dp)) {
-            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(9.dp)) { Spinner();Text("Checking ${model.sellDone} / ${model.sellTotal}",style=zen(13.sp)) }
+        if(model.graph.sellReview.busy)Card(shadow=null,padding=PaddingValues(12.dp)) {
+            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(9.dp)) { Spinner();Text("Checking ${model.graph.sellReview.done} / ${model.graph.sellReview.total}",style=zen(13.sp)) }
         }
-        model.sellError?.let { Text(it,style=zen(12.sp,color=C.deepPink)) }
         if(tab==0) {
             RowCard("Stat safeguards",{openSell(model,SheetKind.SELL_SAFEGUARDS)},labelWidth=112.dp) { Text(when { q.keepStats.isEmpty()->"Off";q.keepStats==SellQuery.DEFAULT_GUARDS->"Default · ${q.keepStats.size} stats";else->"${q.keepStats.size} stats" },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("Gear to review",{openSell(model,SheetKind.SELL_INVENTORY)},labelWidth=112.dp) { Text("${if(q.bagOnly)"Bag" else "All gear"} · +${q.minimumEnhance/3*3} to +${if(q.maximumEnhance>=15)15 else q.maximumEnhance/3*3}",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
@@ -250,7 +259,7 @@ fun SellFiltersScreen(model:AppModel) {
             //levels filter removed (user 2026-11-01: useless in the current game)
             if(false)RowCard("Levels",{openSell(model,SheetKind.SELL_LEVELS)},labelWidth=112.dp) { Text(if(q.levels.isEmpty())"Any level" else q.levels.sorted().joinToString(),style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("More filters",{openSell(model,SheetKind.SELL_EXTRA)},labelWidth=112.dp) { Text(if(q.scoreFilter)"Combined score on" else "Off",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
-            RowCard("Kept pieces",{model.go(Screen.SellKept)},labelWidth=112.dp) { Text("${model.sellKept.size} kept",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            RowCard("Kept pieces",{model.go(Screen.SellKept)},labelWidth=112.dp) { Text("${model.graph.marks.kept.size} kept",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             SectionTitle("Final step")
             Box(Modifier.fillMaxWidth().hardShadow(C.pink,4.dp,4.dp,14.dp)) {
                 RowCard("Worth rolling",{openSell(model,SheetKind.SELL_WORTH)},labelWidth=112.dp) { Text("1 in ${if(q.rollOn>0)kotlin.math.round(100/q.rollOn).toInt().toString() else "–"} reach ${if(q.esBars.isEmpty())"your usual +15 ES" else "your ES bars"}",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
@@ -266,19 +275,19 @@ fun SellFiltersScreen(model:AppModel) {
                 if(rolling.isNotEmpty())Text("${rolling.size} worth rolling now",style=zen(12.sp,color=C.blue))
                 if(result.query.minimumProcs>0||result.query.maximumTotalQuality!=null)Text("${if(result.query.minimumProcs>0)"${result.query.minimumProcs}+ upgrades · " else ""}${rollLimitText(result.query)}",style=zen(11.sp,color=C.blue))
                 if(result.query.scoreFilter)Text("Additional combined-value filter applied",style=zen(11.sp,color=C.muted))
-                if(guarded.isNotEmpty()||unknown.isNotEmpty()||model.sellKept.isNotEmpty()) {
+                if(guarded.isNotEmpty()||unknown.isNotEmpty()||model.graph.marks.kept.isNotEmpty()) {
                     VSpace(8.dp)
                     @OptIn(ExperimentalLayoutApi::class)
                     FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                         if(guarded.isNotEmpty())Pill("${guarded.size} kept by safeguards",selected=category==1,onClick={ category=if(category==1)0 else 1;count=20 })
                         if(unknown.isNotEmpty())Pill("${unknown.size} no forecast",selected=category==2,onClick={ category=if(category==2)0 else 2;count=20 })
-                        if(model.sellKept.isNotEmpty())Pill("${model.sellKept.size} kept",onClick={ model.go(Screen.SellKept) })
+                        if(model.graph.marks.kept.isNotEmpty())Pill("${model.graph.marks.kept.size} kept",onClick={ model.go(Screen.SellKept) })
                     }
                     if(category==2) { VSpace(6.dp);Text("No roll history, so no forecast.",style=zen(11.sp,color=C.muted)) }
                     if(category==1) { VSpace(6.dp);Text("Can still reach a stat you protect.",style=zen(11.sp,color=C.muted)) }
                 }
             }
-            if(!model.sellFresh&&!model.sellBusy)Text("Inventory or settings changed. Update before starting a list.",style=zen(12.sp,color=C.deepPink))
+            if(!model.graph.sellReview.fresh&&!model.graph.sellReview.busy)Text("Inventory or settings changed. Update before starting a list.",style=zen(12.sp,color=C.deepPink))
             val shown=when(category) { 1->guarded;2->unknown;else->pending }
             if(shown.isEmpty())Card {
                 Text("Nothing matches",style=dela(17.sp))
@@ -301,8 +310,8 @@ fun SellFiltersScreen(model:AppModel) {
                 if(category==0) {
                     VSpace(9.dp)
                     Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                        OutlineButton("Keep",Modifier.weight(1f),height=40.dp) { model.markSellReview(row.item.id,keep=true) }
-                        OutlineButton("Sold",Modifier.weight(1f),height=40.dp) { model.markSellReview(row.item.id,keep=false) }
+                        OutlineButton("Keep",Modifier.weight(1f),height=40.dp) { model.markSell(row.item.id,keep=true) }
+                        OutlineButton("Sold",Modifier.weight(1f),height=40.dp) { model.markSell(row.item.id,keep=false) }
                     }
                 }
             } }
@@ -337,8 +346,8 @@ private fun SellChoice(text:String,modifier:Modifier=Modifier,selected:Boolean,s
 
 @Composable
 fun SellSheet(model:AppModel,sheet:Sheet) {
-    val q=model.sellQuery
-    fun update(v:SellQuery)=model.updateSellQuery(v)
+    val q=model.graph.sellReview.query
+    fun update(v:SellQuery)=model.graph.sellReview.edit(v)
     val title=when(sheet.kind) {
         SheetKind.SELL_SCORE->"How points work";SheetKind.SELL_WEIGHTS->"Stat weights";SheetKind.SELL_FLOORS->"Your comparison gear";SheetKind.SELL_CUSTOMS->"Custom comparisons";SheetKind.SELL_HEROES->"Comparison heroes"
         SheetKind.SELL_INVENTORY->"Gear to review";SheetKind.SELL_SLOTS->"Slots";SheetKind.SELL_SETS->"Sets";SheetKind.SELL_MAINS->"Main stats"
@@ -355,16 +364,16 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                     RowCard("Scoring",{openSell(model,SheetKind.SELL_SCORE)}) { Text("Weights & diversity",style=zen(12.sp)) }
                     RowCard("Comparison gear",{openSell(model,SheetKind.SELL_FLOORS)}) { Text("Equipped pieces",style=zen(12.sp)) }
                     SellNumber("Maximum catch-up chance %",q.maximumChance,0.0,100.0,1) { update(q.copy(maximumChance=it?:5.0)) }
-                    SellNumber("Maximum current score",q.maximumCurrentScore,0.0,model.sellScoreLimit,4,true) { update(q.copy(maximumCurrentScore=it)) }
+                    SellNumber("Maximum current score",q.maximumCurrentScore,0.0,model.graph.sellReview.scoreLimit,4,true) { update(q.copy(maximumCurrentScore=it)) }
                     SellToggle("Include rare-only possibilities",q.includeRare) { update(q.copy(includeRare=it)) }
                 }
                 OutlineButton("Reset all Sell review settings",Modifier.fillMaxWidth(),height=40.dp) { model.askReset("Reset Sell review?","Every Sell review setting goes back to its default. Sold and kept marks stay.") { update(SellQuery()) } }
             }
             SheetKind.SELL_WORTH->{
-                KeepRollingSlider(q.rollOn,model.sellCurve,model.sellCurveBusy||model.sellBusy,{ model.findSellGear() },{ t,b->model.explain(t,b) }) { update(q.copy(rollOn=it)) }
+                KeepRollingSlider(q.rollOn,model.graph.sellReview.keepCurve,model.graph.sellReview.curveBusy||model.graph.sellReview.busy,{ model.findSell() },{ t,b->model.explain(t,b) }) { update(q.copy(rollOn=it)) }
                 SellToggle("Count reforging",q.reforge) { update(q.copy(reforge=it)) }
                 SectionTitle("ES bar")
-                val auto=model.sellAutoEsBars()
+                val auto=model.graph.sellReview.autoEsBars()
                 Slot.entries.forEach { slot->ValueSlider(slot.label,{ GearIcon(slot.icon,18.dp,C.ink) },(q.esBars[slot]?:auto[slot]?:80).toDouble(),EsForecast.esRange.first.toDouble(),EsForecast.esRange.last.toDouble(),1.0,{ "${it.toInt()}" }) { v->
                     update(q.copy(esBars=q.esBars+(slot to v.toInt()))) } }
                 OutlineButton("Reset all to your +15 medians",Modifier.fillMaxWidth(),height=40.dp,enabled=q.esBars.isNotEmpty()) { model.askReset("Reset the ES bars?","Every slot goes back to the middle ES of your own +15 pieces.") { update(q.copy(esBars=emptyMap())) } }
@@ -412,7 +421,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
             SheetKind.SELL_CUSTOMS->{
                 Text("Leave a slot unset to use its equipped comparison. Enter a score to replace it. Your comparison scale still applies.",style=zen(12.sp))
                 Slot.entries.forEach { slot->
-                    SellNumber("${slot.label} comparison",q.floors[slot],0.0,model.sellScoreLimit,4,true) { v->update(q.copy(floors=if(v==null)q.floors-slot else q.floors+(slot to v))) }
+                    SellNumber("${slot.label} comparison",q.floors[slot],0.0,model.graph.sellReview.scoreLimit,4,true) { v->update(q.copy(floors=if(v==null)q.floors-slot else q.floors+(slot to v))) }
                 }
                 LinkText("Use equipped scores for all slots") { update(q.copy(floors=emptyMap())) }
             }
@@ -473,7 +482,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 LinkText("No extra roll-quality limits") { update(q.copy(maximumProcQuality=null,maximumTotalQuality=null)) }
             }
             SheetKind.SELL_DETAILS->{
-                val row=model.sellResult?.rows?.firstOrNull { it.item.id==sheet.heroId }
+                val row=model.graph.sellReview.result?.rows?.firstOrNull { it.item.id==sheet.heroId }
                 if(row==null)Text("Update the search to see this piece.",style=zen(12.sp)) else {
                     SellCardHead(model,row)
                     row.es?.let { es->
@@ -482,7 +491,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                             val open=es.finishShare>0&&es.bar!=null&&!es.reached&&es.supported
                             Row(verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                                 val rare=open&&es.chance==0.0&&es.possible
-                                Text(if(rare)"Rare" else if(open)chanceText(es.chance) else "ES ${es.now}",style=dela(28.sp,if(!open)C.ink else if(es.worthRolling(model.sellQuery.rollOn))C.blue else C.deepPink))
+                                Text(if(rare)"Rare" else if(open)chanceText(es.chance) else "ES ${es.now}",style=dela(28.sp,if(!open)C.ink else if(es.worthRolling(model.graph.sellReview.query.rollOn))C.blue else C.deepPink))
                                 Text(when { es.bar==null->"no bar for this slot";rare->"only rare rolls reach ES ${es.bar}";open->"of finishes reach ES ${es.bar}";es.reached->"at or above your bar ${es.bar}";else->"finished · below bar ${es.bar}" },style=zen(12.sp,color=C.muted),modifier=Modifier.padding(bottom=5.dp))
                             }
                             VSpace(8.dp);EsBar(es);VSpace(3.dp);EsLegend(es)
@@ -492,12 +501,12 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                     SectionTitle("Rolls",trailing=row.rolls?.let { "${RollReview.overallWeakCount(it)} of ${it.size} low" })
                     RollTable(row.rolls)
                     var stats by remember(row.item.id) { mutableStateOf(false) }
-                    Fold("Each stat at +15",stats,{ stats=!stats }) { row.lines.sortedBy { if(it.stat==GearStat.SPD)0 else 1 }.forEach { StatFinish(it,model.sellResult!!.query.reforge) } }
+                    Fold("Each stat at +15",stats,{ stats=!stats }) { row.lines.sortedBy { if(it.stat==GearStat.SPD)0 else 1 }.forEach { StatFinish(it,model.graph.sellReview.result!!.query.reforge) } }
                     if(row.safeguards.isNotEmpty()) { SectionTitle("Your stat safeguards");row.safeguards.forEach { SafeguardReason(it,it.active(row.keepChance)) } }
-                    if(!model.sellFresh)Text("Inventory or settings changed; update before tracking.",style=zen(12.sp,color=C.deepPink))
-                    if(model.sellResult?.matches?.any { it.item.id==row.item.id }==true)OutlineButton("Track over game",Modifier.fillMaxWidth(),height=44.dp,enabled=model.sellFresh) { model.trackSellMatches(row.item.id) }
+                    if(!model.graph.sellReview.fresh)Text("Inventory or settings changed; update before tracking.",style=zen(12.sp,color=C.deepPink))
+                    if(model.graph.sellReview.result?.matches?.any { it.item.id==row.item.id }==true)OutlineButton("Track over game",Modifier.fillMaxWidth(),height=44.dp,enabled=model.graph.sellReview.fresh) { model.trackSell(row.item.id) }
                     var combined by remember(row.item.id) { mutableStateOf(false) }
-                    if(model.sellResult!!.query.scoreFilter)Fold("Combined score",combined,{ combined=!combined }) {
+                    if(model.graph.sellReview.result!!.query.scoreFilter)Fold("Combined score",combined,{ combined=!combined }) {
                         val forecast by produceState(row.forecast,row.item.id) { if(!row.scoreUsed)value=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { GearScore.forecast(row.item,row.goal) } }
                         Text("Optional weighted comparison",style=dela(15.sp))
                         ScoreBreakdown(row.item,row.goal.model,true)

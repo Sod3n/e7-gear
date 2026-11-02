@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.sp
 import e7.gearscan.data.*
 import e7.gearscan.opt.GearBounds
 import e7.gearscan.opt.GearPotential
+import e7.gearscan.features.sellreview.EsBar
+import e7.gearscan.features.sellreview.EsChip
 import e7.gearscan.ui.*
 import kotlin.math.floor
 import kotlin.math.min

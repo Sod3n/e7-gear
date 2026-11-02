@@ -154,6 +154,12 @@ class Work<R>(
         finish()
     }
 
+    fun clear() {
+        cancel()
+        result = null
+        error = null
+    }
+
     private fun finish() {
         run = null
         busy = false

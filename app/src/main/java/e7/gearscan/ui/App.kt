@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import e7.gearscan.AppModel
+import e7.gearscan.features.sellreview.SellFiltersScreen
+import e7.gearscan.features.sellreview.SellKeptScreen
 import e7.gearscan.Screen
 
 @Composable
@@ -78,7 +80,7 @@ private fun AppContent(model: AppModel, onExit: () -> Unit) {
             is Screen.Feedback -> FeedbackScreen(model, s.error)
             Screen.PoolRun -> PoolRunScreen(model)
             Screen.Upgrade -> UpgradeScreen(model)
-            Screen.GearPotential -> GearPotentialScreen(model)
+            Screen.GearPotential -> FindGearScreen(model)
             Screen.SellFilters -> SellFiltersScreen(model)
             Screen.SellKept -> SellKeptScreen(model)
             is Screen.HeroUpgrades -> HeroUpgradesScreen(model, s.heroId)

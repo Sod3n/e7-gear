@@ -27,22 +27,22 @@ fun GearScreen(model: AppModel) {
             }
             return@Frame
         }
-        val sell = model.sellResult?.let { r -> r.matches.count { it.item.id !in model.reviewedIds } }
+        val sell = model.graph.sellReview.result?.let { r -> r.matches.count { it.item.id !in model.reviewedIds } }
         ModeCard("Sell review", "Worst rolls first. Sell or keep each piece, with its ES now and at +15.",
-            listOfNotNull(sell?.let { "$it to review" }, model.sellKept.size.takeIf { it > 0 }?.let { "$it kept" }).joinToString(" · ").ifEmpty { "Not checked yet" }) {
+            listOfNotNull(sell?.let { "$it to review" }, model.graph.marks.kept.size.takeIf { it > 0 }?.let { "$it kept" }).joinToString(" · ").ifEmpty { "Not checked yet" }) {
             model.go(Screen.SellFilters)
         }
         val heroes = model.heroUpgrades?.takeIf { !it.running && it.result != null && !model.heroUpgradesStale }?.result
             ?.let { r -> model.heroUpgradeView(r).count { it.rows.isNotEmpty() } }
         ModeCard("Improve heroes", "Unfinished pieces that would make a hero you've set up better once enhanced.",
             heroes?.let { "$it heroes can get better" } ?: "Not checked yet") { model.go(Screen.HeroUpgrades()) }
-        val found = model.potentialResult?.matches?.size
+        val found = model.graph.findGear.result?.matches?.size
         ModeCard("Find gear", "Pieces that can still reach the substats you ask for, with the chance.",
-            found?.let { "$it pieces found last time" } ?: "Choose a target") { model.go(Screen.GearPotential) }
+            found?.let { "${e7.gearscan.value.Count(it).of("piece")} found last time" } ?: "Choose a target") { model.go(Screen.GearPotential) }
         if (model.upgrades.queue.isNotEmpty() || model.upgrades.record != null)
             RowCard("Over the game", { model.go(Screen.Upgrade) }) { Text("Continue tracking", style = zen(12.sp)) }
-        if (model.sellKept.isNotEmpty())
-            RowCard("Kept pieces", { model.go(Screen.SellKept) }) { Text("${model.sellKept.size} kept", style = zen(12.sp)) }
+        if (model.graph.marks.kept.isNotEmpty())
+            RowCard("Kept pieces", { model.go(Screen.SellKept) }) { Text("${model.graph.marks.kept.size} kept", style = zen(12.sp)) }
     }
 }
 

@@ -1,5 +1,6 @@
 package e7.gearscan
 
+import e7.gearscan.data.Box
 import e7.gearscan.data.Mirror
 import e7.gearscan.features.content.ContentFeature
 import e7.gearscan.features.findgear.FindGearFeature
@@ -45,6 +46,10 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
     init {
         store.beforeSave = { if (content.mirror != Mirror.active) content.mirror = Mirror.active }
         store.afterLoad = { Mirror.active = content.mirror }
+    }
+
+    fun boxChanged(old: Box?, new: Box?) {
+        listOf(content, scan, heroes, marks, pool, history, sellReview, improveHeroes, findGear, tracker, settings).forEach { it.onBoxChanged(old, new) }
     }
 
     fun loadOnce(): Boolean {

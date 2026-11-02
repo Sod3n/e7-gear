@@ -21,4 +21,6 @@ class FreshWork<K, R>(name: String, host: WorkHost, weight: Weight, private val 
     }
 
     fun cancel() = work.cancel()
+
+    fun clear() = work.clear()
 }

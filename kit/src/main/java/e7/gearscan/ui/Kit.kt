@@ -571,3 +571,8 @@ fun ArtifactIcon(art: e7.gearscan.data.Artifact?, size: Dp, backupUrl: (String) 
         }
     }
 }
+
+@Composable
+fun CountText(count: e7.gearscan.value.Count, singular: String, plural: String = singular + "s", style: androidx.compose.ui.text.TextStyle, modifier: Modifier = Modifier) {
+    Text(count.of(singular, plural), style = style, modifier = modifier)
+}
