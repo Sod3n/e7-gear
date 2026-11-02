@@ -84,12 +84,14 @@ class GearPotentialScreens {
         each("02b-slots") { sheet(SheetKind.POTENTIAL_SLOTS) }
         each("02c-sets") { sheet(SheetKind.POTENTIAL_SETS) }
         each("02d-mains") { sheet(SheetKind.POTENTIAL_MAINS) }
-        each("02e-options") { sheet(SheetKind.POTENTIAL_OPTIONS) }
+        each("02e-finish") { sheet(SheetKind.POTENTIAL_FINISH) }
+        each("02e-chance") { sheet(SheetKind.POTENTIAL_CHANCE) }
+        each("02e-pieces") { sheet(SheetKind.POTENTIAL_PIECES) }
         each("02f-help") { sheet(SheetKind.POTENTIAL_HELP) }
         for ((w, f) in setups) {
             ui { width = w; font = f }
-            sheet(SheetKind.POTENTIAL_TARGETS); rule.onNodeWithContentDescription("Minimum Spd").performClick()
-            snap("02g-number-$w-${if (f > 1f) "big" else "1x"}"); tap("Cancel")
+            sheet(SheetKind.POTENTIAL_TARGETS); rule.onAllNodesWithContentDescription("Type a value").onFirst().performClick()
+            snap("02g-number-$w-${if (f > 1f) "big" else "1x"}"); ui { graph.nav.sheet = null }
         }
         ui { graph.nav.sheet = null }
 
@@ -100,7 +102,10 @@ class GearPotentialScreens {
             "${r.matches.count { it.outcome.rareOnly }} rare-only, ${r.unsupported} unsupported, ${r.seconds}s\n")
         each("03a-results") { go(Screen.Gear, Screen.GearPotential) }
         each("03b-results-low-odds") { go(Screen.Gear, Screen.GearPotential); tap("Show 20 more"); scrollTo("Show 20 more") }
-        each("03c-results-end") { go(Screen.Gear, Screen.GearPotential); scrollTo("About this search") }
+        if (r.rareOnly.isNotEmpty()) {
+            each("03c-results-end") { go(Screen.Gear, Screen.GearPotential); scrollTo("need a rare roll") }
+            each("03e-rare-open") { go(Screen.Gear, Screen.GearPotential); rule.onAllNodesWithText("need a rare roll", substring = true, useUnmergedTree = true).onFirst().performScrollTo().performClick(); rule.waitForIdle(); scrollTo("need a rare roll") }
+        }
         ui { graph.findGear.edit(PotentialQuery(targets = mapOf(GearStat.SPD to "24"))) }
         search()
         File(out, "result.txt").appendText("speed 24: ${graph.findGear.result!!.matches.size} matches, ${graph.findGear.result!!.matches.count { it.outcome.rareOnly }} rare-only\n")
@@ -108,10 +113,10 @@ class GearPotentialScreens {
         ui { graph.findGear.edit(PotentialQuery()) }
         search()
         val best = r.matches.first()
-        val rare = r.matches.first { it.outcome.rareOnly }
+        val rare = r.matches.firstOrNull { it.outcome.rareOnly }
         val reforge = r.matches.firstOrNull { it.item.enhance == 15 && !it.outcome.matchesNow }
         each("04a-piece-best") { go(Screen.Gear, Screen.GearPotential); sheet(SheetKind.POTENTIAL_PIECE, best.item.id) }
-        each("04b-piece-rare") { go(Screen.Gear, Screen.GearPotential); sheet(SheetKind.POTENTIAL_PIECE, rare.item.id) }
+        if (rare != null) each("04b-piece-rare") { go(Screen.Gear, Screen.GearPotential); sheet(SheetKind.POTENTIAL_PIECE, rare.item.id) }
         val usual = r.matches.first { it.item.enhance < 15 && it.outcome.chance > 0 && it.outcome.chance < 1 }
         each("04d-piece-usual") { go(Screen.Gear, Screen.GearPotential); sheet(SheetKind.POTENTIAL_PIECE, usual.item.id) }
         if (reforge != null) each("04c-piece-reforge-only") { go(Screen.Gear, Screen.GearPotential); sheet(SheetKind.POTENTIAL_PIECE, reforge.item.id) }
@@ -157,7 +162,18 @@ class GearPotentialScreens {
         search()
         ui { graph.messages.show(graph.trackMatch(graph.findGear.result!!.matches.first { it.item.id == first.item.id })) }
         File(out, "result.txt").appendText("track one: stale=${graph.findGear.stale} (a start-only record must not mark the list stale)\n")
+        File(out, "result.txt").appendText("back link after tracking one from Track upgrades: ${graph.nav.backLabel()}\n")
         each("10c-track-one") { ui { graph.nav.sheet = null } }
+        each("10f-track-choose") { go(Screen.Gear, Screen.GearPotential, Screen.Upgrade); tap("Change") }
+        ui { graph.nav.stack = graph.nav.stack.dropLast(1) + Screen.Upgrade }
+        ui {
+            val rec = graph.tracker.record!!.item
+            val next = rec.enhance / 3 * 3 + 3
+            val reveal = if (rec.subs.size < 4 && next == 12) UpgradeRecord.allowedNew(rec).first().let { it to e7.gearscan.opt.Finish.range(it, rec.level).first.toDouble() } else null
+            if (rec.enhance < 15) File(out, "result.txt").appendText("recorded +$next: " + graph.tracker.commit(UpgradeRecord.mainAt(rec, next),
+                rec.subs.mapIndexed { i, x -> x.value + if (i == 0 && reveal == null) e7.gearscan.opt.Finish.range(x.type, rec.level).first else 0 }, reveal, false) + "\n")
+        }
+        each("10g-track-rolls") { ui { graph.nav.sheet = null } }
         ui { graph.tracker.show(); graph.overlay.expanded = true; overlay = true }
         each("10d-overlay-one")
         ui { overlay = false; graph.tracker.hide() }
@@ -221,18 +237,13 @@ class GearPotentialScreens {
         assertTrue(graph.findGear.result!!.matches.all { it.item.slot == Slot.HELMET && it.item.set == "DestructionSet" })
         assertTrue(graph.findGear.result!!.matches.any { kotlin.math.abs(it.outcome.chance - .25) < 1e-10 })
         shot("04-filtered-353-big")
-        tap("Edit"); tap("Spd 20+"); tap("Add substat"); tap("Hp%")
-        rule.onNodeWithContentDescription("Minimum Hp%").performScrollTo().performClick()
-        repeat(4) { rule.onNodeWithContentDescription("Increase value").performClick() }
-        rule.onNodeWithContentDescription("Step 0.1").performClick()
-        repeat(5) { rule.onNodeWithContentDescription("Increase value").performClick() }
+        tap("Edit"); tap("Speed 20+"); tap("Hp%")
+        assertTrue(GearStat.HP_P in graph.findGear.query.targets)
+        rule.onAllNodesWithContentDescription("Type a value").onLast().performScrollTo().performClick()
+        rule.onNode(hasSetTextAction()).performTextReplacement("5")
         shot("05-number-controls-353-big")
-        tap("Use value")
-        assertEquals("5.5", graph.findGear.query.targets[GearStat.HP_P])
-        rule.onNodeWithContentDescription("Minimum Hp%").performClick()
-        rule.onNodeWithContentDescription("Step 0.1").performClick()
-        repeat(5) { rule.onNodeWithContentDescription("Decrease value").performClick() }
-        tap("Use value")
+        rule.onNode(hasSetTextAction()).performImeAction()
+        rule.waitForIdle()
         assertEquals("5", graph.findGear.query.targets[GearStat.HP_P])
         shot("05-joint-targets-353-big")
         tap("Done")
@@ -243,16 +254,19 @@ class GearPotentialScreens {
         shot("06-joint-results-353-big")
         // Empty-state feedback and minimum-chance filter.
         tap("Edit")
-        tap("Finish")
-        rule.onNodeWithContentDescription("Minimum chance").performScrollTo().performClick()
-        rule.onNodeWithContentDescription("Step 10").performClick()
-        repeat(3) { rule.onNodeWithContentDescription("Increase value").performClick() }
-        tap("Use value")
+        tap("Chance")
+        ui { graph.findGear.edit(e7.gearscan.ui.withChanceStop(graph.findGear.query, e7.gearscan.ui.CHANCE_STOPS.indexOf(30.0))) }
+        assertEquals("30", graph.findGear.query.minimumChance)
         shot("06-options-353-big"); tap("Done")
         rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle()
         rule.waitUntil(30_000) { !graph.findGear.busy }
         assertTrue(graph.findGear.result!!.matches.isEmpty())
+        assertEquals(.25, graph.findGear.result!!.bestBelow!!.outcome.chance, 1e-10)
         shot("07-empty-353-big")
+        tap("Show 20% and up")
+        rule.waitUntil(30_000) { !graph.findGear.busy }
+        assertEquals("20", graph.findGear.query.minimumChance)
+        assertTrue(graph.findGear.result!!.withOdds.isNotEmpty())
         ui { graph.findGear.edit(graph.findGear.query.copy(minimumChance = "0")); graph.messages.show(graph.findGear.find()) }
         rule.waitUntil(30_000) { !graph.findGear.busy }
         tap("${graph.content.content.set(best.item.set)?.name} ${best.item.slot.label}")
@@ -265,7 +279,8 @@ class GearPotentialScreens {
         shot("08-track-selected-353-big")
         tap("Change")
         shot("08-picker-353-big")
-        tap("Use selected piece")
+        tap("TRACKING")
+        assertEquals(best.item.id, graph.tracker.record!!.item.id)
         ui { graph.tracker.show(); graph.overlay.expanded = true; overlay = true }
         assertEquals(.25, graph.tracker.readout.goalOutcome!!.chance, 1e-10)
         shot("09-target-overlay-353-big")

@@ -14,6 +14,9 @@ import e7.gearscan.opt.SellSearch
 import e7.gearscan.ui.Outcome
 
 class TrackStarts(private val t: TrackerFeature, private val ctx: FeatureContext, private val scan: ScanFeature, private val contentFeature: ContentFeature, private val marks: MarksFeature, private val records: RecordsFeature) {
+    // tracking from Track upgrades itself must not stack a second copy, or back would name the screen it is on
+    private fun show() { if (ctx.nav.screen != Screen.Upgrade) ctx.nav.go(Screen.Upgrade) }
+
     fun track(
         item: Item,
         goal: GearPotential.Goal,
@@ -23,7 +26,7 @@ class TrackStarts(private val t: TrackerFeature, private val ctx: FeatureContext
         t.select(item, scan.lastScan)
         t.configure()
         t.useGoal(goal)
-        ctx.nav.go(Screen.Upgrade)
+        show()
         return if (openOverlay) t.openOverlay() else Outcome.Done
     }
 
@@ -34,7 +37,7 @@ class TrackStarts(private val t: TrackerFeature, private val ctx: FeatureContext
         t.checkRun.stopCheck()
         t.startQueue(entries, scan.lastScan)
         t.configure()
-        ctx.nav.go(Screen.Upgrade)
+        show()
         return if (openOverlay) t.openOverlay() else Outcome.Done
     }
 
@@ -55,7 +58,7 @@ class TrackStarts(private val t: TrackerFeature, private val ctx: FeatureContext
             }
         t.startQueue(entries, scan.lastScan, query)
         t.configure()
-        ctx.nav.go(Screen.Upgrade)
+        show()
         return if (openOverlay) t.openOverlay() else Outcome.Done
     }
 
@@ -63,7 +66,7 @@ class TrackStarts(private val t: TrackerFeature, private val ctx: FeatureContext
         val original = scan.box?.itemsById?.get(id)?.takeIf { it.id !in marks.cleared && UpgradeRecord.supported(it) } ?: return Outcome.Done
         t.select(original, scan.lastScan)
         t.configure()
-        ctx.nav.go(Screen.Upgrade)
+        show()
         return t.openOverlay()
     }
 
@@ -78,7 +81,7 @@ class TrackStarts(private val t: TrackerFeature, private val ctx: FeatureContext
         if (items.isEmpty()) return Outcome.Done
         t.startQueue(items, scan.lastScan, source = "heroes")
         t.configure()
-        ctx.nav.go(Screen.Upgrade)
+        show()
         return t.openOverlay()
     }
 }

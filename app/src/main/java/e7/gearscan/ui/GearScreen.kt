@@ -36,9 +36,10 @@ fun GearScreen(graph: AppGraph) {
             ?.let { r -> graph.improveHeroes.view(r).count { it.rows.isNotEmpty() } }
         ModeCard("Improve heroes", "Unfinished pieces that would make a hero you've set up better once enhanced.",
             heroes?.let { "$it heroes can get better" } ?: "Not checked yet") { graph.nav.go(Screen.HeroUpgrades()) }
-        val found = graph.findGear.result?.matches?.size
-        ModeCard("Find gear", "Pieces that can still reach the substats you ask for, with the chance.",
-            found?.let { "${e7.gearscan.value.Count(it).of("piece")} found last time" } ?: "Choose a target") { graph.nav.go(Screen.GearPotential) }
+        val found = graph.findGear.result?.let { r ->
+            r.query.targets.entries.joinToString(" · ") { (t, v) -> "${t.short} ${targetValue(t, v)}" } + " · ${r.withOdds.size} can reach it"
+        }
+        ModeCard("Find gear", "Pieces that can still reach the substats you ask for, with the chance.", found ?: "Choose a target") { graph.nav.go(Screen.GearPotential) }
         if (graph.tracker.queue.isNotEmpty() || graph.tracker.record != null)
             RowCard("Over the game", { graph.nav.go(Screen.Upgrade) }) { Text("Continue tracking", style = zen(12.sp)) }
         if (graph.marks.kept.isNotEmpty())

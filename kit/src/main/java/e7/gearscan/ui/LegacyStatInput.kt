@@ -7,8 +7,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 
-/** User's explicit exceptions: the optimizer's existing numeric stat fields (Sheets.kt) and, on tap of the value,
- * the Sell review sliders (SellParts.kt, user 2026-11-01: "keep option to just press on number to use keyboard"). */
+/** User's explicit exceptions: the optimizer's existing numeric stat fields (Sheets.kt) and, on tap of a slider's value,
+ * Sell review and Find gear targets (Sliders.kt; user 2026-11-01: "keep option to just press on number to use keyboard"). */
 @KeyboardInput
 @Composable
 fun LegacyStatField(value: String, onValueChange: (String) -> Unit, textStyle: TextStyle,

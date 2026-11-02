@@ -558,9 +558,8 @@ private fun TakenByOthers(graph: AppGraph, heroId: Long) {
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GearTile(item, 40.dp, setIcon = graph.content.content.set(item.set)?.icon)
                 Column(Modifier.weight(1f)) {
-                    Text("${item.slot.label} · ${item.mainType.short} ${item.mainType.format(item.mainValue)}", style = zen(12.sp, FontWeight.Black),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    SubGrid(item, graph.heroes.request(heroId).reforged, 10)
+                    Text(item.slot.label, style = zen(12.sp, FontWeight.Black), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    StatStack(item, reforged = graph.heroes.request(heroId).reforged, size = 10)
                 }
                 graph.heroes.hero(who)?.let { h ->
                     Column(Modifier.width(72.dp).tap { graph.pool.open(who) }, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -605,9 +604,8 @@ private fun GearCard(graph: AppGraph, it: Item?, heroId: Long, reforged: Boolean
         GearTile(it, 40.dp, setIcon = it?.let { i -> graph.content.content.set(i.set)?.icon })
         Column(Modifier.weight(1f)) {
             if (it == null) { Text("Empty", style = zen(12.sp, color = C.muted)); return@Column }
-            val ref = reforged && it.reforgeable
-            FitText("${it.mainType.short} ${it.mainType.format(if (ref) Reforge.main(it.mainType, it.mainValue) else it.mainValue)}",
-                zen(11.sp, FontWeight.Black))
+            StatStack(it, reforged = reforged, size = 10)
+            VSpace(2.dp)
             run {
                 val who = when {
                     it.ghost -> "ghost"
@@ -621,8 +619,6 @@ private fun GearCard(graph: AppGraph, it: Item?, heroId: Long, reforged: Boolean
                     textDecoration = if (link != null) androidx.compose.ui.text.style.TextDecoration.Underline else null),
                     maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.tap(link?.let { h -> { openHolder!!(h) } }))
             }
-            VSpace(2.dp)
-            SubGrid(it, reforged, 10)
             it.mod?.let { m -> Text("Mod ${m.from.short} ${m.from.format(m.fromValue)} → ${m.to.short}", style = zen(10.sp, color = C.deepPink), maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }

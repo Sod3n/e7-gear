@@ -247,13 +247,12 @@ private fun PieceSummary(t: TrackerFeature, item: Item, height: Float, es: EsFor
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Column(Modifier.fillMaxWidth().inset().padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            StatIcon(item.mainType.stat, 13.dp, C.ink); Spacer(Modifier.width(4.dp))
-            FitText(item.mainType.format(item.mainValue), zen(11.sp), Modifier.weight(1f))
-            FitText(if(t.isRollReview)t.readout.reviewRolls?.let { "${e7.gearscan.opt.RollReview.overallWeakCount(it)}/${it.size} low" }?:"History unknown" else "${item.rank} · Lv.${item.level}", zen(9.sp, color = C.muted))
-        }
-        GearSearchSubs(item, t.goal?.minimums?.keys ?: emptySet())
+        Row(Modifier.fillMaxWidth().inset().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatStack(item, highlight = t.goal?.minimums?.keys ?: emptySet(), size = 10)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                FitText(if(t.isRollReview)t.readout.reviewRolls?.let { "${e7.gearscan.opt.RollReview.overallWeakCount(it)}/${it.size} low" }?:"History unknown" else "${item.rank} · Lv.${item.level}", zen(9.sp, color = C.muted))
+                t.goal?.let { GoalLines(item, it.minimums, size = 10) }
+            }
         }
         if (t.hasEs) {
             if (es != null) EsBlock(es, t.rollOn) else if (measure) EsBlockSpace()
@@ -314,7 +313,7 @@ private fun DraftBody(d: UpgradeDraft, height: Float) {
                 d.preview().subs.joinToString("\n") { "${it.type.short} ${it.type.format(it.value)}" }, height)
         } else Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             FitText("Review +${d.next} · ${d.item.mainType.short} ${d.item.mainType.format(d.main)}", zen(11.sp))
-            GearSearchSubs(d.preview())
+            StatStack(d.preview(), main = false, size = 10)
             FitText("Main stat is automatic", zen(9.sp, color = C.muted))
         }
     }

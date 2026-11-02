@@ -76,7 +76,7 @@ import e7.gearscan.ui.Face
 import e7.gearscan.ui.GearTile
 import e7.gearscan.ui.SetIcon
 import e7.gearscan.ui.StatIcon
-import e7.gearscan.ui.SubGrid
+import e7.gearscan.ui.StatStack
 import e7.gearscan.ui.dela
 import e7.gearscan.ui.hardShadow
 import e7.gearscan.ui.tap
@@ -439,7 +439,7 @@ private fun PieceRow(s: ChecklistFeature, i: Int, p: OverlayPiece, open: Boolean
                     StatIcon(p.item.mainType.stat, 12.dp)
                     Text(p.mainText, style = zen(13.sp))
                 }
-                SubGrid(p.orig, p.reforged)
+                StatStack(p.orig, reforged = p.reforged, main = false)
                 p.mod?.let { Text("改 Mod: $it", style = zen(11.sp, color = C.deepPink)) }
                 if (p.reforgeStep) Text(REFORGE_NOTE, style = zen(11.sp, color = C.deepPink))
                 // whoever wears the piece is where the game shows it, so the name is never cut

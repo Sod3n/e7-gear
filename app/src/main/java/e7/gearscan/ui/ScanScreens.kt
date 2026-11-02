@@ -472,14 +472,12 @@ fun ItemRow(graph: AppGraph, it: Item, owner: String? = null) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             GearTile(it, 44.dp, setIcon = graph.content.content.set(it.set)?.icon)
             Column(Modifier.weight(1f)) {
-                Row {
-                    Text("${it.mainType.short} ${it.mainType.format(it.mainValue)}", style = zen(13.sp), modifier = Modifier.weight(1f))
+                Row(verticalAlignment = Alignment.Top) {
+                    StatStack(it, Modifier.weight(1f))
                     // a hero missing from the scan's hero list still wears the piece in the game
                     val who = owner ?: it.equippedOn?.let { id -> graph.heroes.hero(id)?.let(graph.heroes::heroName) ?: "hero not in scan" }
                     Text(who ?: "free", style = zen(11.sp, color = if (who != null) C.blue else C.muted))
                 }
-                VSpace(3.dp)
-                SubGrid(it, reforged = false)
                 GearPositionLabel(graph, it)
             }
         }

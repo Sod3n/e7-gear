@@ -380,24 +380,31 @@ fun StatValue(stat: Stat, text: String, color: Color = C.ink, size: Int = 12) {
     }
 }
 
-/** Substats as the game lays them out: two columns of stat icon and value. 改 marks a mod: blue done in game, pink suggested. */
+/** A piece's stats as the game's inventory lists them beside the tile: main stat, then each substat, one line each.
+ *  改 marks a mod: blue done in game, pink suggested. [highlight] colours the stats a search asks for. */
 @Composable
-fun SubGrid(item: Item, reforged: Boolean, size: Int = 11, color: Color = C.muted) {
-    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-        item.subs.indices.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { i ->
-                    val s = item.subs[i]
-                    val tint = when { item.mod?.index == i -> C.deepPink; s.modified -> C.blue; else -> color }
-                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                        StatIcon(s.type.stat, (size - 1).dp, tint)
-                        FitText(s.type.format(e7.gearscan.calc.Calc.subValue(item, i, reforged)) + if (tint != color) " 改" else "",
-                            zen(size.sp, if (tint == C.deepPink) FontWeight.Black else FontWeight.Bold, tint))
-                    }
-                }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
+fun StatStack(item: Item, modifier: Modifier = Modifier, reforged: Boolean = false, main: Boolean = true,
+              highlight: Set<e7.gearscan.data.GearStat> = emptySet(), size: Int = 11) {
+    val minWidth = with(LocalDensity.current) { (size * 3.1f).sp.toDp() } + size.dp + 4.dp
+    Column(modifier.widthIn(min = minWidth), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        if (main) {
+            val ref = reforged && item.reforgeable
+            StackLine(item.mainType.stat, item.mainType.format(if (ref) e7.gearscan.calc.Reforge.main(item.mainType, item.mainValue) else item.mainValue),
+                C.ink, size, FontWeight.Black)
         }
+        item.subs.forEachIndexed { i, s ->
+            val tint = when { item.mod?.index == i -> C.deepPink; s.modified -> C.blue; s.type in highlight -> C.blue; else -> C.muted }
+            StackLine(s.type.stat, s.type.format(e7.gearscan.calc.Calc.subValue(item, i, reforged)) + if (item.mod?.index == i || s.modified) " 改" else "",
+                tint, size, if (tint == C.deepPink) FontWeight.Black else FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun StackLine(stat: Stat, text: String, color: Color, size: Int, weight: FontWeight) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        StatIcon(stat, size.dp, color)
+        Text(text, style = zen(size.sp, weight, color), softWrap = false)
     }
 }
 

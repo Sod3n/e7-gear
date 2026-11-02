@@ -46,18 +46,7 @@ fun SellKeptScreen(graph: AppGraph) {
         shown.take(count).forEach { item ->
             val view = if (item.enhance < 15) UpgradeRecord.fromScan(item) else item
             Card(shadow = null, padding = PaddingValues(10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GearTile(view, 40.dp, setIcon = graph.content.content.set(view.set)?.icon)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("${graph.content.content.set(view.set)?.name ?: view.set.removeSuffix("Set")} ${view.slot.label}", style = zen(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f))
-                            Text("ES ${es(item)}", style = dela(13.sp))
-                        }
-                        MainStatLine(view)
-                        GearSearchSubs(view)
-                    }
-                }
+                GearSearchIdentity(graph, item, showEs = false) { Text("ES ${es(item)}", style = dela(13.sp)) }
                 VSpace(6.dp)
                 OutlineButton("Unlock", Modifier.fillMaxWidth(), height = 36.dp) { graph.marks.unmark(item.id) }
             }

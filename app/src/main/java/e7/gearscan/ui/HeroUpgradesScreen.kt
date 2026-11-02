@@ -434,7 +434,7 @@ internal fun HeroUpgradeBuildSheet(graph: AppGraph) {
                     Column(Modifier.weight(1f)) {
                         Text("${graph.content.content.set(it.set)?.name ?: it.set.removeSuffix("Set")} ${it.slot.label}", style = zen(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(fb.from[i], style = zen(11.sp, color = if (mine) C.deepPink else C.blue))
-                        if (mine) GearSearchSubs(it)
+                        if (mine) StatStack(it)
                     }
                 }
             }

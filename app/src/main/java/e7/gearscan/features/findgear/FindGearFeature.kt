@@ -28,7 +28,12 @@ data class FindGearResult(
     val matches: List<FindGearMatch>,
     val unsupported: Int,
     val seconds: Double,
-)
+    /** The likeliest piece that missed only the minimum chance, for the empty list's nearest fix. */
+    val bestBelow: FindGearMatch? = null,
+) {
+    val withOdds get() = matches.filter { !it.outcome.rareOnly }
+    val rareOnly get() = matches.filter { it.outcome.rareOnly }
+}
 
 class FindGearFeature(ctx: FeatureContext, private val content: ContentFeature, private val scanFeature: ScanFeature, private val marks: MarksFeature, private val records: RecordsFeature) : Feature(ctx, "findGear") {
     data class Step(val id: Long, val count: Int, val enhance: Int, val main: Double, val subs: List<Pair<GearStat, Double>>)
@@ -78,17 +83,21 @@ class FindGearFeature(ctx: FeatureContext, private val content: ContentFeature, 
                     val t0 = System.nanoTime()
                     var unsupported = 0
                     val matches = ArrayList<FindGearMatch>()
+                    val anyChance = key.query.copy(minimumChance = "0", rareOnly = false)
+                    var bestBelow: FindGearMatch? = null
                     for ((item, allowed) in items) {
                         currentCoroutineContext().ensureActive()
                         val outcome = GearPotential.forecast(item, key.query.goal(allowed))
                         if (!outcome.supported) unsupported++
                         if (key.query.accepts(outcome)) matches += FindGearMatch(item, outcome, allowed)
+                        else if (anyChance.accepts(outcome) && outcome.chance > (bestBelow?.outcome?.chance ?: 0.0)) bestBelow = FindGearMatch(item, outcome, allowed)
                     }
                     FindGearResult(
                         key.query,
                         matches.sortedWith(compareByDescending<FindGearMatch> { it.outcome.chance }.thenByDescending { it.item.enhance }.thenBy { it.item.id }),
                         unsupported,
                         (System.nanoTime() - t0) / 1e9,
+                        bestBelow,
                     )
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -116,7 +125,7 @@ class FindGearFeature(ctx: FeatureContext, private val content: ContentFeature, 
         val b = scanFeature.box ?: return Plan.Stop(Outcome.Failed("Scan your gear first."))
         if (busy || stale) return Plan.Stop(Outcome.Failed("Update the matches before starting a new list."))
         val cleared = marks.cleared
-        val entries = applied.matches.mapNotNull { match ->
+        val entries = applied.withOdds.mapNotNull { match ->
             val original = b.itemsById[match.item.id]?.takeIf { it.id !in cleared } ?: return@mapNotNull null
             val set = content.content.set(original.set)
             original to TrackerFeature.QueueEntry(original.id, applied.query.goal(b.canReforge(original.id)), set?.name ?: original.set.removeSuffix("Set"), set?.icon)

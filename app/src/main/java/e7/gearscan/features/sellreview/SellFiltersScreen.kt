@@ -180,18 +180,7 @@ private fun RollTable(rolls:List<RollReview.Roll>?) {
 
 @Composable
 private fun SellCardHead(graph: AppGraph,row:SellSearch.Row) {
-    val item=if(row.item.enhance<15)UpgradeRecord.fromScan(row.item) else row.item
-    Row(verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.padding(top=4.dp)) { GearTile(item,46.dp,setIcon=graph.content.content.set(item.set)?.icon) }
-        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
-            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                Text("${graph.content.content.set(item.set)?.name?:item.set.removeSuffix("Set")} ${item.slot.label}",style=zen(13.sp),modifier=Modifier.weight(1f),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                row.rolls?.let { Text("${RollReview.overallWeakCount(it)}/${it.size} low rolls",style=zen(10.sp,color=C.muted)) }
-            }
-            MainStatLine(item)
-            GearSearchSubs(item)
-        }
-    }
+    GearSearchIdentity(graph,row.item,showEs=false) { row.rolls?.let { Text("${RollReview.overallWeakCount(it)}/${it.size} low rolls",style=zen(10.sp,color=C.muted)) } }
 }
 
 @Composable
@@ -355,7 +344,7 @@ private fun SellChoice(text:String,modifier:Modifier=Modifier,selected:Boolean,s
 }
 
 @Composable
-@OptIn(LinkStyle::class)
+@OptIn(LinkStyle::class, KeyboardInput::class)
 fun SellSheet(graph: AppGraph,sheet:Sheet) {
     val q=graph.sellReview.query
     fun update(v:SellQuery)=graph.sellReview.edit(v)

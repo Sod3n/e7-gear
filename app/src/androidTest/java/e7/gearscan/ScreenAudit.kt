@@ -1,6 +1,7 @@
 package e7.gearscan
 
 import e7.gearscan.features.sellreview.trackMatches
+import e7.gearscan.ui.trackMatch
 import e7.gearscan.features.optimize.SearchState
 import e7.gearscan.features.scan.CaptureSession
 import e7.gearscan.features.scan.ScanError
@@ -777,6 +778,26 @@ class ScreenAudit {
         steps.add("overlay-history-flag" to { ui { graph.optimize.search?.builds?.firstOrNull()?.let {
             graph.checklist.load(graph.checklist.overlayBuild(hero, it, "Build #1", graph.history.flag(System.currentTimeMillis() - 86_400_000))) {} }
             graph.overlay.expanded = true; graph.overlay.tab = 0 } })
+        // last, because tracking changes the tracker's piece for every later step
+        steps.add("find-gear-rare" to {
+            if (findGear.result?.query != findGearQuery && !findGearSearch(findGearQuery)) add("the Find gear search cannot be restored", "find-gear")
+            ui { overlay = false; graph.tracker.hide(); graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Gear, Screen.GearPotential) }
+            if (findGear.result?.rareOnly.isNullOrEmpty()) warn("Find gear's search finds no rare-roll piece on the fixture, so the rare fold goes unchecked", "find-gear")
+            else runCatching { clickText("need a rare roll", substring = true) }.onFailure { add("can't open Find gear's rare-roll fold", it.message?.take(60) ?: "") }
+        })
+        steps.add("track-upgrades" to {
+            val m = findGear.result?.withOdds?.firstOrNull { it.item.enhance < 15 }
+            if (m == null) { add("no Find gear match below +15 to track, so Track upgrades goes unchecked", "track-upgrades"); return@to }
+            ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Gear, Screen.GearPotential); graph.messages.show(graph.trackMatch(m)) }
+            if (graph.nav.screen != Screen.Upgrade) add("tracking a Find gear match does not open Track upgrades", "track-upgrades")
+            else if (graph.nav.backLabel() != "Find gear") add("back from Track upgrades names the wrong screen", graph.nav.backLabel())
+        })
+        steps.add("track-upgrades-again" to {
+            val m = findGear.result?.withOdds?.firstOrNull() ?: return@to
+            ui { graph.messages.show(graph.trackMatch(m)) }
+            if (graph.nav.backLabel() == "Track upgrades") add("Track upgrades stacked on itself: back names the screen it is on", "track-upgrades")
+        })
+        steps.add("track-upgrades-choose" to { ui { graph.nav.sheet = null }; runCatching { clickText("Change") }.onFailure { add("can't open Track upgrades' piece chooser", it.message?.take(60) ?: "") } })
 
         // state flips that must not move anything else: (name, open the screen, change the state)
         val sheetOn = { k: SheetKind -> ui { overlay = false; graph.optimize.search = single; graph.nav.stack = listOf(Screen.Optimize); graph.nav.sheet = Sheet(k, hero) } }
