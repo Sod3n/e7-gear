@@ -40,9 +40,16 @@ import e7.gearscan.opt.PoolLosses
 import e7.gearscan.opt.Ghost
 import e7.gearscan.opt.SearchRun
 import e7.gearscan.opt.Setup
+import e7.gearscan.state.Weight
+import e7.gearscan.state.Work
+import e7.gearscan.state.WorkScope
+import e7.gearscan.state.blocking
+import e7.gearscan.ui.Outcome
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.withLock
@@ -228,7 +235,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     var search: SearchState? by mutableStateOf(null)
         internal set
-    private var run: SearchRun? = null
 
     var scanPhase by mutableStateOf(ScanPhase.IDLE)
     internal var captureStarted = 0L
@@ -543,6 +549,15 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- search ----
+    private val searchWork = Work<Unit>("Search", graph.work, Weight.Light)
+
+    private fun begin(out: Outcome) { if (out is Outcome.Failed) showToast(out.text) }
+
+    private fun failed(label: String, e: Throwable) {
+        android.util.Log.e("E7Work", "$label failed", e)
+        lastError = "$label: ${e.javaClass.simpleName}: ${e.message.orEmpty()}".take(160)
+    }
+
     fun startSearch(limit: Long = limitMs) {
         cancelSearch()
         val id = team.firstOrNull() ?: return
@@ -553,19 +568,31 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             else -> if (showRating in listOf(Rating.EHP, Rating.SPD, Rating.CP, Rating.GS)) Rating.DMG else showRating
         }
         val r = SearchRun(setup, 50)
-        run = r
         search = SearchState(id, current = cur, limitMs = limit)
         val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 6)
-        thread(name = "search") {
-            val t0 = System.nanoTime()
-            r.run(threads, limit)
-            val builds = r.builds()
-            android.util.Log.i("E7Search", "threads=$threads ms=${(System.nanoTime() - t0) / 1_000_000} nodes=${r.engine.nodes.get()} " +
-                "timedOut=${r.engine.timedOut} kept=${r.engine.keptPerSlot.toList()} best=${builds.firstOrNull()?.value}")
-            val stopped = r.engine.cancelled
-            viewModelScope.launch {
-                if (run !== r) return@launch
-                val started = search?.startedAt ?: return@launch
+        begin(searchWork.start {
+            onCancel { r.cancel(); searchStopped() }
+            launch {
+                while (search?.running == true) {
+                    delay(300)
+                    if (search?.running != true) break
+                    val partial = withContext(Dispatchers.Default) { r.builds() }
+                    if (search?.running == true) search = search?.let {
+                        SearchState(id, true, it.startedAt, builds = partial, current = cur, limitMs = it.limitMs)
+                    }
+                }
+            }
+            try {
+                val builds = blocking("search") {
+                    val t0 = System.nanoTime()
+                    r.run(threads, limit)
+                    r.builds().also { b ->
+                        android.util.Log.i("E7Search", "threads=$threads ms=${(System.nanoTime() - t0) / 1_000_000} nodes=${r.engine.nodes.get()} " +
+                            "timedOut=${r.engine.timedOut} kept=${r.engine.keptPerSlot.toList()} best=${b.firstOrNull()?.value}")
+                    }
+                }
+                val stopped = r.engine.cancelled
+                val started = search?.startedAt ?: return@start
                 // into history before the search reads as done, as with pool runs
                 if (builds.isNotEmpty() && !stopped) {
                     val best = builds.first()
@@ -577,60 +604,60 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 val none = builds.isEmpty() && !stopped
                 search = SearchState(id, false, started, System.currentTimeMillis(), builds, cur, r.engine.timedOut, stopped,
                     ghostRunning = setup.req.ghost && !stopped, checkingBlockers = none, limitMs = limit)
-                if (none) startRescue(setup, r)
-                else if (setup.req.ghost && !stopped) startGhost(setup, builds.first(), r)
+                if (none) rescue(setup, r)
+                else if (setup.req.ghost && !stopped) ghostSearch(setup, builds.first(), r)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                failed("search", e)
+                searchStopped()
             }
-        }
-        viewModelScope.launch {
-            while (run === r && search?.running == true) {
-                delay(300)
-                if (run !== r || search?.running != true) break
-                val partial = withContext(Dispatchers.Default) { r.builds() }
-                if (run === r && search?.running == true) search = search?.let {
-                    SearchState(id, true, it.startedAt, builds = partial, current = cur, limitMs = it.limitMs)
-                }
-            }
-        }
+        })
     }
 
-    private fun startGhost(setup: Setup, best: Build?, main: SearchRun) {
-        thread(name = "ghost") { ghostSearch(setup, best, main) }
+    private fun searchStopped() {
+        search = search?.let {
+            if (it.running) SearchState(it.heroId, false, it.startedAt, System.currentTimeMillis(), it.builds, it.current, cancelled = true, team = it.team)
+            else it.copy(ghostRunning = false, checkingBlockers = false)
+        }
     }
 
     /** [best] null: no build meets the rules, so any build with one ghost piece that meets them counts. */
-    private fun ghostSearch(setup: Setup, best: Build?, main: SearchRun) {
+    private suspend fun WorkScope.ghostSearch(setup: Setup, best: Build?, main: SearchRun) {
         val b = best?.let { base ->
-            val floor = if (main.builds().isEmpty()) Double.NEGATIVE_INFINITY else base.value
-            val ghosts = Ghost.candidates(setup, base, setup.req.reforged, floor)
-            val g = SearchRun(setup, 1, ghosts, maxGhost = 1, startThreshold = floor)
-            g.run(Runtime.getRuntime().availableProcessors().coerceIn(1, 6), 10_000)
-            g.builds().firstOrNull()?.takeIf { it.ghost != null }
+            blocking("ghost") {
+                val floor = if (main.builds().isEmpty()) Double.NEGATIVE_INFINITY else base.value
+                val ghosts = Ghost.candidates(setup, base, setup.req.reforged, floor)
+                val g = SearchRun(setup, 1, ghosts, maxGhost = 1, startThreshold = floor)
+                onCancel { g.cancel() }
+                g.run(Runtime.getRuntime().availableProcessors().coerceIn(1, 6), 10_000)
+                g.builds().firstOrNull()?.takeIf { it.ghost != null }
+            }
         }
-        viewModelScope.launch {
-            if (run !== main) return@launch
-            search = search?.copy(ghostRunning = false, ghost = b, ghostSearched = true)
-        }
+        search = search?.copy(ghostRunning = false, ghost = b, ghostSearched = true)
     }
 
     /** No build met the rules: find which rule alone rules out every build, then try one ghost piece. */
-    private fun startRescue(setup: Setup, main: SearchRun) {
-        thread(name = "rescue") {
-            val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 6)
-            fun run(q: e7.gearscan.data.Request) =
-                SearchRun(Setup(setup.hero, setup.game, setup.cfg, q, setup.box, setup.content, setup.canTakeFrom, setup.excluded), 1)
-            fun best(q: e7.gearscan.data.Request): Build? = run(q).also { it.run(threads, 3_000) }.builds().firstOrNull()
-            val blockers = ArrayList<String>()
+    private suspend fun WorkScope.rescue(setup: Setup, main: SearchRun) {
+        val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 6)
+        fun searchOf(q: e7.gearscan.data.Request) =
+            SearchRun(Setup(setup.hero, setup.game, setup.cfg, q, setup.box, setup.content, setup.canTakeFrom, setup.excluded), 1)
+                .also { r -> onCancel { r.cancel() } }
+        val blockers = blocking("rescue") {
+            val found = ArrayList<String>()
             for ((label, relax) in relaxations(setup.req)) {
-                if (this.run !== main || main.engine.cancelled) return@thread
-                if (run(setup.req.copy().also(relax)).anyBuild(threads, 3_000) == true) blockers += label
+                if (!isActive) break
+                if (searchOf(setup.req.copy().also(relax)).anyBuild(threads, 3_000) == true) found += label
             }
-            viewModelScope.launch {
-                if (run === main) search = search?.copy(blockers = blockers, checkingBlockers = false)
-            }
-            if (!setup.req.ghost || this.run !== main) return@thread
-            val base = best(setup.req.copy().also { q -> q.mins.fill(Double.NaN); q.maxs.fill(Double.NaN); q.capCrit = false })
-            ghostSearch(setup, base, main)
+            found
         }
+        search = search?.copy(blockers = blockers, checkingBlockers = false)
+        if (!setup.req.ghost) return
+        val base = blocking("rescue") {
+            searchOf(setup.req.copy().also { q -> q.mins.fill(Double.NaN); q.maxs.fill(Double.NaN); q.capCrit = false })
+                .also { it.run(threads, 3_000) }.builds().firstOrNull()
+        }
+        ghostSearch(setup, base, main)
     }
 
     private fun relaxations(req: e7.gearscan.data.Request): List<Pair<String, (e7.gearscan.data.Request) -> Unit>> = buildList {
@@ -649,10 +676,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         if (req.maxChanges < 6) add("Change at most ${req.maxChanges}" to { q -> q.maxChanges = 6 })
     }
 
-    fun cancelSearch() {
-        run?.cancel()
-        search?.let { if (it.running) search = SearchState(it.heroId, false, it.startedAt, System.currentTimeMillis(), it.builds, it.current, cancelled = true, team = it.team) }
-    }
+    fun cancelSearch() = searchWork.cancel()
 
     // ---- build actions ----
     /** Equips in the app's box; returns every touched item's previous owner, for [undoEquip]. */
@@ -819,9 +843,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun importBox(text: String) {
-        stopSellSearch()
+        cancelAllWork()
         if (e7.gearscan.overlay.OverlayState.upgrade != null) e7.gearscan.overlay.OverlayService.stop(getApplication())
-        if (upgrades.busy) { upgrades.generation++; upgrades.busy = false; PoolService.stop(getApplication()) }
         val nb = Box.parse(text)
         lastDiff = ScanDiff.between(box, nb)
         box = nb
@@ -858,7 +881,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         internal set
     var lastPool get() = graph.pool.lastPool
         set(v) { graph.pool.lastPool = v }
-    @Volatile private var poolToken: Any? = null
 
     /** Run order: higher tiers first; inside a tier the hero furthest from their build picks first (name breaks ties). */
     fun poolHeroes(): List<OwnedHero> = poolMembers().filter { it.id !in poolSkip }
@@ -922,70 +944,75 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         touch()
     }
 
-    /** A fresh run forgets the player's calls on trades; [keepCalls] re-runs with them. */
-    fun startPool(keepCalls: Boolean = false) {
-        if (upgrades.busy) { upgrades.generation++; upgrades.busy = false; PoolService.stop(getApplication()) }
-        if (!keepCalls) { poolKeep = emptyMap(); poolGive = emptyMap() }
-        // another run replaces the one waiting to be equipped
-        pendingPool = null
-        val lastTrades = pool?.trades.orEmpty()
-        val heroes = poolHeroes().filter { hasBuild(it.id) == true }
-        for (h in heroes) if (config(h.id).request?.targets?.any { !it.isNaN() } != true) {
-            presets[h.code]?.let { t -> (t.mostUsed.firstOrNull() ?: t.rta.firstOrNull())?.let { applyPreset(h.id, it, auto = true) } }
-        }
-        val ids = heroes.map { it.id }
-        val before = ids.associateWith { matchFor(it)?.pct }
-        val token = Any(); poolToken = token
-        pool = PoolState(ids, before, emptyMap(), emptyMap(), null, null, true, System.currentTimeMillis(), 0, setups = ids.associateWith { setupKey(it) })
-        PoolService.start(getApplication()) { viewModelScope.launch { if (poolToken === token) stopPool() } }
-        val inRun = ids.toSet()
-        val keepGear = poolSkip.flatMap { worn(it) }.toSet()
-        // builds holds every hero looked at so far: its new build, or null while it keeps its gear
-        val builds = LinkedHashMap<Long, Build?>()
-        val after = LinkedHashMap<Long, Int?>()
-        var shown = 0L
-        fun publish(round: Int? = null) {
-            val snapB = LinkedHashMap(builds); val snapA = LinkedHashMap(after)
-            viewModelScope.launch { if (poolToken === token) pool = pool?.copy(builds = snapB, after = snapA, round = round ?: pool?.round ?: 1) }
-            // the system drops notification updates faster than about one a second
-            if (System.currentTimeMillis() - shown > 1000 && poolToken === token) {
-                shown = System.currentTimeMillis()
-                PoolService.progress(getApplication(), (if ((round ?: 1) > 1) "Round $round · " else "") + "${snapB.size} of ${ids.size} heroes", snapB.size, ids.size)
+    /** A fresh run forgets the player's calls on trades; [keepCalls] re-runs with them. False when another long search is running. */
+    fun startPool(keepCalls: Boolean = false): Boolean {
+        val out = graph.pool.run.start {
+            val scope = this
+            val alive = { scope.isActive }
+            if (!keepCalls) { poolKeep = emptyMap(); poolGive = emptyMap() }
+            // another run replaces the one waiting to be equipped
+            pendingPool = null
+            val lastTrades = pool?.trades.orEmpty()
+            val heroes = poolHeroes().filter { hasBuild(it.id) == true }
+            for (h in heroes) if (config(h.id).request?.targets?.any { !it.isNaN() } != true) {
+                presets[h.code]?.let { t -> (t.mostUsed.firstOrNull() ?: t.rta.firstOrNull())?.let { applyPreset(h.id, it, auto = true) } }
+            }
+            val ids = heroes.map { it.id }
+            val before = ids.associateWith { matchFor(it)?.pct }
+            pool = PoolState(ids, before, emptyMap(), emptyMap(), null, null, true, System.currentTimeMillis(), 0, setups = ids.associateWith { setupKey(it) })
+            onCancel { poolStopped() }
+            val inRun = ids.toSet()
+            val keepGear = poolSkip.flatMap { worn(it) }.toSet()
+            // builds holds every hero looked at so far: its new build, or null while it keeps its gear
+            val builds = LinkedHashMap<Long, Build?>()
+            val after = LinkedHashMap<Long, Int?>()
+            fun publish(round: Int? = null) {
+                val snapB = LinkedHashMap(builds); val snapA = LinkedHashMap(after)
+                viewModelScope.launch { if (alive()) pool = pool?.copy(builds = snapB, after = snapA, round = round ?: pool?.round ?: 1) }
+                scope.progress(snapB.size, ids.size, (if ((round ?: 1) > 1) "Round $round · " else "") + "${snapB.size} of ${ids.size} heroes")
+            }
+            try {
+                val trades = blocking("pool") {
+                    // heroes of the run may be asked for any piece, at a price; from heroes outside it, only lower tiers' pieces are free
+                    val pr = e7.gearscan.opt.pricedPool(ids, ::tier, keepGear, { id, excluded -> setup(id, excluded) { h -> h in inRun || tier(h) < tier(id) } },
+                        { s, r -> runWatched(s.hero.id, r, s.req.mods, scope) }, poolLosses, poolEffort, { !alive() },
+                        onVisit = { id, round -> if (id !in builds) builds[id] = null; publish(round) },
+                        onAccept = { assign -> changed(assign, builds, after, before); publish() }, keep = poolKeep, give = poolGive)
+                    val t0 = System.nanoTime()
+                    val result = pr.run()
+                    android.util.Log.i("E7Pool", "pool run: ${ids.size} heroes, %.1f s, ${pr.proposals} proposals, ".format(java.util.Locale.US, (System.nanoTime() - t0) / 1e9) +
+                        pr.spent.entries.joinToString { (k, v) -> "$k ${v.first}× %.1f s".format(java.util.Locale.US, v.second) } + "; slowest: " +
+                        pr.heroTime.entries.sortedByDescending { it.value.first }.take(6).joinToString { (h, v) -> "${hero(h)?.let(::heroName)} %.1f s".format(java.util.Locale.US, v.first) + if (v.second > 0) " (${v.second} capped)" else "" })
+                    if (!alive()) return@blocking null
+                    ids.forEach { if (it !in builds) builds[it] = null }
+                    changed(result, builds, after, before)
+                    val wornBy = HashMap<Long, Long>().also { m -> ids.forEach { h -> worn(h).forEach { m[it] = h } } }
+                    val made = ids.flatMap { t -> result[t]?.items.orEmpty().mapNotNull { i -> wornBy[i.id]?.takeIf { it != t }?.let { h -> Triple(h, t, i.id) } } }
+                        .groupBy({ it.first to it.second }, { it.third }).map { (k, items) -> Trade(k.second, k.first, items, true) }
+                        // a made trade is only worth a look when its wearer paid for it; when both ended better there is nothing to decide
+                        .filter { t -> (after[t.holder] ?: 0) < (before[t.holder] ?: 0) }
+                    val notMade = pr.refusals(result).groupBy { it.holder to it.taker }
+                        .map { (k, ds) -> Trade(k.second, k.first, ds.map { it.item }, false, ds.first().takerPoints, ds.first().holderPoints, ds.first().moves) }
+                    // a piece the player kept is never asked for again, but stays listed so the call can be undone
+                    val kept = poolKeep.entries.filter { (item, h) -> notMade.none { item in it.items } && result[h]?.items?.any { it.id == item } == true }
+                        .groupBy({ it.value }, { it.key }).flatMap { (h, items) -> lastTrades.filter { it.holder == h && it.items.any { i -> i in items } }
+                            .map { Trade(it.taker, h, it.items.filter { i -> i in items }, false) } }
+                    val stuck = poolGive.filterKeys { it in pr.unmoved }.entries.groupBy({ it.value }, { it.key }).flatMap { (t, items) ->
+                        items.groupBy { i -> wornBy[i] }.mapNotNull { (h, its) -> h?.let { Trade(t, it, its, false, stuck = true) } }
+                    }
+                    made + notMade.filter { n -> stuck.none { s -> s.taker == n.taker && s.holder == n.holder } } + kept + stuck
+                } ?: return@start
+                pool = pool?.copy(builds = LinkedHashMap(builds), after = LinkedHashMap(after), trades = trades)
+                finishPool()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                failed("pool", e)
+                poolStopped()
             }
         }
-        thread(name = "pool") {
-            // heroes of the run may be asked for any piece, at a price; from heroes outside it, only lower tiers' pieces are free
-            val pr = e7.gearscan.opt.pricedPool(ids, ::tier, keepGear, { id, excluded -> setup(id, excluded) { h -> h in inRun || tier(h) < tier(id) } },
-                { s, r -> runWatched(s.hero.id, r, s.req.mods, token) }, poolLosses, poolEffort, { poolToken !== token },
-                onVisit = { id, round -> if (id !in builds) builds[id] = null; publish(round) },
-                onAccept = { assign -> changed(assign, builds, after, before); publish() }, keep = poolKeep, give = poolGive)
-            val t0 = System.nanoTime()
-            val result = pr.run()
-            android.util.Log.i("E7Pool", "pool run: ${ids.size} heroes, %.1f s, ${pr.proposals} proposals, ".format(java.util.Locale.US, (System.nanoTime() - t0) / 1e9) +
-                pr.spent.entries.joinToString { (k, v) -> "$k ${v.first}× %.1f s".format(java.util.Locale.US, v.second) } + "; slowest: " +
-                pr.heroTime.entries.sortedByDescending { it.value.first }.take(6).joinToString { (h, v) -> "${hero(h)?.let(::heroName)} %.1f s".format(java.util.Locale.US, v.first) + if (v.second > 0) " (${v.second} capped)" else "" })
-            if (poolToken === token) {
-                ids.forEach { if (it !in builds) builds[it] = null }
-                changed(result, builds, after, before)
-                val wornBy = HashMap<Long, Long>().also { m -> ids.forEach { h -> worn(h).forEach { m[it] = h } } }
-                val made = ids.flatMap { t -> result[t]?.items.orEmpty().mapNotNull { i -> wornBy[i.id]?.takeIf { it != t }?.let { h -> Triple(h, t, i.id) } } }
-                    .groupBy({ it.first to it.second }, { it.third }).map { (k, items) -> Trade(k.second, k.first, items, true) }
-                    // a made trade is only worth a look when its wearer paid for it; when both ended better there is nothing to decide
-                    .filter { t -> (after[t.holder] ?: 0) < (before[t.holder] ?: 0) }
-                val notMade = pr.refusals(result).groupBy { it.holder to it.taker }
-                    .map { (k, ds) -> Trade(k.second, k.first, ds.map { it.item }, false, ds.first().takerPoints, ds.first().holderPoints, ds.first().moves) }
-                // a piece the player kept is never asked for again, but stays listed so the call can be undone
-                val kept = poolKeep.entries.filter { (item, h) -> notMade.none { item in it.items } && result[h]?.items?.any { it.id == item } == true }
-                    .groupBy({ it.value }, { it.key }).flatMap { (h, items) -> lastTrades.filter { it.holder == h && it.items.any { i -> i in items } }
-                        .map { Trade(it.taker, h, it.items.filter { i -> i in items }, false) } }
-                val stuck = poolGive.filterKeys { it in pr.unmoved }.entries.groupBy({ it.value }, { it.key }).flatMap { (t, items) ->
-                    items.groupBy { i -> wornBy[i] }.mapNotNull { (h, its) -> h?.let { Trade(t, it, its, false, stuck = true) } }
-                }
-                val trades = made + notMade.filter { n -> stuck.none { s -> s.taker == n.taker && s.holder == n.holder } } + kept + stuck
-                viewModelScope.launch { if (poolToken === token) pool = pool?.copy(builds = LinkedHashMap(builds), after = LinkedHashMap(after), trades = trades) }
-            }
-            finishPool(token)
-        }
+        begin(out)
+        return out !is Outcome.Failed
     }
 
     /** Copies a run's assignment into [builds]: a new build for heroes whose gear changed, null for the rest. */
@@ -998,10 +1025,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun finishPool(token: Any) = viewModelScope.launch {
-        if (poolToken !== token) return@launch
-        PoolService.stop(getApplication())
-        val done = pool?.copy(running = false, current = null, currentBest = null, finishedAt = System.currentTimeMillis()) ?: return@launch
+    private fun finishPool() {
+        val done = pool?.copy(running = false, current = null, currentBest = null, finishedAt = System.currentTimeMillis()) ?: return
         val score = poolScore(done.ids.associateWith { done.after[it] ?: done.before[it] })
         if (done.ids.isNotEmpty()) poolSecondsPerHero = (done.finishedAt - done.startedAt) / 1000.0 / done.ids.size
         // into history before the run reads as done: whatever reacts to "done" finds it there
@@ -1016,13 +1041,17 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         notifyPoolDone(done)
     }
 
+    private fun poolStopped() {
+        pool = pool?.copy(running = false, current = null, currentBest = null, finishedAt = System.currentTimeMillis())
+    }
+
     /** Runs one pool hero's search, showing its best match so far. */
-    private fun runWatched(id: Long, r: SearchRun, mods: Boolean, token: Any) {
-        run = r
+    private fun runWatched(id: Long, r: SearchRun, mods: Boolean, scope: WorkScope) {
+        scope.onCancel { r.cancel() }
         val watch = thread(name = "pool-watch") {
             // interrupted when the hero's search ends; that is the normal way out
             try {
-                while (poolToken === token && !r.engine.done) {
+                while (scope.isActive && !r.engine.done) {
                     Thread.sleep(400)
                     val best = r.builds().firstOrNull()?.let { matchOf(id, it)?.pct }
                     viewModelScope.launch { pool = pool?.copy(current = id, currentBest = best) }
@@ -1044,18 +1073,11 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     // swiped away from recents: nothing is left to show the result, so stop rather than leave the service running
     override fun onCleared() {
-        if (pool?.running == true) stopPool()
-        upgrades.generation++; upgrades.busy = false
-        PoolService.stop(getApplication())
+        cancelAllWork()
         super.onCleared()
     }
 
-    fun stopPool() {
-        run?.cancel()
-        poolToken = null
-        PoolService.stop(getApplication())
-        pool = pool?.copy(running = false, current = null, currentBest = null, finishedAt = System.currentTimeMillis())
-    }
+    fun stopPool() = graph.pool.run.cancel()
 
     // ---- editable sell filters (score evidence, never automatic sales) ----
     var sellQuery get() = graph.sellReview.query
@@ -2217,14 +2239,16 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         true
     }.getOrDefault(false)
 
-    private fun stopAllWork() {
-        cancelSearch()
-        if (pool?.running == true) stopPool()
+    private fun cancelAllWork() {
+        graph.work.cancelAll()
         stopSellSearch()
         if (heroUpgrades?.running == true) stopHeroUpgrades()
         if (upgrades.busy) { upgrades.generation++; upgrades.busy = false; PoolService.stop(getApplication()) }
         potentialGeneration++; potentialJob?.cancel(); potentialBusy = false
-        graph.work.cancelAll()
+    }
+
+    private fun stopAllWork() {
+        cancelAllWork()
         e7.gearscan.overlay.OverlayService.stop(getApplication())
     }
 

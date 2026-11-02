@@ -139,7 +139,7 @@ fun RowScope.PoolButton(model: AppModel) {
     val shape = RoundedCornerShape(999.dp)
     Column(Modifier.weight(1f).height(56.dp).then(if (ready > 0) Modifier.hardShadow(C.shadow, 3.dp, 4.dp, 28.dp) else Modifier).clip(shape)
         .background(if (ready > 0) C.pink else C.line).border(2.5.dp, C.edge, shape)
-        .tap(if (ready > 0) ({ model.startPool(); model.go(Screen.PoolRun) }) else null),
+        .tap(if (ready > 0) ({ if (model.startPool()) model.go(Screen.PoolRun) }) else null),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         FitText("Optimize $ready heroes", dela(16.sp, if (ready > 0) C.onAccent else C.ink))
         FitText(time + if (skipped > 0) " · $skipped skipped unless set up" else "", zen(10.sp, FontWeight.Medium))

@@ -6,6 +6,7 @@ import e7.gearscan.opt.PoolLosses
 import e7.gearscan.state.Codec
 import e7.gearscan.state.Codecs
 import e7.gearscan.state.Feature
+import e7.gearscan.state.Weight
 import org.json.JSONObject
 
 class PoolFeature(g: AppGraph) : Feature(g, "pool") {
@@ -17,6 +18,7 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
     var secondsPerHero by saved("secondsPerHero", 3.0, Codecs.double)
     var pending by saved("pending", null, Codecs.nullable(Codecs.long))
     var lastPool by saved("lastPool", null, LAST)
+    val run = work<Unit>("Pool run", Weight.Heavy)
 
     private companion object {
         val LAST: Codec<Pair<Long, Int>?> = Codecs.nullable(
