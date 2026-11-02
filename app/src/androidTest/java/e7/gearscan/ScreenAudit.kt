@@ -916,13 +916,17 @@ class ScreenAudit {
 
     private fun heapMb(): String = Runtime.getRuntime().let { "${(it.totalMemory() - it.freeMemory()) shr 20}/${it.maxMemory() shr 20} MB" }
 
+    // history travels as the text of history.json under "files" (backup format 2)
     private fun historyLength(text: String): Int? = android.util.JsonReader(java.io.StringReader(text)).use { r ->
         r.beginObject()
         while (r.hasNext()) {
-            if (r.nextName() != "history") { r.skipValue(); continue }
-            var n = 0
-            r.beginArray(); while (r.hasNext()) { r.skipValue(); n++ }; r.endArray()
-            return n
+            if (r.nextName() != "files") { r.skipValue(); continue }
+            r.beginObject()
+            while (r.hasNext()) {
+                if (r.nextName() != "history.json") { r.skipValue(); continue }
+                return org.json.JSONArray(r.nextString()).length()
+            }
+            return null
         }
         null
     }
