@@ -27,7 +27,6 @@ data class FindGearResult(
 
 class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
     interface Source {
-        val box: Box?
         val records: Map<Long, UpgradeRecord>
         fun setLabel(key: String): Pair<String, String?>
         fun track(item: Item, goal: GearPotential.Goal, openOverlay: Boolean)
@@ -35,7 +34,6 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
     }
 
     object NoSource : Source {
-        override val box: Box? = null
         override val records: Map<Long, UpgradeRecord> = emptyMap()
         override fun setLabel(key: String) = key to null
         override fun track(item: Item, goal: GearPotential.Goal, openOverlay: Boolean) {}
@@ -73,7 +71,7 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
     fun find(): Outcome {
         val q = query
         q.error()?.let { return Outcome.Failed(it) }
-        val b = source.box ?: return Outcome.Failed("Scan your gear first.")
+        val b = g.scan.box ?: return Outcome.Failed("Scan your gear first.")
         val scan = g.scan.lastScan
         val cleared = g.marks.cleared
         val items = b.items.filter { it.id !in cleared }.map { original ->
@@ -111,7 +109,7 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
     fun track(match: FindGearMatch, openOverlay: Boolean = false): Outcome {
         val applied = result ?: return Outcome.Failed("Find gear first.")
         val scan = g.scan.lastScan
-        val original = source.box?.itemsById?.get(match.item.id)
+        val original = g.scan.box?.itemsById?.get(match.item.id)
         val latest = source.records[match.item.id]?.takeIf { it.scan == scan }?.item ?: original
         if (latest == null || (!UpgradeRecord.supported(latest) && latest.enhance < 15) || latest.id in g.marks.cleared) {
             return Outcome.Failed("This piece changed. Tap Find gear to refresh the list.")
@@ -122,7 +120,7 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
 
     fun trackAll(openOverlay: Boolean = true): Outcome {
         val applied = result ?: return Outcome.Failed("Find gear first.")
-        val b = source.box ?: return Outcome.Failed("Scan your gear first.")
+        val b = g.scan.box ?: return Outcome.Failed("Scan your gear first.")
         if (busy || stale) return Outcome.Failed("Update the matches before starting a new list.")
         val cleared = g.marks.cleared
         val entries = applied.matches.mapNotNull { match ->

@@ -44,7 +44,7 @@ private fun slots(q: PotentialQuery) = when (q.slots) {
 }
 private fun sets(model: AppModel, q: PotentialQuery) = when {
     q.sets.isEmpty() -> "Any set"
-    q.sets.size <= 2 -> q.sets.joinToString(" / ") { model.content.set(it)?.name ?: it.removeSuffix("Set") }
+    q.sets.size <= 2 -> q.sets.joinToString(" / ") { model.graph.content.content.set(it)?.name ?: it.removeSuffix("Set") }
     else -> "${q.sets.size} sets"
 }
 internal val AppModel.f get() = graph.findGear
@@ -89,7 +89,7 @@ fun FindGearScreen(model: AppModel) {
                         Text(slots(q), style = zen(12.sp))
                     }
                     RowCard("Sets", { open(model, SheetKind.POTENTIAL_SETS) }) {
-                        q.sets.take(3).forEach { SetIcon(model.content.set(it)?.icon, 18.dp) }
+                        q.sets.take(3).forEach { SetIcon(model.graph.content.content.set(it)?.icon, 18.dp) }
                         Text(sets(model, q), style = zen(12.sp))
                     }
                     RowCard("Mains", { open(model, SheetKind.POTENTIAL_MAINS) }) {
@@ -179,11 +179,11 @@ internal fun GearSearchIdentity(model: AppModel, original: Item, highlight: Set<
                                 owner: Boolean = false, trailing: (@Composable () -> Unit)? = null) {
     val item = if (original.enhance < 15) UpgradeRecord.fromScan(original) else original
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.padding(top = 4.dp)) { GearTile(item, 46.dp, setIcon = model.content.set(item.set)?.icon) }
+        Box(Modifier.padding(top = 4.dp)) { GearTile(item, 46.dp, setIcon = model.graph.content.content.set(item.set)?.icon) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
-                    Text("${model.content.set(item.set)?.name ?: item.set.removeSuffix("Set")} ${item.slot.label}", style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text("${model.graph.content.content.set(item.set)?.name ?: item.set.removeSuffix("Set")} ${item.slot.label}", style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         StatValue(item.mainType.stat, item.mainType.format(item.mainValue), C.ink, 12)
                         Text("Lv.${item.level}", style = zen(10.sp, FontWeight.Medium, C.muted))

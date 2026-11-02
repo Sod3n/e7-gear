@@ -33,8 +33,7 @@ class SellReviewFeatureTest {
         Dispatchers.resetMain()
     }
 
-    private class Host(override var box: Box?) : SellHost {
-        override var lastScan = 1L
+    private class Host : SellHost {
         override var records: Map<Long, UpgradeRecord> = emptyMap()
         var settings: List<Any?> = listOf(1)
         override val settingsKey get() = settings
@@ -57,8 +56,10 @@ class SellReviewFeatureTest {
     @Test fun staleFlipsOnEachInputOfTheKeyAndOnlyThen() = runTest(UnconfinedTestDispatcher()) {
         Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         val g = AppGraph(Disk(createTempDirectory("sell").toFile()), this)
-        val host = Host(tiny)
+        val host = Host()
         g.sellReview.host = host
+        g.scan.replaceBox(tiny)
+        g.scan.lastScan = 1
         assertFalse(g.sellReview.stale)
         assertEquals(Outcome.Done, g.sellReview.find())
         withContext(Dispatchers.Default) { while (g.sellReview.busy) Thread.sleep(20) }
@@ -66,13 +67,13 @@ class SellReviewFeatureTest {
         assertFalse(g.sellReview.stale)
         assertTrue(g.sellReview.fresh)
 
-        host.box = other
+        g.scan.replaceBox(other)
         assertTrue(g.sellReview.stale)
-        host.box = tiny
+        g.scan.replaceBox(tiny)
         assertFalse(g.sellReview.stale)
-        host.lastScan = 2
+        g.scan.lastScan = 2
         assertTrue(g.sellReview.stale)
-        host.lastScan = 1
+        g.scan.lastScan = 1
         host.settings = listOf(2)
         assertTrue(g.sellReview.stale)
         host.settings = listOf(1)
@@ -91,7 +92,8 @@ class SellReviewFeatureTest {
 
     @Test fun aStartWhileAnotherHeavyRunIsRefusedWithItsName() = runTest(UnconfinedTestDispatcher()) {
         val g = AppGraph(Disk(createTempDirectory("sell").toFile()), this)
-        g.sellReview.host = Host(tiny)
+        g.sellReview.host = Host()
+        g.scan.replaceBox(tiny)
         g.pool.run.start { CompletableDeferred<Unit>().await() }
         assertEquals(Outcome.Failed("Finish or stop Pool run first"), g.sellReview.find())
         assertFalse(g.sellReview.busy)
@@ -100,7 +102,8 @@ class SellReviewFeatureTest {
 
     @Test fun anInvalidQueryIsRefusedWithItsMessage() = runTest(UnconfinedTestDispatcher()) {
         val g = AppGraph(Disk(createTempDirectory("sell").toFile()), this)
-        g.sellReview.host = Host(tiny)
+        g.sellReview.host = Host()
+        g.scan.replaceBox(tiny)
         g.sellReview.edit(g.sellReview.query.copy(maximumChance = 200.0))
         assertEquals(Outcome.Failed("Chance must be between 0 and 100%."), g.sellReview.find())
         assertFalse(g.sellReview.busy)

@@ -786,8 +786,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Sell review host (the feature reads the box, scan and tracker through this) ----
     private val sellHost = object : e7.gearscan.features.sellreview.SellHost {
-        override val box get() = this@AppModel.box
-        override val lastScan get() = this@AppModel.lastScan
         override val records get() = upgrades.records
         override val settingsKey get() = listOf(poolTiers, poolExtra, tiers, content.version, rev)
         override val contentVersion get() = content.version
@@ -822,7 +820,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     init {
         graph.findGear.source = object : e7.gearscan.features.findgear.FindGearFeature.Source {
-            override val box get() = this@AppModel.box
             override val records get() = upgrades.records
             override fun setLabel(key: String) = content.set(key).let { (it?.name ?: key.removeSuffix("Set")) to it?.icon }
             override fun track(item: Item, goal: e7.gearscan.opt.GearPotential.Goal, openOverlay: Boolean) {

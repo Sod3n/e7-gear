@@ -36,7 +36,7 @@ class FindGearFeatureTest {
 
     private val synthetic = Box.parse(SyntheticBox.generate(1).gearText)
 
-    private class FakeSource(override val box: Box?) : FindGearFeature.Source {
+    private class FakeSource : FindGearFeature.Source {
         override var records: Map<Long, UpgradeRecord> = emptyMap()
         var tracked = 0
         override fun setLabel(key: String) = key to null
@@ -58,6 +58,7 @@ class FindGearFeatureTest {
 
     private fun graph(scope: CoroutineScope, source: FakeSource): AppGraph =
         AppGraph(Disk(createTempDirectory("findgear").toFile()), scope).also {
+            it.scan.replaceBox(synthetic)
             it.scan.lastScan = SCAN
             it.findGear.source = source
             it.findGear.edit(PotentialQuery(show = 2, minimumChance = "0"))
@@ -74,7 +75,7 @@ class FindGearFeatureTest {
     }
 
     @Test fun staleFlipsOnAQueryChangeANewScanAndARealRecordedStep() = runTest(UnconfinedTestDispatcher()) {
-        val source = FakeSource(synthetic)
+        val source = FakeSource()
         val g = graph(this, source)
         assertFalse(g.findGear.stale)
         found(g)
@@ -97,7 +98,7 @@ class FindGearFeatureTest {
     }
 
     @Test fun trackingAPieceLeavesTheListFresh() = runTest(UnconfinedTestDispatcher()) {
-        val source = FakeSource(synthetic)
+        val source = FakeSource()
         val g = graph(this, source)
         found(g)
         val match = g.findGear.result!!.matches.first { it.item.enhance < 15 }
@@ -110,7 +111,7 @@ class FindGearFeatureTest {
     }
 
     @Test fun trackAllOnAStaleResultFails() = runTest(UnconfinedTestDispatcher()) {
-        val source = FakeSource(synthetic)
+        val source = FakeSource()
         val g = graph(this, source)
         found(g)
         g.findGear.edit(g.findGear.query.copy(minimumChance = "5"))
@@ -120,14 +121,14 @@ class FindGearFeatureTest {
     }
 
     @Test fun anInvalidQueryFailsWithItsReason() = runTest(UnconfinedTestDispatcher()) {
-        val g = graph(this, FakeSource(synthetic))
+        val g = graph(this, FakeSource())
         g.findGear.edit(PotentialQuery(targets = emptyMap()))
         assertEquals(Outcome.Failed("Add at least one substat minimum."), g.findGear.find())
         assertFalse(g.findGear.busy)
     }
 
     @Test fun clearedPiecesAreLeftOutOfTheSearch() = runTest(UnconfinedTestDispatcher()) {
-        val g = graph(this, FakeSource(synthetic))
+        val g = graph(this, FakeSource())
         found(g)
         val gone = g.findGear.result!!.matches.first().item.id
         g.marks.markReviewed(gone, keep = false)

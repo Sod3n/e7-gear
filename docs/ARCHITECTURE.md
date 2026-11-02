@@ -53,6 +53,7 @@ class AppGraph(app: Application) {
     val disk = Disk(app.filesDir)
     val store = Store(disk, version = STATE_VERSION, migrations = Migrations.all)
     val net: Net = AndroidNet(userAgent = "E7Gear/${BuildConfig.VERSION_NAME}")
+    val platform: Platform                    // what the phone does for features: VPN, launching the game, Downloads, installer
     val messages = Messages()                 // toasts, explanations, confirmations
     val nav = Nav(start = Screen.Optimize)
     val work = WorkHost(app)                  // the one foreground notification for long searches
@@ -149,7 +150,7 @@ with an exhaustive `when`, so a new screen without a route or a title does not c
 |---|---|
 | `WorkService` | The foreground notification while any `Work` with `foreground = true` runs; Stop cancels it. Wake lock at most 1 h. |
 | `OverlayService` | Draws the tracker and checklist pages over the game; reads and writes only `graph.tracker` and `graph.checklist`. |
-| `CaptureVpnService` | Local VPN (hev-socks5-tunnel, native, from SocksTun) that reads the game's traffic during a scan. |
+| `CaptureVpnService` | Local VPN (hev-socks5-tunnel, native, from SocksTun) that reads the game's traffic during a scan. It writes into `graph.scan.capture`, the scan feature's `CaptureSession`. |
 
 ## :kit
 

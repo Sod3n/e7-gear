@@ -68,7 +68,7 @@ private fun ComparisonOwner(model:AppModel,item:Item) {
         if(hero!=null)Face(model.face(hero),26.dp)
         Column(Modifier.weight(1f)) {
             Text(hero?.let(model::heroName)?:"Equipped comparison piece",style=zen(12.sp))
-            Text("+${item.enhance} · ${model.content.set(item.set)?.name?:item.set.removeSuffix("Set")} ${item.slot.label}",style=zen(10.sp,color=C.muted))
+            Text("+${item.enhance} · ${model.graph.content.content.set(item.set)?.name?:item.set.removeSuffix("Set")} ${item.slot.label}",style=zen(10.sp,color=C.muted))
         }
     }
 }
@@ -117,7 +117,7 @@ private fun FinishComparison(row:SellSearch.Row) {
 @Composable
 private fun ScoringControls(model:AppModel) {
     val q=model.graph.sellReview.query
-    val example=remember(model.lastScan) { model.graph.sellReview.floorPreview(Slot.HELMET)?.item?:model.box?.items?.firstOrNull() }
+    val example=remember(model.graph.scan.lastScan) { model.graph.sellReview.floorPreview(Slot.HELMET)?.item?:model.graph.scan.box?.items?.firstOrNull() }
     Text("Main stat + substats = points. Higher means more weighted stats; it does not measure a complete hero build.",style=zen(12.sp))
     SellNumber("Diversity penalty %",q.score.diversity.toDouble(),0.0,100.0,0) { model.graph.sellReview.edit(q.copy(score=q.score.copy(diversity=(it?:0.0).toInt()))) }
     CardGrid(listOf(0,25,50,100),columns=4) { n,m->SellChoice("$n%",m,q.score.diversity==n) { model.graph.sellReview.edit(q.copy(score=q.score.copy(diversity=n))) } }
@@ -177,10 +177,10 @@ private fun RollTable(rolls:List<RollReview.Roll>?) {
 private fun SellCardHead(model:AppModel,row:SellSearch.Row) {
     val item=if(row.item.enhance<15)UpgradeRecord.fromScan(row.item) else row.item
     Row(verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.padding(top=4.dp)) { GearTile(item,46.dp,setIcon=model.content.set(item.set)?.icon) }
+        Box(Modifier.padding(top=4.dp)) { GearTile(item,46.dp,setIcon=model.graph.content.content.set(item.set)?.icon) }
         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                Text("${model.content.set(item.set)?.name?:item.set.removeSuffix("Set")} ${item.slot.label}",style=zen(13.sp),modifier=Modifier.weight(1f),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text("${model.graph.content.content.set(item.set)?.name?:item.set.removeSuffix("Set")} ${item.slot.label}",style=zen(13.sp),modifier=Modifier.weight(1f),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 row.rolls?.let { Text("${RollReview.overallWeakCount(it)}/${it.size} low rolls",style=zen(10.sp,color=C.muted)) }
             }
             MainStatLine(item)
@@ -432,7 +432,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                     LinkText("Use pool selection") { update(q.copy(reference=SellReference.SELECTED,referenceHeroes=model.poolMembers().map { it.id }.toSet())) }
                     LinkText("Clear") { update(q.copy(referenceHeroes=emptySet())) }
                 }
-                model.box?.allHeroes.orEmpty().filter { nameMatches(model.heroName(it),name) }.sortedBy(model::heroName).forEach { h->
+                model.graph.scan.box?.allHeroes.orEmpty().filter { nameMatches(model.heroName(it),name) }.sortedBy(model::heroName).forEach { h->
                     val selected=h.id in q.referenceHeroes
                     Row(Modifier.fillMaxWidth().tap { update(q.copy(reference=SellReference.SELECTED,referenceHeroes=if(selected)q.referenceHeroes-h.id else q.referenceHeroes+h.id)) }.padding(vertical=6.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(9.dp)) {
                         Face(model.face(h),28.dp);Text(model.heroName(h),style=zen(12.sp),modifier=Modifier.weight(1f));Checkbox(selected) { on->update(q.copy(reference=SellReference.SELECTED,referenceHeroes=if(on)q.referenceHeroes+h.id else q.referenceHeroes-h.id)) }
@@ -452,7 +452,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
             SheetKind.SELL_SETS->{
                 var name by remember { mutableStateOf("") };NameFilter(name,"Name") { name=it }
                 LinkText("Any set") { update(q.copy(sets=emptySet())) }
-                CardGrid(model.content.sets.filter { nameMatches(it.name,name) },columns=3) { s,m->
+                CardGrid(model.graph.content.content.sets.filter { nameMatches(it.name,name) },columns=3) { s,m->
                     Column(m, horizontalAlignment=Alignment.CenterHorizontally) { SetIcon(s.icon,25.dp);SellChoice(s.name,Modifier.fillMaxWidth(),s.key in q.sets) { update(q.copy(sets=if(s.key in q.sets)q.sets-s.key else q.sets+s.key)) } }
                 }
             }
@@ -462,7 +462,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
             }
             SheetKind.SELL_LEVELS->{
                 LinkText("Any level") { update(q.copy(levels=emptySet())) }
-                CardGrid(model.box?.items.orEmpty().map { it.level }.distinct().sorted(),columns=4) { n,m->SellChoice("Lv.$n",m,n in q.levels) { update(q.copy(levels=if(n in q.levels)q.levels-n else q.levels+n)) } }
+                CardGrid(model.graph.scan.box?.items.orEmpty().map { it.level }.distinct().sorted(),columns=4) { n,m->SellChoice("Lv.$n",m,n in q.levels) { update(q.copy(levels=if(n in q.levels)q.levels-n else q.levels+n)) } }
             }
             SheetKind.SELL_QUALITY->{
                 Text("Choose overall roll quality. Starting values, upgrade hits and Heroic new-line rolls all count, using each stat’s own usual range.",style=zen(12.sp))
