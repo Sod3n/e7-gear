@@ -53,7 +53,7 @@ fun HeroUpgradesScreen(graph: AppGraph, heroId: Long?) {
     val result = st?.result
     val running = st?.running == true
     val minGain = graph.improveHeroes.minGain
-    val view = remember(result, minGain, graph.improveHeroes.rebuilds, graph.scan.rev, graph.scan.box, graph.marks.cleared) { result?.let { graph.improveHeroes.view(it, minGain) } }
+    val view = remember(result, minGain, graph.improveHeroes.rebuilds, graph.rev.value, graph.scan.box, graph.marks.cleared) { result?.let { graph.improveHeroes.view(it, minGain) } }
     val one = heroId?.let { id -> view?.firstOrNull { it.hero.id == id } }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val listed = when {
@@ -351,7 +351,7 @@ private fun HeroPage(graph: AppGraph, h: HeroUpgradeHero) {
 internal fun HeroUpgradePieceSheet(graph: AppGraph, id: Long) {
     val result = graph.improveHeroes.heroUpgrades?.result ?: return
     val item = heroUpgradeItem(graph, id) ?: return
-    val heroes = remember(result, graph.improveHeroes.minGain, graph.scan.rev) {
+    val heroes = remember(result, graph.improveHeroes.minGain, graph.rev.value) {
         graph.improveHeroes.view(result).mapNotNull { h -> h.rows.firstOrNull { it.pick.piece == id }?.let { h to it } }
     }
     SheetBody("Worth enhancing?", button = "Enhance over the game", onButton = { graph.nav.sheet = null; graph.messages.show(graph.improveHeroes.track(id)) }) {

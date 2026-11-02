@@ -17,6 +17,6 @@ class SettingsFeature(g: AppGraph) : Feature(g, "settings") {
     fun useOverGameNative(on: Boolean) {
         overGameNative = on
         if (on) g.platform.stopOverlay()
-        g.scan.touch()
+        g.rev.bump()
     }
 }

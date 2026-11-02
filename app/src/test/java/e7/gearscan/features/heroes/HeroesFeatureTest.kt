@@ -47,13 +47,13 @@ class HeroesFeatureTest {
         val setup = g.heroes.setup(hero)!!
         val build = setup.build(worn.filterKeys { it != slot }.values.toList() + incoming)
         val before = owners(g)
-        val rev = g.scan.rev
+        val rev = g.rev.value
 
         val prev = g.heroes.equip(hero, build)
 
         assertEquals(hero, g.scan.box!!.itemsById.getValue(incoming.id).equippedOn)
         assertEquals(null, g.scan.box!!.itemsById.getValue(worn.getValue(slot).id).equippedOn)
-        assertTrue(g.scan.rev > rev)
+        assertTrue(g.rev.value > rev)
         g.heroes.undoEquip(prev)
         assertEquals(before, owners(g))
         g.disk.flush()

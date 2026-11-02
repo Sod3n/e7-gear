@@ -120,7 +120,7 @@ class ScreenAudit {
         }
         // presets come from the hero library over the network; the search must run with the one that gets applied
         runCatching { rule.waitUntil(10_000) { graph.heroes.request(hero).targets.any { !it.isNaN() } } }
-        if (graph.heroes.request(hero).targets.all { it.isNaN() }) ui { graph.heroes.request(hero).targets[Stat.SPD.ordinal] = 200.0; graph.scan.touch() }
+        if (graph.heroes.request(hero).targets.all { it.isNaN() }) ui { graph.heroes.request(hero).targets[Stat.SPD.ordinal] = 200.0; graph.rev.bump() }
         rule.waitForIdle()
         // searches are slow on an emulator; run each once and show the same result in every setup
         search(graph, listOf(hero)); val single = graph.optimize.search
@@ -137,7 +137,7 @@ class ScreenAudit {
         // community builds come from Fribbels' service, which can refuse requests (403 after a burst); heroes without
         // one get fixed test targets so the pool run always has several heroes, network or not
         ui { graph.pool.heroes().filter { graph.heroes.hasBuild(it.id) != true }.forEach { h -> graph.heroes.request(h.id).goal = e7.gearscan.data.Goal.TARGETS
-            graph.heroes.request(h.id).targets[Stat.SPD.ordinal] = 200.0; graph.scan.touch() } }
+            graph.heroes.request(h.id).targets[Stat.SPD.ordinal] = 200.0; graph.rev.bump() } }
         check(graph.pool.heroes().size >= 2) { "the pool run needs two heroes; tier-5 heroes: ${graph.pool.heroes().size}" }
         val poolT0 = System.currentTimeMillis()
         ui { graph.pool.start() }
@@ -277,7 +277,7 @@ class ScreenAudit {
                 clickText("Use the preset's artifact")
                 if (graph.nav.sheet?.kind != SheetKind.BONUS) add("artifact list opened from Bonus stats does not return there", "artifact")
             }
-            ui { graph.heroes.config(hero).artifact = before; graph.nav.sheet = null; graph.scan.touch() }
+            ui { graph.heroes.config(hero).artifact = before; graph.nav.sheet = null; graph.rev.bump() }
         })
         steps.add("artifact-5-stars" to {
             ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Optimize); graph.nav.sheet = Sheet(SheetKind.ARTIFACT, hero) }
@@ -303,11 +303,11 @@ class ScreenAudit {
         })
         steps.add("sets-torrent-x3" to {
             val torrent = graph.content.content.setByName("Torrent")!!.key
-            ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Optimize); graph.heroes.request(hero).setAlts = listOf(mapOf(torrent to 6)); graph.scan.touch(); graph.nav.sheet = Sheet(SheetKind.SETS, hero) }
+            ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Optimize); graph.heroes.request(hero).setAlts = listOf(mapOf(torrent to 6)); graph.rev.bump(); graph.nav.sheet = Sheet(SheetKind.SETS, hero) }
         })
         steps.add("sets-health-crit-plus" to {
             val health = graph.content.content.setByName("Health")!!.key; val crit = graph.content.content.setByName("Critical")!!.key
-            ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Optimize); graph.heroes.request(hero).setAlts = listOf(mapOf(health to 2, crit to 2)); graph.scan.touch(); graph.nav.sheet = Sheet(SheetKind.SETS, hero) }
+            ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Optimize); graph.heroes.request(hero).setAlts = listOf(mapOf(health to 2, crit to 2)); graph.rev.bump(); graph.nav.sheet = Sheet(SheetKind.SETS, hero) }
         })
         steps.add("edits-survive-restart" to restart@{
             // Android may close the app while the player is in the game; an edit must already be on disk.
@@ -315,14 +315,14 @@ class ScreenAudit {
             if (setup != setups[0]) return@restart
             val st = e7.gearscan.data.Stat.SPD
             val was = graph.heroes.request(hero).targets[st.ordinal]
-            ui { graph.nav.sheet = null; graph.heroes.request(hero).targets[st.ordinal] = 271.0; graph.scan.touch() }
+            ui { graph.nav.sheet = null; graph.heroes.request(hero).targets[st.ordinal] = 271.0; graph.rev.bump() }
             Thread.sleep(1_500)
             var fresh: AppGraph? = null
             rule.runOnUiThread { fresh = restartedGraph(ctx) }
             rule.waitUntil(20_000) { fresh!!.ready }
             if (fresh!!.heroes.request(hero).targets[st.ordinal] != 271.0) add("a target edit is lost when the app restarts", "state")
             fresh = null
-            ui { graph.heroes.request(hero).targets[st.ordinal] = was; graph.scan.touch() }
+            ui { graph.heroes.request(hero).targets[st.ordinal] = was; graph.rev.bump() }
         })
         steps.add("sets-tap-health-x3" to {
             val health = graph.content.content.setByName("Health")!!.key
@@ -333,9 +333,9 @@ class ScreenAudit {
             if (graph.heroes.request(hero).setAlts != listOf(mapOf(health to 6))) add("Health and + twice don't ask for three Health sets", graph.heroes.request(hero).setAlts.toString())
             runCatching { clickText("Health") }
             if (graph.heroes.request(hero).setAlts.isNotEmpty()) add("one tap on Health ×3 doesn't drop it", graph.heroes.request(hero).setAlts.toString())
-            ui { graph.heroes.request(hero).setAlts = listOf(mapOf(health to 6)); graph.scan.touch() }
+            ui { graph.heroes.request(hero).setAlts = listOf(mapOf(health to 6)); graph.rev.bump() }
         })
-        steps.add("goal-damage-skills" to { ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Optimize); graph.heroes.request(hero).goal = e7.gearscan.data.Goal.DAMAGE; graph.scan.touch(); graph.nav.sheet = Sheet(SheetKind.GOALS, hero) } })
+        steps.add("goal-damage-skills" to { ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Optimize); graph.heroes.request(hero).goal = e7.gearscan.data.Goal.DAMAGE; graph.rev.bump(); graph.nav.sheet = Sheet(SheetKind.GOALS, hero) } })
         steps.add("pool-setup" to { ui { graph.nav.sheet = null; graph.pool.mode = true; graph.nav.stack = listOf(Screen.Optimize) } })
         steps.add("pool-role" to { ui {
             // a hero with no build at all, as the role sheet expects
@@ -366,8 +366,8 @@ class ScreenAudit {
             if (ready.size > 1 && at != ready[1]) add("pool walk does not resume at the first hero not reviewed", "pool")
             ui { ready.forEach { graph.heroes.request(it).reviewed = false } }
         })
-        // touch(): the same hero screen may already be open, and only a change it reads makes it redraw
-        steps.add("pool-hero-reviewed" to { ui { graph.nav.sheet = null; graph.heroes.request(poolDone.ids.first()).reviewed = true; graph.scan.touch(); graph.nav.stack = listOf(Screen.Optimize, Screen.PoolHero(poolDone.ids.first(), setup = false)) } })
+        // bump(): the same hero screen may already be open, and only a change it reads makes it redraw
+        steps.add("pool-hero-reviewed" to { ui { graph.nav.sheet = null; graph.heroes.request(poolDone.ids.first()).reviewed = true; graph.rev.bump(); graph.nav.stack = listOf(Screen.Optimize, Screen.PoolHero(poolDone.ids.first(), setup = false)) } })
         steps.add("pool-hero-unreview" to {
             // the reviewed stamp takes the mark off one hero
             val id = poolDone.ids.first()
@@ -542,10 +542,10 @@ class ScreenAudit {
             val keep = graph.heroes.request(id).copy()
             ui {
                 graph.pool.state = poolDone; graph.pool.mode = false; graph.nav.stack = listOf(Screen.Optimize, Screen.PoolRun)
-                graph.heroes.request(id).targets.indices.firstOrNull { !graph.heroes.request(id).targets[it].isNaN() }?.let { graph.heroes.request(id).targets[it] += 10 }; graph.scan.touch()
+                graph.heroes.request(id).targets.indices.firstOrNull { !graph.heroes.request(id).targets[it].isNaN() }?.let { graph.heroes.request(id).targets[it] += 10 }; graph.rev.bump()
             }
             if (rule.onAllNodesWithText("Setup changed for", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isEmpty()) add("an edited target doesn't offer a re-run", "pool review")
-            ui { graph.heroes.config(id).request = keep; graph.scan.touch() }
+            ui { graph.heroes.config(id).request = keep; graph.rev.bump() }
         })
         steps.add("pool-review-reset" to { ui { graph.history.shown = false; graph.pool.state = poolDone; graph.optimize.search = single; graph.nav.stack = listOf(Screen.Optimize) } })
         steps.add("pool-trades-reset" to { ui { graph.pool.keep = emptyMap(); graph.pool.give = emptyMap(); graph.nav.sheet = null } })
@@ -783,18 +783,18 @@ class ScreenAudit {
                 rule.onAllNodesWithText("#2", substring = true, useUnmergedTree = true)[0].performScrollTo().performClick(); rule.waitForIdle()
             }),
             Triple("advanced: mods on", { sheetOn(SheetKind.ADVANCED); ui { graph.heroes.request(hero).mods = false }
-                rule.onAllNodesWithText("Allow substat mods", useUnmergedTree = true)[0].performScrollTo(); rule.waitForIdle() }, { ui { graph.heroes.request(hero).mods = true; graph.scan.touch() } }),
-            Triple("advanced: crit cap off", { sheetOn(SheetKind.ADVANCED) }, { ui { graph.heroes.request(hero).capCrit = !graph.heroes.request(hero).capCrit; graph.scan.touch() } }),
+                rule.onAllNodesWithText("Allow substat mods", useUnmergedTree = true)[0].performScrollTo(); rule.waitForIdle() }, { ui { graph.heroes.request(hero).mods = true; graph.rev.bump() } }),
+            Triple("advanced: crit cap off", { sheetOn(SheetKind.ADVANCED) }, { ui { graph.heroes.request(hero).capCrit = !graph.heroes.request(hero).capCrit; graph.rev.bump() } }),
             Triple("goal: pick another", { sheetOn(SheetKind.GOALS) }, {
-                ui { graph.heroes.request(hero).let { r -> r.goal = if (r.goal == e7.gearscan.data.Goal.DAMAGE) e7.gearscan.data.Goal.EHP else e7.gearscan.data.Goal.DAMAGE }; graph.scan.touch() }
+                ui { graph.heroes.request(hero).let { r -> r.goal = if (r.goal == e7.gearscan.data.Goal.DAMAGE) e7.gearscan.data.Goal.EHP else e7.gearscan.data.Goal.DAMAGE }; graph.rev.bump() }
             }),
-            Triple("targets: change weight", { sheetOn(SheetKind.TARGETS); clickText("Speed") }, { ui { graph.heroes.request(hero).weights.let { w -> w[Stat.SPD.ordinal] = if (w[Stat.SPD.ordinal] == 3) 1 else 3 }; graph.scan.touch() } }),
+            Triple("targets: change weight", { sheetOn(SheetKind.TARGETS); clickText("Speed") }, { ui { graph.heroes.request(hero).weights.let { w -> w[Stat.SPD.ordinal] = if (w[Stat.SPD.ordinal] == 3) 1 else 3 }; graph.rev.bump() } }),
             Triple("heroes: builds arrive", {
                 ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Heroes); graph.scan.box!!.heroes.forEach { graph.heroes.presets.remove(it.code) } }
             }, { ui { graph.scan.box!!.heroes.forEach { h -> graph.heroes.loadPresetsQuietly(h.id, network = false) } }; Thread.sleep(1500) }),
             Triple("results: match ↔ damage", { ui { graph.nav.sheet = null; graph.heroes.request(hero).goal = e7.gearscan.data.Goal.TARGETS; graph.optimize.search = single; graph.nav.stack = listOf(Screen.Optimize, Screen.Results) } },
                 { ui { graph.optimize.showMatch = !graph.optimize.showMatch } }),
-            Triple("advanced: change cap", { sheetOn(SheetKind.ADVANCED) }, { ui { graph.heroes.request(hero).maxChanges = if (graph.heroes.request(hero).maxChanges == 2) 6 else 2; graph.scan.touch() } }),
+            Triple("advanced: change cap", { sheetOn(SheetKind.ADVANCED) }, { ui { graph.heroes.request(hero).maxChanges = if (graph.heroes.request(hero).maxChanges == 2) 6 else 2; graph.rev.bump() } }),
             Triple("pool: tick a tier", { ui { graph.nav.sheet = null; graph.pool.mode = true; graph.nav.stack = listOf(Screen.Optimize) } },
                 { ui { graph.pool.tiers = if (4 in graph.pool.tiers) graph.pool.tiers - 4 else graph.pool.tiers + 4 } }),
             Triple("pool: a target edit moves the score", { ui { graph.nav.sheet = null; graph.pool.mode = true; graph.nav.stack = listOf(Screen.Optimize) } }, {
@@ -807,7 +807,7 @@ class ScreenAudit {
                     val short = e7.gearscan.data.Stat.entries.any { st -> !r.targets[st.ordinal].isNaN() && cur.final[st] < r.targets[st.ordinal] - 1 }
                     for (st in e7.gearscan.data.Stat.entries) if (!r.targets[st.ordinal].isNaN())
                         r.targets[st.ordinal] = if (short) Math.floor(cur.final[st]) else Math.floor(cur.final[st] * 1.1 + 5)
-                    graph.scan.touch()
+                    graph.rev.bump()
                 }
             }),
             Triple("pool: effort", { ui { graph.nav.sheet = null; graph.pool.mode = true; graph.nav.stack = listOf(Screen.Optimize); graph.nav.sheet = Sheet(SheetKind.ADVANCED, e7.gearscan.features.pool.POOL_RULES) } }, {
@@ -817,7 +817,7 @@ class ScreenAudit {
                 ui { graph.pool.losses = if (graph.pool.losses == e7.gearscan.opt.PoolLosses.SAFE) e7.gearscan.opt.PoolLosses.SMALL else e7.gearscan.opt.PoolLosses.SAFE }
             }),
             Triple("pool: clear reviewed", { ui { graph.nav.sheet = null; graph.pool.mode = true; graph.nav.stack = listOf(Screen.Optimize); graph.pool.members().take(3).forEach { graph.heroes.request(it.id).reviewed = true }
-                graph.scan.touch(); graph.nav.sheet = Sheet(SheetKind.POOL_LIST, 0) } }, { clickText("Clear"); clickText("Reset") }),
+                graph.rev.bump(); graph.nav.sheet = Sheet(SheetKind.POOL_LIST, 0) } }, { clickText("Clear"); clickText("Reset") }),
             Triple("hero: change tier", { ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Heroes, Screen.HeroDetail(hero)) } }, { ui { graph.heroes.setTier(hero, 1) } }),
             Triple("capture: the box arrives", { ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.ScanData, Screen.Capture) }; capture(graph, 20_000) },
                 { capture(graph, 300_000) }),

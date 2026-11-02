@@ -62,7 +62,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
             override fun append(text: String) = progress.append(text)
         }
 
-    private fun settingsKey(): List<Any?> = listOf(g.pool.tiers, g.pool.extra, g.heroes.tiers, g.content.content.version, g.scan.rev)
+    private fun settingsKey(): List<Any?> = listOf(g.pool.tiers, g.pool.extra, g.heroes.tiers, g.content.content.version, g.rev.value)
 
     private fun freshnessKey(): List<Any?> =
         listOf(
@@ -86,7 +86,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
         curve.cancel()
         stop()
         query = if (!q.scoreFilter && q.sort in listOf(SellSort.SCORE, SellSort.CHANCE)) q.copy(sort = SellSort.QUALITY) else q
-        g.scan.touch()
+        g.rev.bump()
     }
 
     fun resetSettings(confirmed: Confirmed) = edit(SellQuery())

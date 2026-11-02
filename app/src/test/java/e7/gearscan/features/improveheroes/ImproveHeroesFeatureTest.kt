@@ -114,10 +114,10 @@ class ImproveHeroesFeatureTest {
 
         val hero = h.heroes().first().id
         g.heroes.request(hero).goal = Goal.GEAR_SCORE
-        g.scan.touch()
+        g.rev.bump()
         assertNotEquals(k0, h.key())
         g.heroes.request(hero).goal = Goal.SPEED
-        g.scan.touch()
+        g.rev.bump()
         assertEquals(k0, h.key())
 
         assertNotEquals(k0, graph(this, version = "other").improveHeroes.key())

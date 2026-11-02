@@ -93,7 +93,7 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
         if (moves != t.made) {
             if (moves) give = give + t.items.associateWith { t.taker } else keep = keep + t.items.associateWith { t.holder }
         }
-        g.scan.touch()
+        g.rev.bump()
     }
 
     fun stop() = run.cancel()
@@ -290,7 +290,7 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
 
     fun clearReviewed(ids: List<Long>, confirmed: Confirmed) {
         ids.forEach { g.heroes.request(it).reviewed = false }
-        g.scan.touch()
+        g.rev.bump()
     }
 
     fun markReviewed(id: Long) {

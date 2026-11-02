@@ -31,11 +31,11 @@ class SettingsFeatureTest {
     @Test fun switchingToThePhonesFloatingWindowClosesOurOverlayAndSwitchingBackDoesNot() = runTest(UnconfinedTestDispatcher()) {
         val phone = Phone()
         val g = graph(this, phone)
-        val rev = g.scan.rev
+        val rev = g.rev.value
         g.settings.useOverGameNative(true)
         assertTrue(g.settings.overGameNative)
         assertEquals(1, phone.overlayStops)
-        assertTrue(g.scan.rev > rev)
+        assertTrue(g.rev.value > rev)
         g.settings.useOverGameNative(false)
         assertFalse(g.settings.overGameNative)
         assertEquals(1, phone.overlayStops)
