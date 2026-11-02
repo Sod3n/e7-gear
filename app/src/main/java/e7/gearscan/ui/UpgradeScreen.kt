@@ -1,5 +1,6 @@
 package e7.gearscan.ui
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -17,11 +18,11 @@ fun UpgradeScreen(model: AppModel) {
     val box = model.box ?: return
     val t = model.upgrades
     val selected = t.record?.takeIf { it.scan == model.lastScan && it.item.id in box.itemsById }
-    var choosing by remember { mutableStateOf(selected == null) }
-    var set by remember { mutableStateOf<String?>(null) }
-    var choosingSet by remember { mutableStateOf(false) }
-    var slot by remember { mutableStateOf<Slot?>(null) }
-    var count by remember(set, slot) { mutableStateOf(20) }
+    var choosing by rememberSaveable { mutableStateOf(selected == null) }
+    var set by rememberSaveable { mutableStateOf<String?>(null) }
+    var choosingSet by rememberSaveable { mutableStateOf(false) }
+    var slot by rememberSaveable { mutableStateOf<Slot?>(null) }
+    var count by rememberSavedFor(set to slot, 20)
     Frame(null, null, actions = {
         PinkButton(if (choosing) "Use selected piece" else "Track over game", Modifier.weight(1f), enabled = selected != null) {
             if (choosing) choosing = false else model.openUpgradeOverlay()

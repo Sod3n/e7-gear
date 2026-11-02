@@ -1,5 +1,6 @@
 package e7.gearscan.ui
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -39,9 +40,11 @@ private fun open(model: AppModel, kind: SheetKind, id: Long = 0) { model.sheet =
 fun GearPotentialScreen(model: AppModel) {
     val q = model.potentialQuery
     val result = model.potentialResult
-    var tab by remember { mutableStateOf(if (result == null) 0 else 1) }
-    var count by remember(result) { mutableStateOf(20) }
-    LaunchedEffect(result) { if (result != null) tab = 1 }
+    var tab by rememberSaveable { mutableStateOf(if (result == null) 0 else 1) }
+    var count by rememberSavedFor(result, 20)
+    val resultId = System.identityHashCode(result)
+    var seenResult by rememberSaveable { mutableStateOf(resultId) }
+    LaunchedEffect(result) { if (result != null && seenResult != resultId) tab = 1; seenResult = resultId }
     key(tab, result) {
         Frame(null, null, actions = if (tab == 0) ({
             PinkButton(if (model.potentialBusy) "Searching" else "Find gear", Modifier.weight(1f), enabled = !model.potentialBusy) { model.findGearPotential() }

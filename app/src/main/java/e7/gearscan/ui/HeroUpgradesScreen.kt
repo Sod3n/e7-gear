@@ -228,8 +228,8 @@ private fun piecesOf(model: AppModel, view: List<AppModel.HeroUpgradeHero>): Lis
 private fun ByPiece(model: AppModel, view: List<AppModel.HeroUpgradeHero>) {
     val all = remember(view) { piecesOf(model, view) }
     val (likely, long) = all.partition { (_, hs) -> hs.maxOf { it.second.hits } > LONG_SHOT }
-    var count by remember(view) { mutableIntStateOf(20) }
-    var showLong by remember(view) { mutableStateOf(false) }
+    var count by rememberSavedFor(view, 20)
+    var showLong by rememberSavedFor(view, false)
     val shown = likely + if (showLong) long else emptyList()
     shown.take(count).forEach { (id, heroes) ->
         val item = heroUpgradeItem(model, id) ?: return@forEach
@@ -327,8 +327,8 @@ private fun HeroPage(model: AppModel, h: AppModel.HeroUpgradeHero) {
     }
     val rows = h.rows.filter { it.pick.piece !in model.cleanupDone }
     val (likely, long) = rows.partition { it.hits > LONG_SHOT }
-    var count by remember(h) { mutableIntStateOf(20) }
-    var showLong by remember(h) { mutableStateOf(false) }
+    var count by rememberSavedFor(h, 20)
+    var showLong by rememberSavedFor(h, false)
     SectionTitle("${likely.size} ${if (likely.size == 1) "piece" else "pieces"} could help")
     val shown = likely + if (showLong) long else emptyList()
     shown.take(count).forEach { r ->
