@@ -48,7 +48,7 @@ class QueueScreens {
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, 1.3f)) {
-                Box(Modifier.width(353.dp).fillMaxHeight()) { if (overlay) androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides model.graph.content.imageBase) { OverlayUi({ _, _ -> }, {}, {}) } else App(model) {} }
+                Box(Modifier.width(353.dp).fillMaxHeight()) { if (overlay) androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides model.graph.content.imageBase) { OverlayUi(model.graph, { _, _ -> }, {}, {}) } else App(model) {} }
             }
         }
         rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle(); rule.waitUntil(30_000) { !model.graph.findGear.busy }
@@ -57,25 +57,24 @@ class QueueScreens {
         rule.onNodeWithText("Track all ${matches.size} matches").assertExists()
         shot("30-track-all-matches-353-big")
         ui { model.graph.messages.show(model.graph.findGear.trackAll(openOverlay = false)) }
-        val t = model.upgrades
+        val t = model.graph.tracker
         assertEquals(matches.map { it.item.id }, t.queue.map { it.id })
         assertEquals(matches.size, t.queue.size)
         assertTrue(t.queue.none { t.records[it.id]!!.item.slot == Slot.BOOTS })
-        var returned = 0
-        ui { t.returnToApp = { returned++ }; OverlayState.upgrade = t; OverlayState.expanded = true; overlay = true }
+        ui { t.show(); model.graph.overlay.expanded = true; model.graph.overlay.floating = true; overlay = true }
         shot("31-queue-first-353-big")
         tap("›"); assertEquals(1, t.queueIndex)
         shot("32-queue-next-353-big")
         tap("List"); shot("33-queue-list-353-big")
         rule.onNodeWithContentDescription("Next list page").performClick(); shot("34-queue-page-two-353-big")
-        ui { t.selectQueue!!.invoke(25) }
+        ui { t.selectInQueue(25) }
         tap("Piece")
         assertEquals(25, t.queueIndex)
-        ui { t.returnToApp = { returned++ } }
-        rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle(); tap("Open E7 Gear"); assertEquals(1, returned)
+        ui { model.graph.overlay.floatingPanel = true }
+        rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle(); tap("Open E7 Gear"); assertFalse(model.graph.overlay.floatingPanel)
         val helmet = t.queue.indexOfFirst { e -> t.records[e.id]!!.item.let { it.slot == Slot.HELMET && it.rank == "Heroic" && it.enhance == 9 } }
         assertTrue(helmet >= 0)
-        ui { t.selectQueue!!.invoke(helmet) }
+        ui { t.selectInQueue(helmet) }
         tap("Record +12"); shot("35-heroic-step-bounds-353-big")
         tap("Eff")
         rule.onNodeWithContentDescription("Step 10").assertDoesNotExist()
@@ -89,10 +88,10 @@ class QueueScreens {
         tap("›"); tap("‹")
         assertEquals(helmet, t.queueIndex)
         assertEquals(12, t.record!!.item.enhance)
-        val restored = UpgradeTracker(File(ctx.filesDir, "upgrades.json"))
+        val restored = reopenTracker(model.graph, ctx.filesDir)
         assertEquals(t.queue, restored.queue); assertEquals(helmet, restored.queueIndex)
         assertEquals(2, restored.record!!.history.size)
         File(ctx.getExternalFilesDir(null), "queue/receipt.txt").writeText("${matches.size} filtered matches in queue; next/list/page-two/return callback and Heroic +12 recording passed; selected=$helmet; queue/history restored.\n")
-        ui { OverlayState.upgrade = null }
+        ui { model.graph.tracker.hide(); model.graph.overlay.floating = false; model.graph.overlay.floatingPanel = true }
     }
 }

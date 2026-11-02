@@ -11,18 +11,12 @@ import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
-import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.AndroidUiDispatcher
@@ -95,118 +89,6 @@ interface BubbleDrag {
     fun end(vx: Float, vy: Float)
 }
 
-/** Shared between the app and the overlay window; both run in the app process. */
-object OverlayState {
-    var upgrade: UpgradeTracker? by mutableStateOf(null)
-    var build: OverlayBuild? by mutableStateOf(null)
-    val done = mutableStateListOf<Boolean>()
-    /** What the game rolled at each modification step, by piece index; the planned value until the player changes it. */
-    private val rolled = mutableStateMapOf<Int, Double>()
-    /** Pieces in the order they were ticked, for Undo. */
-    private val doneOrder = mutableStateListOf<Int>()
-    var expanded by mutableStateOf(false)
-    /** Usable window height after system bars/cutouts, supplied by the overlay service. */
-    var usableHeightDp by mutableStateOf(0f)
-    var tab by mutableStateOf(0)
-    var opacity by mutableStateOf(0.8f)
-    var focus by mutableStateOf(-1)
-    var running by mutableStateOf(false)
-    /** The bubble is being dragged: the dismiss target shows. */
-    var dragging by mutableStateOf(false)
-    /** The dismiss target holds the dragged bubble; letting go there closes the overlay. */
-    var captured by mutableStateOf(false)
-    /** Dropped on the target: the bubble shrinks away before the overlay closes. */
-    var closing by mutableStateOf(false)
-    /** The bubble rests on the screen's left edge, so its badge and the panel's opening face right. */
-    var bubbleLeft by mutableStateOf(false)
-    /** Moves the bubble's window with the finger; set by the overlay service. */
-    var bubbleDrag: BubbleDrag? = null
-    /** Where the bubble is on screen now, for tests that drag it. */
-    var bubbleOnScreen: android.graphics.Rect? = null
-    /** Records the finished checklist in the app's box; set by whoever loaded the build. */
-    var onFinish: (() -> Unit)? = null
-    /** E7 Gear itself is on screen: the overlay hides, or it would sit on the app and take its taps. */
-    var appInFront = false
-        set(v) { field = v; onAppInFront?.invoke(v) }
-    var onAppInFront: ((Boolean) -> Unit)? = null
-    var recorded by mutableStateOf(false)
-    /** Ticks of the last few checklists, so closing the checklist or the app doesn't lose them; set by the app. */
-    var progressFile: java.io.File? = null
-
-    val listHidden get() = opacity == 0f && !native
-    /** Drawn inside the app's own window (the phone's floating window), not E7 Gear's overlay: the system moves and sizes it. */
-    var native by mutableStateOf(false)
-
-    fun load(b: OverlayBuild, onFinish: (() -> Unit)? = null) {
-        upgrade = null
-        build = b
-        done.clear(); done.addAll(b.pieces.map { it.onHero && !it.otherMenu })
-        doneOrder.clear(); rolled.clear()
-        restoreProgress(b)
-        expanded = false; tab = 0; focus = -1
-        this.onFinish = onFinish; recorded = false
-    }
-
-    fun finish() {
-        onFinish?.invoke(); recorded = true
-        build?.let { b -> editProgress { it.remove(b.key) } }
-    }
-
-    private fun readProgress() = runCatching { org.json.JSONObject(progressFile!!.readText()) }.getOrElse { org.json.JSONObject() }
-
-    private fun editProgress(edit: (org.json.JSONObject) -> Unit) {
-        val f = progressFile ?: return
-        val all = readProgress().also(edit)
-        val keep = all.keys().asSequence().sortedByDescending { all.getJSONObject(it).optLong("at") }.take(5).toSet()
-        all.keys().asSequence().toList().filter { it !in keep }.forEach { all.remove(it) }
-        runCatching { f.writeText(all.toString()) }
-    }
-
-    private fun restoreProgress(b: OverlayBuild) {
-        val o = readProgress().optJSONObject(b.key) ?: return
-        val d = o.getJSONArray("done")
-        if (d.length() != done.size) return
-        for (i in done.indices) done[i] = d.getBoolean(i)
-        val order = o.getJSONArray("order")
-        for (i in 0 until order.length()) doneOrder.add(order.getInt(i))
-        o.optJSONObject("rolled")?.let { r -> r.keys().forEach { k -> rolled[k.toInt()] = r.getDouble(k) } }
-    }
-
-    private fun saveProgress() {
-        val b = build ?: return
-        editProgress { it.put(b.key, org.json.JSONObject().put("at", System.currentTimeMillis())
-            .put("done", org.json.JSONArray(done.toList())).put("order", org.json.JSONArray(doneOrder.toList()))
-            .put("rolled", org.json.JSONObject().apply { rolled.forEach { (i, v) -> put(i.toString(), v) } })) }
-    }
-
-    fun rolledValue(i: Int): Double? = rolled[i] ?: build?.pieces?.getOrNull(i)?.item?.mod?.toValue
-
-    fun setRolled(i: Int, v: Double) { rolled[i] = v; saveProgress() }
-
-    /** The modifications done in the game, with what the game rolled: (piece id, mod). */
-    fun rolledMods(): List<Pair<Long, e7.gearscan.data.Mod>> = build?.pieces.orEmpty().mapIndexedNotNull { i, p ->
-        val m = p.item.mod?.takeIf { p.modStep } ?: return@mapIndexedNotNull null
-        p.item.id to e7.gearscan.data.Mod(m.index, m.from, m.fromValue, m.to, rolledValue(i) ?: m.toValue)
-    }
-
-    val current: Int get() = focus.takeIf { it >= 0 && it < done.size && !done[it] } ?: done.indexOfFirst { !it }
-    val lastDone: Int? get() = doneOrder.lastOrNull()
-
-    fun markCurrentDone() {
-        val i = current.takeIf { it >= 0 } ?: return
-        done[i] = true; doneOrder.add(i); focus = -1
-        saveProgress()
-    }
-
-    fun undo() {
-        val i = doneOrder.removeLastOrNull() ?: return
-        done[i] = false; focus = i
-        saveProgress()
-    }
-
-    fun canDraw(ctx: Context) = Settings.canDrawOverlays(ctx)
-}
-
 /**
  * Hosts the bubble and checklist in a system overlay window over the game. Foreground, so it
  * survives while the game is in front; it only draws, never reads or taps the game.
@@ -238,6 +120,9 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     /** Where the finger would put the bubble's top-left; the bubble leaves it only while the target holds it. */
     private var finger = Offset.Zero
 
+    private val graph get() = (application as e7.gearscan.E7GearApp).graph
+    private val w get() = graph.overlay
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -249,15 +134,15 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP || (OverlayState.build == null && OverlayState.upgrade == null)) { stopSelf(); return START_NOT_STICKY }
+        if (intent?.action == ACTION_STOP || (graph.checklist.build == null && !graph.tracker.shown)) { stopSelf(); return START_NOT_STICKY }
         foreground()
         show()
         return START_NOT_STICKY
     }
 
     private fun show() {
-        OverlayState.usableHeightDp = screen().height() / resources.displayMetrics.density
-        if (view != null) { dock(OverlayState.expanded); return }
+        w.usableHeightDp = screen().height() / resources.displayMetrics.density
+        if (view != null) { dock(w.expanded); return }
         val d = resources.displayMetrics.density
         params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
@@ -275,7 +160,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
-        ).apply { gravity = Gravity.TOP or Gravity.END; alpha = OverlayState.opacity }
+        ).apply { gravity = Gravity.TOP or Gravity.END; alpha = w.opacity }
         // not touchable; 0.8 is the most opaque a window can be and still let taps through to the game (Android 12+)
         fun passThrough() = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
@@ -286,37 +171,37 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         ).apply { gravity = Gravity.TOP or Gravity.START; alpha = 0.8f }
         targetParams = passThrough()
         hintParams = passThrough()
-        target = composeView { DismissTarget() }.apply { visibility = android.view.View.GONE }
-        hint = composeView { BubbleHint() }
-        OverlayState.closing = false; OverlayState.dragging = false; OverlayState.captured = false
-        OverlayState.bubbleDrag = drag
-        body = composeView { OverlayBody() }
+        target = composeView { DismissTarget(w) }.apply { visibility = android.view.View.GONE }
+        hint = composeView { BubbleHint(graph) }
+        w.closing = false; w.dragging = false; w.captured = false
+        w.bubbleDrag = drag
+        body = composeView { OverlayBody(graph) }
         view = composeView {
-            OverlayTop(onMove = ::moveBy, onDock = ::dock, onClose = { stopSelf() })
+            OverlayTop(graph, onMove = ::moveBy, onDock = ::dock, onClose = { stopSelf() })
             // here: the list's window is gone while it is hidden
-            androidx.compose.runtime.LaunchedEffect(OverlayState.opacity) { setBodyAlpha(OverlayState.opacity) }
+            androidx.compose.runtime.LaunchedEffect(w.opacity) { setBodyAlpha(w.opacity) }
         }.apply {
             // the list hangs under the controls, whatever height they take
             addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placeBody() }
         }
-        if (OverlayState.expanded) params.width = (338 * d).toInt()
+        if (w.expanded) params.width = (338 * d).toInt()
         wm.addView(body, bodyParams)
         wm.addView(target, targetParams)
         wm.addView(hint, hintParams)
         wm.addView(view, params)
-        OverlayState.onAppInFront = ::hideForApp
-        hideForApp(OverlayState.appInFront)
-        if (OverlayState.expanded) dock(true) else placeBubble()
+        w.onAppInFront = ::hideForApp
+        hideForApp(w.appInFront)
+        if (w.expanded) dock(true) else placeBubble()
         registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
         registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
-        OverlayState.running = true
+        w.running = true
     }
 
     private fun composeView(content: @androidx.compose.runtime.Composable () -> Unit) = ComposeView(this).apply {
         setViewTreeLifecycleOwner(this@OverlayService)
         setViewTreeSavedStateRegistryOwner(this@OverlayService)
         setContent {
-            androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides (application as e7.gearscan.E7GearApp).graph.content.imageBase) { content() }
+            androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides graph.content.imageBase) { content() }
         }
     }
 
@@ -333,21 +218,21 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             else params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
         wm.updateViewLayout(v, params)
         // the app may have been in portrait; the game turns the screen while the overlay is hidden
-        if (!hide && !OverlayState.expanded) placeBubble() else { placeBody(); placeHint() }
+        if (!hide && !w.expanded) placeBubble() else { placeBody(); placeHint() }
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         e7.gearscan.ui.Themes.load(this)
-        OverlayState.usableHeightDp = screen().height() / resources.displayMetrics.density
-        if (!OverlayState.expanded) placeBubble()
+        w.usableHeightDp = screen().height() / resources.displayMetrics.density
+        if (!w.expanded) placeBubble()
     }
 
     private fun placeBubble() {
         val v = view ?: return
         glide?.cancel()
         val h = bubbleSize(v)
-        params.gravity = Gravity.TOP or if (OverlayState.bubbleLeft) Gravity.START else Gravity.END
+        params.gravity = Gravity.TOP or if (w.bubbleLeft) Gravity.START else Gravity.END
         params.x = 0
         params.y = ((screen().height() - h) * bubbleAt).toInt().coerceAtLeast(0)
         wm.updateViewLayout(v, params)
@@ -376,13 +261,13 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         val o = origin()
         val size = bubbleSize(v)
         val left = bubbleLeftEdge(v).toInt()
-        OverlayState.bubbleOnScreen = android.graphics.Rect(o.x + left, o.y + params.y, o.x + left + size, o.y + params.y + size)
+        w.bubbleOnScreen = android.graphics.Rect(o.x + left, o.y + params.y, o.x + left + size, o.y + params.y + size)
     }
 
     private fun placeHint() {
         val h = hint ?: return
         val v = view ?: return
-        h.visibility = if (OverlayState.expanded || OverlayState.appInFront || OverlayState.upgrade != null) android.view.View.GONE else android.view.View.VISIBLE
+        h.visibility = if (w.expanded || w.appInFront || graph.tracker.shown) android.view.View.GONE else android.view.View.VISIBLE
         hintParams.gravity = params.gravity
         hintParams.x = params.x + bubbleSize(v)
         hintParams.y = params.y
@@ -402,7 +287,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         val t = target ?: return
         if (!on) {
             // after its fade-out; hidden, its window can't keep taps from the game
-            frames.launch { delay(300); if (!OverlayState.dragging) t.visibility = android.view.View.GONE }
+            frames.launch { delay(300); if (!w.dragging) t.visibility = android.view.View.GONE }
             return
         }
         val box = (TARGET_BOX * resources.displayMetrics.density).toInt()
@@ -461,7 +346,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             finger = Offset(bubbleLeftEdge(v), params.y.toFloat())
             glide?.cancel()
             putBubble(finger.x, finger.y)
-            OverlayState.dragging = true; OverlayState.captured = false
+            w.dragging = true; w.captured = false
             placeHint(); showTarget(true)
         }
 
@@ -472,8 +357,8 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             finger = Offset((finger.x + dx).coerceIn(0f, (r.width() - size).toFloat()), (finger.y + dy).coerceIn(0f, (r.height() - size).toFloat()))
             val held = (finger + Offset(size / 2f, size / 2f) - targetCenter()).getDistance() < MAGNET * resources.displayMetrics.density
             when {
-                held != OverlayState.captured -> {
-                    OverlayState.captured = held
+                held != w.captured -> {
+                    w.captured = held
                     tick(held)
                     if (held) targetSpot(v).let { glideTo(it.x, it.y, PULL, PULL) } else catchUp()
                 }
@@ -486,9 +371,9 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
         override fun end(vx: Float, vy: Float) {
             val v = view ?: return
-            OverlayState.dragging = false
+            w.dragging = false
             showTarget(false)
-            if (OverlayState.captured || flungAtTarget(v, vx, vy)) { dismiss(v); return }
+            if (w.captured || flungAtTarget(v, vx, vy)) { dismiss(v); return }
             val r = screen()
             val d = resources.displayMetrics.density
             val size = bubbleSize(v)
@@ -498,7 +383,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             // a critically damped spring stops by itself after v/ω, so that is how far a fling glides
             val y = (y0 + vy / sqrt(GLIDE.stiffness)).coerceIn(0f, (r.height() - size).toFloat())
             glideTo(if (right) (r.width() - size).toFloat() else 0f, y, SNAP, GLIDE, vx, vy) {
-                OverlayState.bubbleLeft = !right
+                w.bubbleLeft = !right
                 val maxY = screen().height() - size
                 if (maxY > 0) bubbleAt = (params.y.toFloat() / maxY).coerceIn(0f, 1f)
                 placeBubble()
@@ -516,8 +401,8 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     }
 
     private fun dismiss(v: android.view.View) {
-        if (!OverlayState.captured) tick(true)
-        OverlayState.closing = true
+        if (!w.captured) tick(true)
+        w.closing = true
         val to = targetSpot(v)
         glideTo(to.x, to.y, PULL, PULL)
         frames.launch { delay(260); stopSelf() }
@@ -526,7 +411,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     private fun placeBody() {
         val v = view ?: return
         val b = body ?: return
-        b.visibility = if (OverlayState.upgrade == null && OverlayState.expanded && !OverlayState.appInFront && !OverlayState.listHidden) android.view.View.VISIBLE else android.view.View.GONE
+        b.visibility = if (!graph.tracker.shown && w.expanded && !w.appInFront && !w.listHidden) android.view.View.VISIBLE else android.view.View.GONE
         bodyParams.width = params.width
         bodyParams.gravity = params.gravity
         bodyParams.x = params.x
@@ -583,7 +468,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         val stop = PendingIntent.getService(this, 2, Intent(this, OverlayService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE)
         val n = Notification.Builder(this, channel)
-            .setContentTitle(if (OverlayState.upgrade != null) "Upgrade tracker over the game" else "Build checklist over the game")
+            .setContentTitle(if (graph.tracker.shown) "Upgrade tracker over the game" else "Build checklist over the game")
             .setContentText("Tap to close it.")
             .setSmallIcon(android.R.drawable.ic_menu_view)
             .setContentIntent(stop)
@@ -593,15 +478,15 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     }
 
     override fun onDestroy() {
-        OverlayState.usableHeightDp = 0f
-        OverlayState.onAppInFront = null
-        OverlayState.expanded = false
+        w.usableHeightDp = 0f
+        w.onAppInFront = null
+        w.expanded = false
         frames.cancel()
-        OverlayState.bubbleDrag = null; OverlayState.bubbleOnScreen = null
-        OverlayState.dragging = false; OverlayState.captured = false; OverlayState.closing = false
+        w.bubbleDrag = null; w.bubbleOnScreen = null
+        w.dragging = false; w.captured = false; w.closing = false
         listOfNotNull(view, body, target, hint).forEach { runCatching { wm.removeView(it) } }
         view = null; body = null; target = null; hint = null
-        OverlayState.running = false
+        w.running = false
         registry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         super.onDestroy()
     }

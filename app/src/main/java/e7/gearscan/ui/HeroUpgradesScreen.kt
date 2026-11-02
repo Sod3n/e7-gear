@@ -40,7 +40,7 @@ private val GAINS = listOf(HeroUpgrades.MIN_GAIN to "Any", 0.5 to "½ roll", 1.0
 
 /** The piece as the check saw it: a recorded upgrade of this scan wins over the scanned piece. */
 internal fun heroUpgradeItem(model: AppModel, id: Long): Item? =
-    model.upgrades.records[id]?.takeIf { it.scan == model.lastScan }?.item ?: model.box?.itemsById?.get(id)
+    model.graph.tracker.records[id]?.takeIf { it.scan == model.lastScan }?.item ?: model.box?.itemsById?.get(id)
 
 /** Improve heroes: pieces below +15 that could make a hero with a setup better once finished, by hero or by piece. */
 @Composable
@@ -65,7 +65,7 @@ fun HeroUpgradesScreen(model: AppModel, heroId: Long?) {
                 enabled = model.pool?.running != true) { model.startHeroUpgrades() }
             else -> {
                 OutlineButton(if (model.heroUpgradesResumable) "Continue" else "Check again", Modifier.weight(1f)) { model.startHeroUpgrades() }
-                PinkButton("Track all ${listed.size}", Modifier.weight(1f), enabled = listed.isNotEmpty(), short = "Track ${listed.size}") { model.trackHeroUpgrades(listed) }
+                PinkButton("Track all ${listed.size}", Modifier.weight(1f), enabled = listed.isNotEmpty(), short = "Track ${listed.size}") { model.graph.messages.show(model.graph.tracker.trackPieces(listed)) }
             }
         }
     }) {
@@ -350,7 +350,7 @@ internal fun HeroUpgradePieceSheet(model: AppModel, id: Long) {
     val heroes = remember(result, model.heroUpgradeMinGain, model.rev) {
         model.heroUpgradeView(result).mapNotNull { h -> h.rows.firstOrNull { it.pick.piece == id }?.let { h to it } }
     }
-    SheetBody("Worth enhancing?", button = "Enhance over the game", onButton = { model.sheet = null; model.trackHeroUpgrade(id) }) {
+    SheetBody("Worth enhancing?", button = "Enhance over the game", onButton = { model.sheet = null; model.graph.messages.show(model.graph.tracker.trackPiece(id)) }) {
         Card(shadow = null, padding = PaddingValues(12.dp)) { GearSearchIdentity(model, item, owner = true) }
         heroes.forEach { (h, r) ->
             Card(shadow = null, padding = PaddingValues(12.dp), onClick = { model.sheet = null; model.go(Screen.HeroUpgrades(h.hero.id)) }) {

@@ -1,13 +1,12 @@
 package e7.gearscan.features.findgear
 
 import e7.gearscan.AppGraph
-import e7.gearscan.data.Box
 import e7.gearscan.data.GearStat
 import e7.gearscan.data.Item
 import e7.gearscan.data.PotentialQuery
 import e7.gearscan.data.UpgradeRecord
 import e7.gearscan.opt.GearPotential
-import e7.gearscan.overlay.UpgradeTracker
+import e7.gearscan.features.tracker.TrackerFeature
 import e7.gearscan.state.Codecs
 import e7.gearscan.state.Feature
 import e7.gearscan.ui.Outcome
@@ -26,25 +25,9 @@ data class FindGearResult(
 )
 
 class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
-    interface Source {
-        val records: Map<Long, UpgradeRecord>
-        fun setLabel(key: String): Pair<String, String?>
-        fun track(item: Item, goal: GearPotential.Goal, openOverlay: Boolean)
-        fun trackQueue(entries: List<Pair<Item, UpgradeTracker.QueueEntry>>, openOverlay: Boolean)
-    }
-
-    object NoSource : Source {
-        override val records: Map<Long, UpgradeRecord> = emptyMap()
-        override fun setLabel(key: String) = key to null
-        override fun track(item: Item, goal: GearPotential.Goal, openOverlay: Boolean) {}
-        override fun trackQueue(entries: List<Pair<Item, UpgradeTracker.QueueEntry>>, openOverlay: Boolean) {}
-    }
-
     data class Step(val id: Long, val count: Int, val enhance: Int, val main: Double, val subs: List<Pair<GearStat, Double>>)
 
     data class Inputs(val query: PotentialQuery, val scan: Long, val steps: List<Step>)
-
-    var source: Source = NoSource
 
     var query by saved("query", PotentialQuery(), Codecs.obj({ it.toJson() }, { PotentialQuery.of(it) }))
         private set
@@ -56,8 +39,7 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
     val stale get() = search.stale
 
     private fun recordedSteps(): List<Step> =
-        source.records.values
-            .filter { it.scan == g.scan.lastScan && it.history.size > 1 }
+        g.tracker.recordedSteps.values
             .map { r -> r.item.let { Step(it.id, r.history.size, it.enhance, it.mainValue, it.subs.map { s -> s.type to s.value }) } }
             .sortedBy { it.id }
 
@@ -75,7 +57,7 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
         val scan = g.scan.lastScan
         val cleared = g.marks.cleared
         val items = b.items.filter { it.id !in cleared }.map { original ->
-            val item = source.records[original.id]?.takeIf { it.scan == scan && it.history.size > 1 }?.item ?: original
+            val item = g.tracker.recordedSteps[original.id]?.item ?: original
             item to b.canReforge(item.id)
         }.filter { q.includes(it.first) }
         return search.start { key ->
@@ -110,12 +92,11 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
         val applied = result ?: return Outcome.Failed("Find gear first.")
         val scan = g.scan.lastScan
         val original = g.scan.box?.itemsById?.get(match.item.id)
-        val latest = source.records[match.item.id]?.takeIf { it.scan == scan }?.item ?: original
+        val latest = g.tracker.records[match.item.id]?.takeIf { it.scan == scan }?.item ?: original
         if (latest == null || (!UpgradeRecord.supported(latest) && latest.enhance < 15) || latest.id in g.marks.cleared) {
             return Outcome.Failed("This piece changed. Tap Find gear to refresh the list.")
         }
-        source.track(original ?: latest, applied.query.goal(match.reforgeAllowed), openOverlay)
-        return Outcome.Done
+        return g.tracker.track(original ?: latest, applied.query.goal(match.reforgeAllowed), openOverlay)
     }
 
     fun trackAll(openOverlay: Boolean = true): Outcome {
@@ -125,11 +106,10 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
         val cleared = g.marks.cleared
         val entries = applied.matches.mapNotNull { match ->
             val original = b.itemsById[match.item.id]?.takeIf { it.id !in cleared } ?: return@mapNotNull null
-            val (name, icon) = source.setLabel(original.set)
-            original to UpgradeTracker.QueueEntry(original.id, applied.query.goal(b.canReforge(original.id)), name, icon)
+            val set = g.content.content.set(original.set)
+            original to TrackerFeature.QueueEntry(original.id, applied.query.goal(b.canReforge(original.id)), set?.name ?: original.set.removeSuffix("Set"), set?.icon)
         }
         if (entries.isEmpty()) return Outcome.Failed("No matching gear remains. Update the search.")
-        source.trackQueue(entries, openOverlay)
-        return Outcome.Done
+        return g.tracker.trackQueue(entries, openOverlay)
     }
 }

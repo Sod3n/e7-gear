@@ -57,7 +57,7 @@ class GearPotentialScreens {
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, font)) {
-                Box(Modifier.testTag("frame").width(width.dp).fillMaxHeight()) { if (overlay) androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides model.graph.content.imageBase) { OverlayUi({ _, _ -> }, {}, {}) } else App(model) {} }
+                Box(Modifier.testTag("frame").width(width.dp).fillMaxHeight()) { if (overlay) androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides model.graph.content.imageBase) { OverlayUi(model.graph, { _, _ -> }, {}, {}) } else App(model) {} }
             }
         }
         fun snap(name: String) {
@@ -147,19 +147,19 @@ class GearPotentialScreens {
         val first = model.graph.findGear.result!!.matches.first { it.item.enhance < 15 && it.outcome.chance > 0 }
         go(Screen.Gear, Screen.GearPotential)
         ui { model.graph.messages.show(model.graph.findGear.trackAll(openOverlay = false)) }
-        File(out, "result.txt").appendText("track all on a fresh list: screen=${model.screen} queue=${model.upgrades.queue.size} toast=${model.toast?.text}\n")
+        File(out, "result.txt").appendText("track all on a fresh list: screen=${model.screen} queue=${model.graph.tracker.queue.size} toast=${model.toast?.text}\n")
         each("10a-track-all") { ui { model.sheet = null } }
-        ui { OverlayState.upgrade = model.upgrades; OverlayState.expanded = true; overlay = true }
+        ui { model.graph.tracker.show(); model.graph.overlay.expanded = true; overlay = true }
         each("10b-overlay-all")
-        ui { overlay = false; OverlayState.upgrade = null }
+        ui { overlay = false; model.graph.tracker.hide() }
         ui { model.graph.findGear.edit(PotentialQuery()) }
         search()
         ui { model.graph.messages.show(model.graph.findGear.track(model.graph.findGear.result!!.matches.first { it.item.id == first.item.id })) }
         File(out, "result.txt").appendText("track one: stale=${model.graph.findGear.stale} (a start-only record must not mark the list stale)\n")
         each("10c-track-one") { ui { model.sheet = null } }
-        ui { OverlayState.upgrade = model.upgrades; OverlayState.expanded = true; overlay = true }
+        ui { model.graph.tracker.show(); model.graph.overlay.expanded = true; overlay = true }
         each("10d-overlay-one")
-        ui { overlay = false; OverlayState.upgrade = null }
+        ui { overlay = false; model.graph.tracker.hide() }
         each("10e-back-after-tracking-one") { go(Screen.Gear, Screen.GearPotential); tap("Matches") }
         // dark theme, the main states
         ui { e7.gearscan.ui.Themes.set(ctx, true); width = 411; font = 1f }
@@ -187,7 +187,7 @@ class GearPotentialScreens {
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, font)) {
-                Box(Modifier.width(width.dp).fillMaxHeight()) { if (overlay) androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides model.graph.content.imageBase) { OverlayUi({ _, _ -> }, {}, {}) } else App(model) {} }
+                Box(Modifier.width(width.dp).fillMaxHeight()) { if (overlay) androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides model.graph.content.imageBase) { OverlayUi(model.graph, { _, _ -> }, {}, {}) } else App(model) {} }
             }
         }
         shot("01-filters-411")
@@ -260,39 +260,39 @@ class GearPotentialScreens {
 
         ui { model.graph.messages.show(model.graph.findGear.track(best)) }
         assertEquals(Screen.Upgrade, model.screen)
-        assertEquals(mapOf(GearStat.SPD to 20.0, GearStat.HP_P to 5.0), model.upgrades.goal!!.minimums)
+        assertEquals(mapOf(GearStat.SPD to 20.0, GearStat.HP_P to 5.0), model.graph.tracker.goal!!.minimums)
         shot("08-track-selected-353-big")
         tap("Change")
         shot("08-picker-353-big")
         tap("Use selected piece")
-        ui { OverlayState.upgrade = model.upgrades; OverlayState.expanded = true; overlay = true }
-        assertEquals(.25, model.upgrades.goalOutcome!!.chance, 1e-10)
+        ui { model.graph.tracker.show(); model.graph.overlay.expanded = true; overlay = true }
+        assertEquals(.25, model.graph.tracker.goalOutcome!!.chance, 1e-10)
         shot("09-target-overlay-353-big")
         tap("Record +12")
         shot("09-editor-353-big")
         tap("Cancel")
-        ui { OverlayState.expanded = false }
+        ui { model.graph.overlay.expanded = false }
         shot("09-bubble-353-big")
-        ui { OverlayState.expanded = true }
+        ui { model.graph.overlay.expanded = true }
         // The Heroic +12 reveal leaves its final 25% Speed hit; a later miss makes Speed 20 impossible.
         ui {
-            val r = model.upgrades.record!!.item
+            val r = model.graph.tracker.record!!.item
             assertEquals("Heroic", r.rank); assertEquals(9, r.enhance)
-            assertTrue(model.upgrades.commit(UpgradeRecord.mainAt(r, 12), r.subs.map { it.value }, GearStat.EFF to 6.0, false))
+            assertTrue(model.graph.tracker.commit(UpgradeRecord.mainAt(r, 12), r.subs.map { it.value }, GearStat.EFF to 6.0, false))
         }
-        assertEquals(.25, model.upgrades.goalOutcome!!.chance, 1e-10)
+        assertEquals(.25, model.graph.tracker.goalOutcome!!.chance, 1e-10)
         ui {
-            val r = model.upgrades.record!!.item
-            assertTrue(model.upgrades.commit(UpgradeRecord.mainAt(r, 15), r.subs.map { it.value + if (it.type == GearStat.HP_P) 4 else 0 }, null, false))
+            val r = model.graph.tracker.record!!.item
+            assertTrue(model.graph.tracker.commit(UpgradeRecord.mainAt(r, 15), r.subs.map { it.value + if (it.type == GearStat.HP_P) 4 else 0 }, null, false))
         }
-        assertFalse(model.upgrades.goalOutcome!!.possible)
-        assertEquals("Targets no longer reachable", model.upgrades.title)
-        val restored = UpgradeTracker(File(ctx.filesDir, "upgrades.json"))
-        assertEquals(model.upgrades.goal, restored.goal)
+        assertFalse(model.graph.tracker.goalOutcome!!.possible)
+        assertEquals("Targets no longer reachable", model.graph.tracker.title)
+        val restored = reopenTracker(model.graph, ctx.filesDir)
+        assertEquals(model.graph.tracker.goal, restored.goal)
         assertEquals(15, restored.record!!.item.enhance)
         shot("10-missed-target-353-big")
         val backup = JSONObject(model.graph.scan.backupText())
         assertEquals(model.graph.findGear.query, PotentialQuery.of(backup.getJSONObject("fields").getJSONObject("findGear.query")))
-        ui { OverlayState.upgrade = null }
+        ui { model.graph.tracker.hide() }
     }
 }

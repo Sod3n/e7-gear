@@ -17,6 +17,14 @@ import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import e7.gearscan.data.*
 import e7.gearscan.opt.GearPotential
+import e7.gearscan.state.Disk
+import e7.gearscan.state.NoPlatform
+import e7.gearscan.state.Platform
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import org.json.JSONArray
+import org.json.JSONObject
+import e7.gearscan.features.tracker.TrackerFeature
 import e7.gearscan.overlay.*
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
@@ -28,6 +36,15 @@ import java.io.File
 class NoScrollScreens {
     @get:Rule val rule = createComposeRule()
     private val ctx get() = InstrumentationRegistry.getInstrumentation().targetContext
+    /** A graph of its own over [items], so the panel's queue and history don't touch the app's data. */
+    private fun standalone(name: String, items: List<Item>, contentText: String, onReturn: () -> Unit = {}): AppGraph {
+        val dir = File(ctx.filesDir, name).also { it.deleteRecursively(); it.mkdirs() }
+        File(dir, "content.json").writeText(contentText)
+        val g = AppGraph(Disk(dir), CoroutineScope(Job()), platform = object : Platform by NoPlatform { override fun showApp() { onReturn() } })
+        g.scan.replaceBox(Box(JSONObject().put("items", JSONArray(items.map { UpgradeRecord.itemJson(it) })).put("heroes", JSONArray())))
+        g.scan.lastScan = 1
+        return g
+    }
     private fun ui(f: () -> Unit) { rule.runOnUiThread(f); rule.waitForIdle() }
     private fun tap(text: String) { rule.onAllNodesWithText(text, useUnmergedTree = true).onFirst().performTouchInput { click() }; rule.waitForIdle() }
     private fun advance(kind: String): Boolean {
@@ -71,8 +88,9 @@ class NoScrollScreens {
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
         val imageBase = if (images.isDirectory) images.toURI().toString() else Content.DEFAULT_IMAGE_BASE
         val assets = InstrumentationRegistry.getInstrumentation().context.assets
-        val content = Content.parse(assets.open("content.json").bufferedReader().use { it.readText() })
-        var t by mutableStateOf<UpgradeTracker?>(null)
+        val contentText = assets.open("content.json").bufferedReader().use { it.readText() }
+        val content = Content.parse(contentText)
+        var t by mutableStateOf<AppGraph?>(null)
         var height by mutableIntStateOf(360)
         var font by mutableFloatStateOf(1f)
         rule.setContent {
@@ -83,20 +101,17 @@ class NoScrollScreens {
             }
         }
         for ((h, f) in listOf(360 to 1f, 240 to 1.3f, 220 to 1.5f)) {
-            val file = File(ctx.filesDir, "no-scroll-$h.json").also { it.delete() }
             val pieces = (1L..43L).map { id -> Item(id, Slot.HELMET, "SpeedSet", "Heroic", 85, 9, GearStat.HP, 2700.0,
                 listOf(Substat(GearStat.SPD, 14.0, 4, false), Substat(GearStat.HP_P, 5.0, 1, false), Substat(GearStat.DEF_P, 4.0, 1, false)), false, null, main15 = 2700.0) }
             val goal = GearPotential.Goal(mapOf(GearStat.SPD to 20.0, GearStat.HP_P to 5.0, GearStat.DEF_P to 4.0, GearStat.EFF to 4.0))
-            lateinit var tracker: UpgradeTracker
             var returned = 0
+            val graph = standalone("no-scroll-$h", pieces, contentText) { returned++ }
+            val tracker = graph.tracker
             ui {
-                tracker = UpgradeTracker(file)
-                tracker.startQueue(pieces.map { it to UpgradeTracker.QueueEntry(it.id, goal, "Speed", content.set("SpeedSet")?.icon) }, 1)
-                tracker.setName = "Speed"; tracker.setIcon = content.set("SpeedSet")?.icon
-                tracker.selectQueue = { index -> tracker.select(pieces[index], 1, keepQueue = true) }
-                tracker.returnToApp = { returned++ }
-                OverlayState.expanded = true; OverlayState.usableHeightDp = 0f
-                height = h; font = f; t = tracker
+                tracker.startQueue(pieces.map { it to TrackerFeature.QueueEntry(it.id, goal, "Speed", content.set("SpeedSet")?.icon) }, 1)
+                tracker.show()
+                graph.overlay.expanded = true; graph.overlay.usableHeightDp = 0f
+                height = h; font = f; t = graph
             }
             val label = "$h-${f}"
             shot("$label-piece")
@@ -111,8 +126,8 @@ class NoScrollScreens {
             tap("Record +12"); shot("$label-choose")
             choose("Eff"); shot("$label-total")
             rule.onNodeWithContentDescription("Increase value").performClick()
-            ui { OverlayState.expanded = false }
-            ui { OverlayState.expanded = true }
+            ui { graph.overlay.expanded = false }
+            ui { graph.overlay.expanded = true }
             rule.onNodeWithText("5").assertIsDisplayed()
             rule.onNodeWithContentDescription("Increase value").performClick()
             tap("Apply total"); shot("$label-review")
@@ -120,8 +135,8 @@ class NoScrollScreens {
             assertEquals(12, tracker.record!!.item.enhance); assertEquals(6.0, tracker.record!!.item.subs.last().value, 0.0)
             menu("Correct"); choose("Spd: 14")
             rule.onNodeWithContentDescription("Increase value").performClick()
-            ui { OverlayState.expanded = false }
-            ui { OverlayState.expanded = true }
+            ui { graph.overlay.expanded = false }
+            ui { graph.overlay.expanded = true }
             rule.onNodeWithText("15").assertIsDisplayed()
             tap("Apply total"); tap("Save +12")
             assertEquals(15.0, tracker.record!!.item.subs[0].value, 0.0)
@@ -136,11 +151,11 @@ class NoScrollScreens {
         // Existing-line roll: changing the chosen stat before Save must not leave two lines changed.
         val epic = Item(100, Slot.HELMET, "SpeedSet", "Epic", 85, 9, GearStat.HP, 2700.0,
             listOf(Substat(GearStat.SPD, 14.0, 4, false), Substat(GearStat.HP_P, 5.0, 1, false), Substat(GearStat.DEF_P, 4.0, 1, false), Substat(GearStat.CR, 4.0, 1, false)), false, null, main15 = 2700.0)
-        lateinit var normal: UpgradeTracker
+        val epicGraph = standalone("no-scroll-epic", listOf(epic), contentText)
+        val normal = epicGraph.tracker
         ui {
-            normal = UpgradeTracker(File(ctx.filesDir, "no-scroll-epic.json").also { it.delete() })
-            normal.select(epic, 1); normal.returnToApp = {}; normal.setName = "Speed"
-            height = 240; font = 1.3f; t = normal
+            normal.select(epic, 1); normal.show(); epicGraph.overlay.expanded = true
+            height = 240; font = 1.3f; t = epicGraph
         }
         tap("Record +12"); choose("Spd: 14"); tap("Apply total")
         tap("Back"); choose("Hp%: 5"); tap("Apply total")
@@ -148,6 +163,6 @@ class NoScrollScreens {
         tap("Save +12")
         assertEquals(14.0, normal.record!!.item.subs[0].value, 0.0)
         assertEquals(9.0, normal.record!!.item.subs[1].value, 0.0)
-        ui { t = null; OverlayState.expanded = false; OverlayState.usableHeightDp = 0f }
+        ui { t = null; epicGraph.overlay.expanded = false; epicGraph.overlay.usableHeightDp = 0f }
     }
 }

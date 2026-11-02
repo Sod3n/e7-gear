@@ -10,7 +10,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import e7.gearscan.AppModel
-import e7.gearscan.overlay.OverlayState
 import e7.gearscan.overlay.OverlayUi
 
 /**
@@ -20,10 +19,10 @@ import e7.gearscan.overlay.OverlayUi
 @Composable
 fun FloatingPanel(model: AppModel) {
     DisposableEffect(Unit) {
-        OverlayState.native = true; OverlayState.expanded = true
-        onDispose { OverlayState.native = false }
+        model.graph.overlay.native = true; model.graph.overlay.expanded = true
+        onDispose { model.graph.overlay.native = false }
     }
     Box(Modifier.fillMaxSize().background(C.paper).padding(6.dp), contentAlignment = Alignment.TopCenter) {
-        OverlayUi({ _, _ -> }, { expanded -> if (!expanded) { OverlayState.expanded = true; model.floatingPanel = false } }) { model.closeFloatingPanel() }
+        OverlayUi(model.graph, { _, _ -> }, { expanded -> if (!expanded) { model.graph.overlay.expanded = true; model.graph.overlay.floatingPanel = false } }) { model.graph.overGame.closeFloatingPanel() }
     }
 }

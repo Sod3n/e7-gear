@@ -45,7 +45,6 @@ import e7.gearscan.data.OwnedHero
 import e7.gearscan.data.Role
 import e7.gearscan.data.fmtInt
 import e7.gearscan.overlay.OverlayService
-import e7.gearscan.overlay.OverlayState
 import kotlinx.coroutines.delay
 
 /** 4a: the Optimize screen's "Whole pool" mode. */

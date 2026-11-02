@@ -69,7 +69,7 @@ class GalleryScreens {
             val c = Configuration(LocalConfiguration.current).apply { screenWidthDp = 393; screenHeightDp = if (overlay) 260 else 852 }
             CompositionLocalProvider(LocalDensity provides Density(d.density, 1f), LocalConfiguration provides c) {
                 Box(Modifier.width(393.dp).then(if (overlay) Modifier.height(260.dp) else Modifier.fillMaxHeight())) {
-                    if (overlay) UpgradeOverlay(m.upgrades, { _, _ -> }, {}, {}) else App(m) {}
+                    if (overlay) UpgradeOverlay(m.graph, { _, _ -> }, {}, {}) else App(m) {}
                 }
             }
         }
@@ -107,7 +107,7 @@ class GalleryScreens {
             if (theme == only.split(",").first()) ui { m.sheet = null; m.graph.sellReview.result?.matches?.take(6)?.forEach { m.graph.marks.markReviewed(it.item.id, keep = true) } }
             ui { m.sheet = null; m.go(Screen.SellKept) }; shot("sell-06-kept"); ui { m.go(Screen.SellFilters) }
             ui { m.graph.sellReview.trackMatches(openOverlay = false) }
-            ui { OverlayState.expanded = true; OverlayState.usableHeightDp = 260f; overlay = true }; rule.mainClock.advanceTimeBy(2000); Thread.sleep(2000); rule.mainClock.advanceTimeBy(500); shot("sell-07-overlay")
+            ui { m.graph.overlay.expanded = true; m.graph.overlay.usableHeightDp = 260f; overlay = true }; rule.mainClock.advanceTimeBy(2000); Thread.sleep(2000); rule.mainClock.advanceTimeBy(500); shot("sell-07-overlay")
             rule.onNodeWithContentDescription("More").performClick(); rule.mainClock.advanceTimeBy(500); shot("sell-08-overlay-more")
             rule.onNodeWithContentDescription("More").performClick()
             ui { overlay = false }

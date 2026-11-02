@@ -8,8 +8,8 @@ import e7.gearscan.data.Mirror
 import e7.gearscan.data.PotentialQuery
 import e7.gearscan.data.UpgradeRecord
 import e7.gearscan.features.findgear.FindGearFeature
-import e7.gearscan.opt.GearPotential
-import e7.gearscan.overlay.UpgradeTracker
+import org.json.JSONArray
+import org.json.JSONObject
 import e7.gearscan.state.Disk
 import e7.gearscan.testing.SyntheticBox
 import e7.gearscan.ui.Outcome
@@ -36,31 +36,20 @@ class FindGearFeatureTest {
 
     private val synthetic = Box.parse(SyntheticBox.generate(1).gearText)
 
-    private class FakeSource : FindGearFeature.Source {
-        override var records: Map<Long, UpgradeRecord> = emptyMap()
-        var tracked = 0
-        override fun setLabel(key: String) = key to null
-        override fun track(item: Item, goal: GearPotential.Goal, openOverlay: Boolean) { startOnly(item); tracked++ }
-        override fun trackQueue(entries: List<Pair<Item, UpgradeTracker.QueueEntry>>, openOverlay: Boolean) {
-            entries.forEach { startOnly(it.first) }
-            tracked += entries.size
-        }
-        fun startOnly(item: Item) { records = records + (item.id to UpgradeRecord(SCAN, listOf(UpgradeRecord.fromScan(item)))) }
-        fun recordStep(item: Item) {
-            val sub = item.subs.first()
-            val next = Item(
-                item.id, item.slot, item.set, item.rank, item.level, item.enhance + 3, item.mainType, item.mainValue,
-                listOf(e7.gearscan.data.Substat(sub.type, sub.value + 1, sub.rolls + 1, sub.modified)) + item.subs.drop(1), item.locked, item.equippedOn, main15 = item.main15,
-            )
-            records = records + (item.id to UpgradeRecord(SCAN, listOf(UpgradeRecord.fromScan(item), next)))
-        }
+    private fun recordStep(g: AppGraph, item: Item) {
+        val sub = item.subs.first()
+        val next = Item(
+            item.id, item.slot, item.set, item.rank, item.level, item.enhance + 3, item.mainType, item.mainValue,
+            listOf(e7.gearscan.data.Substat(sub.type, sub.value + 1, sub.rolls + 1, sub.modified)) + item.subs.drop(1), item.locked, item.equippedOn, main15 = item.main15,
+        )
+        val record = UpgradeRecord(SCAN, listOf(UpgradeRecord.fromScan(item), next))
+        g.tracker.restore(JSONObject().put("records", JSONArray(listOf(record.toJson()))), save = false)
     }
 
-    private fun graph(scope: CoroutineScope, source: FakeSource): AppGraph =
+    private fun graph(scope: CoroutineScope): AppGraph =
         AppGraph(Disk(createTempDirectory("findgear").toFile()), scope).also {
             it.scan.replaceBox(synthetic)
             it.scan.lastScan = SCAN
-            it.findGear.source = source
             it.findGear.edit(PotentialQuery(show = 2, minimumChance = "0"))
         }
 
@@ -75,8 +64,7 @@ class FindGearFeatureTest {
     }
 
     @Test fun staleFlipsOnAQueryChangeANewScanAndARealRecordedStep() = runTest(UnconfinedTestDispatcher()) {
-        val source = FakeSource()
-        val g = graph(this, source)
+        val g = graph(this)
         assertFalse(g.findGear.stale)
         found(g)
         assertFalse(g.findGear.stale)
@@ -91,44 +79,41 @@ class FindGearFeatureTest {
         g.scan.lastScan = SCAN
         assertFalse(g.findGear.stale)
 
-        source.recordStep(g.findGear.result!!.matches.first { it.item.enhance < 12 }.item)
+        recordStep(g, g.findGear.result!!.matches.first { it.item.enhance < 12 }.item)
         assertTrue(g.findGear.stale)
         found(g)
         assertFalse(g.findGear.stale)
     }
 
     @Test fun trackingAPieceLeavesTheListFresh() = runTest(UnconfinedTestDispatcher()) {
-        val source = FakeSource()
-        val g = graph(this, source)
+        val g = graph(this)
         found(g)
         val match = g.findGear.result!!.matches.first { it.item.enhance < 15 }
         assertEquals(Outcome.Done, g.findGear.track(match))
-        assertEquals(1, source.tracked)
-        assertEquals(1, source.records.size)
+        assertEquals(1, g.tracker.records.size)
         assertFalse(g.findGear.stale)
         assertEquals(Outcome.Done, g.findGear.trackAll(openOverlay = false))
         assertFalse(g.findGear.stale)
     }
 
     @Test fun trackAllOnAStaleResultFails() = runTest(UnconfinedTestDispatcher()) {
-        val source = FakeSource()
-        val g = graph(this, source)
+        val g = graph(this)
         found(g)
         g.findGear.edit(g.findGear.query.copy(minimumChance = "5"))
         assertTrue(g.findGear.stale)
         assertTrue(g.findGear.trackAll() is Outcome.Failed)
-        assertEquals(0, source.tracked)
+        assertEquals(0, g.tracker.records.size)
     }
 
     @Test fun anInvalidQueryFailsWithItsReason() = runTest(UnconfinedTestDispatcher()) {
-        val g = graph(this, FakeSource())
+        val g = graph(this)
         g.findGear.edit(PotentialQuery(targets = emptyMap()))
         assertEquals(Outcome.Failed("Add at least one substat minimum."), g.findGear.find())
         assertFalse(g.findGear.busy)
     }
 
     @Test fun clearedPiecesAreLeftOutOfTheSearch() = runTest(UnconfinedTestDispatcher()) {
-        val g = graph(this, FakeSource())
+        val g = graph(this)
         found(g)
         val gone = g.findGear.result!!.matches.first().item.id
         g.marks.markReviewed(gone, keep = false)

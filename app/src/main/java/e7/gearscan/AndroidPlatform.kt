@@ -9,7 +9,6 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import e7.gearscan.overlay.OverlayService
-import e7.gearscan.overlay.OverlayState
 import e7.gearscan.state.Platform
 
 class AndroidPlatform(private val app: Application) : Platform {
@@ -62,8 +61,17 @@ class AndroidPlatform(private val app: Application) : Platform {
         )
     }
 
+    override fun startOverlay() = OverlayService.start(app)
+
     override fun stopOverlay(onlyWhenTracking: Boolean) {
-        if (!onlyWhenTracking || OverlayState.upgrade != null) OverlayService.stop(app)
+        if (!onlyWhenTracking || (app as E7GearApp).graph.tracker.shown) OverlayService.stop(app)
+    }
+
+    override fun showApp() {
+        app.startActivity(
+            Intent(app, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        )
     }
 
     override fun export(

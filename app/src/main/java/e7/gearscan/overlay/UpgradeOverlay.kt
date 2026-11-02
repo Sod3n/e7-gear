@@ -16,10 +16,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import e7.gearscan.AppGraph
 import e7.gearscan.data.*
+import e7.gearscan.features.tracker.TrackerFeature
+import e7.gearscan.opt.EsForecast
 import e7.gearscan.opt.GearBounds
 import e7.gearscan.opt.GearPotential
 import e7.gearscan.features.sellreview.EsBar
@@ -60,20 +64,22 @@ private class UpgradeDraft(val record: UpgradeRecord, val correction: Boolean) {
     fun preview() = Item(item.id, item.slot, item.set, item.rank, item.level, next, item.mainType, main,
         item.subs.mapIndexed { i, s -> Substat(s.type, values[i], s.rolls, s.modified) } +
             listOfNotNull(added?.let { t -> newValue?.let { Substat(t, it, 1, false) } }), item.locked, item.equippedOn, main15 = item.main15)
-    fun save(t: UpgradeTracker) = t.commit(main, values, if (reveal) added?.let { it to (newValue ?: Double.NaN) } else null, correction)
+    fun save(t: TrackerFeature) = t.commit(main, values, if (reveal) added?.let { it to (newValue ?: Double.NaN) } else null, correction)
 }
 
 /** The tracker is a fixed panel. Lists, long explanations and editing use explicit pages, never scroll containers. */
 @Composable
-fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (Boolean) -> Unit, onClose: () -> Unit) {
+fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean) -> Unit, onClose: () -> Unit) {
+    val t = g.tracker
+    val w = g.overlay
     val r = t.record ?: return
     val item = r.item
     var pane by remember { mutableStateOf(UpgradePane.PIECE) }
     var correction by remember { mutableStateOf(false) }
     val draft = remember(item, t.editing) { if (t.editing) UpgradeDraft(r, correction) else null }
-    if (!OverlayState.expanded) {
+    if (!w.expanded) {
         // the ring fills with the enhance level, in the piece's rank colour
-        BubbleShell(item.enhance / 15f, rankColor(item.rank), C.onTile.copy(alpha = 0.25f), chanceBadge(t), { OverlayState.expanded = true; onDock(true) }) {
+        BubbleShell(w, item.enhance / 15f, rankColor(item.rank), C.onTile.copy(alpha = 0.25f), chanceBadge(t), { w.expanded = true; onDock(true) }) {
             Box(Modifier.fillMaxSize().background(C.slate), contentAlignment = Alignment.Center) {
                 GearIcon(item.slot.icon, 30.dp, C.onTile)
                 Text("+${item.enhance}", style = dela(9.sp, C.onTile), modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp))
@@ -83,10 +89,14 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
     }
     val config = LocalConfiguration.current
     val scale = LocalDensity.current.fontScale
-    val usable = if (OverlayState.usableHeightDp > 0) min(config.screenHeightDp.toFloat(), OverlayState.usableHeightDp) else config.screenHeightDp.toFloat()
+    val usable = if (w.usableHeightDp > 0) min(config.screenHeightDp.toFloat(), w.usableHeightDp) else config.screenHeightDp.toFloat()
+    val es by produceState<EsForecast.Es?>(null, item, t.scoreQuery, t.cleared) {
+        value = if (t.hasEs) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { t.esFor(item) } else null
+    }
+    val queueRow = t.queue.isNotEmpty() && (pane == UpgradePane.PIECE || pane == UpgradePane.LIST) && !t.editing
     val height = min(280f + (scale - 1f).coerceIn(0f, .5f) * 80, (usable - 12).coerceAtLeast(160f))
     val shape = RoundedCornerShape(16.dp)
-    Column(Modifier.popIn().width(PANEL_WIDTH.dp).height(height.dp).clip(shape).background(C.card).border(2.dp, C.edge, shape)
+    Column(Modifier.popIn(w).width(PANEL_WIDTH.dp).height(height.dp).clip(shape).background(C.card).border(2.dp, C.edge, shape)
         .testTag("gear-tracker-panel").padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.weight(1f).dragWindow(onMove), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -99,42 +109,42 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
             if (!t.isSellQueue) Box(Modifier.width(48.dp).tap { if (!t.editing) pane = if (!t.hasTarget) UpgradePane.ADVICE else UpgradePane.GOAL }, contentAlignment = Alignment.Center) {
                 FitText(chanceBadge(t), dela(12.sp, C.blue))
             }
-            if(t.canUndoSold&&!t.sellQueueComplete&&!t.editing)PanelAction("Undo",Modifier.width(38.dp),label="Undo last mark") { t.undoSold?.invoke();pane=UpgradePane.PIECE }
-            else if (t.undoEquip != null && !t.editing) PanelAction("Undo", Modifier.width(38.dp), label = "Undo equip") { t.undoEquip?.invoke(); pane = UpgradePane.PIECE }
+            if(t.canUndoSold&&!t.sellQueueComplete&&!t.editing)PanelAction("Undo",Modifier.width(38.dp),label="Undo last mark") { t.undoSold();pane=UpgradePane.PIECE }
+            else if (t.canUndoEquip && !t.editing) PanelAction("Undo", Modifier.width(38.dp), label = "Undo equip") { t.undoEquip(); pane = UpgradePane.PIECE }
             PanelAction(if (t.notice == null) "···" else "···!", Modifier.width(34.dp), enabled = !t.editing, label = "More") { pane = if (pane == UpgradePane.MENU) UpgradePane.PIECE else UpgradePane.MENU }
-            PanelAction("–", Modifier.width(30.dp), label = "Collapse tracker") { OverlayState.expanded = false; onDock(false) }
+            PanelAction("–", Modifier.width(30.dp), label = "Collapse tracker") { w.expanded = false; onDock(false) }
             PanelAction("×", Modifier.width(30.dp), label = "Close tracker", click = onClose)
         }
-        if (t.queue.isNotEmpty() && (pane == UpgradePane.PIECE || pane == UpgradePane.LIST) && !t.editing) Row(Modifier.fillMaxWidth().height(38.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-            PanelAction("‹", Modifier.width(60.dp), enabled = t.queueIndex > 0 && !t.editing, label = "Previous gear") { t.selectQueue?.invoke(t.queueIndex - 1); pane = UpgradePane.PIECE }
+        if (queueRow) Row(Modifier.fillMaxWidth().height(38.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+            PanelAction("‹", Modifier.width(60.dp), enabled = t.queueIndex > 0 && !t.editing, label = "Previous gear") { t.selectInQueue(t.queueIndex - 1); pane = UpgradePane.PIECE }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { FitText(if(t.sellQueueComplete)"0 remaining" else if(t.needsRollRefresh)"Refresh list for overall ranking" else if(t.isSellQueue)"${t.queueIndex + 1} / ${t.pendingQueue.size} · sell in E7 first" else "${t.queueIndex + 1} / ${t.pendingQueue.size} matches", zen(10.sp, color = C.blue)) }
             if (!t.isSellQueue) PanelAction(if (pane == UpgradePane.LIST) "Piece" else "List", Modifier.width(46.dp), enabled = !t.editing&&!t.sellQueueComplete) { pane = if (pane == UpgradePane.LIST) UpgradePane.PIECE else UpgradePane.LIST }
-            PanelAction("›", Modifier.width(60.dp), enabled = t.queueIndex < t.pendingQueue.lastIndex && !t.editing, label = "Next gear") { t.selectQueue?.invoke(t.queueIndex + 1); pane = UpgradePane.PIECE }
+            PanelAction("›", Modifier.width(60.dp), enabled = t.queueIndex < t.pendingQueue.lastIndex && !t.editing, label = "Next gear") { t.selectInQueue(t.queueIndex + 1); pane = UpgradePane.PIECE }
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 2.dp).testTag("gear-tracker-body")) {
             when {
                 t.error != null -> PanelTextPages(t.error!!, maxHeight.value)
                 t.sellQueueComplete -> PanelTextPages("List complete\n\nEvery piece in this list is marked sold or kept.\n\nUndo mark restores the last local mark. Rescan after selling to refresh the game inventory.",maxHeight.value)
                 draft != null -> DraftBody(draft, maxHeight.value)
-                pane == UpgradePane.PIECE -> PieceSummary(t, item, maxHeight.value)
+                pane == UpgradePane.PIECE -> PieceSummary(t, item, maxHeight.value, es)
                 pane == UpgradePane.LIST -> QueuePage(t, maxHeight.value) { pane = UpgradePane.PIECE }
                 pane == UpgradePane.MENU -> {
-                    val options = listOfNotNull("Open E7 Gear".takeIf { t.returnToApp != null }, if(t.isRollReview)"Roll review" else if (!t.hasTarget) "Build advice" else "Targets", "History", "Help") + listOfNotNull("Correct".takeIf { UpgradeRecord.supported(item) }) +
-                        listOfNotNull("Track the better bet".takeIf { t.betterBet != null && t.switchTo != null },
+                    val options = listOfNotNull("Open E7 Gear", if(t.isRollReview)"Roll review" else if (!t.hasTarget) "Build advice" else "Targets", "History", "Help") + listOfNotNull("Correct".takeIf { UpgradeRecord.supported(item) }) +
+                        listOfNotNull("Track the better bet".takeIf { t.betterBet != null },
                             "Final build".takeIf { !t.hasTarget && t.results.any { it.build.isNotEmpty() && (it.hits.isNotEmpty() || it.current) } },
                             (if (t.rebuilds) "This piece only" else "Allow rebuilds").takeIf { !t.hasTarget },
                             "Recheck builds".takeIf { !t.hasTarget }, "Notice".takeIf { t.notice != null })
                     PanelChoices(options, maxHeight.value, "") { i -> when (options[i]) {
-                        "Open E7 Gear" -> { pane = UpgradePane.PIECE; t.returnToApp?.invoke() }
+                        "Open E7 Gear" -> { pane = UpgradePane.PIECE; t.returnToApp() }
                         "Targets", "Roll review" -> pane = UpgradePane.GOAL
                         "Build advice" -> pane = UpgradePane.ADVICE
                         "History" -> pane = UpgradePane.HISTORY
-                        "Correct" -> if (UpgradeRecord.supported(item)) { correction = true; t.error = null; t.editing = true }
+                        "Correct" -> if (UpgradeRecord.supported(item)) { correction = true; t.beginEdit() }
                         "Help" -> pane = UpgradePane.HELP
-                        "Recheck builds" -> { t.requestCheck?.invoke(); pane = UpgradePane.ADVICE }
+                        "Recheck builds" -> { t.runCheck(); pane = UpgradePane.ADVICE }
                         "Final build" -> pane = UpgradePane.BUILD
-                        "Track the better bet" -> { t.betterBet?.let { t.switchTo?.invoke(it.first) }; pane = UpgradePane.PIECE }
-                        "This piece only", "Allow rebuilds" -> { t.setRebuilds?.invoke(!t.rebuilds); pane = UpgradePane.ADVICE }
+                        "Track the better bet" -> { t.betterBet?.let { t.switchTo(it.first) }; pane = UpgradePane.PIECE }
+                        "This piece only", "Allow rebuilds" -> { t.useRebuilds(!t.rebuilds); pane = UpgradePane.ADVICE }
                         "Notice" -> pane = UpgradePane.HELP
                     } }
                 }
@@ -144,17 +154,17 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                 pane == UpgradePane.ADVICE -> PanelTextPages(adviceText(t), maxHeight.value)
                 pane == UpgradePane.BUILD -> PanelTextPages(buildText(t), maxHeight.value)
                 pane == UpgradePane.EQUIP -> PanelChoices(t.equipHeroes.map { "${it.name} · ${it.nowGain}" }, maxHeight.value, "Equipped on") { i ->
-                    t.equipHeroes.getOrNull(i)?.let { h -> t.equipOn?.invoke(h.id) }; pane = UpgradePane.PIECE
+                    t.equipHeroes.getOrNull(i)?.let { h -> t.equip(h.id) }; pane = UpgradePane.PIECE
                 }
             }
         }
         Row(Modifier.fillMaxWidth().height(34.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             when {
-                t.error != null -> PanelAction("Back", Modifier.weight(1f)) { t.error = null }
+                t.error != null -> PanelAction("Back", Modifier.weight(1f)) { t.dismissError() }
                 draft != null -> {
                     PanelAction(if (draft.page == EntryPage.CHOOSE) "Cancel" else "Back", Modifier.weight(1f)) {
                         when (draft.page) {
-                            EntryPage.CHOOSE -> { t.editing = false; pane = UpgradePane.PIECE }
+                            EntryPage.CHOOSE -> { t.cancelEdit(); pane = UpgradePane.PIECE }
                             EntryPage.STEP -> draft.page = EntryPage.VALUE
                             else -> draft.page = EntryPage.CHOOSE
                         }
@@ -164,15 +174,15 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
                         if (draft.save(t)) pane = UpgradePane.PIECE
                     }
                 }
-                t.sellQueueComplete -> PanelAction("Undo mark",Modifier.weight(1.5f),pink=true,enabled=t.canUndoSold) { t.undoSold?.invoke();pane=UpgradePane.PIECE }
+                t.sellQueueComplete -> PanelAction("Undo mark",Modifier.weight(1.5f),pink=true,enabled=t.canUndoSold) { t.undoSold();pane=UpgradePane.PIECE }
                 pane == UpgradePane.PIECE -> {
                     if(t.isSellQueue) {
-                        PanelAction("Sold ›",Modifier.weight(1f),pink=true,enabled=t.canMarkSold,label="Sold and next") { t.markSold?.invoke(item.id);pane=UpgradePane.PIECE }
-                        PanelAction("Keep ›",Modifier.weight(1f),enabled=t.canMarkSold&&t.markKept!=null,label="Keep and next") { t.markKept?.invoke(item.id);pane=UpgradePane.PIECE }
+                        PanelAction("Sold ›",Modifier.weight(1f),pink=true,enabled=t.canMarkSold,label="Sold and next") { t.markSold(item.id);pane=UpgradePane.PIECE }
+                        PanelAction("Keep ›",Modifier.weight(1f),enabled=t.canMarkSold,label="Keep and next") { t.markSold(item.id, keep = true);pane=UpgradePane.PIECE }
                     }
-                    if (item.enhance < 15 && UpgradeRecord.supported(item)) PanelAction("Record +${((item.enhance / 3 + 1) * 3).coerceAtMost(15)}", Modifier.weight(if(t.isSellQueue)1.2f else 1.7f), pink = !t.isSellQueue) { correction = false; t.error = null; t.editing = true }
+                    if (item.enhance < 15 && UpgradeRecord.supported(item)) PanelAction("Record +${((item.enhance / 3 + 1) * 3).coerceAtMost(15)}", Modifier.weight(if(t.isSellQueue)1.2f else 1.7f), pink = !t.isSellQueue) { correction = false; t.beginEdit() }
                     // a finished piece: record the reforge, then equipping it, as done in the game
-                    if (!t.isSellQueue && item.enhance == 15 && item.level == 85 && t.canReforge?.invoke(item.id) == true)
+                    if (!t.isSellQueue && item.enhance == 15 && item.level == 85 && t.canReforge(item.id))
                         PanelAction("Reforge", Modifier.weight(1.2f), pink = t.equipHeroes.isEmpty(), label = "Record reforge") { t.reforge() }
                     if (!t.isSellQueue && item.enhance == 15 && t.equipHeroes.isNotEmpty() && t.equippedOn == null)
                         PanelAction("Equip", Modifier.weight(1.2f), pink = true, label = "Record equip") { pane = UpgradePane.EQUIP }
@@ -186,12 +196,12 @@ fun UpgradeOverlay(t: UpgradeTracker, onMove: (Float, Float) -> Unit, onDock: (B
     }
 }
 
-private fun chanceBadge(t: UpgradeTracker) = if (!t.hasTarget && t.results.isNotEmpty() && !t.busy && t.scoreQuery == null)
+private fun chanceBadge(t: TrackerFeature) = if (!t.hasTarget && t.results.isNotEmpty() && !t.busy && t.scoreQuery == null)
     when { t.equippedOn != null -> "Done"; t.record?.item?.enhance == 15 -> if (t.equipHeroes.isNotEmpty()) "Equip" else "None"; else -> t.chance?.let { "$it%" } ?: "Advice" }
     else if(t.sellQueueComplete)"Done" else if(t.isRollReview)if(t.reviewProtected)"Guard" else "Review" else t.goalOutcome?.let { when { !it.supported -> "Unknown"; t.scoreGoal!=null -> if(it.matchesNow) "Above" else if(it.rareOnly) "Rare" else if(!it.possible) "0%" else it.label(); it.matchesNow -> "Ready"; it.rareOnly -> "Rare"; !it.possible -> "Stop"; else -> it.label() } } ?: if (t.busy) "Busy" else "Advice"
 
 @Composable
-private fun PieceSummary(t: UpgradeTracker, item: Item, height: Float) {
+private fun PieceSummary(t: TrackerFeature, item: Item, height: Float, es: EsForecast.Es?, measure: Boolean = false) {
     if (height < 60 * LocalDensity.current.fontScale + 12) {
         PanelTextPages("${item.rank} Lv.${item.level} · ${item.mainType.short} ${item.mainType.format(item.mainValue)}\n" +
             item.subs.joinToString("\n") { "${it.type.short} ${it.type.format(it.value)}" } +
@@ -207,18 +217,36 @@ private fun PieceSummary(t: UpgradeTracker, item: Item, height: Float) {
         }
         GearSearchSubs(item, t.goal?.minimums?.keys ?: emptySet())
         }
-        val es by produceState<e7.gearscan.opt.EsForecast.Es?>(null, item, t.esFor) { value = t.esFor?.let { f -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { f(item) } } }
-        if (t.esFor != null) es?.let { e ->
-            Column(Modifier.fillMaxWidth().inset().padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FitText("ES ${e.now}${e.typical?.takeIf { e.finishShare > 0 }?.let { " → ${it.toInt()}" } ?: ""}", dela(13.sp), Modifier.weight(1f))
-                    EsChip(e, t.rollOn)
-                }
-                EsBar(e)
-            }
+        if (t.hasEs) {
+            if (es != null) EsBlock(es, t.rollOn) else if (measure) EsBlockSpace()
         }
-        if (!t.hasTarget && t.esFor == null) FitText(t.title, zen(10.sp, color = C.blue))
-        if (!t.hasTarget) weakestLine(t)?.let { FitText(it, zen(9.sp, color = C.muted)) }
+        if (!t.hasTarget && !t.hasEs) FitText(t.title, zen(10.sp, color = C.blue))
+        // the measuring copy keeps a line for advice that arrives after the check, so the panel doesn't grow then
+        if (!t.hasTarget) (weakestLine(t) ?: " ".takeIf { measure && item.enhance < 15 })?.let { FitText(it, zen(9.sp, color = C.muted)) }
+    }
+}
+
+@Composable
+private fun EsBlock(e: EsForecast.Es, rollOn: Double) {
+    Column(Modifier.fillMaxWidth().inset().padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            FitText("ES ${e.now}${e.typical?.takeIf { e.finishShare > 0 }?.let { " → ${it.toInt()}" } ?: ""}", dela(13.sp), Modifier.weight(1f))
+            EsChip(e, rollOn)
+        }
+        EsBar(e)
+    }
+}
+
+/** The room [EsBlock] takes, for the measuring copy while the forecast is still being worked out. */
+@Composable
+private fun EsBlockSpace() {
+    val clear = Color.Transparent
+    Column(Modifier.fillMaxWidth().inset().padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            FitText("ES", dela(13.sp, clear), Modifier.weight(1f))
+            Box(Modifier.border(1.5.dp, clear, RoundedCornerShape(999.dp)).padding(horizontal = 9.dp, vertical = 3.dp)) { Text("Rare only", style = zen(11.sp, color = clear)) }
+        }
+        Spacer(Modifier.fillMaxWidth().height(14.dp))
     }
 }
 
@@ -256,7 +284,7 @@ private fun DraftBody(d: UpgradeDraft, height: Float) {
 }
 
 @Composable
-private fun QueuePage(t: UpgradeTracker, height: Float, selected: () -> Unit) {
+private fun QueuePage(t: TrackerFeature, height: Float, selected: () -> Unit) {
     val scale = LocalDensity.current.fontScale
     val perPage = floor((height - 30) / (42 * scale.coerceAtLeast(1f))).toInt().coerceAtLeast(1)
     var page by remember(t.pendingQueue, perPage) { mutableIntStateOf(t.queueIndex.coerceAtLeast(0) / perPage) }
@@ -267,7 +295,7 @@ private fun QueuePage(t: UpgradeTracker, height: Float, selected: () -> Unit) {
             t.pendingQueue.drop(page * perPage).take(perPage).forEachIndexed { offset, entry ->
                 val item = t.records[entry.id]?.item
                 if (item != null) Row(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(9.dp)).background(if (entry.id == t.selected) C.lightPink else C.field)
-                    .border(1.dp, C.line, RoundedCornerShape(9.dp)).tap { t.selectQueue?.invoke(page * perPage + offset); selected() }.padding(horizontal = 6.dp),
+                    .border(1.dp, C.line, RoundedCornerShape(9.dp)).tap { t.selectInQueue(page * perPage + offset); selected() }.padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     GearTile(item, 28.dp, setIcon = entry.setIcon)
                     Column(Modifier.weight(1f)) {
@@ -312,7 +340,7 @@ private fun PanelChoices(names: List<String>, height: Float, title: String, sele
 }
 
 @Composable
-private fun GoalPage(t: UpgradeTracker, height: Float) {
+private fun GoalPage(t: TrackerFeature, height: Float) {
     if(t.isRollReview) {
         val rolls=t.reviewRolls
         PanelTextPages("${t.title}\n\n"+(rolls?.joinToString("\n") { r->"${if(r.enhance==0)"Start" else "+${r.enhance}${if(r.reveal)" new" else ""}"}: ${r.stat.short} +${r.stat.format(r.value)} (usual ${r.stat.format(r.range.first.toDouble())}–${r.stat.format(r.range.last.toDouble())})" }?:"Roll history unavailable")+"\n\n${t.reviewStatText}\n\nEach stat limit is separate. Review the actual substat totals before selling. Recorded upgrades update this history.",height)
@@ -369,7 +397,7 @@ private fun PanelTextPages(text: String, height: Float) {
     }
 }
 
-private fun helpText(t: UpgradeTracker) = listOfNotNull(t.notice,
+private fun helpText(t: TrackerFeature) = listOfNotNull(t.notice,
     "For Sell review lists, sell in Epic Seven first, then tap Sold › to mark it here; Keep › keeps a piece out of Sell review until you unlock it. Undo restores only the helper mark.\n\nRecord the totals after the next +3. The main stat is filled automatically. Each piece keeps its own history.",
     if(t.isRollReview) "This is the roll-review list. Low upgrade values alone do not mean a piece should be sold. Review individual stats. New recorded upgrades are appended to the roll history; recompute the sell-filter list to apply its safeguards again."
     else if(t.scoreGoal!=null) "The chance is for reaching the comparison points from your applied sell filters. These use your equipped gear or a custom score. Recorded upgrades refresh the comparison and chances. A filter match does not mean a piece is useless or should be sold. Rare endpoints have no estimated probability."
@@ -378,7 +406,7 @@ private fun helpText(t: UpgradeTracker) = listOfNotNull(t.notice,
     "Rescan after selling or reforging. ~ marks an estimate until a fresh scan supplies exact experience tie-breaks.").joinToString("\n\n")
 
 /** The weakest finish that still helps the hero it helps most often, for the piece page. */
-private fun weakestLine(t: UpgradeTracker): String? {
+private fun weakestLine(t: TrackerFeature): String? {
     if (t.busy || t.record?.item?.enhance == 15) return null
     t.betterBet?.let { return "Better bet: ${it.second}" }
     val h = t.results.filter { it.hits.isNotEmpty() }.maxByOrNull { it.hits.size } ?: return null
@@ -386,7 +414,7 @@ private fun weakestLine(t: UpgradeTracker): String? {
 }
 
 /** The final build for the hero the piece helps most (or can be equipped on), as lines. */
-private fun buildText(t: UpgradeTracker): String {
+private fun buildText(t: TrackerFeature): String {
     val h = t.equipHeroes.firstOrNull()?.takeIf { t.record?.item?.enhance == 15 }
         ?: t.results.filter { it.build.isNotEmpty() && (it.hits.isNotEmpty() || it.current) }.maxByOrNull { it.hits.size } ?: return "No build to show yet."
     val with = if (t.record?.item?.enhance == 15 || h.hits.isEmpty()) "this piece as it is" else "a usual finish of this piece"
@@ -394,7 +422,7 @@ private fun buildText(t: UpgradeTracker): String {
         "\n\n" + h.build.joinToString("\n") + if (h.changes.isNotEmpty()) "\n\nBest finish: ${h.changes}" else ""
 }
 
-private fun adviceText(t: UpgradeTracker) = buildList {
+private fun adviceText(t: TrackerFeature) = buildList {
     add(t.title)
     add(if (t.rebuilds) "Counting any rebuild: other pieces and sets may change." else "Counting this piece only: it goes into the hero's slot, nothing else moves.")
     if (t.expected > 0 && t.total > 0) add("${t.results.size}/${t.expected} saved setups checked. ${t.hitCount} of ${t.total} simulated finishes (${t.chance}%) are an upgrade for at least one hero.")

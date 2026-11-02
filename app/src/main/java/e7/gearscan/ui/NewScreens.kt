@@ -39,7 +39,6 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import e7.gearscan.AppModel
 import e7.gearscan.data.Reports
 import e7.gearscan.overlay.OverlayService
-import e7.gearscan.overlay.OverlayState
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 
@@ -55,25 +54,25 @@ fun OverlayIntroScreen(model: AppModel) {
         model.graph.settings.overlaySeen = true
         model.save()
         model.back()
-        if (OverlayState.upgrade != null) model.checkUpgrade()
+        if (model.graph.tracker.shown) model.graph.tracker.runCheck()
         model.graph.scan.openGame()
     }
     val native = model.graph.settings.overGameNative
     LifecycleResumeEffect(waiting) {
-        if (waiting && OverlayState.canDraw(ctx)) { waiting = false; blocked = false; go() }
+        if (waiting && model.graph.platform.pillAllowed) { waiting = false; blocked = false; go() }
         else if (waiting) blocked = true
         onPauseOrDispose { }
     }
     Frame(null, null, actions = {
-        PinkButton(if (native || OverlayState.canDraw(ctx)) "Open game" else "Allow and open game", Modifier.weight(1f)) {
-            if (native || OverlayState.canDraw(ctx)) go() else {
+        PinkButton(if (native || model.graph.platform.pillAllowed) "Open game" else "Allow and open game", Modifier.weight(1f)) {
+            if (native || model.graph.platform.pillAllowed) go() else {
                 waiting = true
                 ctx.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${ctx.packageName}")))
             }
         }
     }) {
         BackToPrevious()
-        val upgrade = OverlayState.upgrade != null
+        val upgrade = model.graph.tracker.shown
         Text(if (upgrade) "Track upgrades over the game" else "Show this build over the game", style = TitleStyle.copy(fontSize = 24.sp, lineHeight = 28.sp))
         Text(if (upgrade) "Record each +3 in a small floating panel and check whether the piece could improve a hero build." else "A small panel floats on top of Epic Seven, so you can equip each piece without switching apps.",
             style = zen(13.sp, FontWeight.Medium, C.muted))

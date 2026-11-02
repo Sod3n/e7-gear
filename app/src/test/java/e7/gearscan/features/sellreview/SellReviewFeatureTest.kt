@@ -34,7 +34,6 @@ class SellReviewFeatureTest {
     }
 
     private class Host : SellHost {
-        override var records: Map<Long, UpgradeRecord> = emptyMap()
         var settings: List<Any?> = listOf(1)
         override val settingsKey get() = settings
         override val contentVersion = "test"
@@ -43,11 +42,13 @@ class SellReviewFeatureTest {
 
         override fun heroNames(box: Box) = emptyMap<Long, String>()
 
-        override fun startQueue(rows: List<Pair<Item, SellSearch.Row>>, query: SellQuery, openOverlay: Boolean) {}
-
-        override fun rollOnChanged(rollOn: Double) {}
-
         override fun touch() {}
+    }
+
+    private fun records(g: AppGraph, scan: Long) {
+        val item = tiny.items.first()
+        val record = UpgradeRecord(scan, listOf(UpgradeRecord.fromScan(item), UpgradeRecord.fromScan(item)))
+        g.tracker.restore(org.json.JSONObject().put("records", org.json.JSONArray(listOf(record.toJson()))), save = false)
     }
 
     private val tiny = Box.parse(SyntheticBox.generate(2).gearText)
@@ -77,11 +78,11 @@ class SellReviewFeatureTest {
         host.settings = listOf(2)
         assertTrue(g.sellReview.stale)
         host.settings = listOf(1)
-        host.records = mapOf(5L to UpgradeRecord(1, listOf(UpgradeRecord.fromScan(tiny.items.first()), UpgradeRecord.fromScan(tiny.items.first()))))
+        records(g, 1)
         assertTrue(g.sellReview.stale)
-        host.records = mapOf(5L to UpgradeRecord(9, listOf(UpgradeRecord.fromScan(tiny.items.first()), UpgradeRecord.fromScan(tiny.items.first()))))
+        records(g, 9)
         assertFalse(g.sellReview.stale)
-        host.records = emptyMap()
+        g.tracker.reset()
         assertFalse(g.sellReview.stale)
 
         g.sellReview.edit(g.sellReview.query.copy(rollOn = 7.0))
