@@ -4,7 +4,9 @@ package e7.gearscan.data
 object Problems {
     private val seen = LinkedHashSet<String>()
 
-    @Synchronized fun report(what: String) { if (seen.size < 200) seen += what }
+    @Synchronized fun report(what: String) {
+        if (seen.size < 200) seen += what
+    }
 
     @Synchronized fun drain(): List<String> = seen.toList().also { seen.clear() }
 

@@ -1,6 +1,11 @@
 package e7.gearscan.data
 
-enum class Stat(val label: String, val short: String, val icon: String, val pct: Boolean) {
+enum class Stat(
+    val label: String,
+    val short: String,
+    val icon: String,
+    val pct: Boolean,
+) {
     ATK("Attack", "Atk", "stat-att", false),
     HP("Health", "Hp", "stat-max_hp", false),
     DEF("Defense", "Def", "stat-def", false),
@@ -8,7 +13,8 @@ enum class Stat(val label: String, val short: String, val icon: String, val pct:
     CR("Crit chance", "Cr", "stat-cri", true),
     CD("Crit dmg", "Cd", "stat-cri_dmg", true),
     EFF("Effectiveness", "Eff", "stat-acc", true),
-    RES("Resistance", "Res", "stat-res", true);
+    RES("Resistance", "Res", "stat-res", true),
+    ;
 
     companion object {
         val ALL = entries
@@ -16,7 +22,12 @@ enum class Stat(val label: String, val short: String, val icon: String, val pct:
 }
 
 /** Gear stat types as Fribbels' gear.txt names them. */
-enum class GearStat(val key: String, val stat: Stat, val percentOfBase: Boolean, val short: String) {
+enum class GearStat(
+    val key: String,
+    val stat: Stat,
+    val percentOfBase: Boolean,
+    val short: String,
+) {
     ATK("Attack", Stat.ATK, false, "Atk"),
     ATK_P("AttackPercent", Stat.ATK, true, "Atk%"),
     HP("Health", Stat.HP, false, "Hp"),
@@ -27,7 +38,8 @@ enum class GearStat(val key: String, val stat: Stat, val percentOfBase: Boolean,
     CR("CriticalHitChancePercent", Stat.CR, false, "Cr"),
     CD("CriticalHitDamagePercent", Stat.CD, false, "Cd"),
     EFF("EffectivenessPercent", Stat.EFF, false, "Eff"),
-    RES("EffectResistancePercent", Stat.RES, false, "Res");
+    RES("EffectResistancePercent", Stat.RES, false, "Res"),
+    ;
 
     val showsPercent get() = percentOfBase || stat.pct
 
@@ -35,29 +47,48 @@ enum class GearStat(val key: String, val stat: Stat, val percentOfBase: Boolean,
 
     companion object {
         private val byKey = entries.associateBy { it.key }
+
         fun of(key: String?): GearStat? = byKey[key]
     }
 }
 
-enum class Slot(val key: String, val label: String, val icon: String) {
+enum class Slot(
+    val key: String,
+    val label: String,
+    val icon: String,
+) {
     WEAPON("Weapon", "Weapon", "weapon"),
     HELMET("Helmet", "Helmet", "helm"),
     ARMOR("Armor", "Armor", "armor"),
     NECKLACE("Necklace", "Necklace", "neck"),
     RING("Ring", "Ring", "ring"),
-    BOOTS("Boots", "Boots", "boot");
+    BOOTS("Boots", "Boots", "boot"),
+    ;
 
     companion object {
         private val byKey = entries.associateBy { it.key }
+
         fun of(key: String?): Slot? = byKey[key]
+
         val ACCESSORIES = listOf(NECKLACE, RING, BOOTS)
     }
 }
 
-class Substat(val type: GearStat, val value: Double, val rolls: Int, val modified: Boolean)
+class Substat(
+    val type: GearStat,
+    val value: Double,
+    val rolls: Int,
+    val modified: Boolean,
+)
 
 /** A modification-stone change: substat [index] goes from [from] to [to]. */
-class Mod(val index: Int, val from: GearStat, val fromValue: Double, val to: GearStat, val toValue: Double)
+class Mod(
+    val index: Int,
+    val from: GearStat,
+    val fromValue: Double,
+    val to: GearStat,
+    val toValue: Double,
+)
 
 class Item(
     val id: Long,
@@ -110,27 +141,67 @@ class SetDef(
     val name: String,
     val pieces: Int,
     val icon: String,
-    val atkPct: Double, val hpPct: Double, val defPct: Double, val spdPct: Double,
-    val cr: Double, val cd: Double, val eff: Double, val res: Double,
-    val dmg: Double, val pen: Boolean,
+    val atkPct: Double,
+    val hpPct: Double,
+    val defPct: Double,
+    val spdPct: Double,
+    val cr: Double,
+    val cd: Double,
+    val eff: Double,
+    val res: Double,
+    val dmg: Double,
+    val pen: Boolean,
 ) {
     /** Shows in the eight stats; Rage's damage and Penetration's defense ignore don't, so match treats them as effects. */
-    val showsInStats get() = atkPct != 0.0 || hpPct != 0.0 || defPct != 0.0 || spdPct != 0.0 || cr != 0.0 || cd != 0.0 || eff != 0.0 || res != 0.0
-    val hasStats get() = atkPct != 0.0 || hpPct != 0.0 || defPct != 0.0 || spdPct != 0.0 || cr != 0.0 ||
-        cd != 0.0 || eff != 0.0 || res != 0.0 || dmg != 0.0 || pen
+    val showsInStats get() =
+        atkPct != 0.0 ||
+            hpPct != 0.0 ||
+            defPct != 0.0 ||
+            spdPct != 0.0 ||
+            cr != 0.0 ||
+            cd != 0.0 ||
+            eff != 0.0 ||
+            res != 0.0
+    val hasStats get() =
+        atkPct != 0.0 ||
+            hpPct != 0.0 ||
+            defPct != 0.0 ||
+            spdPct != 0.0 ||
+            cr != 0.0 ||
+            cd != 0.0 ||
+            eff != 0.0 ||
+            res != 0.0 ||
+            dmg != 0.0 ||
+            pen
 }
 
-class Stats8(val atk: Double, val hp: Double, val def: Double, val spd: Double,
-             val cr: Double, val cd: Double, val eff: Double, val res: Double) {
-    operator fun get(s: Stat) = when (s) {
-        Stat.ATK -> atk; Stat.HP -> hp; Stat.DEF -> def; Stat.SPD -> spd
-        Stat.CR -> cr; Stat.CD -> cd; Stat.EFF -> eff; Stat.RES -> res
-    }
+class Stats8(
+    val atk: Double,
+    val hp: Double,
+    val def: Double,
+    val spd: Double,
+    val cr: Double,
+    val cd: Double,
+    val eff: Double,
+    val res: Double,
+) {
+    operator fun get(s: Stat) =
+        when (s) {
+            Stat.ATK -> atk
+            Stat.HP -> hp
+            Stat.DEF -> def
+            Stat.SPD -> spd
+            Stat.CR -> cr
+            Stat.CD -> cd
+            Stat.EFF -> eff
+            Stat.RES -> res
+        }
 
     fun toArray() = doubleArrayOf(atk, hp, def, spd, cr, cd, eff, res)
 
     companion object {
         fun of(a: DoubleArray) = Stats8(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7])
+
         val ZERO = Stats8(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     }
 }
@@ -153,19 +224,39 @@ class GameHero(
  * (atk × rate + own hp × hp + own def × def) × pow × (set damage + own spd × spd + own hp × hpMul) × crit.
  * Target-side terms don't depend on gear and are left out; the target's defense is a constant factor.
  */
-class SkillDmg(val n: Int, val rate: Double, val pow: Double, val hp: Double = 0.0, val def: Double = 0.0,
-               val spd: Double = 0.0, val hpMul: Double = 0.0, val noCrit: Boolean = false) {
+class SkillDmg(
+    val n: Int,
+    val rate: Double,
+    val pow: Double,
+    val hp: Double = 0.0,
+    val def: Double = 0.0,
+    val spd: Double = 0.0,
+    val hpMul: Double = 0.0,
+    val noCrit: Boolean = false,
+) {
     /** Ranks builds exactly like plain attack × crit damage, so the search can keep its fast bound. */
     val attackOnly get() = hp == 0.0 && def == 0.0 && spd == 0.0 && hpMul == 0.0 && !noCrit
 
-    fun damage(s: DoubleArray, dmgMult: Double, pen: Double): Double {
+    fun damage(
+        s: DoubleArray,
+        dmgMult: Double,
+        pen: Double,
+    ): Double {
         val cr = if (noCrit) 0.0 else minOf(s[4], 100.0) / 100
         val cd = minOf(s[5], 350.0) / 100
         return (s[0] * rate + s[1] * hp + s[2] * def) * (dmgMult + s[3] * spd + s[1] * hpMul) * pow * (cr * cd + (1 - cr)) * pen
     }
 }
 
-class Artifact(val code: String, val name: String, val role: String?, val atk: Double, val hp: Double, val def: Double, val rarity: Int = 5)
+class Artifact(
+    val code: String,
+    val name: String,
+    val role: String?,
+    val atk: Double,
+    val hp: Double,
+    val def: Double,
+    val rarity: Int = 5,
+)
 
 fun fmtNum(v: Double): String {
     val r = Math.round(v * 10) / 10.0
@@ -174,10 +265,11 @@ fun fmtNum(v: Double): String {
 
 fun fmtInt(v: Double): String = "%,d".format(java.util.Locale.US, Math.round(v))
 
-fun fmtK(v: Double): String = when {
-    v >= 100_000 -> "${Math.round(v / 1000)}k"
-    v >= 1000 -> "%.1fk".format(java.util.Locale.US, v / 1000).replace(".0k", "k")
-    else -> Math.round(v).toString()
-}
+fun fmtK(v: Double): String =
+    when {
+        v >= 100_000 -> "${Math.round(v / 1000)}k"
+        v >= 1000 -> "%.1fk".format(java.util.Locale.US, v / 1000).replace(".0k", "k")
+        else -> Math.round(v).toString()
+    }
 
 fun fmtSigned(v: Double): String = (if (v >= 0) "+" else "−") + fmtInt(Math.abs(v))

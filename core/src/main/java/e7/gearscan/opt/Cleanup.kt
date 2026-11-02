@@ -16,22 +16,38 @@ import e7.gearscan.data.Stat
  * those lists can go, unless [FinishCheck] shows it can still make one of the player's heroes better.
  */
 object Cleanup {
-    class Pick(val item: Item, val twin: Item? = null, val pair: List<Stat> = emptyList(), val better: List<Item> = emptyList())
+    class Pick(
+        val item: Item,
+        val twin: Item? = null,
+        val pair: List<Stat> = emptyList(),
+        val better: List<Item> = emptyList(),
+    )
 
     private val pairs = Stat.entries.flatMapIndexed { i, a -> Stat.entries.drop(i + 1).map { b -> listOf(a, b) } }
 
     /** A substat in average rolls; flat attack, health and defense count half (they add less than the % lines). */
-    private fun units(t: GearStat, v: Double): Double {
-        val avg = when (t) {
-            GearStat.SPD -> 3.0; GearStat.CR -> 4.0; GearStat.CD -> 5.5
-            GearStat.ATK -> 39.5; GearStat.HP -> 179.5; GearStat.DEF -> 31.0
-            else -> 6.0
-        }
+    private fun units(
+        t: GearStat,
+        v: Double,
+    ): Double {
+        val avg =
+            when (t) {
+                GearStat.SPD -> 3.0
+                GearStat.CR -> 4.0
+                GearStat.CD -> 5.5
+                GearStat.ATK -> 39.5
+                GearStat.HP -> 179.5
+                GearStat.DEF -> 31.0
+                else -> 6.0
+            }
         return v / avg * if (t.percentOfBase || t.stat.pct || t == GearStat.SPD) 1.0 else 0.5
     }
 
     /** Rolls per stat now, or for a piece below +12 as expected at +15 (its remaining upgrades spread over its lines). */
-    private fun profile(it: Item, expected: Boolean): DoubleArray {
+    private fun profile(
+        it: Item,
+        expected: Boolean,
+    ): DoubleArray {
         val out = DoubleArray(Stat.entries.size)
         if (it.subs.isEmpty()) return out
         val left = if (!expected) 0 else (15 - it.enhance) / 3 - if (it.rank == "Heroic" && it.subs.size < 4 && it.enhance < 12) 1 else 0
@@ -41,16 +57,29 @@ object Cleanup {
 
     fun ticket(it: Item) = it.enhance < 12 && it.level >= 85 && (it.rank == "Epic" || it.rank == "Heroic")
 
-    fun duplicates(box: Box, inUse: Set<Long>): List<Pick> {
-        fun beats(q: Item, p: Item) = q.mainValue >= p.mainValue &&
+    fun duplicates(
+        box: Box,
+        inUse: Set<Long>,
+    ): List<Pick> {
+        fun beats(
+            q: Item,
+            p: Item,
+        ) = q.mainValue >= p.mainValue &&
             p.subs.all { s -> q.subs.any { it.type == s.type && it.value >= s.value } }
         val out = ArrayList<Pick>()
-        box.items.filter { it.enhance == 15 && it.id !in inUse }
-            .groupBy { listOf(it.slot, it.set, it.mainType, it.level) }.values.forEach { grp ->
+        box.items
+            .filter { it.enhance == 15 && it.id !in inUse }
+            .groupBy { listOf(it.slot, it.set, it.mainType, it.level) }
+            .values
+            .forEach { grp ->
                 val kept = ArrayList<Item>()
                 // the piece that stays: locked, then worn, then the higher gear score
-                for (p in grp.sortedWith(compareByDescending<Item> { it.locked }.thenByDescending { it.equippedOn != null }
-                    .thenByDescending { it.score }.thenBy { it.id })) {
+                for (p in grp.sortedWith(
+                    compareByDescending<Item> { it.locked }
+                        .thenByDescending { it.equippedOn != null }
+                        .thenByDescending { it.score }
+                        .thenBy { it.id },
+                )) {
                     val twin = kept.firstOrNull { beats(it, p) }
                     if (twin != null) out += Pick(p, twin = twin) else kept += p
                 }
@@ -59,8 +88,16 @@ object Cleanup {
     }
 
     /** Pieces below +12 that are in no kind's top [keep] for any stat pair, with the pieces that stay for their best pair. */
-    fun stock(box: Box, inUse: Set<Long>, keep: Int = 2): List<Pick> {
-        class E(val item: Item, val ticket: Boolean, val p: DoubleArray)
+    fun stock(
+        box: Box,
+        inUse: Set<Long>,
+        keep: Int = 2,
+    ): List<Pick> {
+        class E(
+            val item: Item,
+            val ticket: Boolean,
+            val p: DoubleArray,
+        )
         val tickets = box.items.filter { ticket(it) && it.id !in inUse }
         val finished = box.items.filter { it.enhance >= 12 && it.id !in inUse }
         val byKind = LinkedHashMap<List<Any>, ArrayList<E>>()

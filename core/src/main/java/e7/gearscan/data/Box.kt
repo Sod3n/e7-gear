@@ -4,22 +4,30 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** The user's heroes and gear, kept in Fribbels' gear.txt format so export is lossless. */
-class Box(val json: JSONObject) {
+class Box(
+    val json: JSONObject,
+) {
     val items: List<Item>
     val allHeroes: List<OwnedHero>
     private val rawItems = HashMap<Long, JSONObject>()
 
     init {
         val ia = json.optJSONArray("items") ?: JSONArray()
-        items = (0 until ia.length()).mapNotNull { i ->
-            val o = ia.getJSONObject(i)
-            parseItem(o)?.also { rawItems[it.id] = o }
-        }
+        items =
+            (0 until ia.length()).mapNotNull { i ->
+                val o = ia.getJSONObject(i)
+                parseItem(o)?.also { rawItems[it.id] = o }
+            }
         val ha = json.optJSONArray("heroes") ?: JSONArray()
-        allHeroes = (0 until ha.length()).map { ha.getJSONObject(it) }.map { o ->
-            OwnedHero(o.optLong("id"), o.optString("code"), o.optString("name", o.optString("code")),
-                o.optInt("stars", o.optInt("g", 0)))
-        }
+        allHeroes =
+            (0 until ha.length()).map { ha.getJSONObject(it) }.map { o ->
+                OwnedHero(
+                    o.optLong("id"),
+                    o.optString("code"),
+                    o.optString("name", o.optString("code")),
+                    o.optInt("stars", o.optInt("g", 0)),
+                )
+            }
     }
 
     /** Heroes worth gearing: 6-star units and anything that wears gear. */
@@ -32,15 +40,20 @@ class Box(val json: JSONObject) {
 
     fun hero(id: Long) = allHeroes.firstOrNull { it.id == id }
 
-    fun gearOf(heroId: Long): Map<Slot, Item> =
-        items.filter { it.equippedOn == heroId }.associateBy { it.slot }
+    fun gearOf(heroId: Long): Map<Slot, Item> = items.filter { it.equippedOn == heroId }.associateBy { it.slot }
 
-    fun setEquipped(item: Item, heroId: Long?) {
+    fun setEquipped(
+        item: Item,
+        heroId: Long?,
+    ) {
         item.equippedOn = heroId
         rawItems[item.id]?.put("ingameEquippedId", heroId?.toString() ?: "None")
     }
 
-    fun setLocked(item: Item, locked: Boolean) {
+    fun setLocked(
+        item: Item,
+        locked: Boolean,
+    ) {
         item.locked = locked
         rawItems[item.id]?.put("l", locked)
     }
@@ -67,9 +80,16 @@ class Box(val json: JSONObject) {
         return before
     }
 
-    fun restore(id: Long, before: JSONObject) {
+    fun restore(
+        id: Long,
+        before: JSONObject,
+    ) {
         val raw = rawItems[id] ?: return
-        raw.keys().asSequence().toList().forEach { raw.remove(it) }
+        raw
+            .keys()
+            .asSequence()
+            .toList()
+            .forEach { raw.remove(it) }
         before.keys().forEach { raw.put(it, before.get(it)) }
     }
 
@@ -78,7 +98,8 @@ class Box(val json: JSONObject) {
         val item = itemsById[id] ?: return false
         if (item.level != 85) return false
         val raw = rawItems[id] ?: return false
-        return raw.optBoolean("reforgeable", true) && !raw.optString("mainStatId").startsWith("un") &&
+        return raw.optBoolean("reforgeable", true) &&
+            !raw.optString("mainStatId").startsWith("un") &&
             !raw.optString("name").contains("Gaveleet", ignoreCase = true)
     }
 
@@ -92,19 +113,38 @@ class Box(val json: JSONObject) {
             val main = o.optJSONObject("main") ?: return null
             val mainType = GearStat.of(main.optString("type")) ?: return null
             val sa = o.optJSONArray("substats") ?: JSONArray()
-            val subs = (0 until sa.length()).mapNotNull { j ->
-                val s = sa.getJSONObject(j)
-                GearStat.of(s.optString("type"))?.let {
-                    Substat(it, s.optDouble("value", 0.0), s.optInt("rolls", 1), s.optBoolean("modified", false))
+            val subs =
+                (0 until sa.length()).mapNotNull { j ->
+                    val s = sa.getJSONObject(j)
+                    GearStat.of(s.optString("type"))?.let {
+                        Substat(it, s.optDouble("value", 0.0), s.optInt("rolls", 1), s.optBoolean("modified", false))
+                    }
                 }
-            }
             val eq = o.optString("ingameEquippedId", "None").toLongOrNull()?.takeIf { it != 0L }
             // op[0] is the main stat at +0 (percent stats as fractions); it grows to five times that by +15
             val main0 = o.optJSONArray("op")?.optJSONArray(0)?.optDouble(1, Double.NaN) ?: Double.NaN
-            val main15 = if (main0.isNaN()) Double.NaN else if (mainType.showsPercent) main0 * 500 else Math.floor(main0 * 5)
-            return Item(o.optLong("id", o.optLong("ingameId")), slot, o.optString("set"), o.optString("rank", "Epic"),
-                o.optInt("level", 85), o.optInt("enhance", 0), mainType, main.optDouble("value", 0.0), subs,
-                o.optBoolean("l", false), eq, main15 = main15)
+            val main15 =
+                if (main0.isNaN()) {
+                    Double.NaN
+                } else if (mainType.showsPercent) {
+                    main0 * 500
+                } else {
+                    Math.floor(main0 * 5)
+                }
+            return Item(
+                o.optLong("id", o.optLong("ingameId")),
+                slot,
+                o.optString("set"),
+                o.optString("rank", "Epic"),
+                o.optInt("level", 85),
+                o.optInt("enhance", 0),
+                mainType,
+                main.optDouble("value", 0.0),
+                subs,
+                o.optBoolean("l", false),
+                eq,
+                main15 = main15,
+            )
         }
     }
 }
@@ -117,27 +157,48 @@ class ScanDiff(
     val moved: List<Long>,
     val newHeroes: List<String>,
 ) {
-    fun toJson() = JSONObject()
-        .put("newItems", JSONArray(newItems)).put("removedItems", JSONArray(removedItems))
-        .put("enhanced", JSONArray(enhanced)).put("moved", JSONArray(moved)).put("newHeroes", JSONArray(newHeroes))
+    fun toJson() =
+        JSONObject()
+            .put("newItems", JSONArray(newItems))
+            .put("removedItems", JSONArray(removedItems))
+            .put("enhanced", JSONArray(enhanced))
+            .put("moved", JSONArray(moved))
+            .put("newHeroes", JSONArray(newHeroes))
 
     companion object {
-        fun between(old: Box?, new: Box): ScanDiff {
+        fun between(
+            old: Box?,
+            new: Box,
+        ): ScanDiff {
             if (old == null) return ScanDiff(emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
             val o = old.itemsById
             val n = new.itemsById
             val enhanced = n.values.filter { it.id in o && (it.enhance > o[it.id]!!.enhance || it.level > o[it.id]!!.level) }
             val moved = n.values.filter { it.id in o && it.equippedOn != o[it.id]!!.equippedOn }
             val oldCodes = old.heroes.mapTo(HashSet()) { it.code }
-            return ScanDiff(n.keys.filter { it !in o }, o.keys.filter { it !in n }, enhanced.map { it.id },
-                moved.map { it.id }, new.heroes.filter { it.code !in oldCodes }.map { it.name }.distinct())
+            return ScanDiff(
+                n.keys.filter { it !in o },
+                o.keys.filter { it !in n },
+                enhanced.map { it.id },
+                moved.map { it.id },
+                new.heroes
+                    .filter { it.code !in oldCodes }
+                    .map { it.name }
+                    .distinct(),
+            )
         }
 
-        fun fromJson(j: JSONObject?): ScanDiff? = j?.let {
-            fun longs(k: String) = it.optJSONArray(k)?.let { a -> (0 until a.length()).map(a::getLong) } ?: emptyList()
-            val nh = it.optJSONArray("newHeroes")
-            ScanDiff(longs("newItems"), longs("removedItems"), longs("enhanced"), longs("moved"),
-                (0 until (nh?.length() ?: 0)).map { i -> nh!!.getString(i) })
-        }
+        fun fromJson(j: JSONObject?): ScanDiff? =
+            j?.let {
+                fun longs(k: String) = it.optJSONArray(k)?.let { a -> (0 until a.length()).map(a::getLong) } ?: emptyList()
+                val nh = it.optJSONArray("newHeroes")
+                ScanDiff(
+                    longs("newItems"),
+                    longs("removedItems"),
+                    longs("enhanced"),
+                    longs("moved"),
+                    (0 until (nh?.length() ?: 0)).map { i -> nh!!.getString(i) },
+                )
+            }
     }
 }

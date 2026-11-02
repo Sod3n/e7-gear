@@ -15,10 +15,18 @@ object ContentUpdate {
 
     enum class Result { CURRENT, UPDATED, NEEDS_APP }
 
-    class Outcome(val result: Result, val content: Content? = null, val bytes: ByteArray? = null, val version: String? = null)
+    class Outcome(
+        val result: Result,
+        val content: Content? = null,
+        val bytes: ByteArray? = null,
+        val version: String? = null,
+    )
 
     /** [fetch] returns a URL's body or throws; nothing is saved here, the caller keeps [Outcome.bytes] when UPDATED. */
-    fun check(current: Content, fetch: (String) -> ByteArray): Outcome {
+    fun check(
+        current: Content,
+        fetch: (String) -> ByteArray,
+    ): Outcome {
         val manifestUrl = current.manifestUrl ?: error("no content site")
         val m = JSONObject(String(fetch(manifestUrl)))
         val version = m.getString("version")
@@ -34,11 +42,15 @@ object ContentUpdate {
     }
 
     /** Why [next] must not replace [old]: a broken export loses heroes, sets or artifacts it had. */
-    fun problem(old: Content, next: Content): String? = when {
-        next.schema > SCHEMA -> "content needs a newer app"
-        next.heroes.size < old.heroes.size -> "content has fewer heroes (${next.heroes.size} < ${old.heroes.size})"
-        next.sets.size < old.sets.size -> "content has fewer sets"
-        next.artifacts.size < old.artifacts.size -> "content has fewer artifacts"
-        else -> null
-    }
+    fun problem(
+        old: Content,
+        next: Content,
+    ): String? =
+        when {
+            next.schema > SCHEMA -> "content needs a newer app"
+            next.heroes.size < old.heroes.size -> "content has fewer heroes (${next.heroes.size} < ${old.heroes.size})"
+            next.sets.size < old.sets.size -> "content has fewer sets"
+            next.artifacts.size < old.artifacts.size -> "content has fewer artifacts"
+            else -> null
+        }
 }

@@ -10,16 +10,29 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ModsTest {
-    private fun item(slot: Slot, enhance: Int, vararg subs: Substat, level: Int = 88) =
-        Item(7, slot, "SpeedSet", "Epic", level, enhance, GearStat.ATK, 515.0, subs.toList(), false, null)
+    private fun item(
+        slot: Slot,
+        enhance: Int,
+        vararg subs: Substat,
+        level: Int = 88,
+    ) = Item(7, slot, "SpeedSet", "Epic", level, enhance, GearStat.ATK, 515.0, subs.toList(), false, null)
 
     private val wanted = setOf(GearStat.SPD, GearStat.CR, GearStat.DEF_P)
-    private fun variants(it: Item, maxRolls: Int = 2) = Mods.variants(it, wanted, { t -> t !in wanted }, maxRolls, greater = true, quality = 0.5, reforged = true)
+
+    private fun variants(
+        it: Item,
+        maxRolls: Int = 2,
+    ) = Mods.variants(it, wanted, { t -> t !in wanted }, maxRolls, greater = true, quality = 0.5, reforged = true)
 
     @Test
     fun onlyPlusFifteenAndWeakUnwantedSubstats() {
-        val subs = arrayOf(Substat(GearStat.HP, 180.0, 1, false), Substat(GearStat.ATK_P, 20.0, 4, false),
-            Substat(GearStat.CR, 8.0, 2, false), Substat(GearStat.EFF, 6.0, 1, false))
+        val subs =
+            arrayOf(
+                Substat(GearStat.HP, 180.0, 1, false),
+                Substat(GearStat.ATK_P, 20.0, 4, false),
+                Substat(GearStat.CR, 8.0, 2, false),
+                Substat(GearStat.EFF, 6.0, 1, false),
+            )
         assertTrue(variants(item(Slot.WEAPON, 12, *subs)).isEmpty())
         val v = variants(item(Slot.WEAPON, 15, *subs))
         // HP (1 roll) and Eff (1 roll) can go; Atk% rolled 4 times stays; Cr is already there; a weapon never gets Def
@@ -33,15 +46,20 @@ class ModsTest {
         val v = variants(item(Slot.BOOTS, 15, Substat(GearStat.DEF, 30.0, 1, false))).first { it.mod!!.to == GearStat.SPD }
         assertEquals(3.0, v.subs[0].value, 0.0)
         // level 90 gear uses the reforged table: 2..4 too after one roll, 8..11 after four
-        val w = variants(item(Slot.BOOTS, 15, Substat(GearStat.DEF, 30.0, 4, false), level = 90), maxRolls = 4).first { it.mod!!.to == GearStat.SPD }
+        val w =
+            variants(item(Slot.BOOTS, 15, Substat(GearStat.DEF, 30.0, 4, false), level = 90), maxRolls = 4).first {
+                it.mod!!.to ==
+                    GearStat.SPD
+            }
         assertEquals(10.0, w.subs[0].value, 0.0)
     }
 
     @Test
     fun aSameStatReRollMustBeatTheValueEvenAtALowRoll() {
         // greater stone, lv88: speed after two rolls is 3..5 (typical 4); a modded 3 could come back as 3, a 2 can't get worse
-        fun reRolls(now: Double) = variants(item(Slot.BOOTS, 15, Substat(GearStat.HP, 180.0, 1, false), Substat(GearStat.SPD, now, 2, true)))
-            .filter { it.mod!!.to == GearStat.SPD }
+        fun reRolls(now: Double) =
+            variants(item(Slot.BOOTS, 15, Substat(GearStat.HP, 180.0, 1, false), Substat(GearStat.SPD, now, 2, true)))
+                .filter { it.mod!!.to == GearStat.SPD }
         assertTrue(reRolls(3.0).isEmpty())
         assertEquals(listOf(4.0), reRolls(2.0).map { it.subs[1].value })
     }

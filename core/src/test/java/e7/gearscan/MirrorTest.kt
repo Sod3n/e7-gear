@@ -15,13 +15,16 @@ class MirrorTest {
     private val copy = Mirror.COPY + "img/face/c1001_s.png"
     private val asked = mutableListOf<String>()
 
-    private fun host(blocked: Boolean): (String) -> String = { u ->
-        asked += u
-        if (blocked && u.startsWith(Mirror.SITE)) throw SocketException("Connection reset")
-        u
-    }
+    private fun host(blocked: Boolean): (String) -> String =
+        { u ->
+            asked += u
+            if (blocked && u.startsWith(Mirror.SITE)) throw SocketException("Connection reset")
+            u
+        }
 
-    @After fun reset() { Mirror.active = false }
+    @After fun reset() {
+        Mirror.active = false
+    }
 
     @Test
     fun blockedSiteFallsBackAndRemembers() {
@@ -44,8 +47,13 @@ class MirrorTest {
     fun httpErrorsDontSwitchHosts() {
         var thrown = false
         try {
-            Mirror.fetch(img) { u -> asked += u; throw IOException("HTTP 404 for $u") }
-        } catch (e: IOException) { thrown = true }
+            Mirror.fetch(img) { u ->
+                asked += u
+                throw IOException("HTTP 404 for $u")
+            }
+        } catch (e: IOException) {
+            thrown = true
+        }
         assertTrue(thrown)
         assertEquals(listOf(img), asked)
         assertFalse(Mirror.active)

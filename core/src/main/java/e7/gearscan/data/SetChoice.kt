@@ -5,7 +5,11 @@ package e7.gearscan.data
  * Without: exactly the [two] counts in pairs (Health 3 = three Health sets), the rest of the gear free.
  * [mix] keeps alternatives the tiles can't show (a role's "any 3 pairs from these") until the player edits.
  */
-class SetChoice(val four: List<String>, val two: Map<String, Int>, val mix: List<Map<String, Int>>? = null) {
+class SetChoice(
+    val four: List<String>,
+    val two: Map<String, Int>,
+    val mix: List<Map<String, Int>>? = null,
+) {
     fun toAlts(): List<Map<String, Int>> {
         mix?.let { return it }
         if (four.isEmpty()) return listOf(two.filterValues { it > 0 }.mapValues { 2 * it.value }).filter { it.isNotEmpty() }
@@ -39,22 +43,41 @@ class SetChoice(val four: List<String>, val two: Map<String, Int>, val mix: List
 
     companion object {
         /** Any [n] pairs from [keys], repeats allowed: for roles that accept a mix. */
-        fun anyPairs(keys: List<String>, n: Int): SetChoice {
+        fun anyPairs(
+            keys: List<String>,
+            n: Int,
+        ): SetChoice {
             val out = ArrayList<Map<String, Int>>()
-            fun go(start: Int, left: Int, acc: Map<String, Int>) {
-                if (left == 0) { out += acc; return }
+
+            fun go(
+                start: Int,
+                left: Int,
+                acc: Map<String, Int>,
+            ) {
+                if (left == 0) {
+                    out += acc
+                    return
+                }
                 for (i in start until keys.size) go(i, left - 1, acc + (keys[i] to (acc[keys[i]] ?: 0) + 2))
             }
             go(0, n, emptyMap())
             return SetChoice(emptyList(), keys.associateWith { 1 }, out)
         }
 
-        fun from(alts: List<Map<String, Int>>, content: Content): SetChoice {
+        fun from(
+            alts: List<Map<String, Int>>,
+            content: Content,
+        ): SetChoice {
             if (alts.isEmpty()) return SetChoice(emptyList(), emptyMap())
-            val four = LinkedHashSet<String>(); val two = LinkedHashMap<String, Int>()
-            for (alt in alts) for ((k, n) in alt) when (content.set(k)?.pieces) {
-                4 -> four += k
-                2 -> two[k] = maxOf(two[k] ?: 0, n / 2)
+            val four = LinkedHashSet<String>()
+            val two = LinkedHashMap<String, Int>()
+            for (alt in alts) {
+                for ((k, n) in alt) {
+                    when (content.set(k)?.pieces) {
+                        4 -> four += k
+                        2 -> two[k] = maxOf(two[k] ?: 0, n / 2)
+                    }
+                }
             }
             val c = if (four.isEmpty()) SetChoice(emptyList(), two) else SetChoice(four.toList(), two.mapValues { 1 })
             return if (c.toAlts().toSet() == alts.toSet()) c else SetChoice(four.toList(), two, alts)

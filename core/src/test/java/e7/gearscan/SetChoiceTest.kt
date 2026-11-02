@@ -1,12 +1,10 @@
 package e7.gearscan
 
-import e7.gearscan.data.Content
 import e7.gearscan.data.SetChoice
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
-import java.io.File
 
 class SetChoiceTest {
     private val content = TestContent.content
@@ -14,8 +12,15 @@ class SetChoiceTest {
     @Test
     fun fourOrFourPlusAnyOfTwo() {
         val alts = SetChoice(listOf("SpeedSet", "RevengeSet"), mapOf("CriticalSet" to 1, "ImmunitySet" to 1)).toAlts()
-        assertEquals(setOf(mapOf("SpeedSet" to 4, "CriticalSet" to 2), mapOf("RevengeSet" to 4, "ImmunitySet" to 2),
-            mapOf("SpeedSet" to 4, "ImmunitySet" to 2), mapOf("RevengeSet" to 4, "CriticalSet" to 2)), alts.toSet())
+        assertEquals(
+            setOf(
+                mapOf("SpeedSet" to 4, "CriticalSet" to 2),
+                mapOf("RevengeSet" to 4, "ImmunitySet" to 2),
+                mapOf("SpeedSet" to 4, "ImmunitySet" to 2),
+                mapOf("RevengeSet" to 4, "CriticalSet" to 2),
+            ),
+            alts.toSet(),
+        )
     }
 
     @Test
@@ -43,10 +48,14 @@ class SetChoiceTest {
 
     @Test
     fun presetsRoundTrip() {
-        for (alts in listOf(listOf(mapOf("SpeedSet" to 4, "CriticalSet" to 2)), listOf(mapOf("HealthSet" to 6)),
-            listOf(mapOf("HealthSet" to 4, "CriticalSet" to 2)))) {
+        for (alts in listOf(
+            listOf(mapOf("SpeedSet" to 4, "CriticalSet" to 2)),
+            listOf(mapOf("HealthSet" to 6)),
+            listOf(mapOf("HealthSet" to 4, "CriticalSet" to 2)),
+        )) {
             val c = SetChoice.from(alts, content)
-            assertNull(c.mix); assertEquals(alts, c.toAlts())
+            assertNull(c.mix)
+            assertEquals(alts, c.toAlts())
         }
         assertEquals(emptyList<Map<String, Int>>(), SetChoice.from(emptyList(), content).toAlts())
     }
@@ -54,7 +63,10 @@ class SetChoiceTest {
     @Test
     fun aRoleMixIsKeptUntilEdited() {
         val role = SetChoice.anyPairs(listOf("HealthSet", "DefenseSet"), 2)
-        assertEquals(setOf(mapOf("HealthSet" to 4), mapOf("HealthSet" to 2, "DefenseSet" to 2), mapOf("DefenseSet" to 4)), role.toAlts().toSet())
+        assertEquals(
+            setOf(mapOf("HealthSet" to 4), mapOf("HealthSet" to 2, "DefenseSet" to 2), mapOf("DefenseSet" to 4)),
+            role.toAlts().toSet(),
+        )
         val back = SetChoice.from(role.toAlts(), content)
         assertEquals(role.toAlts().toSet(), back.toAlts().toSet())
         assertEquals(listOf(mapOf("HitSet" to 2)), back.tapTwo("HitSet").toAlts())

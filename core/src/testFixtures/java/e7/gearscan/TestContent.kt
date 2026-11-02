@@ -14,11 +14,13 @@ object TestContent {
     val file = File("../content/content.json")
 
     val text: String by lazy {
-        if (!file.exists()) runCatching {
-            val site = "https://e7-gear-content.pages.dev/"
-            val manifest = JSONObject(URL(site + "manifest.json").readText())
-            file.parentFile.mkdirs()
-            file.writeText(URL(site + manifest.getString("file")).readText())
+        if (!file.exists()) {
+            runCatching {
+                val site = "https://e7-gear-content.pages.dev/"
+                val manifest = JSONObject(URL(site + "manifest.json").readText())
+                file.parentFile.mkdirs()
+                file.writeText(URL(site + manifest.getString("file")).readText())
+            }
         }
         assumeTrue("no game content: run tools/publish_content.sh --dry-run or allow the download", file.exists())
         file.readText()

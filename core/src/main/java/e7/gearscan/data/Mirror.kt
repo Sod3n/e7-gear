@@ -23,7 +23,11 @@ object Mirror {
      * [get]s [u] from whichever host answers, trying the one that worked last time first. [siteFirst] asks the site
      * before the copy, so a content check notices when the site is reachable again.
      */
-    fun <T> fetch(u: String, siteFirst: Boolean = false, get: (String) -> T): T {
+    fun <T> fetch(
+        u: String,
+        siteFirst: Boolean = false,
+        get: (String) -> T,
+    ): T {
         if (!u.startsWith(SITE)) return get(u)
         val copy = COPY + u.removePrefix(SITE)
         val first = if (active && !siteFirst) copy else u
@@ -37,6 +41,9 @@ object Mirror {
     }
 
     // an HTTP error means the host answered; only a connection that never got through is worth the other host
-    private fun unreachable(e: IOException) = e is SocketException || e is SSLException || e is UnknownHostException ||
-        e is java.io.InterruptedIOException
+    private fun unreachable(e: IOException) =
+        e is SocketException ||
+            e is SSLException ||
+            e is UnknownHostException ||
+            e is java.io.InterruptedIOException
 }

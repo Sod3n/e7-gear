@@ -1,6 +1,5 @@
 package e7.gearscan
 
-import e7.gearscan.data.Content
 import e7.gearscan.data.Presets
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -10,9 +9,12 @@ import java.io.File
 class PresetsTest {
     private val content = TestContent.content
 
-    private fun rta(vararg sets: Pair<String, Int>) = JSONObject("""{"0": {"a": {"builds": [{"sample": 6, "artifact": "efa08", "weight": 0.125,
+    private fun rta(vararg sets: Pair<String, Int>) =
+        JSONObject(
+            """{"0": {"a": {"builds": [{"sample": 6, "artifact": "efa08", "weight": 0.125,
         "sets": [${sets.joinToString(",") { """{"name": "${it.first}", "pieces": ${it.second}}""" }}],
-        "stats": {"att": 3421, "max_hp": 8854, "def": 910, "speed": 320, "cri": 1.05, "cri_dmg": 1.95, "acc": 0.06, "res": 0.17}}]}}}""")
+        "stats": {"att": 3421, "max_hp": 8854, "def": 910, "speed": 320, "cri": 1.05, "cri_dmg": 1.95, "acc": 0.06, "res": 0.17}}]}}}""",
+        )
 
     @Test
     fun rtaSamplesKeepOnlyCompleteSets() {
