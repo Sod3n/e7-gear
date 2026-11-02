@@ -5,7 +5,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import e7.gearscan.AppGraph
 import e7.gearscan.data.AppUpdate
-import e7.gearscan.data.Http
 import e7.gearscan.state.Feature
 import java.io.File
 import java.io.IOException
@@ -37,7 +36,7 @@ class AppUpdateFeature(g: AppGraph) : Feature(g, "appUpdate") {
         release =
             withContext(Dispatchers.IO) {
                 runCatching {
-                    val c = Http.open(AppUpdate.LATEST) as HttpURLConnection
+                    val c = g.http.open(AppUpdate.LATEST) as HttpURLConnection
                     c.connectTimeout = 8000
                     c.readTimeout = 15000
                     c.setRequestProperty("Accept", "application/vnd.github+json")
@@ -71,7 +70,7 @@ class AppUpdateFeature(g: AppGraph) : Feature(g, "appUpdate") {
                 withContext(Dispatchers.IO) {
                     runCatching {
                         if (!apk.exists()) {
-                            g.platform.download(u.apk!!, apk, u.size) { p -> if ((p * 100).toInt() != ((progress ?: 0f) * 100).toInt()) progress = p }
+                            g.platform.download(g.http, u.apk!!, apk, u.size) { p -> if ((p * 100).toInt() != ((progress ?: 0f) * 100).toInt()) progress = p }
                         }
                         g.platform.refusal(apk)
                     }.getOrElse { if (it is IOException) "" else "the download failed (${it.message})" }

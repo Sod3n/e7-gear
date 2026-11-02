@@ -44,6 +44,7 @@ const val STATE_VERSION = 2
 
 class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: ForegroundHost = NoForeground, val platform: Platform = NoPlatform) {
     val store = Store(disk, version = STATE_VERSION, migrations = Migrations.all, scope = scope, fileName = "state.json")
+    val http = Http("E7Gear/${platform.appVersion}")
     val rev = Revision { store.saveSoon() }
     val work = WorkHost(scope, foreground)
     val messages = Messages()
@@ -101,7 +102,6 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
     /** Loads the saved state and the box, shows the first screen, and starts the daily checks; the job ends the scan watcher. */
     fun start(): Job {
         ready = false
-        Http.agent = "E7Gear/${appUpdate.version}"
         scan.detectGame()
         return scope.launch {
             launch { scan.watch() }

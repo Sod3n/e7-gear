@@ -6,7 +6,6 @@ import androidx.compose.runtime.setValue
 import e7.gearscan.AppGraph
 import e7.gearscan.data.Content
 import e7.gearscan.data.ContentUpdate
-import e7.gearscan.data.Http
 import e7.gearscan.data.Mirror
 import e7.gearscan.state.Codecs
 import e7.gearscan.state.Feature
@@ -40,7 +39,7 @@ class ContentFeature(g: AppGraph) : Feature(g, "content") {
     }
 
     private fun download(url: String): ByteArray {
-        val c = Http.open(url) as HttpURLConnection
+        val c = g.http.open(url) as HttpURLConnection
         c.connectTimeout = 8000
         c.readTimeout = 20000
         c.useCaches = false

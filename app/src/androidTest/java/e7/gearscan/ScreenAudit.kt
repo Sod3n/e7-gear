@@ -85,7 +85,6 @@ class ScreenAudit {
         // the audit clears app data first, which takes back the notification permission a player grants on first launch
         if (Build.VERSION.SDK_INT >= 33) InstrumentationRegistry.getInstrumentation().uiAutomation
             .grantRuntimePermission(ctx.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
-        installImageLoader(ctx)
 
         // offline when the fixture folder carries them: game content and hero builds fetched by an earlier run
         val fixtureAssets = InstrumentationRegistry.getInstrumentation().context.assets
@@ -95,6 +94,7 @@ class ScreenAudit {
         var setup by mutableStateOf(setups[0])
         var overlay by mutableStateOf(false)
         rule.runOnUiThread { graph = startedGraph(ctx) }
+        installImageLoader(ctx, graph.http)
         // never call Fribbels from a test: builds only from the fixture cache, fixed targets otherwise
         rule.runOnUiThread { graph.heroes.presetNetwork = false }
         rule.waitUntil(20_000) { graph.ready }
@@ -555,7 +555,7 @@ class ScreenAudit {
             // the installed APK is this app with this key, so only its version may stop it
             val own = e7.gearscan.AppInstall.refusal(ctx, java.io.File(ctx.applicationInfo.sourceDir))
             if (own != "it isn't newer than this version") add("the update check misreads an APK", "app update: $own")
-            val agent = e7.gearscan.data.Http.open("https://example.invalid").getRequestProperty("User-Agent")
+            val agent = graph.http.open("https://example.invalid").getRequestProperty("User-Agent")
             if (agent != "E7Gear/${graph.appUpdate.version}") add("requests don't name the app and version", "user agent: $agent")
         })
         steps.add("app-update-failed" to {

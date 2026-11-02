@@ -122,11 +122,12 @@ class AndroidPlatform(private val app: Application) : Platform {
     override fun updateFile(version: String) = AppInstall.file(app, version)
 
     override fun download(
+        http: e7.gearscan.data.Http,
         url: String,
         to: java.io.File,
         size: Long,
         progress: (Float) -> Unit,
-    ) = AppInstall.download(url, to, size, progress)
+    ) = AppInstall.download(http, url, to, size, progress)
 
     override fun refusal(apk: java.io.File) = AppInstall.refusal(app, apk)
 

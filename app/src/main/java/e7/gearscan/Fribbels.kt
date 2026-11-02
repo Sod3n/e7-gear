@@ -18,8 +18,8 @@ object Fribbels {
 
     class Result(val items: JSONArray, val heroes: JSONArray)
 
-    fun getItems(segments: List<String>): JSONObject {
-        val c = e7.gearscan.data.Http.open(API) as HttpURLConnection
+    fun getItems(http: e7.gearscan.data.Http, segments: List<String>): JSONObject {
+        val c = http.open(API) as HttpURLConnection
         c.connectTimeout = 30000
         c.readTimeout = 180000
         c.doOutput = true

@@ -190,7 +190,7 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
                     if (segments.isEmpty()) return@runCatching ScanError.NOTHING to null
                     val resp =
                         try {
-                            Fribbels.getItems(segments)
+                            Fribbels.getItems(g.http, segments)
                         } catch (e: IOException) {
                             cause = describe(e)
                             return@runCatching ScanError.SERVER to null

@@ -2,6 +2,7 @@ package e7.gearscan.features.update
 
 import e7.gearscan.AppGraph
 import e7.gearscan.data.AppUpdate
+import e7.gearscan.data.Http
 import e7.gearscan.data.Mirror
 import e7.gearscan.state.Disk
 import e7.gearscan.state.NoPlatform
@@ -44,7 +45,7 @@ class AppUpdateFeatureTest {
 
         override fun updateFile(version: String) = File(dir, "E7-Gear-$version.apk")
 
-        override fun download(url: String, to: File, size: Long, progress: (Float) -> Unit) {
+        override fun download(http: Http, url: String, to: File, size: Long, progress: (Float) -> Unit) {
             downloadFails?.let { throw it }
             progress(0.5f)
             to.writeText("apk")

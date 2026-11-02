@@ -54,7 +54,7 @@ class FeedbackFeature(g: AppGraph) : Feature(g, "feedback") {
     fun refreshKnownIssues() {
         val url = KnownIssues.url(g.content.content.feedbackUrl) ?: return
         g.scope.launch {
-            withContext(Dispatchers.IO) { KnownIssues.fetch(url, g.disk.dir) }?.let { knownIssues = it }
+            withContext(Dispatchers.IO) { KnownIssues.fetch(g.http, url, g.disk.dir) }?.let { knownIssues = it }
         }
     }
 
@@ -66,13 +66,13 @@ class FeedbackFeature(g: AppGraph) : Feature(g, "feedback") {
             val r =
                 withContext(Dispatchers.IO) {
                     Reports.enqueue(reportsDir, report)
-                    Reports.flush(reportsDir, g.content.content.feedbackUrl, report.getString("id"))
+                    Reports.flush(g.http, reportsDir, g.content.content.feedbackUrl, report.getString("id"))
                 }
             done(r)
         }
     }
 
     suspend fun flushQueued() {
-        withContext(Dispatchers.IO) { Reports.flush(reportsDir, g.content.content.feedbackUrl) }
+        withContext(Dispatchers.IO) { Reports.flush(g.http, reportsDir, g.content.content.feedbackUrl) }
     }
 }

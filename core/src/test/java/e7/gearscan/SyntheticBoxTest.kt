@@ -5,6 +5,7 @@ import e7.gearscan.calc.Reforge
 import e7.gearscan.data.Box
 import e7.gearscan.data.GearStat
 import e7.gearscan.data.HeroConfig
+import e7.gearscan.data.Http
 import e7.gearscan.data.Presets
 import e7.gearscan.data.Request
 import e7.gearscan.data.SellQuery
@@ -113,7 +114,7 @@ class SyntheticBoxTest {
         val tier = box.allHeroes.withIndex().associate { (i, h) -> h.id to 5 - i % 5 }
         val full = box.heroes.filter { box.gearOf(it.id).size == 6 }.take(12)
         for (h in full) {
-            val tabs = Presets.load(dir, content, h.code, h.name, false)!!
+            val tabs = Presets.load(Http(), dir, content, h.code, h.name, false)!!
             assertTrue(tabs.mostUsed.size >= 3 && tabs.topRanked.size >= 3 && tabs.fastest.size >= 3)
             val gh = content.heroes.getValue(h.code)
             for (p in tabs.mostUsed.take(1)) {

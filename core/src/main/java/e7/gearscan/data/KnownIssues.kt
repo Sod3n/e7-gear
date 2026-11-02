@@ -42,11 +42,12 @@ object KnownIssues {
 
     /** Fresh list, also saved for the next time the phone is offline; null when it couldn't be fetched. */
     fun fetch(
+        http: Http,
         url: String,
         dir: File,
     ): List<KnownIssue>? =
         runCatching {
-            val c = Http.open(url) as HttpURLConnection
+            val c = http.open(url) as HttpURLConnection
             c.connectTimeout = 8000
             c.readTimeout = 8000
             try {
