@@ -239,7 +239,7 @@ class ScreenAudit {
         runCatching { rule.waitUntil(120_000) { model.graph.findGear.result != null } }
 
         val steps = mutableListOf<Pair<String, () -> Unit>>()
-        fun screen(name: String, vararg stack: Screen) = steps.add(name to { ui { model.sheet = null; model.stack = stack.toList() } })
+        fun screen(name: String, vararg stack: Screen) = steps.add(name to { ui { overlay = false; model.sheet = null; model.stack = stack.toList() } })
         screen("optimize", Screen.Optimize)
         // Improve heroes' sheets take a piece id and need a finished check: their own steps below open them
         SheetKind.entries.filter { !it.name.startsWith("HERO_UPGRADE_") }.forEach { k -> steps.add("sheet-${k.name.lowercase()}" to { ui { model.stack = listOf(Screen.Optimize); model.sheet = Sheet(k, hero) } }) }
@@ -635,10 +635,17 @@ class ScreenAudit {
         val findGear = model.graph.findGear
         val findGearQuery = findGear.query
         fun findGearSearch(q: PotentialQuery): Boolean {
-            ui { model.sheet = null; findGear.edit(q); model.graph.messages.show(findGear.find()) }
+            ui { overlay = false; model.sheet = null; findGear.edit(q); model.graph.messages.show(findGear.find()) }
             return runCatching { rule.waitUntil(120_000) { !findGear.busy && findGear.result != null && !findGear.stale } }.isSuccess
         }
-        steps.add("find-gear-setup" to { ui { model.sheet = null; model.stack = listOf(Screen.Gear, Screen.GearPotential) }; clickText("Set up") })
+        steps.add("find-gear-setup" to {
+            ui { overlay = false; model.sheet = null; model.stack = listOf(Screen.Gear, Screen.GearPotential) }
+            runCatching { clickText("Set up") }.onFailure {
+                val roots = rule.onAllNodes(androidx.compose.ui.test.isRoot()).fetchSemanticsNodes().size
+                val at = rule.onAllNodesWithText("Set up", useUnmergedTree = true).fetchSemanticsNodes().map { n -> n.boundsInRoot }
+                add("can't open Find gear's Set up tab", "$roots roots, Set up at $at, overlay ${e7.gearscan.overlay.OverlayState.running}: ${it.message?.take(60)}")
+            }
+        })
         steps.add("find-gear-piece" to {
             if (!findGearSearch(findGearQuery)) add("the Find gear search never finishes on the fixture", "find-gear")
             val first = findGear.result?.matches?.firstOrNull()
@@ -651,8 +658,8 @@ class ScreenAudit {
             else if (!findGear.stale) add("changing a Find gear filter does not mark the list stale", "find-gear")
         })
         steps.add("find-gear-none" to {
-            if (!findGearSearch(findGearQuery.copy(sets = setOf("NoSuchSet")))) add("the empty Find gear search never finishes", "find-gear")
-            else if (findGear.result?.matches?.isNotEmpty() != false) add("a search for a set nobody has still finds pieces", "find-gear")
+            if (!findGearSearch(findGearQuery.copy(targets = listOf(e7.gearscan.data.GearStat.SPD, e7.gearscan.data.GearStat.CR).associateWith { e7.gearscan.opt.GearBounds.target(it, findGearQuery.reforge, findGearQuery.show == 2).maximum.toString() }, rareOnly = false))) add("the empty Find gear search never finishes", "find-gear")
+            else if (findGear.result?.matches?.isNotEmpty() != false) add("a search no piece can meet (Speed and Crit chance both at their maximum) still finds pieces", "find-gear")
             ui { model.stack = listOf(Screen.Gear, Screen.GearPotential) }
         })
         steps.add("find-gear-restored" to {

@@ -292,7 +292,7 @@ class GearPotentialScreens {
         assertEquals(15, restored.record!!.item.enhance)
         shot("10-missed-target-353-big")
         val backup = JSONObject(model.backupText())
-        assertEquals(model.graph.findGear.query, PotentialQuery.of(backup.getJSONObject("state").getJSONObject("potentialQuery")))
+        assertEquals(model.graph.findGear.query, PotentialQuery.of(backup.getJSONObject("fields").getJSONObject("findGear.query")))
         ui { OverlayState.upgrade = null }
     }
 }
