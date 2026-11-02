@@ -2,7 +2,6 @@ package e7.gearscan.features.marks
 
 import e7.gearscan.AppGraph
 import e7.gearscan.data.Box
-import e7.gearscan.data.Mirror
 import e7.gearscan.state.Disk
 import e7.gearscan.testing.SyntheticBox
 import e7.gearscan.ui.Outcome
@@ -12,14 +11,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MarksFeatureTest {
-    @After fun resetMirror() { Mirror.active = false }
 
     private fun graph(scope: CoroutineScope, dir: File = createTempDirectory("marks").toFile()) = AppGraph(Disk(dir), scope)
 

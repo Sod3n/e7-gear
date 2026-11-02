@@ -32,10 +32,10 @@ object AppInstall {
     }
 
     /** Downloads [url] to [to], continuing a part left by an earlier try; [size] (when known) must match. */
-    fun download(url: String, to: File, size: Long, progress: (Float) -> Unit) {
+    fun download(http: Http, url: String, to: File, size: Long, progress: (Float) -> Unit) {
         to.parentFile!!.mkdirs()
         val part = File(to.path + ".part")
-        val c = Http.open(url)
+        val c = http.open(url)
         c.connectTimeout = 10_000; c.readTimeout = 30_000
         if (part.length() > 0) c.setRequestProperty("Range", "bytes=${part.length()}-")
         val append = c is HttpURLConnection && c.responseCode == 206

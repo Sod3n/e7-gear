@@ -2,7 +2,6 @@ package e7.gearscan.features.sellreview
 
 import e7.gearscan.AppGraph
 import e7.gearscan.data.Box
-import e7.gearscan.data.Mirror
 import e7.gearscan.data.UpgradeRecord
 import e7.gearscan.state.Disk
 import e7.gearscan.testing.SyntheticBox
@@ -26,7 +25,6 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SellReviewFeatureTest {
     @After fun reset() {
-        Mirror.active = false
         Dispatchers.resetMain()
     }
 

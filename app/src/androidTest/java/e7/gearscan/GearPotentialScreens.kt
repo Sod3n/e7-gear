@@ -1,5 +1,7 @@
 package e7.gearscan
 
+import e7.gearscan.ui.trackMatch
+import e7.gearscan.ui.trackAllMatches
 import android.graphics.Bitmap
 import android.os.Build
 import androidx.compose.foundation.layout.*
@@ -117,7 +119,7 @@ class GearPotentialScreens {
         // a filter changed after the search: the list is out of date
         ui { graph.findGear.edit(graph.findGear.query.copy(slots = setOf(Slot.HELMET, Slot.NECKLACE))) }
         each("06a-stale") { go(Screen.Gear, Screen.GearPotential) }
-        ui { graph.messages.show(graph.findGear.trackAll(openOverlay = false)) }
+        ui { graph.messages.show(graph.trackAllMatches(openOverlay = false)) }
         File(out, "result.txt").appendText("track all on a stale list: screen=${graph.nav.screen} toast=${graph.messages.toast?.text}\n")
         each("06b-stale-after-track-all") { go(Screen.Gear, Screen.GearPotential) }
         // joint targets on one set and slot
@@ -145,7 +147,7 @@ class GearPotentialScreens {
         search()
         val first = graph.findGear.result!!.matches.first { it.item.enhance < 15 && it.outcome.chance > 0 }
         go(Screen.Gear, Screen.GearPotential)
-        ui { graph.messages.show(graph.findGear.trackAll(openOverlay = false)) }
+        ui { graph.messages.show(graph.trackAllMatches(openOverlay = false)) }
         File(out, "result.txt").appendText("track all on a fresh list: screen=${graph.nav.screen} queue=${graph.tracker.queue.size} toast=${graph.messages.toast?.text}\n")
         each("10a-track-all") { ui { graph.nav.sheet = null } }
         ui { graph.tracker.show(); graph.overlay.expanded = true; overlay = true }
@@ -153,7 +155,7 @@ class GearPotentialScreens {
         ui { overlay = false; graph.tracker.hide() }
         ui { graph.findGear.edit(PotentialQuery()) }
         search()
-        ui { graph.messages.show(graph.findGear.track(graph.findGear.result!!.matches.first { it.item.id == first.item.id })) }
+        ui { graph.messages.show(graph.trackMatch(graph.findGear.result!!.matches.first { it.item.id == first.item.id })) }
         File(out, "result.txt").appendText("track one: stale=${graph.findGear.stale} (a start-only record must not mark the list stale)\n")
         each("10c-track-one") { ui { graph.nav.sheet = null } }
         ui { graph.tracker.show(); graph.overlay.expanded = true; overlay = true }
@@ -257,7 +259,7 @@ class GearPotentialScreens {
         assertEquals(SheetKind.POTENTIAL_PIECE, graph.nav.sheet!!.kind)
         shot("07-piece-353-big")
 
-        ui { graph.messages.show(graph.findGear.track(best)) }
+        ui { graph.messages.show(graph.trackMatch(best)) }
         assertEquals(Screen.Upgrade, graph.nav.screen)
         assertEquals(mapOf(GearStat.SPD to 20.0, GearStat.HP_P to 5.0), graph.tracker.goal!!.minimums)
         shot("08-track-selected-353-big")
@@ -265,7 +267,7 @@ class GearPotentialScreens {
         shot("08-picker-353-big")
         tap("Use selected piece")
         ui { graph.tracker.show(); graph.overlay.expanded = true; overlay = true }
-        assertEquals(.25, graph.tracker.goalOutcome!!.chance, 1e-10)
+        assertEquals(.25, graph.tracker.readout.goalOutcome!!.chance, 1e-10)
         shot("09-target-overlay-353-big")
         tap("Record +12")
         shot("09-editor-353-big")
@@ -279,13 +281,13 @@ class GearPotentialScreens {
             assertEquals("Heroic", r.rank); assertEquals(9, r.enhance)
             assertTrue(graph.tracker.commit(UpgradeRecord.mainAt(r, 12), r.subs.map { it.value }, GearStat.EFF to 6.0, false))
         }
-        assertEquals(.25, graph.tracker.goalOutcome!!.chance, 1e-10)
+        assertEquals(.25, graph.tracker.readout.goalOutcome!!.chance, 1e-10)
         ui {
             val r = graph.tracker.record!!.item
             assertTrue(graph.tracker.commit(UpgradeRecord.mainAt(r, 15), r.subs.map { it.value + if (it.type == GearStat.HP_P) 4 else 0 }, null, false))
         }
-        assertFalse(graph.tracker.goalOutcome!!.possible)
-        assertEquals("Targets no longer reachable", graph.tracker.title)
+        assertFalse(graph.tracker.readout.goalOutcome!!.possible)
+        assertEquals("Targets no longer reachable", graph.tracker.readout.title)
         val restored = reopenTracker(graph, ctx.filesDir)
         assertEquals(graph.tracker.goal, restored.goal)
         assertEquals(15, restored.record!!.item.enhance)

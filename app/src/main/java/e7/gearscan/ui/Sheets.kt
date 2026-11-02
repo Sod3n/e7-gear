@@ -267,7 +267,7 @@ private fun NumBox(value: Double, pink: Boolean, modifier: Modifier = Modifier, 
 @Composable
 @OptIn(LinkStyle::class)
 private fun TargetsSheet(graph: AppGraph, heroId: Long) {
-    graph.scan.rev
+    graph.rev.value
     val req = graph.heroes.request(heroId)
     val cur = remember(heroId) { graph.heroes.currentBuild(heroId) }
     var open by remember { mutableStateOf<Stat?>(null) }
@@ -356,20 +356,20 @@ private fun TargetEditor(graph: AppGraph, req: Request, st: Stat, now: Double?, 
             if (now != null) Text("now ${fmtNum(Math.floor(now))}", style = zen(12.sp, color = C.muted))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Stepper("MIN", req.mins[i], step, start, Modifier.weight(1f)) { req.mins[i] = it; graph.scan.touch() }
+            Stepper("MIN", req.mins[i], step, start, Modifier.weight(1f)) { req.mins[i] = it; graph.rev.bump() }
             Stepper("TARGET", req.targets[i], step, start, Modifier.weight(1f)) {
                 req.targets[i] = it; req.fromPreset[i] = false
                 if (!it.isNaN() && req.weights[i] == 0) req.weights[i] = 1
-                graph.scan.touch()
+                graph.rev.bump()
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
-            Stepper("MAX", req.maxs[i], step, start, Modifier.weight(1f)) { req.maxs[i] = it; graph.scan.touch() }
+            Stepper("MAX", req.maxs[i], step, start, Modifier.weight(1f)) { req.maxs[i] = it; graph.rev.bump() }
             Text(if (st == Stat.CR && req.capCrit && req.maxs[i].isNaN()) "105 by default: over 100 is wasted"
                 else "Builds above it are left out", style = zen(11.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f).padding(bottom = 6.dp))
         }
         Text("WEIGHT · how much a miss hurts", style = zen(11.sp, color = C.muted))
-        WeightBar(req.weights[i]) { req.weights[i] = it; graph.scan.touch() }
+        WeightBar(req.weights[i]) { req.weights[i] = it; graph.rev.bump() }
     }
 }
 
@@ -403,7 +403,7 @@ private fun Stepper(label: String, value: Double, step: Double, start: Double, m
 
 @Composable
 private fun AdvancedSheet(graph: AppGraph, heroId: Long) {
-    graph.scan.rev
+    graph.rev.value
     val pool = heroId == POOL_RULES
     val reqs = when {
         pool -> graph.pool.heroes().map { graph.heroes.request(it.id) }
@@ -411,7 +411,7 @@ private fun AdvancedSheet(graph: AppGraph, heroId: Long) {
         else -> listOf(graph.heroes.request(heroId))
     }
     val req = reqs.firstOrNull() ?: return
-    fun edit(f: (Request) -> Unit) { reqs.forEach(f); graph.scan.touch(); graph.store.saveNow() }
+    fun edit(f: (Request) -> Unit) { reqs.forEach(f); graph.rev.bump(); graph.store.saveNow() }
     // with several heroes a switch reads on only when it is on for all, and a choice shows only when all agree
     fun on(f: (Request) -> Boolean) = reqs.all(f)
     fun <T> pick(options: List<T>, f: (Request) -> T) = reqs.map(f).distinct().singleOrNull()?.let { options.indexOf(it) } ?: -1
@@ -422,14 +422,14 @@ private fun AdvancedSheet(graph: AppGraph, heroId: Long) {
                 style = zen(12.sp, FontWeight.Medium, C.muted))
             Text("Losses", style = zen(13.sp))
             Segmented(e7.gearscan.opt.PoolLosses.entries.map { it.label }, graph.pool.losses.ordinal) { i ->
-                graph.pool.losses = e7.gearscan.opt.PoolLosses.entries[i]; graph.scan.touch(); graph.store.saveNow()
+                graph.pool.losses = e7.gearscan.opt.PoolLosses.entries[i]; graph.rev.bump(); graph.store.saveNow()
             }
             Text(if (graph.pool.losses == e7.gearscan.opt.PoolLosses.SAFE) "No hero ends worse than now."
                 else "A hero may give up a little when another gains at least twice as much, weighted by tier.",
                 style = zen(11.sp, FontWeight.Medium, C.muted), minLines = 2)
             Text("Effort", style = zen(13.sp))
             Segmented(e7.gearscan.opt.PoolEffort.entries.map { it.label }, graph.pool.effort.ordinal) { i ->
-                graph.pool.effort = e7.gearscan.opt.PoolEffort.entries[i]; graph.scan.touch(); graph.store.saveNow()
+                graph.pool.effort = e7.gearscan.opt.PoolEffort.entries[i]; graph.rev.bump(); graph.store.saveNow()
             }
             Text(when (graph.pool.effort) {
                 e7.gearscan.opt.PoolEffort.TIDY -> "Only moves that clearly pay off. Fewest swaps."
@@ -522,7 +522,7 @@ private fun ToggleRow(title: String, sub: String?, on: Boolean, onChange: (Boole
 @Composable
 @OptIn(LinkStyle::class, KeyboardInput::class)
 private fun BonusSheet(graph: AppGraph, heroId: Long) {
-    graph.scan.rev
+    graph.rev.value
     val h = graph.heroes.hero(heroId) ?: return
     val g = graph.heroes.gameHero(h)
     val cfg = graph.heroes.config(heroId)
@@ -545,7 +545,7 @@ private fun BonusSheet(graph: AppGraph, heroId: Long) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Stars", style = zen(12.sp))
-                Segmented(listOf("6★", "5★"), if (cfg.stars == 5) 1 else 0) { cfg.stars = if (it == 1) 5 else 6; graph.scan.touch() }
+                Segmented(listOf("6★", "5★"), if (cfg.stars == 5) 1 else 0) { cfg.stars = if (it == 1) 5 else 6; graph.rev.bump() }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Exclusive equip.", style = zen(12.sp))
@@ -555,7 +555,7 @@ private fun BonusSheet(graph: AppGraph, heroId: Long) {
                     val pct = ee.first != "speed"
                     val v = cfg.eeValue ?: ee.second
                     NumBox(if (pct) v * 100 else v, false, Modifier.fillMaxWidth()) { x ->
-                        cfg.eeValue = if (x.isNaN()) null else if (pct) x / 100 else x; graph.scan.touch()
+                        cfg.eeValue = if (x.isNaN()) null else if (pct) x / 100 else x; graph.rev.bump()
                     }
                     Text(eeLabel(ee.first), style = zen(10.sp, FontWeight.Medium, C.muted))
                 }
@@ -568,7 +568,7 @@ private fun BonusSheet(graph: AppGraph, heroId: Long) {
             Column(cell.clip(RoundedCornerShape(10.dp)).border(2.dp, C.edge, RoundedCornerShape(10.dp)).padding(8.dp)) {
                 FitText(b.label, zen(9.sp, color = C.muted))
                 var t by remember(b, cfg.bonus[b.ordinal]) { mutableStateOf(fmtNum(cfg.bonus[b.ordinal])) }
-                LegacyStatField(t, { s -> t = s.filter { it.isDigit() || it == '.' || it == '-' }.take(6); cfg.bonus[b.ordinal] = t.toDoubleOrNull() ?: 0.0; graph.scan.touch() },
+                LegacyStatField(t, { s -> t = s.filter { it.isDigit() || it == '.' || it == '-' }.take(6); cfg.bonus[b.ordinal] = t.toDoubleOrNull() ?: 0.0; graph.rev.bump() },
                     textStyle = dela(14.sp), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
             }
         }
@@ -583,7 +583,7 @@ private fun eeLabel(t: String) = when (t) {
 
 @Composable
 private fun ArtifactSheet(graph: AppGraph, sheet: Sheet) {
-    graph.scan.rev
+    graph.rev.value
     val heroId = sheet.heroId
     val h = graph.heroes.hero(heroId) ?: return
     val role = graph.heroes.gameHero(h)?.role
@@ -591,7 +591,7 @@ private fun ArtifactSheet(graph: AppGraph, sheet: Sheet) {
     var stars by remember { mutableIntStateOf(0) }
     val cfg = graph.heroes.config(heroId)
     val fromPreset = graph.content.content.artifact(graph.heroes.request(heroId).artifact)
-    fun pick(code: String?) { cfg.artifact = code; graph.scan.touch(); graph.store.saveNow(); graph.nav.sheet = sheet.back?.let { Sheet(it, heroId) } }
+    fun pick(code: String?) { cfg.artifact = code; graph.rev.bump(); graph.store.saveNow(); graph.nav.sheet = sheet.back?.let { Sheet(it, heroId) } }
     SheetBody("Artifact", trailing = { Text(graph.heroes.heroName(h), style = zen(12.sp, color = C.muted)) }) {
         NameFilter(q, "Name") { q = it }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -631,10 +631,10 @@ private fun ArtifactSheet(graph: AppGraph, sheet: Sheet) {
 @OptIn(ExperimentalLayoutApi::class, LinkStyle::class)
 @Composable
 private fun SetsSheet(graph: AppGraph, heroId: Long) {
-    graph.scan.rev
+    graph.rev.value
     val req = graph.heroes.request(heroId)
     val choice = SetChoice.from(req.setAlts, graph.content.content)
-    fun commit(c: SetChoice) { req.setAlts = c.toAlts(); graph.scan.touch() }
+    fun commit(c: SetChoice) { req.setAlts = c.toAlts(); graph.rev.bump() }
     SheetBody("Sets", trailing = { LinkText("Any sets") { commit(SetChoice(emptyList(), emptyMap())) } }, button = "Done",
         onButton = { graph.store.saveNow(); graph.nav.sheet = null }) {
         Text("4-piece: pick every set you'd accept. With one, the 2-piece picks are its partner (any one of them). " +
@@ -705,9 +705,9 @@ fun SetChoiceSummary(graph: AppGraph, c: SetChoice, size: androidx.compose.ui.un
 @OptIn(ExperimentalLayoutApi::class, LinkStyle::class)
 @Composable
 private fun MainsSheet(graph: AppGraph, heroId: Long) {
-    graph.scan.rev
+    graph.rev.value
     val req = graph.heroes.request(heroId)
-    SheetBody("Mains", trailing = { LinkText("Any") { req.mains = emptyMap(); graph.scan.touch() } }, button = "Done",
+    SheetBody("Mains", trailing = { LinkText("Any") { req.mains = emptyMap(); graph.rev.bump() } }, button = "Done",
         onButton = { graph.store.saveNow(); graph.nav.sheet = null }) {
         Text("Main stats allowed on each accessory. None selected means any.", style = zen(12.sp, FontWeight.Medium, C.muted))
         for (slot in Slot.ACCESSORIES) {
@@ -718,7 +718,7 @@ private fun MainsSheet(graph: AppGraph, heroId: Long) {
                     Pill(g.short, selected = on, leading = { StatIcon(g.stat) }, onClick = {
                         val s = (req.mains[slot] ?: emptySet()).let { if (on) it - g else it + g }
                         req.mains = (req.mains + (slot to s)).filterValues { it.isNotEmpty() }
-                        graph.scan.touch()
+                        graph.rev.bump()
                     })
                 }
             }
@@ -728,7 +728,7 @@ private fun MainsSheet(graph: AppGraph, heroId: Long) {
 
 @Composable
 private fun GoalsSheet(graph: AppGraph, heroId: Long) {
-    graph.scan.rev
+    graph.rev.value
     val req = graph.heroes.request(heroId)
     val desc = mapOf(
         Goal.TARGETS to "Lands each stat on its target; misses cost by weight. Best with a preset.",
@@ -742,7 +742,7 @@ private fun GoalsSheet(graph: AppGraph, heroId: Long) {
         Goal.entries.forEach { g ->
             val on = req.goal == g
             Card(shadow = if (on) C.pink else null, radius = 14.dp, border = 2.dp, bg = if (on) C.lightPink else C.card,
-                onClick = { req.goal = g; graph.scan.touch() }) {
+                onClick = { req.goal = g; graph.rev.bump() }) {
                 Text(g.label.replaceFirstChar { it.uppercase() }, style = dela(14.sp))
                 Text(desc.getValue(g), style = zen(11.sp, FontWeight.Medium, C.muted))
                 val skills = graph.heroes.hero(heroId)?.let { graph.heroes.gameHero(it) }?.skills.orEmpty()
@@ -751,7 +751,7 @@ private fun GoalsSheet(graph: AppGraph, heroId: Long) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         (listOf(0) + skills.map { it.n }).forEach { n ->
                             Pill(if (n == 0) "Hardest-hitting" else "S$n", selected = req.skill == n,
-                                onClick = { req.goal = Goal.DAMAGE; req.skill = n; graph.scan.touch() })
+                                onClick = { req.goal = Goal.DAMAGE; req.skill = n; graph.rev.bump() })
                         }
                     }
                 }

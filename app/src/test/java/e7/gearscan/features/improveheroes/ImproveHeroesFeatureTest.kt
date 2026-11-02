@@ -4,7 +4,6 @@ import e7.gearscan.AppGraph
 import e7.gearscan.TestContent
 import e7.gearscan.data.Box
 import e7.gearscan.data.Goal
-import e7.gearscan.data.Mirror
 import e7.gearscan.data.UpgradeRecord
 import e7.gearscan.state.Disk
 import e7.gearscan.testing.SyntheticBox
@@ -34,7 +33,6 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class ImproveHeroesFeatureTest {
     @After fun reset() {
-        Mirror.active = false
         Dispatchers.resetMain()
     }
 
@@ -114,10 +112,10 @@ class ImproveHeroesFeatureTest {
 
         val hero = h.heroes().first().id
         g.heroes.request(hero).goal = Goal.GEAR_SCORE
-        g.scan.touch()
+        g.rev.bump()
         assertNotEquals(k0, h.key())
         g.heroes.request(hero).goal = Goal.SPEED
-        g.scan.touch()
+        g.rev.bump()
         assertEquals(k0, h.key())
 
         assertNotEquals(k0, graph(this, version = "other").improveHeroes.key())

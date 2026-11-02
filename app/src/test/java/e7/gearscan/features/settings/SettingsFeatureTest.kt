@@ -1,7 +1,6 @@
 package e7.gearscan.features.settings
 
 import e7.gearscan.AppGraph
-import e7.gearscan.data.Mirror
 import e7.gearscan.state.Disk
 import e7.gearscan.state.NoPlatform
 import e7.gearscan.state.Platform
@@ -10,7 +9,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -18,7 +16,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsFeatureTest {
-    @After fun resetMirror() { Mirror.active = false }
 
     private class Phone : Platform by NoPlatform {
         var overlayStops = 0
@@ -31,11 +28,11 @@ class SettingsFeatureTest {
     @Test fun switchingToThePhonesFloatingWindowClosesOurOverlayAndSwitchingBackDoesNot() = runTest(UnconfinedTestDispatcher()) {
         val phone = Phone()
         val g = graph(this, phone)
-        val rev = g.scan.rev
+        val rev = g.rev.value
         g.settings.useOverGameNative(true)
         assertTrue(g.settings.overGameNative)
         assertEquals(1, phone.overlayStops)
-        assertTrue(g.scan.rev > rev)
+        assertTrue(g.rev.value > rev)
         g.settings.useOverGameNative(false)
         assertFalse(g.settings.overGameNative)
         assertEquals(1, phone.overlayStops)

@@ -20,6 +20,7 @@ object Reports {
 
     /** Sends every queued report; true when [id] (if given) went out. */
     fun flush(
+        http: Http,
         dir: File,
         url: String?,
         id: String? = null,
@@ -29,7 +30,7 @@ object Reports {
         for (f in dir.listFiles { x -> x.name.endsWith(".json") }.orEmpty()) {
             val code =
                 runCatching {
-                    val c = Http.open(url) as HttpURLConnection
+                    val c = http.open(url) as HttpURLConnection
                     c.requestMethod = "POST"
                     c.doOutput = true
                     c.connectTimeout = 10000

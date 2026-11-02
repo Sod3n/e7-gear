@@ -2,7 +2,6 @@ package e7.gearscan.features.heroes
 
 import e7.gearscan.AppGraph
 import e7.gearscan.TestContent
-import e7.gearscan.data.Mirror
 import e7.gearscan.state.Disk
 import e7.gearscan.testing.SyntheticBox
 import java.io.File
@@ -16,7 +15,6 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -25,7 +23,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HeroesFeatureTest {
-    @After fun resetMirror() { Mirror.active = false }
 
     private val made = SyntheticBox.generate(1)
 
@@ -47,13 +44,13 @@ class HeroesFeatureTest {
         val setup = g.heroes.setup(hero)!!
         val build = setup.build(worn.filterKeys { it != slot }.values.toList() + incoming)
         val before = owners(g)
-        val rev = g.scan.rev
+        val rev = g.rev.value
 
         val prev = g.heroes.equip(hero, build)
 
         assertEquals(hero, g.scan.box!!.itemsById.getValue(incoming.id).equippedOn)
         assertEquals(null, g.scan.box!!.itemsById.getValue(worn.getValue(slot).id).equippedOn)
-        assertTrue(g.scan.rev > rev)
+        assertTrue(g.rev.value > rev)
         g.heroes.undoEquip(prev)
         assertEquals(before, owners(g))
         g.disk.flush()

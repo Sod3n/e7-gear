@@ -2,7 +2,6 @@ package e7.gearscan.features.scan
 
 import e7.gearscan.AppGraph
 import e7.gearscan.data.Box
-import e7.gearscan.data.Mirror
 import e7.gearscan.state.Disk
 import e7.gearscan.Screen
 import e7.gearscan.state.Feature
@@ -16,7 +15,6 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.json.JSONArray
 import org.json.JSONObject
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -26,7 +24,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ScanFeatureTest {
-    @After fun resetMirror() { Mirror.active = false }
 
     private fun graph(scope: CoroutineScope, dir: File = createTempDirectory("scan").toFile()) = AppGraph(Disk(dir), scope)
 
@@ -40,13 +37,13 @@ class ScanFeatureTest {
         g.pool.run.start { CompletableDeferred<Unit>().await(); published += "pool" }
         g.sellReview.curve.start { CompletableDeferred<Unit>().await(); published += "curve" }
         assertTrue(g.work.active.isNotEmpty())
-        val rev = g.scan.rev
+        val rev = g.rev.value
         g.scan.import(text)
         assertTrue(g.work.active.isEmpty())
         assertTrue(published.isEmpty())
         assertEquals(box.items.size, g.scan.box!!.items.size)
         assertTrue(g.scan.lastScan > 0)
-        assertTrue(g.scan.rev > rev)
+        assertTrue(g.rev.value > rev)
         g.disk.flush()
         assertEquals(text, g.scan.boxFile.read())
     }
@@ -126,7 +123,7 @@ class ScanFeatureTest {
         g.pool.run.start { CompletableDeferred<Unit>().await() }
         assertTrue(g.scan.restore(backupV1()))
         assertTrue(g.work.active.isEmpty())
-        assertEquals("sig", g.tracker.signature)
+        assertEquals("sig", g.tracker.checkRun.signature)
         assertNotNull(g.scan.box)
         assertTrue(JSONObject(backupV1()).getJSONObject("box").similar(JSONObject(g.scan.boxFile.read()!!)))
         assertEquals(1_761_000_000_000L, g.scan.lastScan)
@@ -167,7 +164,7 @@ class ScanFeatureTest {
         g.scan.erase(e7.gearscan.userConfirmed())
         g.disk.flush()
         assertTrue(g.work.active.isEmpty())
-        assertEquals("", g.tracker.signature)
+        assertEquals("", g.tracker.checkRun.signature)
         assertNull(g.scan.box)
         assertEquals(0L, g.scan.lastScan)
         assertTrue(g.marks.cleared.isEmpty())

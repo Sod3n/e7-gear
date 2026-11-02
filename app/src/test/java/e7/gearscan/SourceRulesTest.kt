@@ -40,6 +40,20 @@ class SourceRulesTest {
     }
 
     @Test
+    fun textsHoldNoCodeLeftByRenames() {
+        // a rename that also hit a message ("Your g.scan.lastScan changed"), or a lost brace: "$t.worn.equippedOn" prints t itself
+        val literal = Regex(""""((?:[^"\\\n]|\\.)*)"""")
+        val code = Regex("""\b(?:g|graph|ctx)\.[a-z]|\$[a-z]\w*\.(?!(?:apk|png|json|none|webp|jpg|txt|v)\b)[a-z]""")
+        val hits = sources().filter { it.extension == "kt" }.flatMap { f ->
+            f.readLines().withIndex().flatMap { (i, line) ->
+                literal.findAll(line).map { it.groupValues[1].replace(Regex("""\$\{[^}]*}"""), "").replace(Regex("""\$\{.*"""), "") }
+                    .filter { code.containsMatchIn(it) }.map { "${f.name}:${i + 1}: $it" }
+            }
+        }.toList()
+        assertTrue("code inside texts:\n" + hits.joinToString("\n"), hits.isEmpty())
+    }
+
+    @Test
     fun oneLineTextsSayTheyAreCut() {
         // a maxLines = 1 Text with no overflow cuts long names silently; use overflow = Ellipsis, or FitText for numbers
         val hits = sources().filter { it.extension == "kt" }.flatMap { f ->

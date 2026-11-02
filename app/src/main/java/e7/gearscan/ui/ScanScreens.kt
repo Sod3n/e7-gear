@@ -191,7 +191,7 @@ fun ScanDataScreen(graph: AppGraph) {
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), null))
     }
     val box = graph.scan.box
-    graph.scan.rev
+    graph.rev.value
     Frame(null, null, primary = Action("Scan now") { if (!graph.settings.consent) graph.nav.go(Screen.ScanIntro) else start() }) {
         BackToPrevious()
         ScreenTitle("Scan & data", "読取")

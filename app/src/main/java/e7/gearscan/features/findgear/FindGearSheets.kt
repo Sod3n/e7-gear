@@ -139,7 +139,7 @@ internal fun PotentialPieceSheet(graph: AppGraph, id: Long) {
     val item = match.item
     SheetBody("Equipment", button = "Track over game", onButton = {
         graph.nav.sheet = null
-        graph.messages.show(graph.findGear.track(match, openOverlay = true))
+        graph.messages.show(graph.trackMatch(match, openOverlay = true))
     }) {
         Card(shadow = null, padding = PaddingValues(12.dp)) { GearSearchIdentity(graph, item, result.query.targets.keys) }
         Card(shadow = C.pink, padding = PaddingValues(12.dp)) {

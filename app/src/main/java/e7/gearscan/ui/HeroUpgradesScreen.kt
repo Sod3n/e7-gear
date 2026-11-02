@@ -43,7 +43,7 @@ private val GAINS = listOf(HeroUpgrades.MIN_GAIN to "Any", 0.5 to "½ roll", 1.0
 
 /** The piece as the check saw it: a recorded upgrade of this scan wins over the scanned piece. */
 internal fun heroUpgradeItem(graph: AppGraph, id: Long): Item? =
-    graph.tracker.records[id]?.takeIf { it.scan == graph.scan.lastScan }?.item ?: graph.scan.box?.itemsById?.get(id)
+    graph.records.records[id]?.takeIf { it.scan == graph.scan.lastScan }?.item ?: graph.scan.box?.itemsById?.get(id)
 
 /** Improve heroes: pieces below +15 that could make a hero with a setup better once finished, by hero or by piece. */
 @Composable
@@ -53,7 +53,7 @@ fun HeroUpgradesScreen(graph: AppGraph, heroId: Long?) {
     val result = st?.result
     val running = st?.running == true
     val minGain = graph.improveHeroes.minGain
-    val view = remember(result, minGain, graph.improveHeroes.rebuilds, graph.scan.rev, graph.scan.box, graph.marks.cleared) { result?.let { graph.improveHeroes.view(it, minGain) } }
+    val view = remember(result, minGain, graph.improveHeroes.rebuilds, graph.rev.value, graph.scan.box, graph.marks.cleared) { result?.let { graph.improveHeroes.view(it, minGain) } }
     val one = heroId?.let { id -> view?.firstOrNull { it.hero.id == id } }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val listed = when {
@@ -66,7 +66,7 @@ fun HeroUpgradesScreen(graph: AppGraph, heroId: Long?) {
             running -> null
             result == null -> Action(if (graph.improveHeroes.resumable) "Continue the check" else "Check my gear",
                 enabled = graph.pool.state?.running != true) { graph.improveHeroes.start() }
-            else -> Action("Track all ${listed.size}", enabled = listed.isNotEmpty(), short = "Track ${listed.size}") { graph.messages.show(graph.improveHeroes.trackAll(listed)) }
+            else -> Action("Track all ${listed.size}", enabled = listed.isNotEmpty(), short = "Track ${listed.size}") { graph.messages.show(graph.tracker.starts.trackPieces(listed)) }
         },
         secondary = when {
             running -> Secondary("Stop", Span.Fill) { graph.improveHeroes.stop() }
@@ -351,10 +351,10 @@ private fun HeroPage(graph: AppGraph, h: HeroUpgradeHero) {
 internal fun HeroUpgradePieceSheet(graph: AppGraph, id: Long) {
     val result = graph.improveHeroes.heroUpgrades?.result ?: return
     val item = heroUpgradeItem(graph, id) ?: return
-    val heroes = remember(result, graph.improveHeroes.minGain, graph.scan.rev) {
+    val heroes = remember(result, graph.improveHeroes.minGain, graph.rev.value) {
         graph.improveHeroes.view(result).mapNotNull { h -> h.rows.firstOrNull { it.pick.piece == id }?.let { h to it } }
     }
-    SheetBody("Worth enhancing?", button = "Enhance over the game", onButton = { graph.nav.sheet = null; graph.messages.show(graph.improveHeroes.track(id)) }) {
+    SheetBody("Worth enhancing?", button = "Enhance over the game", onButton = { graph.nav.sheet = null; graph.messages.show(graph.tracker.starts.trackPiece(id)) }) {
         Card(shadow = null, padding = PaddingValues(12.dp)) { GearSearchIdentity(graph, item, owner = true) }
         heroes.forEach { (h, r) ->
             Card(shadow = null, padding = PaddingValues(12.dp), onClick = { graph.nav.sheet = null; graph.nav.go(Screen.HeroUpgrades(h.hero.id)) }) {

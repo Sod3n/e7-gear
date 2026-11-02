@@ -1,10 +1,11 @@
 package e7.gearscan.features
 
+import e7.gearscan.ui.trackMatch
+import e7.gearscan.ui.trackAllMatches
 import e7.gearscan.AppGraph
 import e7.gearscan.data.Box
 import e7.gearscan.data.GearStat
 import e7.gearscan.data.Item
-import e7.gearscan.data.Mirror
 import e7.gearscan.data.PotentialQuery
 import e7.gearscan.data.UpgradeRecord
 import e7.gearscan.features.findgear.FindGearFeature
@@ -22,7 +23,6 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -31,8 +31,6 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class FindGearFeatureTest {
     private companion object { const val SCAN = 100L }
-
-    @After fun resetMirror() { Mirror.active = false }
 
     private val synthetic = Box.parse(SyntheticBox.generate(1).gearText)
 
@@ -89,10 +87,10 @@ class FindGearFeatureTest {
         val g = graph(this)
         found(g)
         val match = g.findGear.result!!.matches.first { it.item.enhance < 15 }
-        assertEquals(Outcome.Done, g.findGear.track(match))
-        assertEquals(1, g.tracker.records.size)
+        assertEquals(Outcome.Done, g.trackMatch(match))
+        assertEquals(1, g.records.records.size)
         assertFalse(g.findGear.stale)
-        assertEquals(Outcome.Done, g.findGear.trackAll(openOverlay = false))
+        assertEquals(Outcome.Done, g.trackAllMatches(openOverlay = false))
         assertFalse(g.findGear.stale)
     }
 
@@ -101,8 +99,8 @@ class FindGearFeatureTest {
         found(g)
         g.findGear.edit(g.findGear.query.copy(minimumChance = "5"))
         assertTrue(g.findGear.stale)
-        assertTrue(g.findGear.trackAll() is Outcome.Failed)
-        assertEquals(0, g.tracker.records.size)
+        assertTrue(g.trackAllMatches() is Outcome.Failed)
+        assertEquals(0, g.records.records.size)
     }
 
     @Test fun anInvalidQueryFailsWithItsReason() = runTest(UnconfinedTestDispatcher()) {

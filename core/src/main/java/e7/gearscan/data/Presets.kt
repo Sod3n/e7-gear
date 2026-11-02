@@ -76,14 +76,16 @@ object Presets {
 
     /** Builds for one hero, cached for a day in [dir]. Network errors fall back to the cache. */
     fun load(
+        http: Http,
         dir: File,
         content: Content,
         code: String,
         name: String,
         allowNetwork: Boolean,
-    ): PresetTabs? = load(DirCache(dir), content, code, name, allowNetwork)
+    ): PresetTabs? = load(http, DirCache(dir), content, code, name, allowNetwork)
 
     fun load(
+        http: Http,
         cache: PresetCache,
         content: Content,
         code: String,
@@ -93,11 +95,11 @@ object Presets {
         val f = "$code.json"
         val fresh = cache.modified(f)?.let { System.currentTimeMillis() - it < DAY_MS } == true
         if (!fresh && allowNetwork) {
-            runCatching { fetch(content.buildsUrl, name) }.getOrNull()?.let { body ->
+            runCatching { fetch(http, content.buildsUrl, name) }.getOrNull()?.let { body ->
                 if (JSONObject(body).has("data")) cache.write(f, body)
             }
         }
-        val rta = loadRta(cache, content, code, allowNetwork)
+        val rta = loadRta(http, cache, content, code, allowNetwork)
         val tabs = cache.read(f)?.let { text -> runCatching { parse(JSONObject(text), content) }.getOrNull() }
         return when {
             tabs != null -> PresetTabs(tabs.mostUsed, tabs.topRanked, tabs.fastest, tabs.total, tabs.date, rta)
@@ -108,6 +110,7 @@ object Presets {
 
     /** The RTA helper's 8 community samples for a hero (the same file its site shows), cached for a day; empty if it has none. */
     private fun loadRta(
+        http: Http,
         cache: PresetCache,
         content: Content,
         code: String,
@@ -119,7 +122,7 @@ object Presets {
         val fresh = listOf(f, miss).any { n -> cache.modified(n)?.let { System.currentTimeMillis() - it < DAY_MS } == true }
         if (!fresh && allowNetwork) {
             runCatching {
-                val c = Http.open(url.replace("{code}", code)) as HttpURLConnection
+                val c = http.open(url.replace("{code}", code)) as HttpURLConnection
                 c.connectTimeout = 8000
                 c.readTimeout = 15000
                 when (c.responseCode) {
@@ -176,10 +179,11 @@ object Presets {
     }
 
     private fun fetch(
+        http: Http,
         url: String,
         name: String,
     ): String {
-        val c = Http.open(url) as HttpURLConnection
+        val c = http.open(url) as HttpURLConnection
         c.requestMethod = "POST"
         c.doOutput = true
         c.connectTimeout = 15000

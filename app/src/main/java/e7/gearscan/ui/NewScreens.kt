@@ -55,7 +55,7 @@ fun OverlayIntroScreen(graph: AppGraph) {
         graph.settings.overlaySeen = true
         graph.store.saveNow()
         graph.nav.back()
-        if (graph.tracker.shown) graph.tracker.runCheck()
+        if (graph.tracker.shown) graph.tracker.checkRun.runCheck()
         graph.scan.openGame()
     }
     val native = graph.settings.overGameNative
@@ -146,7 +146,7 @@ fun FeedbackScreen(graph: AppGraph, error: String?) {
                     r.put("device", graph.feedback.deviceInfo())
                     e7.gearscan.data.Problems.peek().takeIf { it.isNotEmpty() }?.let { r.put("problems", org.json.JSONArray(it)) }
                 }
-                if (withLog) r.put("scanLog", graph.feedback.scanLog())
+                if (withLog) r.put("scanLog", graph.feedback.scanLog(graph.scan.capture.logText()))
                 if (error != null) r.put("error", error)
                 shot?.let { r.put("screenshot", it) }
                 graph.feedback.send(r) { o -> sending = false; outcome = o to id }

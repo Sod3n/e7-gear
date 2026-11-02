@@ -142,13 +142,13 @@ class RollReviewTest {
         val ctx=context(SellQuery(reforge=false),raw(1));val row=SellSearch.run(ctx,null).matches.single()
         val env=TrackerEnv(kotlin.io.path.createTempDirectory("roll-queue").toFile());val t=env.t
         t.startQueue(listOf(row.item to TrackerFeature.QueueEntry(row.item.id,null,"Speed",null,null,row.rolls,1,true,true)),1,ctx.query.copy(keepStats=mapOf(GearStat.SPD to 13.0),keepChance=50.0))
-        assertTrue(t.isRollReview);assertTrue(t.hasTarget);assertNull(t.goalOutcome);assertEquals(8,t.reviewRolls!!.size);assertFalse(t.reviewProtected)
+        assertTrue(t.isRollReview);assertTrue(t.hasTarget);assertNull(t.readout.goalOutcome);assertEquals(8,t.readout.reviewRolls!!.size);assertFalse(t.readout.reviewProtected)
         assertTrue(t.commit(2700.0,listOf(13.0,4.0,3.0,8.0),null,false))
-        assertEquals(9,t.reviewRolls!!.size);assertTrue(t.reviewProtected);assertEquals(2.0,t.reviewRolls!!.last().value,0.0)
-        val restored=env.reopen().t;assertTrue(restored.isRollReview);assertEquals(t.reviewRolls,restored.reviewRolls)
-        restored.undo();assertEquals(8,restored.reviewRolls!!.size)
-        val repeated=TrackerFeature.QueueEntry(row.item.id,null,"Speed",null,null,t.reviewRolls,t.record!!.history.size)
-        t.startQueue(listOf(t.record!!.item to repeated),1,ctx.query);assertEquals(9,t.reviewRolls!!.size)
+        assertEquals(9,t.readout.reviewRolls!!.size);assertTrue(t.readout.reviewProtected);assertEquals(2.0,t.readout.reviewRolls!!.last().value,0.0)
+        val restored=env.reopen().t;assertTrue(restored.isRollReview);assertEquals(t.readout.reviewRolls,restored.readout.reviewRolls)
+        restored.undo();assertEquals(8,restored.readout.reviewRolls!!.size)
+        val repeated=TrackerFeature.QueueEntry(row.item.id,null,"Speed",null,null,t.readout.reviewRolls,t.record!!.history.size)
+        t.startQueue(listOf(t.record!!.item to repeated),1,ctx.query);assertEquals(9,t.readout.reviewRolls!!.size)
     }
     @Test fun heroicRevealAndCorrectionsAreNotCountedAsUpgradeProcs() {
         val initial=listOf(RollReview.Roll(GearStat.SPD,3.0,85))

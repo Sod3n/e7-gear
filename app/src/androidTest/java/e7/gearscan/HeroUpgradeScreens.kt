@@ -220,7 +220,7 @@ class HeroUpgradeScreens {
             top(); shoot("8-dark-hero")
             ui { Themes.set(ctx, false) }
         }
-        ui { graph.tracker.trackPieces(hero.rows.map { it.pick.piece }) }
+        ui { graph.tracker.starts.trackPieces(hero.rows.map { it.pick.piece }) }
         check(graph.tracker.queue.size == hero.rows.size) { "the tracker list has ${graph.tracker.queue.size} of ${hero.rows.size} pieces" }
         check(graph.tracker.queueSource == "heroes") { "the tracker doesn't know the list came from Improve heroes" }
         e7.gearscan.overlay.OverlayService.stop(ctx)

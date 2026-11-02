@@ -1,7 +1,6 @@
 package e7.gearscan.features.feedback
 
 import e7.gearscan.AppGraph
-import e7.gearscan.data.Mirror
 import e7.gearscan.data.Reports
 import e7.gearscan.state.Disk
 import java.io.File
@@ -11,7 +10,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -20,7 +18,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FeedbackFeatureTest {
-    @After fun resetMirror() { Mirror.active = false }
 
     private fun graph(scope: CoroutineScope, dir: File = createTempDirectory("feedback").toFile()) = AppGraph(Disk(dir), scope)
 
@@ -46,14 +43,14 @@ class FeedbackFeatureTest {
     @Test fun theScanLogIsTheLiveCaptureLogElseTheSavedOne() = runTest(UnconfinedTestDispatcher()) {
         val dir = createTempDirectory("feedback").toFile()
         val g = graph(this, dir)
-        assertEquals("", g.feedback.scanLog())
+        assertEquals("", g.feedback.scanLog(g.scan.capture.logText()))
         g.scan.capture.log("port 5222 opened")
-        g.feedback.saveScanLog()
+        g.feedback.saveScanLog(g.scan.capture.logText())
         g.disk.flush()
-        assertTrue(g.feedback.scanLog().endsWith("port 5222 opened"))
+        assertTrue(g.feedback.scanLog(g.scan.capture.logText()).endsWith("port 5222 opened"))
         val again = graph(this, dir)
         assertEquals("", again.scan.capture.logText())
-        assertTrue(again.feedback.scanLog().endsWith("port 5222 opened"))
+        assertTrue(again.feedback.scanLog(again.scan.capture.logText()).endsWith("port 5222 opened"))
     }
 
     @Test fun aReportWithoutAnEndpointStaysQueuedOnDisk() = runTest(UnconfinedTestDispatcher()) {
@@ -71,7 +68,7 @@ class FeedbackFeatureTest {
     @Test fun theScanLogIsNotPartOfABackupAndEraseRemovesIt() = runTest(UnconfinedTestDispatcher()) {
         val g = graph(this)
         g.scan.capture.log("x")
-        g.feedback.saveScanLog()
+        g.feedback.saveScanLog(g.scan.capture.logText())
         g.disk.flush()
         assertTrue(g.feedback.logFile.exists)
         assertFalse(g.feedback.logFile.backup)

@@ -5,7 +5,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import e7.gearscan.AppGraph
+import e7.gearscan.features.settings.SettingsFeature
+import e7.gearscan.features.feedback.FeedbackFeature
 import e7.gearscan.Fribbels
 import e7.gearscan.Screen
 import e7.gearscan.TProxyService
@@ -13,9 +14,11 @@ import e7.gearscan.data.Box
 import e7.gearscan.ui.Confirmed
 import e7.gearscan.data.ScanDiff
 import e7.gearscan.data.ScanStatus
+import e7.gearscan.state.BoxEvents
 import e7.gearscan.state.Codec
 import e7.gearscan.state.Codecs
 import e7.gearscan.state.Feature
+import e7.gearscan.state.FeatureContext
 import java.io.IOException
 import kotlin.concurrent.thread
 import kotlinx.coroutines.delay
@@ -26,7 +29,7 @@ enum class ScanError { NOTHING, SERVER, VPN, NOT_INSTALLED }
 
 enum class ScanPhase { IDLE, CAPTURING, IMPORTING }
 
-class ScanFeature(g: AppGraph) : Feature(g, "scan") {
+class ScanFeature(ctx: FeatureContext, private val settings: SettingsFeature, private val feedback: FeedbackFeature, private val events: BoxEvents) : Feature(ctx, "scan") {
     val capture = CaptureSession()
 
     var lastScan by saved("lastScan", 0L, Codecs.long)
@@ -42,9 +45,6 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
             boxVersion
             return boxRef
         }
-
-    var rev by mutableIntStateOf(0)
-        private set
 
     var game: String? = null
         private set
@@ -62,15 +62,10 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
 
     val step get() = ScanStatus.of(conns, bytes, elapsed)
     val lobbyLikely get() = bytes > TProxyService.LOBBY_KB * 1024
-    val pillAllowed get() = g.platform.pillAllowed
+    val pillAllowed get() = ctx.platform.pillAllowed
 
     fun detectGame() {
-        game = g.platform.findGame()
-    }
-
-    fun touch() {
-        rev++
-        g.store.saveSoon()
+        game = ctx.platform.findGame()
     }
 
     fun replaceBox(b: Box?) {
@@ -79,9 +74,9 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
     }
 
     fun commit() {
-        touch()
+        ctx.rev.bump()
         saveBox()
-        g.store.saveNow()
+        ctx.store.saveNow()
     }
 
     fun saveBox() {
@@ -93,32 +88,30 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
     fun adopt(b: Box? = readBox()) {
         val old = box
         replaceBox(b)
-        g.sellReview.reset()
-        g.findGear.reset()
-        g.boxChanged(old, b)
-        g.tracker.syncMarks()
-        g.improveHeroes.reload(b)
+        events.boxReplacing()
+        events.boxChanged(old, b)
+        events.boxAdopted(b)
     }
 
     fun import(text: String) {
-        g.work.cancelAll()
-        g.platform.stopOverlay(onlyWhenTracking = true)
+        ctx.work.cancelAll()
+        ctx.platform.stopOverlay(onlyWhenTracking = true)
         val nb = Box.parse(text)
         val old = box
         lastDiff = ScanDiff.between(old, nb)
         replaceBox(nb)
         lastScan = System.currentTimeMillis()
-        g.boxChanged(old, nb)
+        events.boxChanged(old, nb)
         boxFile.write(text)
-        touch()
-        g.store.saveNow()
-        g.heroes.afterImport()
+        ctx.rev.bump()
+        ctx.store.saveNow()
+        events.imported()
     }
 
     fun backupText(): String {
         saveBox()
-        g.disk.flush()
-        return g.store.backup().toString()
+        ctx.disk.flush()
+        return ctx.store.backup().toString()
     }
 
     fun restore(text: String): Boolean =
@@ -127,27 +120,26 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
             if (j.optString("app") != "e7gear") return false
             if (!j.has("state") && !j.has("fields")) return false
             stopAll()
-            g.store.restore(j)
+            ctx.store.restore(j)
             adopt()
-            g.tracker.reload()
-            g.tracker.syncMarks()
+            events.restored()
             true
         }.getOrDefault(false)
 
     fun erase(confirmed: Confirmed) {
         stopAll()
-        g.store.erase()
-        g.tracker.reset()
+        ctx.store.erase()
+        events.erased()
         adopt()
-        g.nav.stack = listOf(Screen.ScanIntro)
+        ctx.nav.stack = listOf(Screen.ScanIntro)
     }
 
     private fun stopAll() {
-        g.work.cancelAll()
-        g.platform.stopOverlay()
+        ctx.work.cancelAll()
+        ctx.platform.stopOverlay()
     }
 
-    fun otherVpnActive() = g.platform.otherVpnActive() && phase != ScanPhase.CAPTURING
+    fun otherVpnActive() = ctx.platform.otherVpnActive() && phase != ScanPhase.CAPTURING
 
     fun onVpnGranted() {
         val game = game ?: run { error = ScanError.NOT_INSTALLED; return }
@@ -155,39 +147,39 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
         capture.clearLog()
         error = null
         returnedEarly = false
-        g.platform.startCapture(game, if (g.settings.proxyOn) g.settings.proxy.trim() else "")
+        ctx.platform.startCapture(game, if (settings.proxyOn) settings.proxy.trim() else "")
         phase = ScanPhase.CAPTURING
         captureStarted = System.currentTimeMillis()
-        if (g.nav.screen != Screen.Capture) g.nav.go(Screen.Capture)
-        g.scope.launch {
+        if (ctx.nav.screen != Screen.Capture) ctx.nav.go(Screen.Capture)
+        ctx.scope.launch {
             delay(800)
-            g.platform.openGame(game)
+            ctx.platform.openGame(game)
         }
     }
 
     fun openGameSettings() {
-        game?.let(g.platform::openGameSettings)
+        game?.let(ctx.platform::openGameSettings)
     }
 
     fun openGame() {
-        game?.let(g.platform::openGame)
+        game?.let(ctx.platform::openGame)
     }
 
     fun restartGameDuringScan() {
         captureStarted = System.currentTimeMillis()
         elapsed = 0L
-        g.platform.resetCaptureClock()
+        ctx.platform.resetCaptureClock()
         openGameSettings()
     }
 
-    fun allowPill() = g.platform.allowPill()
+    fun allowPill() = ctx.platform.allowPill()
 
     fun showCapture() {
-        if (phase != ScanPhase.IDLE && g.nav.screen != Screen.Capture) g.nav.go(Screen.Capture)
+        if (phase != ScanPhase.IDLE && ctx.nav.screen != Screen.Capture) ctx.nav.go(Screen.Capture)
     }
 
     fun stopAndImport() {
-        if (phase == ScanPhase.CAPTURING) g.platform.stopCapture()
+        if (phase == ScanPhase.CAPTURING) ctx.platform.stopCapture()
         phase = ScanPhase.IMPORTING
         error = null
         val t0 = System.currentTimeMillis()
@@ -201,7 +193,7 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
                     if (segments.isEmpty()) return@runCatching ScanError.NOTHING to null
                     val resp =
                         try {
-                            Fribbels.getItems(segments)
+                            Fribbels.getItems(ctx.http, segments)
                         } catch (e: IOException) {
                             cause = describe(e)
                             return@runCatching ScanError.SERVER to null
@@ -213,21 +205,21 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
                     cause = describe(it)
                     ScanError.NOTHING to null
                 }
-            g.scope.launch {
+            ctx.scope.launch {
                 phase = ScanPhase.IDLE
                 val (err, text) = result
                 if (err != null || text == null) {
                     error = err ?: ScanError.NOTHING
                     // the reason goes into bug reports ("last error"), so a failed import can be told apart later
-                    g.feedback.lastError = "scan: ${error!!.name.lowercase()}" + (cause?.let { " · $it" } ?: "")
-                    g.feedback.saveScanLog()
+                    feedback.lastError = "scan: ${error!!.name.lowercase()}" + (cause?.let { " · $it" } ?: "")
+                    feedback.saveScanLog(capture.logText())
                     return@launch
                 }
-                g.feedback.saveScanLog()
+                feedback.saveScanLog(capture.logText())
                 capture.clear()
                 decodeSec = ((System.currentTimeMillis() - t0) / 1000).toInt().coerceAtLeast(1)
                 import(text)
-                g.nav.replace(Screen.ScanResult)
+                ctx.nav.replace(Screen.ScanResult)
             }
         }
     }
@@ -249,11 +241,11 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
     fun export(
         name: String,
         text: String,
-    ): Pair<Uri, String> = g.platform.export(name, text)
+    ): Pair<Uri, String> = ctx.platform.export(name, text)
 
     fun exportGear(): Pair<Uri, String>? = box?.let { export("gear.txt", it.toText()) }
 
-    fun readUri(uri: Uri): String? = g.platform.read(uri)
+    fun readUri(uri: Uri): String? = ctx.platform.read(uri)
 
     fun scannedLabelOf(at: Long): String {
         val h = (System.currentTimeMillis() - at) / 3_600_000

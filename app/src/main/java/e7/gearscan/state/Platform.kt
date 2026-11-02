@@ -1,6 +1,7 @@
 package e7.gearscan.state
 
 import android.net.Uri
+import e7.gearscan.data.Http
 import java.io.File
 
 interface Platform {
@@ -45,6 +46,7 @@ interface Platform {
     fun updateFile(version: String): File
 
     fun download(
+        http: Http,
         url: String,
         to: File,
         size: Long,
@@ -108,6 +110,7 @@ object NoPlatform : Platform {
     override fun updateFile(version: String) = File("E7-Gear-$version.apk")
 
     override fun download(
+        http: Http,
         url: String,
         to: File,
         size: Long,

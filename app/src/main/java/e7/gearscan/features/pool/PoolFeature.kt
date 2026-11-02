@@ -3,7 +3,11 @@ package e7.gearscan.features.pool
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import e7.gearscan.AppGraph
+import e7.gearscan.state.FeatureContext
+import e7.gearscan.features.feedback.FeedbackFeature
+import e7.gearscan.features.scan.ScanFeature
+import e7.gearscan.features.heroes.HeroesFeature
+import e7.gearscan.features.history.HistoryFeature
 import e7.gearscan.Screen
 import e7.gearscan.data.Box
 import e7.gearscan.data.HistoryEntry
@@ -28,7 +32,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-class PoolFeature(g: AppGraph) : Feature(g, "pool") {
+class PoolFeature(ctx: FeatureContext, private val feedback: FeedbackFeature, private val scan: ScanFeature, private val heroesFeature: HeroesFeature, private val history: HistoryFeature) : Feature(ctx, "pool") {
     var tiers by saved("tiers", setOf(5, 4, 3), Codecs.intSet)
     var extra by saved("extra", emptySet(), Codecs.longSet)
 
@@ -52,14 +56,20 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
     var keep by mutableStateOf(emptyMap<Long, Long>())
     var give by mutableStateOf(emptyMap<Long, Long>())
 
-    private val heroes get() = g.heroes
+    private val heroes get() = heroesFeature
 
     /** Run order: higher tiers first; inside a tier the hero furthest from their build picks first (name breaks ties). */
     fun heroes(): List<OwnedHero> = members().filter { it.id !in skip }
 
+    /** Pieces worn by heroes of the pool run stay where they are; everything else is spare. */
+    fun inUse(b: Box): Set<Long> {
+        val members = members().map { it.id }.toSet()
+        return b.items.filter { it.equippedOn in members }.map { it.id }.toSet()
+    }
+
     /** The run's heroes including those kept as they are. */
     fun members(): List<OwnedHero> =
-        g.scan.box?.heroes.orEmpty()
+        scan.box?.heroes.orEmpty()
             .filter { (heroes.tier(it.id) in tiers || it.id in extra) && heroes.gameHero(it) != null }
             .sortedWith(
                 compareByDescending<OwnedHero> { heroes.tier(it.id) }
@@ -93,7 +103,7 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
         if (moves != t.made) {
             if (moves) give = give + t.items.associateWith { t.taker } else keep = keep + t.items.associateWith { t.holder }
         }
-        g.scan.touch()
+        ctx.rev.bump()
     }
 
     fun stop() = run.cancel()
@@ -134,7 +144,7 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
                 fun publish(round: Int? = null) {
                     val snapB = LinkedHashMap(builds)
                     val snapA = LinkedHashMap(after)
-                    g.scope.launch { if (alive()) state = state?.copy(builds = snapB, after = snapA, round = round ?: state?.round ?: 1) }
+                    ctx.scope.launch { if (alive()) state = state?.copy(builds = snapB, after = snapA, round = round ?: state?.round ?: 1) }
                     scope.progress(snapB.size, ids.size, (if ((round ?: 1) > 1) "Round $round · " else "") + "${snapB.size} of ${ids.size} heroes")
                 }
                 try {
@@ -193,11 +203,11 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Throwable) {
-                    g.feedback.failed("pool", e)
+                    feedback.failed("pool", e)
                     stopped()
                 }
             }
-        g.messages.show(out)
+        ctx.messages.show(out)
         return out !is e7.gearscan.ui.Outcome.Failed
     }
 
@@ -215,7 +225,7 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
         val done = state?.copy(running = false, current = null, currentBest = null, finishedAt = System.currentTimeMillis()) ?: return
         val score = score(done.ids.associateWith { done.after[it] ?: done.before[it] })
         if (done.ids.isNotEmpty()) secondsPerHero = (done.finishedAt - done.startedAt) / 1000.0 / done.ids.size
-        g.history.record(
+        history.record(
             HistoryEntry(
                 done.startedAt, true, "Whole pool · ${done.ids.size} heroes", "${losses.label} · ${effort.label}",
                 score(done.before), score, done.moves,
@@ -226,8 +236,8 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
         state = done
         pending = done.startedAt
         lastPool = System.currentTimeMillis() to score
-        g.store.saveNow()
-        g.platform.notifyPoolDone(done.builds.count { it.value != null })
+        ctx.store.saveNow()
+        ctx.platform.notifyPoolDone(done.builds.count { it.value != null })
     }
 
     private fun stopped() {
@@ -242,29 +252,41 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
                     while (scope.isActive && !r.engine.done) {
                         Thread.sleep(400)
                         val best = r.builds().firstOrNull()?.let { heroes.matchOf(id, it)?.pct }
-                        g.scope.launch { state = state?.copy(current = id, currentBest = best) }
+                        ctx.scope.launch { state = state?.copy(current = id, currentBest = best) }
                     }
                 } catch (_: InterruptedException) {
                 }
             }
-        g.scope.launch { state = state?.copy(current = id, currentBest = null) }
+        ctx.scope.launch { state = state?.copy(current = id, currentBest = null) }
         r.run(Runtime.getRuntime().availableProcessors().coerceIn(1, 6), if (mods) 2 * POOL_HERO_MS else POOL_HERO_MS)
         watch.interrupt()
     }
 
-    private fun worn(id: Long): Set<Long> = g.scan.box?.gearOf(id)?.values.orEmpty().map { it.id }.toSet()
+    private fun worn(id: Long): Set<Long> = scan.box?.gearOf(id)?.values.orEmpty().map { it.id }.toSet()
 
     /** Another hero of the finished pool run: its new build next to what it wears, or its setup if the run left it as is. */
     fun open(id: Long) {
-        if (state?.builds?.get(id) != null) g.nav.go(Screen.Compare(0, id)) else g.nav.go(Screen.PoolHero(id, setup = false))
+        if (state?.builds?.get(id) != null) ctx.nav.go(Screen.Compare(0, id)) else ctx.nav.go(Screen.PoolHero(id, setup = false))
     }
 
     internal fun stateOf(e: HistoryEntry, fromHistory: Boolean): PoolState {
         val ids = e.beforeMatch.keys.filter { heroes.hero(it) != null }.sortedWith(compareByDescending<Long> { heroes.tier(it) }.thenBy { heroes.hero(it)?.let(heroes::heroName) })
         return PoolState(
-            ids, e.beforeMatch, ids.associateWith { id -> e.builds[id]?.firstOrNull()?.let { g.history.restoreBuild(id, it) } }, e.afterMatch,
+            ids, e.beforeMatch, ids.associateWith { id -> e.builds[id]?.firstOrNull()?.let { history.restoreBuild(id, it) } }, e.afterMatch,
             null, null, false, e.at, e.at, reviewed = e.reviewed, fromHistory = fromHistory,
         )
+    }
+
+    /** Opens a past pool run (the pending one live); false while a run is going, which it would replace. */
+    fun openFromHistory(e: HistoryEntry): Boolean {
+        if (state?.running == true) return false
+        if (e.at == pending) {
+            openPending()
+            return true
+        }
+        state = stateOf(e, fromHistory = true)
+        ctx.nav.go(Screen.PoolRun)
+        return true
     }
 
     /** Brings the pending run back as a live result (equip allowed), from its history entry. */
@@ -272,14 +294,14 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
         val at = pending ?: return
         if (state?.startedAt != at || state?.fromHistory == true) {
             val e =
-                g.history.entries.firstOrNull { it.at == at } ?: run {
+                history.entries.firstOrNull { it.at == at } ?: run {
                     pending = null
-                    g.store.saveNow()
+                    ctx.store.saveNow()
                     return
                 }
             state = stateOf(e, fromHistory = false)
         }
-        g.nav.go(Screen.PoolRun)
+        ctx.nav.go(Screen.PoolRun)
     }
 
     /** Heroes whose setup changed since the shown run used it. */
@@ -289,14 +311,14 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
     fun reviewQueue(): List<Long> = state?.let { p -> p.ids.filter { p.builds[it] != null } }.orEmpty()
 
     fun clearReviewed(ids: List<Long>, confirmed: Confirmed) {
-        ids.forEach { g.heroes.request(it).reviewed = false }
-        g.scan.touch()
+        ids.forEach { heroesFeature.request(it).reviewed = false }
+        ctx.rev.bump()
     }
 
     fun markReviewed(id: Long) {
         val p = state ?: return
         state = p.copy(reviewed = p.reviewed + id)
-        g.history.entries.firstOrNull { it.at == p.startedAt }?.let { g.history.record(it.copy(reviewed = p.reviewed + id)) }
+        history.entries.firstOrNull { it.at == p.startedAt }?.let { history.record(it.copy(reviewed = p.reviewed + id)) }
     }
 
     fun equip(run: PoolState? = state, reforge: List<Long> = emptyList(), mods: List<Pair<Long, Mod>>? = null) {
@@ -307,16 +329,16 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
         val modded = heroes.recordMods(mods ?: p.builds.values.filterNotNull().flatMap(heroes::plannedMods))
         if (pending == p.startedAt) {
             pending = null
-            g.store.saveNow()
+            ctx.store.saveNow()
         }
-        g.messages.showToast(
+        ctx.messages.showToast(
             "Equipped ${p.builds.count { it.value != null }} heroes in this app" + heroes.reforgedNote(before) + heroes.moddedNote(modded, planned = mods == null),
             "Undo",
         ) {
             heroes.undoWrites(before + modded)
             heroes.undoEquip(prev)
             pending = p.startedAt
-            g.store.saveNow()
+            ctx.store.saveNow()
         }
     }
 

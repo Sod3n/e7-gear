@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(state)
         ViewModelProvider(this)[Session::class.java]
         installCrashCatcher()
-        installImageLoader(this)
+        installImageLoader(this, graph.http, graph.content.mirrorSwitch)
         Themes.load(this)
         applySystemBars(Themes.dark)
         lifecycleScope.launch { snapshotFlow { Themes.dark }.collect { applySystemBars(it) } }

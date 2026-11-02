@@ -58,9 +58,9 @@ class FloatingScreens {
         val piece = graph.scan.box!!.items.first { it.rank == "Epic" && it.enhance == 9 && UpgradeRecord.supported(it) }
         ui { graph.settings.useOverGameNative(true); graph.tracker.selectPiece(piece.id); graph.tracker.show(); graph.overlay.expanded = true
             graph.overlay.floating = true; graph.overlay.floatingPanel = true }
-        rule.waitUntil(120_000) { !graph.tracker.busy }
-        ui { graph.tracker.runCheck() }
-        rule.waitUntil(120_000) { !graph.tracker.busy && graph.tracker.complete }
+        rule.waitUntil(120_000) { !graph.tracker.checkRun.busy }
+        ui { graph.tracker.checkRun.runCheck() }
+        rule.waitUntil(120_000) { !graph.tracker.checkRun.busy && graph.tracker.checkRun.complete }
         shoot("1-tracker")
         rule.onNodeWithContentDescription("Collapse tracker").performClick()
         rule.waitForIdle()

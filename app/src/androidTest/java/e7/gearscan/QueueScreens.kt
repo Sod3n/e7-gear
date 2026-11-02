@@ -1,5 +1,6 @@
 package e7.gearscan
 
+import e7.gearscan.ui.trackAllMatches
 import android.graphics.Bitmap
 import android.os.Build
 import androidx.compose.foundation.layout.*
@@ -55,11 +56,11 @@ class QueueScreens {
         assertTrue(matches.size > 20)
         rule.onNodeWithText("Track all ${matches.size} matches").assertExists()
         shot("30-track-all-matches-353-big")
-        ui { graph.messages.show(graph.findGear.trackAll(openOverlay = false)) }
+        ui { graph.messages.show(graph.trackAllMatches(openOverlay = false)) }
         val t = graph.tracker
         assertEquals(matches.map { it.item.id }, t.queue.map { it.id })
         assertEquals(matches.size, t.queue.size)
-        assertTrue(t.queue.none { t.records[it.id]!!.item.slot == Slot.BOOTS })
+        assertTrue(t.queue.none { graph.records.records[it.id]!!.item.slot == Slot.BOOTS })
         ui { t.show(); graph.overlay.expanded = true; graph.overlay.floating = true; overlay = true }
         shot("31-queue-first-353-big")
         tap("›"); assertEquals(1, t.queueIndex)
@@ -71,7 +72,7 @@ class QueueScreens {
         assertEquals(25, t.queueIndex)
         ui { graph.overlay.floatingPanel = true }
         rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle(); tap("Open E7 Gear"); assertFalse(graph.overlay.floatingPanel)
-        val helmet = t.queue.indexOfFirst { e -> t.records[e.id]!!.item.let { it.slot == Slot.HELMET && it.rank == "Heroic" && it.enhance == 9 } }
+        val helmet = t.queue.indexOfFirst { e -> graph.records.records[e.id]!!.item.let { it.slot == Slot.HELMET && it.rank == "Heroic" && it.enhance == 9 } }
         assertTrue(helmet >= 0)
         ui { t.selectInQueue(helmet) }
         tap("Record +12"); shot("35-heroic-step-bounds-353-big")
