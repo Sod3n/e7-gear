@@ -678,7 +678,7 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
         val observed = records.values.filter { it.scan == scan }.associate { it.item.id to it.item }
         val b = Box(JSONObject(b0.toText()).put("items", JSONArray(b0.items.map { item -> UpgradeRecord.itemJson(observed[item.id] ?: item) })))
         val setups =
-            g.heroes.gearSetups(b, g.heroes.inUse(b) + g.marks.cleared).map { s ->
+            g.heroes.gearSetups(b, g.pool.inUse(b) + g.marks.cleared).map { s ->
                 val cfg = HeroConfig.fromJson(s.cfg.toJson())
                 Setup(s.hero, s.game, cfg, s.req.copy(), b, content, s.canTakeFrom, s.excluded - r.item.id)
             }

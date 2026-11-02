@@ -171,12 +171,6 @@ class HeroesFeature(g: AppGraph) : Feature(g, "heroes") {
 
     private fun worn(id: Long): Set<Long> = box?.gearOf(id)?.values.orEmpty().map { it.id }.toSet()
 
-    /** Pieces worn by heroes of the pool run stay where they are; everything else is spare. */
-    fun inUse(b: Box): Set<Long> {
-        val members = g.pool.members().map { it.id }.toSet()
-        return b.items.filter { it.equippedOn in members }.map { it.id }.toSet()
-    }
-
     /** Every hero with a setup, each free to use its own gear and the spares. */
     fun gearSetups(b: Box, inUse: Set<Long>): List<Setup> =
         b.heroes.mapNotNull { h ->

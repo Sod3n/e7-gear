@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
+import e7.gearscan.data.HistoryEntry
 import e7.gearscan.data.PotentialQuery
 import e7.gearscan.data.Problems
 import e7.gearscan.data.Slot
@@ -458,7 +459,7 @@ class ScreenAudit {
             val e = graph.history.entries.firstOrNull { it.pool && it.at != graph.pool.pending }
             if (e == null) add("no older pool run in history to open", "history")
             else {
-                ui { graph.nav.tab(Screen.Optimize); graph.history.shown = true; graph.history.openHistory(e) }
+                ui { graph.nav.tab(Screen.Optimize); graph.history.shown = true; openHistory(graph, e) }
                 if (graph.nav.screen != Screen.PoolRun || graph.pool.state?.fromHistory != true) add("opening a pool run from history doesn't show it", "history")
                 if (rule.onAllNodesWithText("Just record", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) add("a run from history offers to equip", "history")
                 if (rule.onAllNodesWithText("Checklist", useUnmergedTree = true).fetchSemanticsNodes().isEmpty()) add("a pool run from history has no checklist", "history")
@@ -466,15 +467,15 @@ class ScreenAudit {
                 if (graph.checklist.build?.flag == null) add("a pool run's checklist from history isn't flagged", "history")
             }
             graph.history.entries.firstOrNull { it.at == graph.pool.pending }?.let { p ->
-                ui { graph.nav.tab(Screen.Optimize); graph.history.shown = true; graph.history.openHistory(p) }
+                ui { graph.nav.tab(Screen.Optimize); graph.history.shown = true; openHistory(graph, p) }
                 if (graph.pool.state?.fromHistory != false || graph.pool.state?.startedAt != p.at) add("the pending run opens read only from history", "history")
                 ui { graph.checklist.loadPool() }
                 if (graph.checklist.build?.flag != null) add("the pending run's checklist is flagged as from history", "history")
             } ?: add("no pending run in history", "history")
-            ui { graph.nav.tab(Screen.Optimize); graph.history.shown = true; e?.let { graph.history.openHistory(it) } }
+            ui { graph.nav.tab(Screen.Optimize); graph.history.shown = true; e?.let { openHistory(graph, it) } }
         })
         steps.add("overlay-pool" to {
-            ui { graph.history.entries.firstOrNull { it.at == graph.pool.pending }?.let { graph.history.openHistory(it) }
+            ui { graph.history.entries.firstOrNull { it.at == graph.pool.pending }?.let { openHistory(graph, it) }
                 graph.checklist.loadPool(); graph.overlay.expanded = true; graph.overlay.tab = 0 }
             if (graph.checklist.build?.pieces?.any { it.forHero != null } != true) add("the pool checklist has no moves to show", "overlay-pool")
             overlay = true
@@ -484,7 +485,7 @@ class ScreenAudit {
             val e = graph.history.entries.firstOrNull { !it.pool }
             if (e == null) add("no one-hero search in history", "history")
             else {
-                ui { graph.pool.state = poolDone; graph.optimize.search = null; graph.nav.tab(Screen.Optimize); graph.history.shown = true; graph.history.openHistory(e) }
+                ui { graph.pool.state = poolDone; graph.optimize.search = null; graph.nav.tab(Screen.Optimize); graph.history.shown = true; openHistory(graph, e) }
                 if (graph.nav.screen != Screen.Results || graph.optimize.search?.startedAt != e.at || graph.optimize.search?.historyAt != 0L) add("the newest search doesn't open live from history", "history")
                 ui { graph.nav.go(Screen.Compare(0)) }
                 for (t in listOf("Show over game", "Equip in app"))
@@ -495,7 +496,7 @@ class ScreenAudit {
             val e = graph.history.entries.filter { !it.pool }.getOrNull(1)
             if (e == null) add("no older one-hero search in history", "history")
             else {
-                ui { graph.nav.tab(Screen.Optimize); graph.history.shown = true; graph.history.openHistory(e) }
+                ui { graph.nav.tab(Screen.Optimize); graph.history.shown = true; openHistory(graph, e) }
                 if (graph.nav.screen != Screen.Results || graph.optimize.search?.historyAt != e.at) add("opening a search from history doesn't show it", "history")
             }
         })
@@ -1087,3 +1088,5 @@ class ScreenAudit {
 
     private fun warn(kind: String, detail: String) { warnings.getOrPut(kind) { linkedSetOf() } += detail }
 }
+
+private fun openHistory(graph: AppGraph, e: HistoryEntry) = if (e.pool) graph.pool.openFromHistory(e) else graph.optimize.openFromHistory(e)
