@@ -88,7 +88,7 @@ class UpgradeScreens {
         shoot("05-assessment-353-big")
         File(shots, "assessment.txt").writeText(model.upgrades.toJson().toString(2))
         // Real system-overlay windows: save a screenshot separately from the Compose preview.
-        inst.uiAutomation.executeShellCommand("appops set e7.gearscan SYSTEM_ALERT_WINDOW allow").close()
+        inst.uiAutomation.executeShellCommand("appops set e7.gearscan SYSTEM_ALERT_WINDOW allow").let { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).use { s -> s.readBytes() } }
         if (Build.VERSION.SDK_INT >= 33) inst.uiAutomation.grantRuntimePermission(ctx.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
         ui { OverlayState.expanded = true; OverlayState.appInFront = false; OverlayService.start(ctx) }
         rule.waitUntil(10_000) { OverlayState.running }

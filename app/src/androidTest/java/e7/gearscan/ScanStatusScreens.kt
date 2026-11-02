@@ -90,7 +90,7 @@ class ScanStatusScreens {
     @Test fun pillOverTheGame() {
         assumeTrue(Build.FINGERPRINT.contains("generic") || Build.HARDWARE.contains("ranchu"))
         File(dir, "pill").apply { deleteRecursively(); mkdirs() }
-        inst.uiAutomation.executeShellCommand("appops set ${ctx.packageName} SYSTEM_ALERT_WINDOW allow").close()
+        inst.uiAutomation.executeShellCommand("appops set ${ctx.packageName} SYSTEM_ALERT_WINDOW allow").let { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).use { s -> s.readBytes() } }
         Thread.sleep(500)
         rule.setContent { Box(Modifier.fillMaxSize().background(Color(0xFF1B2A4A))) }
         val tap = PendingIntent.getActivity(ctx, 0, Intent(), PendingIntent.FLAG_IMMUTABLE)
