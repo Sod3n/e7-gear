@@ -30,6 +30,9 @@ object Codecs {
     fun <T> obj(write: (T) -> JSONObject, read: (JSONObject) -> T): Codec<T> =
         codec(write, { j -> (j as? JSONObject)?.let { runCatching { read(it) }.getOrNull() } })
 
+    fun <T : Any> nullable(inner: Codec<T>): Codec<T?> =
+        codec({ v -> v?.let(inner::write) ?: JSONObject.NULL }, { j -> if (j == JSONObject.NULL) null else inner.read(j) })
+
     private fun numbers(j: Any?): List<Number>? {
         val a = j as? JSONArray ?: return null
         return (0 until a.length()).map { a.get(it) as? Number ?: return null }

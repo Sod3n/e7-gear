@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import e7.gearscan.calc.Rating
+import e7.gearscan.features.marks.MarksFeature
 import e7.gearscan.data.Box
 import e7.gearscan.data.Content
 import e7.gearscan.data.GearStat
@@ -191,11 +192,11 @@ data class CleanupState(
 )
 
 class AppModel(app: Application) : AndroidViewModel(app) {
+    val graph = getApplication<E7GearApp>().graph
     private val files = app.filesDir
-    private val boxFile = File(files, "box.json")
-    private val stateFile = File(files, "state.json")
-    private val historyFile = File(files, "history.json")
-    internal val buildsDir = File(files, "builds")
+    private val boxFile = graph.scan.boxFile.file
+    private val historyFile = graph.history.file.file
+    internal val buildsDir = graph.heroes.builds.dir
     val limitMs = 15_000L
     val longLimitMs = 60_000L
 
@@ -210,21 +211,29 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** Bumped on every in-place change to the box or configs, so readers recompose. */
     var rev by mutableIntStateOf(0)
         private set
-    private val configs = HashMap<Long, HeroConfig>()
+    private val configs get() = graph.heroes.configs
     /** Gear tier per hero, 1 (just geared) to 5 (best of account); unset means 1. */
-    var tiers: Map<Long, Int> by mutableStateOf(emptyMap())
-    var team: List<Long> by mutableStateOf(emptyList())
-    var consent by mutableStateOf(false)
-    var proxyOn by mutableStateOf(false)
-    var proxy by mutableStateOf("")
-    var lastScan by mutableStateOf(0L)
-    var lastDiff: ScanDiff? by mutableStateOf(null)
-    var decodeSec by mutableIntStateOf(0)
-    var showRating by mutableStateOf(Rating.DMG)
+    var tiers get() = graph.heroes.tiers
+        set(v) { graph.heroes.tiers = v }
+    var team get() = graph.heroes.team
+        set(v) { graph.heroes.team = v }
+    var consent get() = graph.settings.consent
+        set(v) { graph.settings.consent = v }
+    var proxyOn get() = graph.settings.proxyOn
+        set(v) { graph.settings.proxyOn = v }
+    var proxy get() = graph.settings.proxy
+        set(v) { graph.settings.proxy = v }
+    var lastScan get() = graph.scan.lastScan
+        set(v) { graph.scan.lastScan = v }
+    var lastDiff get() = graph.scan.lastDiff
+        set(v) { graph.scan.lastDiff = v }
+    var decodeSec get() = graph.scan.decodeSec
+        set(v) { graph.scan.decodeSec = v }
+    var showRating get() = graph.settings.showRating
+        set(v) { graph.settings.showRating = v }
     /** With the "closest to targets" goal, results show match % unless another rating is picked. */
     var showMatch by mutableStateOf(true)
 
-    val graph = getApplication<E7GearApp>().graph
     var stack: List<Screen>
         get() = graph.nav.screens()
         internal set(v) { graph.nav.setScreens(v) }
@@ -250,7 +259,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     val scanStep get() = e7.gearscan.data.ScanStatus.of(captureConns, captureBytes, captureElapsed)
 
     var lastError: String? by mutableStateOf(null)
-    var overlaySeen by mutableStateOf(false)
+    var overlaySeen get() = graph.settings.overlaySeen
+        set(v) { graph.settings.overlaySeen = v }
     private val reportsDir = File(files, "reports")
 
     val game: String? = app.packageManager.getInstalledApplications(0).map { it.packageName }
@@ -375,7 +385,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Last content check and what it found, for Scan & data. */
-    var contentCheckedAt by mutableStateOf(0L)
+    var contentCheckedAt get() = graph.content.checkedAt
+        set(v) { graph.content.checkedAt = v }
     var contentStatus: String? by mutableStateOf(null)
         private set
 
@@ -414,13 +425,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     // every change is saved shortly after: Android may close the app while the player is in the game
-    fun touch() { rev++; saveSoon() }
-
-    private var pendingSave: kotlinx.coroutines.Job? = null
-    private fun saveSoon() {
-        pendingSave?.cancel()
-        pendingSave = viewModelScope.launch { delay(500); save() }
-    }
+    fun touch() { rev++; graph.store.saveSoon() }
 
     // ---- heroes ----
     fun hero(id: Long): OwnedHero? = box?.hero(id)
@@ -854,18 +859,24 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var poolMode by mutableStateOf(false)
     /** Optimize's third switch position: past runs and searches instead of a setup. */
     var showHistory by mutableStateOf(false)
-    var poolTiers by mutableStateOf(setOf(5, 4, 3))
-    var poolExtra by mutableStateOf(emptySet<Long>())
+    var poolTiers get() = graph.pool.tiers
+        set(v) { graph.pool.tiers = v }
+    var poolExtra get() = graph.pool.extra
+        set(v) { graph.pool.extra = v }
     /** Heroes left out of this pool run (skipped in setup, or kept as is after review); their gear stays where it is. */
-    var poolSkip by mutableStateOf(emptySet<Long>())
+    var poolSkip get() = graph.pool.skip
+        set(v) { graph.pool.skip = v }
     /** The player's calls on contested pieces for re-runs: piece -> hero that keeps it, piece -> hero that gets it. */
     var poolKeep by mutableStateOf(emptyMap<Long, Long>())
     var poolGive by mutableStateOf(emptyMap<Long, Long>())
-    var poolLosses by mutableStateOf(PoolLosses.SAFE)
-    var poolEffort by mutableStateOf(PoolEffort.BALANCED)
+    var poolLosses get() = graph.pool.losses
+        set(v) { graph.pool.losses = v }
+    var poolEffort get() = graph.pool.effort
+        set(v) { graph.pool.effort = v }
     var pool: PoolState? by mutableStateOf(null)
         internal set
-    var lastPool: Pair<Long, Int>? by mutableStateOf(null)
+    var lastPool get() = graph.pool.lastPool
+        set(v) { graph.pool.lastPool = v }
     @Volatile private var poolToken: Any? = null
 
     /** Run order: higher tiers first; inside a tier the hero furthest from their build picks first (name breaks ties). */
@@ -1066,7 +1077,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- editable sell filters (score evidence, never automatic sales) ----
-    var sellQuery by mutableStateOf(e7.gearscan.data.SellQuery()); private set
+    var sellQuery get() = graph.sellReview.query
+        private set(v) { graph.sellReview.query = v }
     var sellResult: e7.gearscan.opt.SellSearch.Result? by mutableStateOf(null); private set
     var sellBusy by mutableStateOf(false); private set
     /** Sell review tab (0 Set up, 1 Matches); lives here so a trip to Kept pieces and back keeps it. */
@@ -1125,7 +1137,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
     fun updateSellQuery(q:e7.gearscan.data.SellQuery) {
         // the keep-rolling chance only relabels rows; it must not stale the list or restart a search
-        if(q.copy(rollOn=0.0)==sellQuery.copy(rollOn=0.0)) { sellQuery=q;upgrades.rollOn=q.rollOn;saveSoon();return }
+        if(q.copy(rollOn=0.0)==sellQuery.copy(rollOn=0.0)) { sellQuery=q;upgrades.rollOn=q.rollOn;graph.store.saveSoon();return }
         // any other change alters the list the keep-rolling numbers describe
         sellCurve=null
         stopSellSearch();sellQuery=if(!q.scoreFilter&&q.sort in listOf(e7.gearscan.data.SellSort.SCORE,e7.gearscan.data.SellSort.CHANCE))q.copy(sort=e7.gearscan.data.SellSort.QUALITY) else q;sellError=null;touch() }
@@ -1148,7 +1160,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 val result=sellMutex.withLock {
                     withContext(Dispatchers.Default) {
                         val context=e7.gearscan.opt.SellSearch.Context(Box.parse(text),records,scan,removed,members,names,q,content.version)
-                        e7.gearscan.opt.SellSearch.run(context,File(files,"sell_progress.jsonl"),cancelled={sellGeneration!=generation}) { done,total->
+                        e7.gearscan.opt.SellSearch.run(context,graph.sellReview.progress.file,cancelled={sellGeneration!=generation}) { done,total->
                             if(done%20==0||done==total)kotlinx.coroutines.runBlocking(Dispatchers.Main) {
                                 if(sellGeneration==generation) { sellDone=done;sellTotal=total;PoolService.progress(getApplication(),"$done/$total pieces",done,total)
                                     android.util.Log.i("E7Sell","checkpoint $done/$total pieces") }
@@ -1184,8 +1196,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- gear potential search ----
-    var potentialQuery by mutableStateOf(e7.gearscan.data.PotentialQuery())
-        private set
+    var potentialQuery get() = graph.findGear.query
+        private set(v) { graph.findGear.query = v }
     data class PotentialMatch(val item: Item, val outcome: e7.gearscan.opt.GearPotential.Outcome, val reforgeAllowed: Boolean)
     data class PotentialResult(val query: e7.gearscan.data.PotentialQuery, val scan: Long, val observations: Int,
                                val matches: List<PotentialMatch>, val unsupported: Int, val seconds: Double)
@@ -1277,7 +1289,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- upgrade observations (separate from the scan) ----
-    val upgrades = e7.gearscan.overlay.UpgradeTracker(File(files, "upgrades.json"))
+    val upgrades = e7.gearscan.overlay.UpgradeTracker(graph.tracker.upgrades.file)
 
     fun openUpgradeOverlay() {
         val r = upgrades.record ?: return
@@ -1346,7 +1358,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             t.error="Your scan changed. Refresh the matches before marking this piece.";return
         }
         val index=t.queueIndex.coerceAtLeast(0)
-        overlaySales=overlaySales.filterNot { it.id==expectedId&&it.scan==lastScan }+OverlaySale(expectedId,lastScan,keep)
+        overlaySales=overlaySales.filterNot { it.id==expectedId&&it.scan==lastScan }+MarksFeature.Sale(expectedId,lastScan,keep)
         if(keep)sellKept=sellKept+expectedId else cleanupDone=cleanupDone+expectedId;t.cleared=reviewedIds
         t.invalidate();save()
         val next=t.pendingQueue.getOrNull(index)?:t.pendingQueue.lastOrNull()
@@ -1542,12 +1554,20 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- clean up ----
-    var cleanup: CleanupState? by mutableStateOf(null)
-        internal set
+    private var cleanupState: CleanupState? by mutableStateOf(null)
+    var cleanup: CleanupState?
+        get() = cleanupState
+        internal set(v) {
+            cleanupState = v
+            val saved = v?.takeIf { !it.running && it.finishedAt > 0 }?.let(::cleanupJson)
+            if (saved?.toString() != graph.marks.cleanup?.toString()) graph.marks.cleanup = saved
+        }
     /** Pieces the player marked as fed or sold. */
-    var cleanupDone: Set<Long> by mutableStateOf(emptySet())
+    var cleanupDone get() = graph.marks.cleared
+        set(v) { graph.marks.cleared = v }
     /** Pieces the player chose to keep in Sell review; they stay out of it until unlocked. */
-    var sellKept: Set<Long> by mutableStateOf(emptySet()); private set
+    var sellKept get() = graph.marks.kept
+        private set(v) { graph.marks.kept = v }
     val reviewedIds get() = cleanupDone + sellKept
     /** Sell review: mark one piece sold (after selling it in the game) or kept, with Undo. */
     fun markSellReview(id: Long, keep: Boolean) {
@@ -1560,8 +1580,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         sellKept = sellKept - id; cleanupDone = cleanupDone - id; overlaySales = overlaySales.filterNot { it.id == id }
         upgrades.cleared = reviewedIds; save()
     }
-    private data class OverlaySale(val id:Long,val scan:Long,val kept:Boolean=false)
-    private var overlaySales:List<OverlaySale> by mutableStateOf(emptyList())
+    
+    private var overlaySales get() = graph.marks.sold
+        set(v) { graph.marks.sold = v }
     @Volatile private var cleanupToken: Any? = null
 
     /** Pieces worn by heroes of the pool run stay where they are; everything else is spare. */
@@ -1580,7 +1601,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         Setup(h, g, cfg, req, b, content, { true }, inUse - worn(h.id))
     }
 
-    private val cleanupProgressFile = File(files, "cleanup_progress.json")
+    private val cleanupProgressFile = graph.marks.cleanupProgress.file
 
     /** A check that was stopped or killed for the gear scanned now; it picks up where it was. */
     val cleanupResumable: Boolean get() = cleanup?.running != true &&
@@ -1713,10 +1734,10 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var heroUpgradesResumable by mutableStateOf(false)
         private set
     /** Smallest gain a finish must bring to be listed, in rolls ([e7.gearscan.opt.HeroUpgrades.unit]). */
-    var heroUpgradeMinGain by mutableStateOf(0.5)
-        private set
-    private val heroUpgradesFile = File(files, "hero_upgrades.json")
-    private val heroUpgradesProgressFile = File(files, "hero_upgrades_progress.json")
+    var heroUpgradeMinGain get() = graph.improveHeroes.minGain
+        private set(v) { graph.improveHeroes.minGain = v }
+    private val heroUpgradesFile = graph.improveHeroes.result.file
+    private val heroUpgradesProgressFile = graph.improveHeroes.progress.file
     @Volatile private var heroUpgradesToken: Any? = null
     @Volatile private var heroUpgradesRun: e7.gearscan.opt.HeroUpgrades? = null
     private var heroKeyMemo: Pair<List<Any?>, String>? = null
@@ -1724,8 +1745,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun useHeroUpgradeMinGain(rolls: Double) { heroUpgradeMinGain = rolls; touch() }
 
     /** Off: a finish counts only put in place of the hero's piece in that slot, nothing else moving. On: any build the search finds. */
-    var heroUpgradeRebuilds by mutableStateOf(false)
-        private set
+    var heroUpgradeRebuilds get() = graph.improveHeroes.rebuilds
+        private set(v) { graph.improveHeroes.rebuilds = v }
     fun useHeroUpgradeRebuilds(on: Boolean) { heroUpgradeRebuilds = on; touch() }
 
     /** A hero's final build with a piece upgraded: six slots, where each piece comes from, and the stats against what it wears. */
@@ -2077,10 +2098,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
 
     /** The last pool run, waiting until it is equipped or another run replaces it; its history entry's start time. */
-    var pendingPool: Long? by mutableStateOf(null)
+    var pendingPool get() = graph.pool.pending
+        set(v) { graph.pool.pending = v }
 
     /** How long a pool run takes per hero on this phone, from the last full run; a slow phone's figure until then. */
-    var poolSecondsPerHero by mutableStateOf(3.0)
+    var poolSecondsPerHero get() = graph.pool.secondsPerHero
+        set(v) { graph.pool.secondsPerHero = v }
 
     /** Brings the pending run back as a live result (equip allowed), from its history entry. */
     fun openPending() {
@@ -2217,10 +2240,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     /** True when the overlay started; false when the permission screen must come first. */
     /** Over the game: false = E7 Gear's own overlay (any phone), true = the phone's floating window showing the app's panel. */
-    var overGameNative by mutableStateOf(false)
+    var overGameNative get() = graph.settings.overGameNative
+        set(v) { graph.settings.overGameNative = v }
     fun useOverGameNative(on: Boolean) { overGameNative = on; if (on) e7.gearscan.overlay.OverlayService.stop(getApplication()); touch() }
     /** The steps for the phone's floating window were shown once. */
-    var nativeSeen by mutableStateOf(false)
+    var nativeSeen get() = graph.settings.nativeSeen
+        set(v) { graph.settings.nativeSeen = v }
     /** The app runs in the phone's floating (or split) window. */
     var floating by mutableStateOf(false)
     /** In that window with a tracker or checklist loaded: the panel (true) or the whole app. */
@@ -2263,10 +2288,10 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     // ---- reports ----
     private fun saveScanLog() {
         val t = Capture.logText()
-        viewModelScope.launch(Dispatchers.IO) { File(files, "scan.log").writeText(t) }
+        viewModelScope.launch(Dispatchers.IO) { graph.scan.logFile.file.writeText(t) }
     }
 
-    fun scanLog(): String = Capture.logText().ifEmpty { File(files, "scan.log").takeIf { it.exists() }?.readText().orEmpty() }
+    fun scanLog(): String = Capture.logText().ifEmpty { graph.scan.logFile.file.takeIf { it.exists() }?.readText().orEmpty() }
 
     fun deviceInfo(): String {
         val app = getApplication<Application>()
@@ -2329,39 +2354,43 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun exportGear(): Pair<Uri, String>? = box?.let { export("gear.txt", it.toText()) }
 
-    fun backupText(): String = JSONObject().put("app", "e7gear").put("version", 1).put("state", stateJson())
-        .put("box", box?.json ?: JSONObject.NULL).put("history", JSONArray(history.map { it.toJson() })).put("upgrades", upgrades.toJson()).toString()
+    fun backupText(): String {
+        box?.let { graph.scan.boxFile.write(it.toText()) }
+        if (history.isNotEmpty() || historyFile.exists()) e7.gearscan.data.History.save(historyFile, history)
+        return graph.store.backup().toString()
+    }
 
     fun restore(text: String): Boolean = runCatching {
-        stopSellSearch()
-        if (e7.gearscan.overlay.OverlayState.upgrade != null) e7.gearscan.overlay.OverlayService.stop(getApplication())
-        if (upgrades.busy) { upgrades.generation++; upgrades.busy = false; PoolService.stop(getApplication()) }
         val j = JSONObject(text)
         if (j.optString("app") != "e7gear") return false
-        j.optJSONObject("box")?.let { b -> boxFile.writeText(b.toString()) }
-        stateFile.writeText(j.getJSONObject("state").toString())
-        // backups from before history was included leave the current history as it is
-        j.optJSONArray("history")?.let { h -> historyFile.writeText(h.toString()); history = e7.gearscan.data.History.load(historyFile) }
-        configs.clear()
-        upgrades.restore(j.optJSONObject("upgrades") ?: JSONObject())
-        apply(readFiles())
-        touch()
+        if (!j.has("state") && !j.has("fields")) return false
+        stopAllWork()
+        graph.store.restore(j)
+        adopt()
+        upgrades.restore(runCatching { JSONObject(graph.tracker.upgrades.read().orEmpty()) }.getOrDefault(JSONObject()))
+        syncTrackerMarks()
         true
     }.getOrDefault(false)
 
-    fun eraseAll() {
-        stopSellSearch();sellResult=null;sellCurve=null;sellQuery=e7.gearscan.data.SellQuery();appliedSellKey=null
-        File(files,"sell_progress.jsonl").delete()
-        if (e7.gearscan.overlay.OverlayState.upgrade != null) e7.gearscan.overlay.OverlayService.stop(getApplication())
-        if (upgrades.busy) { upgrades.generation++; upgrades.busy = false; PoolService.stop(getApplication()) }
-        boxFile.delete(); stateFile.delete(); buildsDir.deleteRecursively()
-        potentialGeneration++; potentialJob?.cancel(); potentialBusy = false; potentialResult = null; potentialQuery = e7.gearscan.data.PotentialQuery()
+    private fun stopAllWork() {
+        cancelSearch()
+        if (pool?.running == true) stopPool()
+        stopSellSearch()
+        if (cleanup?.running == true) stopCleanup()
         if (heroUpgrades?.running == true) stopHeroUpgrades()
-        heroUpgrades = null; heroUpgradesResumable = false; heroUpgradesFile.delete(); heroUpgradesProgressFile.delete()
-        overlaySales=emptyList();cleanupDone=emptySet();sellKept=emptySet();upgrades.clear(); e7.gearscan.overlay.OverlayService.stop(getApplication()); e7.gearscan.overlay.OverlayState.upgrade = null
-        configs.clear(); box = null; tiers = emptyMap(); team = emptyList(); lastScan = 0; lastDiff = null
-        consent = false; search = null; presets.clear()
-        touch()
+        if (upgrades.busy) { upgrades.generation++; upgrades.busy = false; PoolService.stop(getApplication()) }
+        potentialGeneration++; potentialJob?.cancel(); potentialBusy = false
+        graph.work.cancelAll()
+        e7.gearscan.overlay.OverlayService.stop(getApplication())
+    }
+
+    fun eraseAll() {
+        stopAllWork()
+        graph.store.erase()
+        e7.gearscan.overlay.OverlayState.upgrade = null
+        upgrades.restore(JSONObject(), write = false)
+        presets.clear(); search = null; pool = null
+        adopt()
         stack = listOf(Screen.ScanIntro)
     }
 
@@ -2370,107 +2399,49 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }.getOrNull()
 
     // ---- persistence ----
-    private fun stateJson(): JSONObject = JSONObject().apply {
-        put("consent", consent); put("proxyOn", proxyOn); put("proxy", proxy); put("lastScan", lastScan)
-        put("decodeSec", decodeSec)
-        lastDiff?.let { put("lastDiff", it.toJson()) }
-        put("tiers", JSONObject().apply { tiers.forEach { (k, v) -> put(k.toString(), v) } }); put("team", JSONArray(team))
-        put("configs", JSONObject().apply { configs.forEach { (k, v) -> put(k.toString(), v.toJson()) } })
-        put("showRating", showRating.name)
-        put("overlaySeen", overlaySeen); put("overGameNative", overGameNative); put("nativeSeen", nativeSeen)
-        put("poolTiers", JSONArray(poolTiers.toList())); put("poolExtra", JSONArray(poolExtra.toList()))
-        put("poolSkip", JSONArray(poolSkip.toList())); put("poolLosses", poolLosses.name); put("poolEffort", poolEffort.name)
-        pendingPool?.let { put("pendingPool", it) }
-        put("contentCheckedAt", contentCheckedAt); put("poolSecondsPerHero", poolSecondsPerHero)
-        put("contentMirror", e7.gearscan.data.Mirror.active)
-        lastPool?.let { put("lastPoolAt", it.first); put("lastPoolScore", it.second) }
-        cleanup?.takeIf { !it.running && it.finishedAt > 0 }?.let { put("cleanup", cleanupJson(it)) }
-        put("cleanupDone", JSONArray(cleanupDone.toList()))
-        put("sellKept", JSONArray(sellKept.toList()))
-        put("overlaySales",JSONArray(overlaySales.map { JSONObject().put("id",it.id).put("scan",it.scan).put("kept",it.kept) }))
-        put("potentialQuery", potentialQuery.toJson())
-        put("heroUpgradeMinGain", heroUpgradeMinGain); put("heroUpgradeRebuilds", heroUpgradeRebuilds)
-        put("sellQuery", sellQuery.toJson())
-    }
-
     private val crashFile = File(files, CRASH_FILE)
     var lastCrash: String? by mutableStateOf(null)
         private set
 
     fun dismissCrash() { lastCrash = null; crashFile.delete() }
 
-    private class Loaded(val box: Box?, val state: JSONObject?)
+    private fun readBox(): Box? = graph.scan.boxFile.takeIf { it.exists }?.let { f -> runCatching { Box.parse(f.read()!!) }.getOrNull() }
 
-    private fun readFiles() = Loaded(
-        if (boxFile.exists()) runCatching { Box.parse(boxFile.readText()) }.getOrNull() else null,
-        if (stateFile.exists()) runCatching { JSONObject(stateFile.readText()) }.getOrNull() else null,
-    )
-
-    private fun apply(l: Loaded) {
-        box = l.box
-        val j = l.state ?: return
-        consent = j.optBoolean("consent"); proxyOn = j.optBoolean("proxyOn"); proxy = j.optString("proxy")
-        lastScan = j.optLong("lastScan"); decodeSec = j.optInt("decodeSec")
-        lastDiff = ScanDiff.fromJson(j.optJSONObject("lastDiff"))
-        fun longs(k: String) = j.optJSONArray(k)?.let { a -> (0 until a.length()).map(a::getLong) } ?: emptyList()
-        // the old ordered priority list becomes tier 3 for every hero it named
-        tiers = j.optJSONObject("tiers")?.let { o -> o.keys().asSequence().associate { it.toLong() to o.getInt(it) } }
-            ?: longs("priority").associateWith { 3 }
-        // teams became Whole pool runs; a saved team keeps its first hero
-        team = longs("team").take(1)
-        j.optJSONObject("configs")?.let { c -> c.keys().forEach { k -> configs[k.toLong()] = HeroConfig.fromJson(c.getJSONObject(k)) } }
+    private fun adopt(b: Box? = readBox()) {
+        box = b
+        graph.heroes.adoptConfigs()
         // early RTA presets saved single pieces of 2-piece sets as requirements; keep only complete sets
         configs.values.forEach { cfg -> cfg.request?.let { r ->
             r.setAlts = r.setAlts.map { alt -> alt.mapNotNull { (k, n) -> content.set(k)?.takeIf { n >= it.pieces }?.let { k to (n / it.pieces) * it.pieces } }.toMap() }
                 .filter { it.isNotEmpty() }
         } }
-        showRating = runCatching { Rating.valueOf(j.optString("showRating")) }.getOrDefault(Rating.DMG)
-        overlaySeen = j.optBoolean("overlaySeen")
-        overGameNative = j.optBoolean("overGameNative"); nativeSeen = j.optBoolean("nativeSeen")
-        j.optJSONArray("poolTiers")?.let { a -> poolTiers = (0 until a.length()).map(a::getInt).toSet() }
-        poolExtra = longs("poolExtra").toSet()
-        poolSkip = longs("poolSkip").toSet()
-        pendingPool = if (j.has("pendingPool")) j.getLong("pendingPool") else null
-        contentCheckedAt = j.optLong("contentCheckedAt")
-        e7.gearscan.data.Mirror.active = j.optBoolean("contentMirror")
-        poolSecondsPerHero = j.optDouble("poolSecondsPerHero", 3.0)
-        poolLosses = runCatching { PoolLosses.valueOf(j.optString("poolLosses")) }.getOrDefault(PoolLosses.SAFE)
-        poolEffort = runCatching { PoolEffort.valueOf(j.optString("poolEffort")) }.getOrDefault(PoolEffort.BALANCED)
-        if (j.has("lastPoolAt")) lastPool = j.getLong("lastPoolAt") to j.getInt("lastPoolScore")
-        cleanup = j.optJSONObject("cleanup")?.let { cleanupOf(it, l.box) }
+        cleanup = graph.marks.cleanup?.let { cleanupOf(it, b) }
         stopSellSearch();sellResult=null;sellCurve=null;appliedSellKey=null
-        sellQuery=j.optJSONObject("sellQuery")?.let { runCatching { e7.gearscan.data.SellQuery.of(it) }.getOrNull() }?:e7.gearscan.data.SellQuery()
-        potentialQuery = j.optJSONObject("potentialQuery")?.let { runCatching { e7.gearscan.data.PotentialQuery.of(it) }.getOrNull() } ?: e7.gearscan.data.PotentialQuery()
         potentialGeneration++; potentialJob?.cancel(); potentialBusy = false; potentialResult = null; potentialError = null
-        cleanupDone = longs("cleanupDone").filter { id -> l.box?.itemsById?.containsKey(id) == true }.toSet()
-        sellKept = longs("sellKept").filter { id -> l.box?.itemsById?.containsKey(id) == true }.toSet()
-        val sales=j.optJSONArray("overlaySales")?:JSONArray()
-        overlaySales=(0 until sales.length()).mapNotNull { i->runCatching { val mark=sales.getJSONObject(i);OverlaySale(mark.getLong("id"),mark.getLong("scan"),mark.optBoolean("kept")) }.getOrNull() }.filter { it.id in reviewedIds&&it.scan==lastScan }.distinctBy { it.id }
-        syncClearedUpgradeQueue()
-        upgrades.canUndoSold=overlaySales.any { mark->upgrades.queue.any { it.id==mark.id } }
-        heroUpgradeMinGain = j.optDouble("heroUpgradeMinGain", 0.5)
-        heroUpgradeRebuilds = j.optBoolean("heroUpgradeRebuilds", false)
+        cleanupDone = cleanupDone.filter { id -> b?.itemsById?.containsKey(id) == true }.toSet()
+        sellKept = sellKept.filter { id -> b?.itemsById?.containsKey(id) == true }.toSet()
+        overlaySales = overlaySales.filter { it.id in reviewedIds&&it.scan==lastScan }.distinctBy { it.id }
+        syncTrackerMarks()
         // results saved before the swap fields existed can't answer "this piece only": they are dropped
-        heroUpgrades = runCatching { JSONObject(heroUpgradesFile.readText()) }.getOrNull()?.takeIf { it.optInt("format") == HERO_UPGRADES_FORMAT }?.let { o -> l.box?.let { b -> runCatching {
-            HeroUpgradeState(o.getLong("scan"), o.getString("key"), e7.gearscan.opt.HeroUpgrades.Result.of(o.getJSONObject("result"), b.itemsById),
+        heroUpgrades = runCatching { JSONObject(heroUpgradesFile.readText()) }.getOrNull()?.takeIf { it.optInt("format") == HERO_UPGRADES_FORMAT }?.let { o -> b?.let { bx -> runCatching {
+            HeroUpgradeState(o.getLong("scan"), o.getString("key"), e7.gearscan.opt.HeroUpgrades.Result.of(o.getJSONObject("result"), bx.itemsById),
                 running = false, finishedAt = o.getLong("finishedAt"), attempt = o.optInt("attempt"))
         }.getOrNull() } }
         heroUpgradesResumable = runCatching { JSONObject(heroUpgradesProgressFile.readText()).let { !it.getBoolean("finished") && it.getString("light") == heroUpgradeKey() } }
             .getOrDefault(false)
-
+        history = e7.gearscan.data.History.load(historyFile)
     }
 
-    fun save() {
-        val text = stateJson().toString()
-        viewModelScope.launch(Dispatchers.IO) {
-            // whole-file replace, so a write cut short never leaves half a state file
-            synchronized(stateFile) { File(stateFile.path + ".tmp").also { it.writeText(text) }.renameTo(stateFile) }
-        }
+    private fun syncTrackerMarks() {
+        syncClearedUpgradeQueue()
+        upgrades.canUndoSold=overlaySales.any { mark->upgrades.queue.any { it.id==mark.id } }
     }
+
+    fun save() { graph.store.saveNow() }
 
     private fun saveBox() {
         val text = box?.toText() ?: return
-        viewModelScope.launch(Dispatchers.IO) { boxFile.writeText(text) }
+        viewModelScope.launch(Dispatchers.IO) { graph.scan.boxFile.write(text) }
     }
 
     fun showCapture() {
@@ -2498,7 +2469,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     // last in the class: startup work started here reads fields declared above, which must exist before it runs
     init {
         e7.gearscan.data.Http.agent = "E7Gear/$appVersion"
-        e7.gearscan.overlay.OverlayState.progressFile = File(files, "checklist.json")
+        e7.gearscan.overlay.OverlayState.progressFile = graph.tracker.checklist.file
         upgrades.requestCheck = ::checkUpgrade
         upgrades.canReforge = { id -> box?.canReforge(id) == true }
         upgrades.equipOn = ::equipTracked
@@ -2506,10 +2477,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         upgrades.rebuilds = heroUpgradeRebuilds
         upgrades.setRebuilds = { on -> useHeroUpgradeRebuilds(on); upgrades.rebuilds = on; checkUpgrade() }
         viewModelScope.launch {
-            val loaded = withContext(Dispatchers.IO) { readFiles() }
+            val b = withContext(Dispatchers.IO) { graph.loadOnce(); readBox() }
             lastCrash = withContext(Dispatchers.IO) { crashFile.takeIf { it.exists() }?.readText() }
-            apply(loaded)
-            history = withContext(Dispatchers.IO) { e7.gearscan.data.History.load(historyFile) }
+            adopt(b)
             box?.let { b -> if (team.isEmpty() || team.any { b.hero(it) == null }) team = listOfNotNull(defaultHero(b)) }
             stack = listOf(if (!consent && box == null) Screen.ScanIntro else Screen.Optimize)
             ready = true
