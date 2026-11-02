@@ -10,5 +10,5 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
     var rebuilds by saved("rebuilds", false, Codecs.bool)
     val result = savedFile("hero_upgrades.json", backup = false, path = "hero_upgrades.json")
     val progress = savedFile("hero_upgrades_progress.json", backup = false, path = "hero_upgrades_progress.json")
-    val run = work<Unit>("Improve heroes check", Weight.Heavy)
+    val run = work<Unit>("Improve heroes check", Weight.Heavy, notice = "Finding upgrades for your heroes")
 }
