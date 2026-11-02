@@ -3,7 +3,11 @@ package e7.gearscan.features.optimize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import e7.gearscan.AppGraph
+import e7.gearscan.state.FeatureContext
+import e7.gearscan.features.settings.SettingsFeature
+import e7.gearscan.features.feedback.FeedbackFeature
+import e7.gearscan.features.heroes.HeroesFeature
+import e7.gearscan.features.history.HistoryFeature
 import e7.gearscan.Screen
 import e7.gearscan.calc.Rating
 import e7.gearscan.data.Goal
@@ -52,7 +56,7 @@ data class SearchState(
     val limitMs: Long = 15_000L,
 )
 
-class OptimizeFeature(g: AppGraph) : Feature(g, "optimize") {
+class OptimizeFeature(ctx: FeatureContext, private val settings: SettingsFeature, private val feedback: FeedbackFeature, private val heroes: HeroesFeature, private val history: HistoryFeature) : Feature(ctx, "optimize") {
     val limitMs = 15_000L
     val longLimitMs = 60_000L
 
@@ -65,21 +69,21 @@ class OptimizeFeature(g: AppGraph) : Feature(g, "optimize") {
 
     fun startSearch(limit: Long = limitMs) {
         cancelSearch()
-        val id = g.heroes.team.firstOrNull() ?: return
-        val setup = g.heroes.setup(id) ?: return
+        val id = heroes.team.firstOrNull() ?: return
+        val setup = heroes.setup(id) ?: return
         val cur = setup.build(setup.current().values.toList())
-        g.settings.showRating =
+        settings.showRating =
             when (setup.req.goal) {
                 Goal.EHP -> Rating.EHP
                 Goal.SPEED -> Rating.SPD
                 Goal.CP -> Rating.CP
                 Goal.GEAR_SCORE -> Rating.GS
-                else -> if (g.settings.showRating in listOf(Rating.EHP, Rating.SPD, Rating.CP, Rating.GS)) Rating.DMG else g.settings.showRating
+                else -> if (settings.showRating in listOf(Rating.EHP, Rating.SPD, Rating.CP, Rating.GS)) Rating.DMG else settings.showRating
             }
         val r = SearchRun(setup, 50)
         search = SearchState(id, current = cur, limitMs = limit)
         val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 6)
-        g.messages.show(
+        ctx.messages.show(
             searchWork.start {
                 onCancel {
                     r.cancel()
@@ -112,11 +116,11 @@ class OptimizeFeature(g: AppGraph) : Feature(g, "optimize") {
                     val started = search?.startedAt ?: return@start
                     if (builds.isNotEmpty() && !stopped) {
                         val best = builds.first()
-                        g.history.record(
+                        history.record(
                             HistoryEntry(
-                                started, false, g.heroes.hero(id)?.let(g.heroes::heroName) ?: "Hero",
+                                started, false, heroes.hero(id)?.let(heroes::heroName) ?: "Hero",
                                 setup.req.goal.short + (setup.req.presetLabel?.let { " · " + it.substringAfter(" · ") } ?: ""),
-                                g.heroes.matchOf(id, cur)?.pct ?: 0, g.heroes.matchOf(id, best)?.pct ?: 0,
+                                heroes.matchOf(id, cur)?.pct ?: 0, heroes.matchOf(id, best)?.pct ?: 0,
                                 best.items.count { !it.ghost && (it.equippedOn != id || it.mod != null) },
                                 mapOf(id to builds.take(HISTORY_BUILDS).map { b -> b.items.filter { !it.ghost }.map(PieceRef::of) }),
                             ),
@@ -136,7 +140,7 @@ class OptimizeFeature(g: AppGraph) : Feature(g, "optimize") {
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Throwable) {
-                    g.feedback.failed("search", e)
+                    feedback.failed("search", e)
                     searchStopped()
                 }
             },
@@ -147,16 +151,16 @@ class OptimizeFeature(g: AppGraph) : Feature(g, "optimize") {
     fun openFromHistory(e: HistoryEntry): Boolean {
         if (search?.running == true) return false
         val id = e.builds.keys.firstOrNull() ?: return false
-        val latest = g.history.entries.firstOrNull { !it.pool }?.at == e.at
+        val latest = history.entries.firstOrNull { !it.pool }?.at == e.at
         if (!(latest && search?.startedAt == e.at && search?.heroId == id)) {
-            val cur = g.heroes.currentBuild(id) ?: return false
+            val cur = heroes.currentBuild(id) ?: return false
             search =
                 SearchState(
-                    id, false, e.at, e.at, e.builds[id].orEmpty().mapNotNull { g.history.restoreBuild(id, it) }, cur,
+                    id, false, e.at, e.at, e.builds[id].orEmpty().mapNotNull { history.restoreBuild(id, it) }, cur,
                     historyAt = if (latest) 0 else e.at,
                 )
         }
-        g.nav.go(Screen.Results)
+        ctx.nav.go(Screen.Results)
         return true
     }
 
@@ -234,8 +238,8 @@ class OptimizeFeature(g: AppGraph) : Feature(g, "optimize") {
 
     fun searchContext(): JSONObject? {
         val s = search ?: return null
-        val h = g.heroes.hero(s.heroId)
-        return JSONObject().put("hero", h?.let(g.heroes::heroName)).put("request", g.heroes.request(s.heroId).toJson())
+        val h = heroes.hero(s.heroId)
+        return JSONObject().put("hero", h?.let(heroes::heroName)).put("request", heroes.request(s.heroId).toJson())
             .put("builds", s.builds.size).put("timedOut", s.timedOut).put("cancelled", s.cancelled)
             .put("ghost", s.ghost != null).put("team", s.team.size)
     }

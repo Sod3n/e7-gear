@@ -3,7 +3,7 @@ package e7.gearscan.features.content
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import e7.gearscan.AppGraph
+import e7.gearscan.state.FeatureContext
 import e7.gearscan.data.Content
 import e7.gearscan.data.ContentUpdate
 import e7.gearscan.data.Mirror
@@ -16,7 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class ContentFeature(g: AppGraph) : Feature(g, "content") {
+class ContentFeature(ctx: FeatureContext) : Feature(ctx, "content") {
     var checkedAt by saved("checkedAt", 0L, Codecs.long, keepOnErase = true)
     var mirror by saved("mirror", false, Codecs.bool, keepOnErase = true)
     val mirrorSwitch =
@@ -47,7 +47,7 @@ class ContentFeature(g: AppGraph) : Feature(g, "content") {
     }
 
     private fun download(url: String): ByteArray {
-        val c = g.http.open(url) as HttpURLConnection
+        val c = ctx.http.open(url) as HttpURLConnection
         c.connectTimeout = 8000
         c.readTimeout = 20000
         c.useCaches = false
@@ -75,7 +75,7 @@ class ContentFeature(g: AppGraph) : Feature(g, "content") {
                         ContentUpdate.Result.UPDATED -> {
                             content = o.content!!
                             imageBase = content.imageBase
-                            g.rev.bump()
+                            ctx.rev.bump()
                             Outcome.Note("Updated to ${o.version}")
                         }
                         ContentUpdate.Result.NEEDS_APP -> Outcome.Note("Content ${o.version} needs a newer app")
@@ -88,11 +88,11 @@ class ContentFeature(g: AppGraph) : Feature(g, "content") {
             result is Outcome.Note -> status = result.text
             result is Outcome.Failed && !quiet -> status = result.text
         }
-        g.store.saveNow()
+        ctx.store.saveNow()
         return result
     }
 
     fun checkNow(quiet: Boolean = false) {
-        g.scope.launch { check(quiet) }
+        ctx.scope.launch { check(quiet) }
     }
 }

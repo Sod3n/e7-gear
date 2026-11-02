@@ -4,7 +4,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import e7.gearscan.AppGraph
+import e7.gearscan.state.FeatureContext
+import e7.gearscan.features.content.ContentFeature
+import e7.gearscan.features.scan.ScanFeature
+import e7.gearscan.features.marks.MarksFeature
+import e7.gearscan.features.records.RecordsFeature
+import e7.gearscan.features.heroes.HeroesFeature
+import e7.gearscan.features.pool.PoolFeature
 import e7.gearscan.data.Box
 import e7.gearscan.data.Goal
 import e7.gearscan.data.Item
@@ -74,7 +80,7 @@ class HeroUpgradeRow(
 /** [bestNow]: match % of the best build the hero can make now (targets goal), the bar every finish is measured against. */
 class HeroUpgradeHero(val hero: OwnedHero, val base: HeroUpgrades.Base, val rows: List<HeroUpgradeRow>, val bestNow: Int?, val open: Int)
 
-class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
+class ImproveHeroesFeature(ctx: FeatureContext, private val contentFeature: ContentFeature, private val scanFeature: ScanFeature, private val marks: MarksFeature, private val records: RecordsFeature, private val heroesFeature: HeroesFeature, private val pool: PoolFeature) : Feature(ctx, "improveHeroes") {
     /** Smallest gain a finish must bring to be listed, in rolls ([HeroUpgrades.unit]). */
     var minGain by saved("minGain", 0.5, Codecs.double)
 
@@ -102,24 +108,24 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
     private var usualInputs: Pair<List<Any?>, Pair<List<Setup>, List<Item>>>? = null
     private var changesFor: Any? = null
 
-    private val box get() = g.scan.box
-    private val content get() = g.content.content
+    private val box get() = scanFeature.box
+    private val content get() = contentFeature.content
 
     fun useMinGain(rolls: Double) {
         minGain = rolls
-        g.rev.bump()
+        ctx.rev.bump()
     }
 
     fun useRebuilds(on: Boolean) {
         rebuilds = on
-        g.rev.bump()
+        ctx.rev.bump()
     }
 
     /** The heroes the check covers: every hero with a setup, as in [e7.gearscan.features.heroes.HeroesFeature.gearSetups]. */
     fun heroes(): List<OwnedHero> =
         box?.heroes.orEmpty().filter { h ->
-            g.heroes.gameHero(h) != null &&
-                g.heroes.configs[h.id]?.request?.let { r -> r.goal != Goal.TARGETS || r.targets.any { !it.isNaN() } } == true
+            heroesFeature.gameHero(h) != null &&
+                heroesFeature.configs[h.id]?.request?.let { r -> r.goal != Goal.TARGETS || r.targets.any { !it.isNaN() } } == true
         }
 
     private fun sha256(raw: String) =
@@ -128,13 +134,13 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
     /** What the answer depends on: scan, recorded upgrades, cleared pieces, the pool's protected gear, setups, content. */
     fun key(): String {
         val memoKey =
-            listOf(box, g.scan.lastScan, g.records.records, g.marks.cleared, g.pool.tiers, g.pool.extra, g.heroes.tiers, g.rev.value, content.version)
+            listOf(box, scanFeature.lastScan, records.records, marks.cleared, pool.tiers, pool.extra, heroesFeature.tiers, ctx.rev.value, content.version)
         keyMemo?.takeIf { it.first == memoKey }?.let { return it.second }
         val raw =
-            "hero-upgrades-v2|${g.scan.lastScan}|" +
-                g.records.records.values.filter { it.scan == g.scan.lastScan }.sortedBy { it.item.id }.joinToString { it.toJson().toString() } +
-                "|${g.marks.cleared.sorted()}|${g.pool.members().map { it.id }.sorted()}|${content.version}|" +
-                heroes().joinToString(",") { "${it.id}=${g.heroes.setupKey(it.id)}" }
+            "hero-upgrades-v2|${scanFeature.lastScan}|" +
+                records.records.values.filter { it.scan == scanFeature.lastScan }.sortedBy { it.item.id }.joinToString { it.toJson().toString() } +
+                "|${marks.cleared.sorted()}|${pool.members().map { it.id }.sorted()}|${content.version}|" +
+                heroes().joinToString(",") { "${it.id}=${heroesFeature.setupKey(it.id)}" }
         return sha256(raw).also { keyMemo = memoKey to it }
     }
 
@@ -144,15 +150,15 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
     /** The box as recorded (manual upgrades of this scan applied, cleared pieces out), the heroes, the pieces to try, and a full fingerprint. */
     private fun inputs(): Triple<List<Setup>, List<Item>, String>? {
         val b0 = box ?: return null
-        val observed = g.records.records.values.filter { it.scan == g.scan.lastScan }.associate { it.item.id to it.item }
+        val observed = records.records.values.filter { it.scan == scanFeature.lastScan }.associate { it.item.id to it.item }
         val b =
             Box(
                 JSONObject(b0.toText()).put(
                     "items",
-                    JSONArray(b0.items.filter { it.id !in g.marks.cleared }.map { item -> UpgradeRecord.itemJson(observed[item.id] ?: item) }),
+                    JSONArray(b0.items.filter { it.id !in marks.cleared }.map { item -> UpgradeRecord.itemJson(observed[item.id] ?: item) }),
                 ),
             )
-        val setups = g.heroes.gearSetups(b, g.pool.inUse(b))
+        val setups = heroesFeature.gearSetups(b, pool.inUse(b))
         val pieces = b.items.filter { it.enhance < 15 && UpgradeRecord.supported(it) }.sortedBy { it.id }
         val full =
             sha256(
@@ -176,8 +182,8 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
         val saved = runCatching { JSONObject(progress.read().orEmpty()) }.getOrNull()?.takeIf { it.optString("full") == full }
         val resume = saved?.optJSONObject("progress")?.let { runCatching { HeroUpgrades.Progress.of(it) }.getOrNull() } ?: HeroUpgrades.Progress()
         val attempt = (saved?.optInt("attempt") ?: 0) + if (more && saved != null) 1 else 0
-        val scan = g.scan.lastScan
-        g.messages.show(
+        val scan = scanFeature.lastScan
+        ctx.messages.show(
             run.start {
                 val scope = this
                 val alive = { scope.isActive }
@@ -198,7 +204,7 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
                                 check.run(
                                     setups, pieces, attempt, cancelled = { !alive() },
                                     progress = { done, total ->
-                                        g.scope.launch { if (alive()) heroUpgrades = heroUpgrades?.copy(done = done, total = total) }
+                                        ctx.scope.launch { if (alive()) heroUpgrades = heroUpgrades?.copy(done = done, total = total) }
                                         scope.progress(done, total, "${done * 100 / total.coerceAtLeast(1)}%")
                                     },
                                     resume = resume,
@@ -237,7 +243,7 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
                     return@start
                 }
                 heroUpgrades = state
-                g.platform.notifyHeroUpgradesDone(heroUpgrades?.result?.let { r -> view(r).count { it.rows.isNotEmpty() } } ?: 0)
+                ctx.platform.notifyHeroUpgradesDone(heroUpgrades?.result?.let { r -> view(r).count { it.rows.isNotEmpty() } } ?: 0)
             },
         )
     }
@@ -261,11 +267,11 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
     /** Opens the final build of [row]'s usual finish for [heroId], worked out off the main thread. */
     fun openFinalBuild(heroId: Long, row: HeroUpgradeRow) {
         val r = heroUpgrades?.result ?: return
-        val h = g.heroes.hero(heroId) ?: return
+        val h = heroesFeature.hero(heroId) ?: return
         finalBuild = null
         finalBuildBusy = true
         val withRebuilds = rebuilds
-        g.scope.launch {
+        ctx.scope.launch {
             val fb =
                 withContext(Dispatchers.Default) {
                     val (setups, pieces, _) = inputs() ?: return@withContext null
@@ -283,7 +289,7 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
                         }
                     items ?: return@withContext null
                     FinalBuild(
-                        h, piece.id, items.sortedBy { it.slot.ordinal }, g.heroes.buildFrom(heroId, items.sortedBy { it.slot.ordinal }, piece.id),
+                        h, piece.id, items.sortedBy { it.slot.ordinal }, heroesFeature.buildFrom(heroId, items.sortedBy { it.slot.ordinal }, piece.id),
                         HeroUpgrades.setsLabel(s.current().values, content) to HeroUpgrades.setsLabel(items, content),
                         scoredStats(s, items), row.typical,
                         if (withRebuilds) "The best build with a usual finish of this piece" else "What the hero wears, with a usual finish of this piece in its slot",
@@ -297,7 +303,7 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
     /** Works out [rows]' stat changes off the main thread, top rows first; rows already known are skipped. */
     suspend fun warmChanges(rows: List<Pair<Long, HeroUpgradeRow>>) {
         val r = heroUpgrades?.result ?: return
-        val key = listOf(r, g.scan.lastScan, g.rev.value, g.marks.cleared)
+        val key = listOf(r, scanFeature.lastScan, ctx.rev.value, marks.cleared)
         if (changesFor != key) {
             changes.clear()
             changesFor = key
@@ -322,7 +328,7 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
             }
         }
         val r = heroUpgrades?.result ?: return emptyList()
-        val key = listOf(r, g.scan.lastScan, g.rev.value, g.marks.cleared)
+        val key = listOf(r, scanFeature.lastScan, ctx.rev.value, marks.cleared)
         return withContext(Dispatchers.Default) {
             val (setups, pieces) =
                 synchronized(this@ImproveHeroesFeature) {
@@ -347,12 +353,12 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
     fun view(r: HeroUpgrades.Result, minGain: Double = this.minGain, rebuilds: Boolean = this.rebuilds): List<HeroUpgradeHero> {
         val byHero = r.picks.groupBy { it.hero }
         return r.bases.values.mapNotNull { base ->
-            val h = g.heroes.hero(base.id) ?: return@mapNotNull null
-            val req = g.heroes.configs[h.id]?.request ?: return@mapNotNull null
+            val h = heroesFeature.hero(base.id) ?: return@mapNotNull null
+            val req = heroesFeature.configs[h.id]?.request ?: return@mapNotNull null
             val scale =
                 if (req.goal == Goal.TARGETS) {
-                    g.heroes.mainsOnly(h.id, req)?.let { floor ->
-                        g.heroes.rolls(h.id)?.let { roll -> Match.start(floor, req.targets, req.weights, roll).takeIf { it > 0 }?.let { 100 / it } }
+                    heroesFeature.mainsOnly(h.id, req)?.let { floor ->
+                        heroesFeature.rolls(h.id)?.let { roll -> Match.start(floor, req.targets, req.weights, roll).takeIf { it > 0 }?.let { 100 / it } }
                     }
                 } else {
                     null
@@ -387,14 +393,14 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
                         kept[kept.size / 2].first, if (rebuilds) p.changes else p.swapChanges,
                     )
                 }.sortedWith(compareByDescending<HeroUpgradeRow> { it.expected }.thenByDescending { it.hits }.thenBy { it.pick.piece })
-            val baseBuild = g.heroes.setup(h.id)?.let { s -> base.items.mapNotNull { box?.itemsById?.get(it) }.takeIf { it.size == 6 }?.let { s.build(it) } }
+            val baseBuild = heroesFeature.setup(h.id)?.let { s -> base.items.mapNotNull { box?.itemsById?.get(it) }.takeIf { it.size == 6 }?.let { s.build(it) } }
             HeroUpgradeHero(
-                h, base, rows, if (rebuilds) baseBuild?.let { g.heroes.matchOf(h.id, it)?.pct } else g.heroes.matchFor(h.id)?.pct,
+                h, base, rows, if (rebuilds) baseBuild?.let { heroesFeature.matchOf(h.id, it)?.pct } else heroesFeature.matchFor(h.id)?.pct,
                 picks.count { it.unknown > 0 },
             )
         }.sortedWith(
-            compareByDescending<HeroUpgradeHero> { g.heroes.tier(it.hero.id) }.thenByDescending { it.rows.firstOrNull()?.expected ?: -1.0 }
-                .thenBy { g.heroes.heroName(it.hero) },
+            compareByDescending<HeroUpgradeHero> { heroesFeature.tier(it.hero.id) }.thenByDescending { it.rows.firstOrNull()?.expected ?: -1.0 }
+                .thenBy { heroesFeature.heroName(it.hero) },
         )
     }
 

@@ -3,7 +3,15 @@ package e7.gearscan.features.tracker
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import e7.gearscan.AppGraph
+import e7.gearscan.features.heroes.HeroesFeature
+import e7.gearscan.features.pool.PoolFeature
+import e7.gearscan.state.FeatureContext
+import e7.gearscan.features.content.ContentFeature
+import e7.gearscan.features.scan.ScanFeature
+import e7.gearscan.features.marks.MarksFeature
+import e7.gearscan.features.records.RecordsFeature
+import e7.gearscan.features.sellreview.SellReviewFeature
+import e7.gearscan.features.improveheroes.ImproveHeroesFeature
 import e7.gearscan.data.Box
 import e7.gearscan.data.GearStat
 import e7.gearscan.data.Item
@@ -23,7 +31,18 @@ import org.json.JSONObject
 /** Simulated finishes the tracker checks a piece with: the chance it ends up an upgrade, and its weakest helping finishes. */
 const val PIECE_SIMS = 120
 
-class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
+class TrackerFeature(
+    ctx: FeatureContext,
+    private val contentFeature: ContentFeature,
+    private val scanFeature: ScanFeature,
+    private val marks: MarksFeature,
+    private val recordsFeature: RecordsFeature,
+    heroes: HeroesFeature,
+    pool: PoolFeature,
+    private val sellReview: SellReviewFeature,
+    private val improveHeroes: ImproveHeroesFeature,
+    private val launcher: OverGameLauncher,
+) : Feature(ctx, "tracker") {
     data class QueueEntry(
         val id: Long,
         val goal: GearPotential.Goal?,
@@ -43,17 +62,17 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
 
     val upgrades = savedFile("upgrades.json", backup = true, path = "upgrades.json")
     val check = work<Unit>("Upgrade check", Weight.Yielding, foreground = true, notice = "Checking this upgrade")
-    val checkRun = UpgradeCheckRun(this, g, check)
-    val worn = WornPiece(this, g)
-    val readout = UpgradeReadout(this, g)
-    val starts = TrackStarts(this, g)
+    val checkRun = UpgradeCheckRun(this, ctx, check, scanFeature, recordsFeature, heroes, pool, marks, improveHeroes, contentFeature)
+    val worn = WornPiece(this, ctx, scanFeature, heroes)
+    val readout = UpgradeReadout(this, scanFeature, sellReview)
+    val starts = TrackStarts(this, ctx, scanFeature, contentFeature, marks, recordsFeature)
 
     var shown by mutableStateOf(false)
         private set
     private var records: Map<Long, UpgradeRecord>
-        get() = g.records.records
+        get() = recordsFeature.records
         set(value) {
-            g.records.records = value
+            recordsFeature.records = value
         }
     var selected: Long? by mutableStateOf(null)
         private set
@@ -80,21 +99,21 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
     var editing by mutableStateOf(false)
         internal set
 
-    private val scan get() = g.scan.lastScan
-    private val box get() = g.scan.box
-    private val content get() = g.content.content
+    private val scan get() = scanFeature.lastScan
+    private val box get() = scanFeature.box
+    private val content get() = contentFeature.content
 
     val record get() = records[selected]
-    val cleared: Set<Long> get() = g.marks.reviewed
+    val cleared: Set<Long> get() = marks.reviewed
     val pendingQueue get() = queue.filter { it.id !in cleared }
     val queueIndex get() = pendingQueue.indexOfFirst { it.id == selected }
     val isSellQueue get() = scoreQuery != null && queue.isNotEmpty()
     val sellQueueComplete get() = isSellQueue && pendingQueue.isEmpty()
     val needsRollRefresh get() = isSellQueue && queueBasis != RollReview.BASIS && (scoreQuery?.scoreFilter == false || scoreQuery?.sort == SellSort.QUALITY)
-    val canUndoSold get() = g.marks.lastSale(scan, queue.mapTo(HashSet()) { it.id }) != null
+    val canUndoSold get() = marks.lastSale(scan, queue.mapTo(HashSet()) { it.id }) != null
     val canMarkSold get() = isSellQueue && !sellQueueComplete && !editing && selected in pendingQueue.map { it.id }
-    val rollOn get() = g.sellReview.query.rollOn
-    val rebuilds get() = g.improveHeroes.rebuilds
+    val rollOn get() = sellReview.query.rollOn
+    val rebuilds get() = improveHeroes.rebuilds
     val setIcon get() = record?.item?.let { content.set(it.set)?.icon }
     val setName get() = record?.item?.let { content.set(it.set)?.name }
     val hasEs get() = scoreQuery != null
@@ -252,7 +271,7 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
 
     fun selectInQueue(index: Int) {
         val entry = pendingQueue.getOrNull(index)
-        val original = entry?.let { box?.itemsById?.get(it.id) }?.takeIf { it.id !in g.marks.cleared }
+        val original = entry?.let { box?.itemsById?.get(it.id) }?.takeIf { it.id !in marks.cleared }
         if (queueScan != scan) {
             error = "Your scan changed. Refresh the matches in E7 Gear."
         } else if (original != null) {
@@ -269,8 +288,8 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
     }
 
     fun useRebuilds(on: Boolean) {
-        g.improveHeroes.rebuilds = on
-        g.rev.bump()
+        improveHeroes.rebuilds = on
+        ctx.rev.bump()
         checkRun.runCheck()
     }
 
@@ -279,15 +298,15 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
         keep: Boolean = false,
     ) {
         val record = record ?: return
-        if (editing || scoreQuery == null || selected != expectedId || expectedId in g.marks.reviewed) return
+        if (editing || scoreQuery == null || selected != expectedId || expectedId in marks.reviewed) return
         if (queueScan != scan || record.scan != scan || box?.itemsById?.containsKey(expectedId) != true || queue.none { it.id == expectedId }) {
             error = "Your scan changed. Refresh the matches before marking this piece."
             return
         }
         val index = queueIndex.coerceAtLeast(0)
-        g.marks.recordSold(expectedId, scan, keep)
+        marks.recordSold(expectedId, scan, keep)
         invalidate()
-        g.store.saveNow()
+        ctx.store.saveNow()
         val next = pendingQueue.getOrNull(index) ?: pendingQueue.lastOrNull()
         next?.let { e -> box?.itemsById?.get(e.id)?.let { select(it, scan, keepQueue = true) } }
         configure()
@@ -295,22 +314,22 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
 
     fun undoSold() {
         if (editing) return
-        val mark = g.marks.lastSale(scan, queue.map { it.id }.toSet()) ?: return
+        val mark = marks.lastSale(scan, queue.map { it.id }.toSet()) ?: return
         val b = box
         if (b?.itemsById?.containsKey(mark.id) != true) {
             error = "That piece is no longer in your scan."
             return
         }
-        g.marks.undoSale(mark)
+        marks.undoSale(mark)
         invalidate()
-        g.store.saveNow()
+        ctx.store.saveNow()
         select(b.itemsById.getValue(mark.id), scan, keepQueue = true)
         configure()
     }
 
     fun returnToApp() {
         // in the phone's floating window the app is already here: show all of it
-        if (g.overlay.floating) g.overlay.floatingPanel = false else g.platform.showApp()
+        if (ctx.overlay.floating) ctx.overlay.floatingPanel = false else ctx.platform.showApp()
     }
 
     fun openOverlay(): Outcome {
@@ -318,8 +337,8 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
         if (r.scan != scan || r.item.id !in (box?.itemsById ?: emptyMap())) return Outcome.Failed("Your scan changed. Choose the gear again.")
         configure()
         show()
-        g.overlay.expanded = false
-        g.overGame.open { checkRun.runCheck() }
+        ctx.overlay.expanded = false
+        launcher.open { checkRun.runCheck() }
         return Outcome.Done
     }
 
@@ -352,7 +371,7 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
     }
 
     fun syncMarks() {
-        if (isSellQueue && queueScan == scan && selected in g.marks.reviewed) {
+        if (isSellQueue && queueScan == scan && selected in marks.reviewed) {
             pendingQueue.firstOrNull()?.let { e ->
                 box?.itemsById?.get(e.id)?.let { item -> if (records[e.id]?.scan == scan) select(item, scan, keepQueue = true) }
             }
@@ -361,7 +380,7 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
 
     internal fun refreshScoreGoal() {
         val q = scoreQuery?.takeIf { it.scoreFilter } ?: return
-        val context = g.sellReview.context(q) ?: return
+        val context = sellReview.context(q) ?: return
         val ids = queue.map { it.id }.toSet() + listOfNotNull(selected)
         refreshScoreGoals(context.items.filter { it.id in ids }.associate { it.id to context.goal(it) })
     }

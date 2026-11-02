@@ -5,7 +5,12 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import e7.gearscan.AppGraph
+import e7.gearscan.state.FeatureContext
+import e7.gearscan.features.content.ContentFeature
+import e7.gearscan.features.scan.ScanFeature
+import e7.gearscan.features.heroes.HeroesFeature
+import e7.gearscan.features.history.HistoryFeature
+import e7.gearscan.features.pool.PoolFeature
 import e7.gearscan.Screen
 import e7.gearscan.calc.Calc
 import e7.gearscan.calc.Reforge
@@ -20,7 +25,7 @@ import e7.gearscan.state.Feature
 import org.json.JSONArray
 import org.json.JSONObject
 
-class ChecklistFeature(g: AppGraph) : Feature(g, "checklist") {
+class ChecklistFeature(ctx: FeatureContext, private val contentFeature: ContentFeature, private val scan: ScanFeature, private val heroes: HeroesFeature, private val history: HistoryFeature, private val pool: PoolFeature, private val tracker: TrackerFeature) : Feature(ctx, "checklist") {
     val progress = savedFile("checklist.json", backup = false, path = "checklist.json")
 
     var build: OverlayBuild? by mutableStateOf(null)
@@ -34,42 +39,42 @@ class ChecklistFeature(g: AppGraph) : Feature(g, "checklist") {
     private val doneOrder = mutableStateListOf<Int>()
     private var onFinish: (() -> Unit)? = null
 
-    private val content get() = g.content.content
-    private val box get() = g.scan.box
+    private val content get() = contentFeature.content
+    private val box get() = scan.box
 
     /** Loads one hero's build as the in-game checklist; finishing it records the build. */
     fun loadBuild(heroId: Long, b: Build, title: String, flag: String? = null) {
         val ob = overlayBuild(heroId, b, title, flag)
-        load(ob) { g.heroes.recordBuild(heroId, b, ob.pieces.filter { it.reforgeStep }.map { it.item.id }, rolledMods()) }
+        load(ob) { heroes.recordBuild(heroId, b, ob.pieces.filter { it.reforgeStep }.map { it.item.id }, rolledMods()) }
     }
 
     /** Loads the pool's moves as the in-game checklist; finishing it records them all. */
     fun loadPool(): Boolean {
-        val p = g.pool.state ?: return false
+        val p = pool.state ?: return false
         val b = poolOverlay() ?: return false
         load(b) {
-            g.pool.equip(p, b.pieces.filter { it.reforgeStep }.map { it.item.id }, rolledMods())
-            g.nav.tab(Screen.Optimize)
+            pool.equip(p, b.pieces.filter { it.reforgeStep }.map { it.item.id }, rolledMods())
+            ctx.nav.tab(Screen.Optimize)
         }
         return true
     }
 
     fun poolOverlay(): OverlayBuild? {
-        val p = g.pool.state ?: return null
+        val p = pool.state ?: return null
         val steps =
             p.builds.flatMap { (id, b) ->
-                val name = g.heroes.heroName(id) ?: return@flatMap emptyList()
+                val name = heroes.heroName(id) ?: return@flatMap emptyList()
                 val ob = b?.let { overlayBuild(id, it, name) } ?: return@flatMap emptyList()
                 ob.pieces.filter { !it.onHero || it.otherMenu }.map { it.copyFor(name) }
             }
         val pieces = steps.filter { it.menu == 0 } + steps.filter { it.menu == 1 } + steps.filter { it.menu == 2 }
-        return OverlayBuild("Pool · ${pieces.size} moves", null, pieces, emptyList(), p.takeIf { it.fromHistory }?.let { g.history.flag(it.startedAt) })
+        return OverlayBuild("Pool · ${pieces.size} moves", null, pieces, emptyList(), p.takeIf { it.fromHistory }?.let { history.flag(it.startedAt) })
     }
 
     fun overlayBuild(heroId: Long, b: Build, title: String, flag: String? = null): OverlayBuild {
-        val h = g.heroes.hero(heroId)
-        val reforged = g.heroes.request(heroId).reforged
-        val cur = g.heroes.currentBuild(heroId)
+        val h = heroes.hero(heroId)
+        val reforged = heroes.request(heroId).reforged
+        val cur = heroes.currentBuild(heroId)
         val items = Slot.entries.mapNotNull { s -> b.items.firstOrNull { it.slot == s } }.filter { !it.ghost }
 
         // a piece the build counts as reforged that isn't yet: equipped as it is, then reforged in its own step
@@ -91,7 +96,7 @@ class ChecklistFeature(g: AppGraph) : Feature(g, "checklist") {
                 when (holder) {
                     null -> "in bag"
                     heroId -> "on now"
-                    else -> "on " + (g.heroes.heroName(holder) ?: "other")
+                    else -> "on " + (heroes.heroName(holder) ?: "other")
                 },
                 holder == heroId,
                 it.mod?.takeIf { modStep }?.let { m -> "${m.from.short} ${m.from.format(m.fromValue)} → ${m.to.short} ${m.to.format(m.toValue)}" },
@@ -100,7 +105,7 @@ class ChecklistFeature(g: AppGraph) : Feature(g, "checklist") {
         }
         val pieces = items.map { step(it, false) } + items.filter(::needsReforge).map { step(it, false, true) } + items.filter { it.mod != null }.map { step(it, true) }
         val stats = Stat.entries.map { st -> Triple(st, b.final[st], cur?.final?.get(st) ?: 0.0) }
-        return OverlayBuild(title, h?.let(g.heroes::face), pieces, stats, flag)
+        return OverlayBuild(title, h?.let(heroes::face), pieces, stats, flag)
     }
 
     val current: Int get() = focus.takeIf { it >= 0 && it < done.size && !done[it] } ?: done.indexOfFirst { !it }
@@ -110,15 +115,15 @@ class ChecklistFeature(g: AppGraph) : Feature(g, "checklist") {
         build: OverlayBuild,
         onFinish: () -> Unit,
     ) {
-        g.tracker.hide()
+        tracker.hide()
         this.build = build
         done.clear()
         done.addAll(build.pieces.map { it.onHero && !it.otherMenu })
         doneOrder.clear()
         rolled.clear()
         restoreProgress(build)
-        g.overlay.expanded = false
-        g.overlay.tab = 0
+        ctx.overlay.expanded = false
+        ctx.overlay.tab = 0
         focus = -1
         this.onFinish = onFinish
         recorded = false

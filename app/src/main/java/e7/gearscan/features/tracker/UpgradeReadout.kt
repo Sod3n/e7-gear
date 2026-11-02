@@ -1,6 +1,7 @@
 package e7.gearscan.features.tracker
 
-import e7.gearscan.AppGraph
+import e7.gearscan.features.scan.ScanFeature
+import e7.gearscan.features.sellreview.SellReviewFeature
 import e7.gearscan.data.GearStat
 import e7.gearscan.data.InventoryOrder
 import e7.gearscan.data.Item
@@ -9,7 +10,7 @@ import e7.gearscan.opt.GearPotential
 import e7.gearscan.opt.GearScore
 import e7.gearscan.opt.RollReview
 
-class UpgradeReadout(private val t: TrackerFeature, private val g: AppGraph) {
+class UpgradeReadout(private val t: TrackerFeature, private val scan: ScanFeature, private val sellReview: SellReviewFeature) {
     val reviewRolls get(): List<RollReview.Roll>? {
         val entry = t.queue.firstOrNull { it.id == t.selected } ?: return null
         var rolls = entry.reviewRolls
@@ -98,8 +99,8 @@ class UpgradeReadout(private val t: TrackerFeature, private val g: AppGraph) {
 
     fun esFor(item: Item): EsForecast.Es? {
         val q = t.scoreQuery ?: return null
-        val b = g.scan.box
-        val ctx = g.sellReview.context(q)
+        val b = scan.box
+        val ctx = sellReview.context(q)
         if (b == null || ctx == null) return null
         return EsForecast.of(
             item,
