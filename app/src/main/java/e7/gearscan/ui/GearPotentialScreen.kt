@@ -20,6 +20,7 @@ import e7.gearscan.AppModel
 import e7.gearscan.Sheet
 import e7.gearscan.SheetKind
 import e7.gearscan.data.*
+import e7.gearscan.features.findgear.FindGearMatch
 
 private fun targets(q: PotentialQuery) = q.targets.entries.joinToString(" · ") { (t, v) ->
     "${if (t.percentOfBase) t.stat.short else t.short} ${v.ifEmpty { "?" }}${if (t.showsPercent) "%" else ""}+"
@@ -34,12 +35,14 @@ private fun sets(model: AppModel, q: PotentialQuery) = when {
     q.sets.size <= 2 -> q.sets.joinToString(" / ") { model.content.set(it)?.name ?: it.removeSuffix("Set") }
     else -> "${q.sets.size} sets"
 }
+private val AppModel.f get() = graph.findGear
+private fun AppModel.show(o: Outcome) = graph.messages.show(o)
 private fun open(model: AppModel, kind: SheetKind, id: Long = 0) { model.sheet = Sheet(kind, id) }
 
 @Composable
 fun GearPotentialScreen(model: AppModel) {
-    val q = model.potentialQuery
-    val result = model.potentialResult
+    val q = model.f.query
+    val result = model.f.result
     var tab by rememberSaveable { mutableStateOf(if (result == null) 0 else 1) }
     var count by rememberSavedFor(result, 20)
     val resultId = System.identityHashCode(result)
@@ -47,11 +50,11 @@ fun GearPotentialScreen(model: AppModel) {
     LaunchedEffect(result) { if (result != null && seenResult != resultId) tab = 1; seenResult = resultId }
     key(tab, result) {
         Frame(null, null, actions = if (tab == 0) ({
-            PinkButton(if (model.potentialBusy) "Searching" else "Find gear", Modifier.weight(1f), enabled = !model.potentialBusy) { model.findGearPotential() }
+            PinkButton(if (model.f.busy) "Searching" else "Find gear", Modifier.weight(1f), enabled = !model.f.busy) { model.show(model.f.find()) }
         }) else if (result != null && result.matches.isNotEmpty()) ({
-            val fresh = q == result.query && result.scan == model.lastScan && result.observations == model.upgrades.records.hashCode()
-            PinkButton(if (fresh) "Track all ${result.matches.size} matches" else "Update matches", Modifier.weight(1f), enabled = !model.potentialBusy) {
-                if (fresh) model.trackAllPotential() else model.findGearPotential()
+            val fresh = !model.f.stale
+            PinkButton(if (fresh) "Track all ${result.matches.size} matches" else "Update matches", Modifier.weight(1f), enabled = !model.f.busy) {
+                model.show(if (fresh) model.f.trackAll() else model.f.find())
             }
         }) else null) {
             BackToPrevious()
@@ -88,7 +91,6 @@ fun GearPotentialScreen(model: AppModel) {
                             if (q.minimumChance.toDoubleOrNull()?.let { it > 0 } == true) " · ${q.minimumChance}%+ chance" else " · any chance", style = zen(12.sp))
                     }
                 }
-                model.potentialError?.let { Text(it, style = zen(12.sp, color = C.deepPink)) }
                 Text("Choose a target. Find the pieces worth a try.", style = zen(12.sp, FontWeight.Medium, C.muted))
             } else if (result == null) {
                 Card {
@@ -109,17 +111,17 @@ fun GearPotentialScreen(model: AppModel) {
                         Pill("Edit", onClick = { tab = 0 })
                     }
                 }
-                if (q != applied || result.scan != model.lastScan || result.observations != model.upgrades.records.hashCode()) {
+                if (model.f.stale) {
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(C.lightPink).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Search changed", style = zen(12.sp), modifier = Modifier.weight(1f))
-                        LinkText("Update") { model.findGearPotential() }
+                        LinkText("Update") { model.show(model.f.find()) }
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("${result.matches.size} pieces", style = dela(16.sp), modifier = Modifier.weight(1f))
                     Text("Best odds first", style = zen(11.sp, color = C.muted))
                 }
-                if (model.potentialBusy) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (model.f.busy) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Spinner(); Text("Checking your gear", style = zen(12.sp))
                 }
                 if (result.matches.isEmpty()) Card {
@@ -155,7 +157,7 @@ fun GearPotentialScreen(model: AppModel) {
 }
 
 internal fun gearOwner(model: AppModel, item: Item) = item.equippedOn?.let { model.hero(it)?.let(model::heroName) ?: "Hero not in scan" } ?: "In bag"
-internal fun finishAction(match: AppModel.PotentialMatch, q: PotentialQuery) = when {
+internal fun finishAction(match: FindGearMatch, q: PotentialQuery) = when {
     match.outcome.matchesNow -> "Ready now"
     match.item.enhance == 15 -> "Reforge only"
     q.reforge && match.reforgeAllowed && match.item.level == 85 -> "Finish + reforge"
@@ -210,7 +212,7 @@ internal fun GearSearchSubs(item: Item, highlight: Set<GearStat> = emptySet()) {
 
 @Composable
 internal fun PotentialTargetsSheet(model: AppModel) {
-    val q = model.potentialQuery
+    val q = model.f.query
     var adding by remember { mutableStateOf(false) }
     SheetBody("Substat targets", button = "Done", onButton = { model.sheet = null }) {
         Text("All targets on one piece.", style = zen(12.sp, FontWeight.Medium, C.muted))
@@ -219,44 +221,44 @@ internal fun PotentialTargetsSheet(model: AppModel) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StatIcon(t.stat, 18.dp)
                 Text(t.short, style = zen(13.sp), modifier = Modifier.width(52.dp))
-                PotentialNumber(value, "Minimum ${t.short}", Modifier.weight(1f), limits.minimum, limits.maximum) { model.updatePotentialQuery(q.copy(targets = q.targets + (t to it))) }
+                PotentialNumber(value, "Minimum ${t.short}", Modifier.weight(1f), limits.minimum, limits.maximum) { model.f.edit(q.copy(targets = q.targets + (t to it))) }
                 Text(if (t.showsPercent) "%+" else "+", style = zen(12.sp, color = C.muted))
-                Box(Modifier.size(38.dp).tap { model.updatePotentialQuery(q.copy(targets = q.targets - t)) }, contentAlignment = Alignment.Center) { Text("×", style = dela(16.sp)) }
+                Box(Modifier.size(38.dp).tap { model.f.edit(q.copy(targets = q.targets - t)) }, contentAlignment = Alignment.Center) { Text("×", style = dela(16.sp)) }
             }
         }
         if (q.targets.size < 4) OutlineButton("Add substat", Modifier.fillMaxWidth(), height = 42.dp) { adding = !adding }
         if (adding) CardGrid(GearStat.entries.filter { it !in q.targets }, columns = 3, gap = 7.dp) { t, m ->
-            PotentialChoice(t.short, m, false) { model.updatePotentialQuery(q.copy(targets = q.targets + (t to ""))); adding = false }
+            PotentialChoice(t.short, m, false) { model.f.edit(q.copy(targets = q.targets + (t to ""))); adding = false }
         }
     }
 }
 
 @Composable
 internal fun PotentialSlotsSheet(model: AppModel) {
-    val q = model.potentialQuery
-    SheetBody("Equipment slots", trailing = { LinkText("All") { model.updatePotentialQuery(q.copy(slots = Slot.entries.toSet())) } }, button = "Done", onButton = { model.sheet = null }) {
+    val q = model.f.query
+    SheetBody("Equipment slots", trailing = { LinkText("All") { model.f.edit(q.copy(slots = Slot.entries.toSet())) } }, button = "Done", onButton = { model.sheet = null }) {
         CardGrid(Slot.entries, columns = 3) { s, m ->
             val selected = s in q.slots
             Column(m.clip(RoundedCornerShape(12.dp)).background(if (selected) C.lightPink else C.card).border(2.dp, if (selected) C.edge else C.line, RoundedCornerShape(12.dp))
-                .tap { model.updatePotentialQuery(q.copy(slots = if (selected) q.slots - s else q.slots + s)) }.padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                .tap { model.f.edit(q.copy(slots = if (selected) q.slots - s else q.slots + s)) }.padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 GearIcon(s.icon, 30.dp, C.ink); VSpace(8.dp); FitText(s.label, zen(12.sp))
             }
         }
-        LinkText("Everything except boots") { model.updatePotentialQuery(q.copy(slots = Slot.entries.toSet() - Slot.BOOTS)) }
+        LinkText("Everything except boots") { model.f.edit(q.copy(slots = Slot.entries.toSet() - Slot.BOOTS)) }
     }
 }
 
 @Composable
 internal fun PotentialSetsSheet(model: AppModel) {
-    val q = model.potentialQuery
+    val q = model.f.query
     var query by remember { mutableStateOf("") }
-    SheetBody("Sets", trailing = { LinkText("Any set") { model.updatePotentialQuery(q.copy(sets = emptySet())) } }, button = "Done", onButton = { model.sheet = null }) {
+    SheetBody("Sets", trailing = { LinkText("Any set") { model.f.edit(q.copy(sets = emptySet())) } }, button = "Done", onButton = { model.sheet = null }) {
         NameFilter(query, "Name") { query = it }
         Text(if (q.sets.isEmpty()) "Any set" else "${q.sets.size} selected · any one", style = zen(11.sp, color = C.muted))
         CardGrid(model.content.sets.filter { nameMatches(it.name, query) }, columns = 4, gap = 7.dp) { s, m ->
             val on = s.key in q.sets
             Column(m.clip(RoundedCornerShape(12.dp)).background(if (on) C.lightPink else C.card).border(2.dp, if (on) C.edge else C.line, RoundedCornerShape(12.dp))
-                .tap { model.updatePotentialQuery(q.copy(sets = if (on) q.sets - s.key else q.sets + s.key)) }.padding(horizontal = 4.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                .tap { model.f.edit(q.copy(sets = if (on) q.sets - s.key else q.sets + s.key)) }.padding(horizontal = 4.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 SetIcon(s.icon, 27.dp); VSpace(6.dp); FitText(s.name, zen(10.sp))
             }
         }
@@ -265,37 +267,37 @@ internal fun PotentialSetsSheet(model: AppModel) {
 
 @Composable
 internal fun PotentialMainsSheet(model: AppModel) {
-    val q = model.potentialQuery
-    SheetBody("Main stats", trailing = { LinkText("Any main") { model.updatePotentialQuery(q.copy(mains = emptySet())) } }, button = "Done", onButton = { model.sheet = null }) {
+    val q = model.f.query
+    SheetBody("Main stats", trailing = { LinkText("Any main") { model.f.edit(q.copy(mains = emptySet())) } }, button = "Done", onButton = { model.sheet = null }) {
         CardGrid(GearStat.entries, columns = 3) { t, m -> PotentialChoice(t.short, m, t in q.mains) {
-            model.updatePotentialQuery(q.copy(mains = if (t in q.mains) q.mains - t else q.mains + t)) } }
+            model.f.edit(q.copy(mains = if (t in q.mains) q.mains - t else q.mains + t)) } }
     }
 }
 
 @Composable
 internal fun PotentialOptionsSheet(model: AppModel) {
-    val q = model.potentialQuery
+    val q = model.f.query
     SheetBody("Finishing options", button = "Done", onButton = { model.sheet = null }) {
         Card(shadow = null, padding = PaddingValues(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) { Text("Include reforging", style = zen(13.sp)); Text("After +15, where available", style = zen(11.sp, FontWeight.Medium, C.muted)) }
-                Toggle(q.reforge) { model.updatePotentialQuery(q.copy(reforge = it)) }
+                Toggle(q.reforge) { model.f.edit(q.copy(reforge = it)) }
             }
         }
         SectionTitle("Pieces to show")
-        Segmented(listOf("Upgrades", "Unfinished", "All gear"), q.show) { model.updatePotentialQuery(q.copy(show = it)) }
+        Segmented(listOf("Upgrades", "Unfinished", "All gear"), q.show) { model.f.edit(q.copy(show = it)) }
         Text("Upgrades excludes pieces that already meet the target.", style = zen(11.sp, FontWeight.Medium, C.muted))
         SectionTitle("Chance")
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("At least", style = zen(13.sp), modifier = Modifier.weight(1f))
-            PotentialNumber(q.minimumChance, "Minimum chance", Modifier.width(84.dp), 0.0, 100.0) { model.updatePotentialQuery(q.copy(minimumChance = it)) }
+            PotentialNumber(q.minimumChance, "Minimum chance", Modifier.width(84.dp), 0.0, 100.0) { model.f.edit(q.copy(minimumChance = it)) }
             Text("%", style = zen(13.sp))
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Include rare-roll possibilities", style = zen(12.sp), modifier = Modifier.weight(1f))
-            Toggle(q.rareOnly) { model.updatePotentialQuery(q.copy(rareOnly = it)) }
+            Toggle(q.rareOnly) { model.f.edit(q.copy(rareOnly = it)) }
         }
-        LinkText("Reset to Speed 20, no boots") { model.askReset("Reset the search?", "Targets and filters go back to Speed 20, no boots.") { model.updatePotentialQuery(PotentialQuery()) } }
+        LinkText("Reset to Speed 20, no boots") { model.askReset("Reset the search?", "Targets and filters go back to Speed 20, no boots.") { model.f.edit(PotentialQuery()) } }
     }
 }
 
@@ -310,18 +312,18 @@ internal fun PotentialHelpSheet(model: AppModel) {
         Text("Counts reforge gains only on eligible level 85 gear. Level 88 and 90 gear gets no extra reforge gain.", style = zen(12.sp, FontWeight.Medium))
         SectionTitle("Coverage")
         Text("Unfinished forecasts cover level 85 and 88 Epic and Heroic pieces. Finished pieces can also match now. No modification stones are assumed.", style = zen(12.sp, FontWeight.Medium))
-        model.potentialResult?.takeIf { it.unsupported > 0 }?.let { Text("${it.unsupported} older or unsupported unfinished pieces were left out of this search.", style = zen(12.sp, FontWeight.Medium, C.muted)) }
+        model.f.result?.takeIf { it.unsupported > 0 }?.let { Text("${it.unsupported} older or unsupported unfinished pieces were left out of this search.", style = zen(12.sp, FontWeight.Medium, C.muted)) }
     }
 }
 
 @Composable
 internal fun PotentialPieceSheet(model: AppModel, id: Long) {
-    val result = model.potentialResult ?: return
+    val result = model.f.result ?: return
     val match = result.matches.firstOrNull { it.item.id == id } ?: return
     val item = match.item
     SheetBody("Equipment", button = "Track over game", onButton = {
         model.sheet = null
-        model.trackPotential(match, openOverlay = true)
+        model.show(model.f.track(match, openOverlay = true))
     }) {
         Card(shadow = null, padding = PaddingValues(12.dp)) { GearSearchIdentity(model, item, result.query.targets.keys) }
         Card(shadow = C.pink, padding = PaddingValues(12.dp)) {

@@ -233,8 +233,8 @@ class ScreenAudit {
         val baseSellQuery = model.sellQuery
         val sellFirst = model.sellResult?.matches?.firstOrNull()?.item?.id
         ui { model.sellResult?.matches?.drop(1)?.take(3)?.forEach { model.markSellReview(it.item.id, keep = true) }; model.toast = null }
-        ui { model.findGearPotential() }
-        runCatching { rule.waitUntil(120_000) { model.potentialResult != null } }
+        ui { model.graph.messages.show(model.graph.findGear.find()) }
+        runCatching { rule.waitUntil(120_000) { model.graph.findGear.result != null } }
 
         val steps = mutableListOf<Pair<String, () -> Unit>>()
         fun screen(name: String, vararg stack: Screen) = steps.add(name to { ui { model.sheet = null; model.stack = stack.toList() } })

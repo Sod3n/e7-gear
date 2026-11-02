@@ -59,7 +59,7 @@ class RegistryTest {
         "marks.kept" to { g.marks.kept = setOf(31L) },
         "marks.sold" to { g.marks.sold = listOf(MarksFeature.Sale(41, 99, true), MarksFeature.Sale(42, 99, false)) },
         "sellReview.query" to { g.sellReview.query = SellQuery.of(JSONObject().put("maximumChance", 7.5)) },
-        "findGear.query" to { g.findGear.query = PotentialQuery.of(JSONObject().put("show", 2).put("minimumChance", "12")) },
+        "findGear.query" to { g.findGear.edit(PotentialQuery.of(JSONObject().put("show", 2).put("minimumChance", "12"))) },
         "improveHeroes.minGain" to { g.improveHeroes.minGain = 1.5 },
         "improveHeroes.rebuilds" to { g.improveHeroes.rebuilds = true },
         "content.checkedAt" to { g.content.checkedAt = 99L },

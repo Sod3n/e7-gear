@@ -51,12 +51,12 @@ class QueueScreens {
                 Box(Modifier.width(353.dp).fillMaxHeight()) { if (overlay) OverlayUi({ _, _ -> }, {}, {}) else App(model) {} }
             }
         }
-        rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle(); rule.waitUntil(30_000) { !model.potentialBusy }
-        val matches = model.potentialResult!!.matches
+        rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle(); rule.waitUntil(30_000) { !model.graph.findGear.busy }
+        val matches = model.graph.findGear.result!!.matches
         assertTrue(matches.size > 20)
         rule.onNodeWithText("Track all ${matches.size} matches").assertExists()
         shot("30-track-all-matches-353-big")
-        ui { model.trackAllPotential(openOverlay = false) }
+        ui { model.graph.messages.show(model.graph.findGear.trackAll(openOverlay = false)) }
         val t = model.upgrades
         assertEquals(matches.map { it.item.id }, t.queue.map { it.id })
         assertEquals(matches.size, t.queue.size)

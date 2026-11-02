@@ -48,7 +48,7 @@ class GearPotentialScreens {
         ui { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
         ui { assertTrue(model.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.consent = true
-            e7.gearscan.ui.Themes.set(ctx, false); model.updatePotentialQuery(PotentialQuery()) }
+            e7.gearscan.ui.Themes.set(ctx, false); model.graph.findGear.edit(PotentialQuery()) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
         if (images.isDirectory) e7.gearscan.ui.GameImages.base = images.toURI().toString()
         var width by mutableStateOf(411)
@@ -72,7 +72,7 @@ class GearPotentialScreens {
         }
         fun go(vararg s: Screen) = ui { model.sheet = null; model.stack = s.toList() }
         fun sheet(kind: SheetKind, id: Long = 0) = ui { model.sheet = Sheet(kind, id) }
-        fun search() { ui { model.findGearPotential() }; rule.waitUntil(30_000) { !model.potentialBusy }; assertNull(model.potentialError) }
+        fun search() { ui { model.toast = null; model.graph.messages.show(model.graph.findGear.find()) }; rule.waitUntil(30_000) { !model.graph.findGear.busy }; assertNull(model.toast) }
         fun scrollTo(text: String) = rule.onAllNodesWithText(text, substring = true, useUnmergedTree = true).onFirst().performScrollTo()
 
         each("00-gear-tab-first") { go(Screen.Gear) }
@@ -94,17 +94,17 @@ class GearPotentialScreens {
 
         go(Screen.Gear, Screen.GearPotential)
         search()
-        val r = model.potentialResult!!
+        val r = model.graph.findGear.result!!
         File(out, "result.txt").writeText("${r.matches.size} matches, ${r.matches.count { it.outcome.chance > 0 }} ordinary, " +
             "${r.matches.count { it.outcome.rareOnly }} rare-only, ${r.unsupported} unsupported, ${r.seconds}s\n")
         each("03a-results") { go(Screen.Gear, Screen.GearPotential) }
         each("03b-results-low-odds") { go(Screen.Gear, Screen.GearPotential); tap("Show 20 more"); scrollTo("Show 20 more") }
         each("03c-results-end") { go(Screen.Gear, Screen.GearPotential); scrollTo("About this search") }
-        ui { model.updatePotentialQuery(PotentialQuery(targets = mapOf(GearStat.SPD to "24"))) }
+        ui { model.graph.findGear.edit(PotentialQuery(targets = mapOf(GearStat.SPD to "24"))) }
         search()
-        File(out, "result.txt").appendText("speed 24: ${model.potentialResult!!.matches.size} matches, ${model.potentialResult!!.matches.count { it.outcome.rareOnly }} rare-only\n")
+        File(out, "result.txt").appendText("speed 24: ${model.graph.findGear.result!!.matches.size} matches, ${model.graph.findGear.result!!.matches.count { it.outcome.rareOnly }} rare-only\n")
         each("03d-results-speed24") { go(Screen.Gear, Screen.GearPotential) }
-        ui { model.updatePotentialQuery(PotentialQuery()) }
+        ui { model.graph.findGear.edit(PotentialQuery()) }
         search()
         val best = r.matches.first()
         val rare = r.matches.first { it.outcome.rareOnly }
@@ -116,47 +116,46 @@ class GearPotentialScreens {
         if (reforge != null) each("04c-piece-reforge-only") { go(Screen.Gear, Screen.GearPotential); sheet(SheetKind.POTENTIAL_PIECE, reforge.item.id) }
         each("05-gear-tab-after") { go(Screen.Gear) }
         // a filter changed after the search: the list is out of date
-        ui { model.updatePotentialQuery(model.potentialQuery.copy(slots = setOf(Slot.HELMET, Slot.NECKLACE))) }
+        ui { model.graph.findGear.edit(model.graph.findGear.query.copy(slots = setOf(Slot.HELMET, Slot.NECKLACE))) }
         each("06a-stale") { go(Screen.Gear, Screen.GearPotential) }
-        ui { model.trackAllPotential(openOverlay = false) }
-        File(out, "result.txt").appendText("track all on a stale list: screen=${model.screen} error=${model.potentialError}\n")
+        ui { model.graph.messages.show(model.graph.findGear.trackAll(openOverlay = false)) }
+        File(out, "result.txt").appendText("track all on a stale list: screen=${model.screen} toast=${model.toast?.text}\n")
         each("06b-stale-after-track-all") { go(Screen.Gear, Screen.GearPotential) }
         // joint targets on one set and slot
-        ui { model.updatePotentialQuery(PotentialQuery(targets = mapOf(GearStat.SPD to "20", GearStat.HP_P to "5"), sets = setOf("DestructionSet"), slots = setOf(Slot.HELMET))) }
+        ui { model.graph.findGear.edit(PotentialQuery(targets = mapOf(GearStat.SPD to "20", GearStat.HP_P to "5"), sets = setOf("DestructionSet"), slots = setOf(Slot.HELMET))) }
         search()
         each("07a-joint-setup") { go(Screen.Gear, Screen.GearPotential); tap("Set up") }
         each("07b-joint-results") { go(Screen.Gear, Screen.GearPotential); tap("Matches") }
         each("07c-joint-targets-sheet") { go(Screen.Gear, Screen.GearPotential); tap("Set up"); sheet(SheetKind.POTENTIAL_TARGETS) }
-        ui { model.updatePotentialQuery(PotentialQuery(minimumChance = "30")) }
+        ui { model.graph.findGear.edit(PotentialQuery(minimumChance = "30")) }
         search()
         each("08a-min-chance-30") { go(Screen.Gear, Screen.GearPotential); tap("Matches") }
-        ui { model.updatePotentialQuery(PotentialQuery(minimumChance = "30", show = 1)) }
+        ui { model.graph.findGear.edit(PotentialQuery(minimumChance = "30", show = 1)) }
         search()
-        check(model.potentialResult!!.matches.isEmpty()) { "the empty-state query found ${model.potentialResult!!.matches.size}" }
+        check(model.graph.findGear.result!!.matches.isEmpty()) { "the empty-state query found ${model.graph.findGear.result!!.matches.size}" }
         each("08b-empty") { go(Screen.Gear, Screen.GearPotential); tap("Matches") }
-        ui { model.updatePotentialQuery(PotentialQuery(show = 2)) }
+        ui { model.graph.findGear.edit(PotentialQuery(show = 2)) }
         search()
-        File(out, "result.txt").appendText("all gear: ${model.potentialResult!!.matches.size} matches, ${model.potentialResult!!.matches.count { it.outcome.matchesNow }} ready now\n")
+        File(out, "result.txt").appendText("all gear: ${model.graph.findGear.result!!.matches.size} matches, ${model.graph.findGear.result!!.matches.count { it.outcome.matchesNow }} ready now\n")
         each("09a-all-gear") { go(Screen.Gear, Screen.GearPotential); tap("Matches") }
-        model.potentialResult!!.matches.firstOrNull { it.outcome.matchesNow }?.let { m ->
+        model.graph.findGear.result!!.matches.firstOrNull { it.outcome.matchesNow }?.let { m ->
             each("09b-piece-ready-now") { go(Screen.Gear, Screen.GearPotential); sheet(SheetKind.POTENTIAL_PIECE, m.item.id) }
         }
         // what tracking hands over to: all matches first (fresh list), then one unfinished piece, then back to the list
-        ui { model.updatePotentialQuery(PotentialQuery()) }
+        ui { model.graph.findGear.edit(PotentialQuery()) }
         search()
-        val first = model.potentialResult!!.matches.first { it.item.enhance < 15 && it.outcome.chance > 0 }
+        val first = model.graph.findGear.result!!.matches.first { it.item.enhance < 15 && it.outcome.chance > 0 }
         go(Screen.Gear, Screen.GearPotential)
-        ui { model.trackAllPotential(openOverlay = false) }
-        File(out, "result.txt").appendText("track all on a fresh list: screen=${model.screen} queue=${model.upgrades.queue.size} error=${model.potentialError}\n")
+        ui { model.graph.messages.show(model.graph.findGear.trackAll(openOverlay = false)) }
+        File(out, "result.txt").appendText("track all on a fresh list: screen=${model.screen} queue=${model.upgrades.queue.size} toast=${model.toast?.text}\n")
         each("10a-track-all") { ui { model.sheet = null } }
         ui { OverlayState.upgrade = model.upgrades; OverlayState.expanded = true; overlay = true }
         each("10b-overlay-all")
         ui { overlay = false; OverlayState.upgrade = null }
-        ui { model.updatePotentialQuery(PotentialQuery()) }
+        ui { model.graph.findGear.edit(PotentialQuery()) }
         search()
-        val fresh = model.potentialResult!!.observations
-        ui { model.trackPotential(model.potentialResult!!.matches.first { it.item.id == first.item.id }) }
-        File(out, "result.txt").appendText("track one: observations before=$fresh after=${model.upgrades.records.hashCode()} (a change marks the list stale)\n")
+        ui { model.graph.messages.show(model.graph.findGear.track(model.graph.findGear.result!!.matches.first { it.item.id == first.item.id })) }
+        File(out, "result.txt").appendText("track one: stale=${model.graph.findGear.stale} (a start-only record must not mark the list stale)\n")
         each("10c-track-one") { ui { model.sheet = null } }
         ui { OverlayState.upgrade = model.upgrades; OverlayState.expanded = true; overlay = true }
         each("10d-overlay-one")
@@ -165,7 +164,7 @@ class GearPotentialScreens {
         // dark theme, the main states
         ui { e7.gearscan.ui.Themes.set(ctx, true); width = 411; font = 1f }
         go(Screen.Gear, Screen.GearPotential); tap("Set up"); snap("11a-dark-setup")
-        ui { model.updatePotentialQuery(PotentialQuery()) }
+        ui { model.graph.findGear.edit(PotentialQuery()) }
         search()
         go(Screen.Gear, Screen.GearPotential); tap("Matches"); snap("11b-dark-results")
         sheet(SheetKind.POTENTIAL_PIECE, first.item.id); snap("11c-dark-piece")
@@ -199,9 +198,9 @@ class GearPotentialScreens {
         ui { model.sheet = Sheet(SheetKind.POTENTIAL_MAINS, 0) }
         shot("01-mains-353-big"); tap("Done")
         rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle()
-        rule.waitUntil(30_000) { !model.potentialBusy }
-        assertNull(model.potentialError)
-        val first = model.potentialResult!!
+        rule.waitUntil(30_000) { !model.graph.findGear.busy }
+        assertNull(model.toast)
+        val first = model.graph.findGear.result!!
         assertTrue(first.matches.isNotEmpty())
         assertTrue(first.matches.none { it.item.slot == Slot.BOOTS })
         assertTrue(first.matches.any { it.item.enhance == 15 && it.outcome.chance == 1.0 && !it.outcome.matchesNow })
@@ -212,14 +211,14 @@ class GearPotentialScreens {
         tap("Edit")
         tap("Sets")
         tap("Destruction")
-        assertEquals(setOf("DestructionSet"), model.potentialQuery.sets)
+        assertEquals(setOf("DestructionSet"), model.graph.findGear.query.sets)
         shot("03-sets-353-big")
         tap("Done")
-        ui { model.updatePotentialQuery(model.potentialQuery.copy(slots = setOf(Slot.HELMET))) }
+        ui { model.graph.findGear.edit(model.graph.findGear.query.copy(slots = setOf(Slot.HELMET))) }
         rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle()
-        rule.waitUntil(30_000) { !model.potentialBusy }
-        assertTrue(model.potentialResult!!.matches.all { it.item.slot == Slot.HELMET && it.item.set == "DestructionSet" })
-        assertTrue(model.potentialResult!!.matches.any { kotlin.math.abs(it.outcome.chance - .25) < 1e-10 })
+        rule.waitUntil(30_000) { !model.graph.findGear.busy }
+        assertTrue(model.graph.findGear.result!!.matches.all { it.item.slot == Slot.HELMET && it.item.set == "DestructionSet" })
+        assertTrue(model.graph.findGear.result!!.matches.any { kotlin.math.abs(it.outcome.chance - .25) < 1e-10 })
         shot("04-filtered-353-big")
         tap("Edit"); tap("Spd 20+"); tap("Add substat"); tap("Hp%")
         rule.onNodeWithContentDescription("Minimum Hp%").performScrollTo().performClick()
@@ -228,17 +227,17 @@ class GearPotentialScreens {
         repeat(5) { rule.onNodeWithContentDescription("Increase value").performClick() }
         shot("05-number-controls-353-big")
         tap("Use value")
-        assertEquals("5.5", model.potentialQuery.targets[GearStat.HP_P])
+        assertEquals("5.5", model.graph.findGear.query.targets[GearStat.HP_P])
         rule.onNodeWithContentDescription("Minimum Hp%").performClick()
         rule.onNodeWithContentDescription("Step 0.1").performClick()
         repeat(5) { rule.onNodeWithContentDescription("Decrease value").performClick() }
         tap("Use value")
-        assertEquals("5", model.potentialQuery.targets[GearStat.HP_P])
+        assertEquals("5", model.graph.findGear.query.targets[GearStat.HP_P])
         shot("05-joint-targets-353-big")
         tap("Done")
         rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle()
-        rule.waitUntil(30_000) { !model.potentialBusy }
-        val best = model.potentialResult!!.matches.first()
+        rule.waitUntil(30_000) { !model.graph.findGear.busy }
+        val best = model.graph.findGear.result!!.matches.first()
         assertEquals(.25, best.outcome.chance, 1e-10)
         shot("06-joint-results-353-big")
         // Empty-state feedback and minimum-chance filter.
@@ -250,16 +249,16 @@ class GearPotentialScreens {
         tap("Use value")
         shot("06-options-353-big"); tap("Done")
         rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle()
-        rule.waitUntil(30_000) { !model.potentialBusy }
-        assertTrue(model.potentialResult!!.matches.isEmpty())
+        rule.waitUntil(30_000) { !model.graph.findGear.busy }
+        assertTrue(model.graph.findGear.result!!.matches.isEmpty())
         shot("07-empty-353-big")
-        ui { model.updatePotentialQuery(model.potentialQuery.copy(minimumChance = "0")); model.findGearPotential() }
-        rule.waitUntil(30_000) { !model.potentialBusy }
+        ui { model.graph.findGear.edit(model.graph.findGear.query.copy(minimumChance = "0")); model.graph.messages.show(model.graph.findGear.find()) }
+        rule.waitUntil(30_000) { !model.graph.findGear.busy }
         tap("${model.content.set(best.item.set)?.name} ${best.item.slot.label}")
         assertEquals(SheetKind.POTENTIAL_PIECE, model.sheet!!.kind)
         shot("07-piece-353-big")
 
-        ui { model.trackPotential(best) }
+        ui { model.graph.messages.show(model.graph.findGear.track(best)) }
         assertEquals(Screen.Upgrade, model.screen)
         assertEquals(mapOf(GearStat.SPD to 20.0, GearStat.HP_P to 5.0), model.upgrades.goal!!.minimums)
         shot("08-track-selected-353-big")
@@ -293,7 +292,7 @@ class GearPotentialScreens {
         assertEquals(15, restored.record!!.item.enhance)
         shot("10-missed-target-353-big")
         val backup = JSONObject(model.backupText())
-        assertEquals(model.potentialQuery, PotentialQuery.of(backup.getJSONObject("state").getJSONObject("potentialQuery")))
+        assertEquals(model.graph.findGear.query, PotentialQuery.of(backup.getJSONObject("state").getJSONObject("potentialQuery")))
         ui { OverlayState.upgrade = null }
     }
 }

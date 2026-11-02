@@ -1194,101 +1194,31 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         upgrades.refreshScoreGoals(context.items.filter { it.id in ids }.associate { it.id to context.goal(it) })
     }
 
-    // ---- gear potential search ----
-    var potentialQuery get() = graph.findGear.query
-        private set(v) { graph.findGear.query = v }
-    data class PotentialMatch(val item: Item, val outcome: e7.gearscan.opt.GearPotential.Outcome, val reforgeAllowed: Boolean)
-    data class PotentialResult(val query: e7.gearscan.data.PotentialQuery, val scan: Long, val observations: Int,
-                               val matches: List<PotentialMatch>, val unsupported: Int, val seconds: Double)
-    var potentialResult: PotentialResult? by mutableStateOf(null)
-        private set
-    var potentialBusy by mutableStateOf(false)
-        private set
-    var potentialError: String? by mutableStateOf(null)
-        private set
-    private var potentialJob: kotlinx.coroutines.Job? = null
-    private var potentialGeneration = 0
-
-    fun updatePotentialQuery(query: e7.gearscan.data.PotentialQuery) {
-        potentialGeneration++; potentialJob?.cancel(); potentialBusy = false
-        potentialQuery = query; potentialError = null; touch()
-    }
-
-    fun findGearPotential() {
-        val generation = ++potentialGeneration
-        potentialJob?.cancel(); potentialBusy = false
-        val query = potentialQuery
-        potentialError = query.error()
-        if (potentialError != null) return
-        val b = box ?: return
-        val scan = lastScan
-        val observations = upgrades.records.hashCode()
-        val items = b.items.filter { it.id !in clearedIds }.map { original ->
-            val item = upgrades.records[original.id]?.takeIf { it.scan == scan }?.item ?: original
-            item to b.canReforge(item.id)
-        }.filter { query.includes(it.first) }
-        potentialBusy = true
-        potentialJob = viewModelScope.launch {
-            try {
-                val result = withContext(Dispatchers.Default) {
-                    val t0 = System.nanoTime()
-                    var unsupported = 0
-                    val matches = ArrayList<PotentialMatch>()
-                    for ((item, allowed) in items) {
-                        kotlinx.coroutines.currentCoroutineContext().ensureActive()
-                        val outcome = e7.gearscan.opt.GearPotential.forecast(item, query.goal(allowed))
-                        if (!outcome.supported) unsupported++
-                        if (query.accepts(outcome)) matches += PotentialMatch(item, outcome, allowed)
-                    }
-                    PotentialResult(query, scan, observations, matches.sortedWith(compareByDescending<PotentialMatch> { it.outcome.chance }
-                        .thenByDescending { it.item.enhance }.thenBy { it.item.id }), unsupported, (System.nanoTime() - t0) / 1e9)
-                }
-                if (potentialGeneration != generation) return@launch
-                potentialResult = result
-                android.util.Log.i("E7Potential", "${items.size} checked, ${result.matches.size} matches in ${result.seconds}s")
-            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (e: Exception) { if (potentialGeneration == generation) potentialError = "The search could not finish. Your requirements are saved; tap Find gear to retry." }
-            finally { if (potentialGeneration == generation) potentialBusy = false }
-        }
-    }
-
-    fun trackPotential(match: PotentialMatch, openOverlay: Boolean = false) {
-        val applied = potentialResult ?: return
-        val original = box?.itemsById?.get(match.item.id)
-        val latest = upgrades.records[match.item.id]?.takeIf { it.scan == lastScan }?.item ?: original
-        if (latest == null || (!e7.gearscan.data.UpgradeRecord.supported(latest) && latest.enhance < 15) || latest.id in clearedIds) {
-            potentialError = "This piece changed. Tap Find gear to refresh the list."; return
-        }
-        upgrades.stopCheck()
-        upgrades.select(original ?: latest, lastScan)
-        configureUpgrade()
-        upgrades.useGoal(applied.query.goal(match.reforgeAllowed))
-        go(Screen.Upgrade)
-        if (openOverlay) openUpgradeOverlay()
-    }
-
-    fun trackAllPotential(openOverlay: Boolean = true) {
-        val applied = potentialResult ?: return
-        val b = box ?: return
-        if (potentialBusy || applied.scan != lastScan || applied.query != potentialQuery || applied.observations != upgrades.records.hashCode()) {
-            potentialError = "Update the matches before starting a new list."; return
-        }
-        upgrades.stopCheck()
-        val items = applied.matches.mapNotNull { match ->
-            val original = b.itemsById[match.item.id]?.takeIf { it.id !in clearedIds } ?: return@mapNotNull null
-            val set = content.set(original.set)
-            original to e7.gearscan.overlay.UpgradeTracker.QueueEntry(original.id, applied.query.goal(b.canReforge(original.id)),
-                set?.name ?: original.set.removeSuffix("Set"), set?.icon)
-        }
-        if (items.isEmpty()) { potentialError = "No matching gear remains. Update the search."; return }
-        upgrades.startQueue(items, lastScan)
-        configureUpgrade()
-        go(Screen.Upgrade)
-        if (openOverlay) openUpgradeOverlay()
-    }
-
     // ---- upgrade observations (separate from the scan) ----
     val upgrades = e7.gearscan.overlay.UpgradeTracker(graph.tracker.upgrades.file) { graph.tracker.upgrades.write(it) }
+
+    init {
+        graph.findGear.source = object : e7.gearscan.features.findgear.FindGearFeature.Source {
+            override val box get() = this@AppModel.box
+            override val records get() = upgrades.records
+            override fun setLabel(key: String) = content.set(key).let { (it?.name ?: key.removeSuffix("Set")) to it?.icon }
+            override fun track(item: Item, goal: e7.gearscan.opt.GearPotential.Goal, openOverlay: Boolean) {
+                upgrades.stopCheck()
+                upgrades.select(item, lastScan)
+                configureUpgrade()
+                upgrades.useGoal(goal)
+                go(Screen.Upgrade)
+                if (openOverlay) openUpgradeOverlay()
+            }
+            override fun trackQueue(entries: List<Pair<Item, e7.gearscan.overlay.UpgradeTracker.QueueEntry>>, openOverlay: Boolean) {
+                upgrades.stopCheck()
+                upgrades.startQueue(entries, lastScan)
+                configureUpgrade()
+                go(Screen.Upgrade)
+                if (openOverlay) openUpgradeOverlay()
+            }
+        }
+    }
 
     fun openUpgradeOverlay() {
         val r = upgrades.record ?: return
@@ -2218,7 +2148,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     private fun cancelAllWork() {
         graph.work.cancelAll()
-        potentialGeneration++; potentialJob?.cancel(); potentialBusy = false
     }
 
     private fun stopAllWork() {
@@ -2258,7 +2187,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 .filter { it.isNotEmpty() }
         } }
         stopSellSearch();sellResult=null;sellCurve=null;appliedSellKey=null
-        potentialGeneration++; potentialJob?.cancel(); potentialBusy = false; potentialResult = null; potentialError = null
+        graph.findGear.reset()
         clearedIds = clearedIds.filter { id -> b?.itemsById?.containsKey(id) == true }.toSet()
         sellKept = sellKept.filter { id -> b?.itemsById?.containsKey(id) == true }.toSet()
         overlaySales = overlaySales.filter { it.id in reviewedIds&&it.scan==lastScan }.distinctBy { it.id }

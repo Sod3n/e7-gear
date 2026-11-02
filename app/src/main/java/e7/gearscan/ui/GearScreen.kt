@@ -36,7 +36,7 @@ fun GearScreen(model: AppModel) {
             ?.let { r -> model.heroUpgradeView(r).count { it.rows.isNotEmpty() } }
         ModeCard("Improve heroes", "Unfinished pieces that would make a hero you've set up better once enhanced.",
             heroes?.let { "$it heroes can get better" } ?: "Not checked yet") { model.go(Screen.HeroUpgrades()) }
-        val found = model.potentialResult?.matches?.size
+        val found = model.graph.findGear.result?.matches?.size
         ModeCard("Find gear", "Pieces that can still reach the substats you ask for, with the chance.",
             found?.let { "$it pieces found last time" } ?: "Choose a target") { model.go(Screen.GearPotential) }
         if (model.upgrades.queue.isNotEmpty() || model.upgrades.record != null)
