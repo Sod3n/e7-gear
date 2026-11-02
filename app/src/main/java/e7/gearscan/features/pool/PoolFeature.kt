@@ -57,6 +57,12 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
     /** Run order: higher tiers first; inside a tier the hero furthest from their build picks first (name breaks ties). */
     fun heroes(): List<OwnedHero> = members().filter { it.id !in skip }
 
+    /** Pieces worn by heroes of the pool run stay where they are; everything else is spare. */
+    fun inUse(b: Box): Set<Long> {
+        val members = members().map { it.id }.toSet()
+        return b.items.filter { it.equippedOn in members }.map { it.id }.toSet()
+    }
+
     /** The run's heroes including those kept as they are. */
     fun members(): List<OwnedHero> =
         g.scan.box?.heroes.orEmpty()

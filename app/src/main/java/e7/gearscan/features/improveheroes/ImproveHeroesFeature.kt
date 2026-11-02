@@ -152,7 +152,7 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
                     JSONArray(b0.items.filter { it.id !in g.marks.cleared }.map { item -> UpgradeRecord.itemJson(observed[item.id] ?: item) }),
                 ),
             )
-        val setups = g.heroes.gearSetups(b, g.heroes.inUse(b))
+        val setups = g.heroes.gearSetups(b, g.pool.inUse(b))
         val pieces = b.items.filter { it.enhance < 15 && UpgradeRecord.supported(it) }.sortedBy { it.id }
         val full =
             sha256(
