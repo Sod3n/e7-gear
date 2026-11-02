@@ -25,12 +25,6 @@
 			<property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
 				android:value="Gear search the user started, kept running while they play"/>
 		</service>
-		<service android:name=".PoolService"
-				android:exported="false"
-				android:foregroundServiceType="specialUse">
-			<property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-				android:value="Gear optimization the user started, kept running while they play"/>
-		</service>
 		<provider android:name="androidx.core.content.FileProvider"
 				android:authorities="e7.gearscan.updates"
 				android:exported="false"

@@ -94,7 +94,8 @@ class UpgradeTracker(private val file: File) {
         if(next!=queue||selectedGoal!=scoreGoal) { invalidate();queue=next;scoreGoal=selectedGoal;goal=null;persist() }
     }
     fun useGoal(value: e7.gearscan.opt.GearPotential.Goal?) { invalidate(); goal = value;scoreGoal=null;scoreQuery=null;persist() }
-    @Volatile var generation = 0
+    var cancelCheck: (() -> Unit)? = null
+    fun stopCheck() { cancelCheck?.invoke(); busy = false }
     var editing by mutableStateOf(false)
     val complete get() = !busy && results.size == expected && expected > 0
     val hitCount get() = results.flatMap { it.hits }.distinct().size
@@ -164,7 +165,7 @@ class UpgradeTracker(private val file: File) {
 
     fun select(item: Item, scan: Long, keepQueue: Boolean = false) {
         if (!keepQueue || queue.none { it.id == item.id }) { queue = emptyList();scoreQuery=null;queueScan=0 }
-        generation++; busy = false; editing = false; error = null
+        stopCheck(); editing = false; error = null
         if (selected != item.id || records[item.id]?.scan != scan) { goal = null;scoreGoal=null }
         if (selected != item.id) { results = emptyList(); signature = ""; expected = -1 }
         selected = item.id
@@ -195,7 +196,10 @@ class UpgradeTracker(private val file: File) {
         invalidate(); editing = false; persist(); requestCheck?.invoke()
     }
 
-    fun invalidate() { generation++; busy = false; results = emptyList(); signature = ""; error = null; undoEquip = null; equippedOn = null }
+    fun invalidate() { stopCheck(); results = emptyList(); signature = ""; error = null; undoEquip = null; equippedOn = null }
+    fun resumable(sig: String): List<UpgradeCheck.HeroResult> =
+        if (sig == signature) results.filter { it.unknown == 0 && !it.provisional } else emptyList()
+
     fun begin(sig: String, total: Int) {
         if (sig != signature) { results = emptyList(); signature = sig; attempt = 0 }
         else if (results.any { it.unknown > 0 || it.provisional }) attempt = (attempt + 1).coerceAtMost(3)
@@ -205,7 +209,7 @@ class UpgradeTracker(private val file: File) {
     fun toJson() = JSONObject().put("queueBasis",queueBasis).put("queueSource",queueSource).put("queueScan",queueScan).put("scoreGoal",scoreGoal?.toJson()?:JSONObject.NULL).put("scoreQuery",scoreQuery?.toJson()?:JSONObject.NULL).put("queue", JSONArray(queue.map { it.toJson() })).put("goal", goal?.toJson() ?: JSONObject.NULL).put("records", JSONArray(records.values.map { it.toJson() })).put("selected", selected ?: JSONObject.NULL)
         .put("signature", signature).put("attempt", attempt).put("expected", expected).put("results", JSONArray(results.map { it.toJson() }))
     fun restore(j: JSONObject, write: Boolean = true) {
-        generation++; busy = false; editing = false;cleared=emptySet();canUndoSold=false
+        stopCheck(); editing = false;cleared=emptySet();canUndoSold=false
         val a = j.optJSONArray("records") ?: JSONArray()
         records = (0 until a.length()).map { UpgradeRecord.fromJson(a.getJSONObject(it)) }.associateBy { it.item.id }
         selected = if (j.isNull("selected")) null else j.optLong("selected").takeIf { it in records }
