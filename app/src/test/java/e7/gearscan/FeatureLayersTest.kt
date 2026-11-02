@@ -33,7 +33,8 @@ class FeatureLayersTest {
                 val name = m.groupValues[1]
                 val own = layerOf[name] ?: error("$name has no layer in FeatureLayersTest")
                 seen += name
-                Regex(""":\s*(\w+Feature)\b""").findAll(m.groupValues[2]).forEach { p ->
+                // any feature type in a parameter, so `() -> TrackerFeature` or `Lazy<TrackerFeature>` count too
+                Regex("""\b([A-Z]\w*Feature)\b""").findAll(m.groupValues[2]).forEach { p ->
                     val dep = p.groupValues[1]
                     val layer = layerOf[dep] ?: error("$name takes $dep, which has no layer in FeatureLayersTest")
                     if (layer >= own) wrong += "$name($own) -> $dep($layer)"
