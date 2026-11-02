@@ -3,7 +3,15 @@
 How to get from today's code to [ARCHITECTURE.md](ARCHITECTURE.md), in steps that each build, pass every check and
 change no behaviour except the bugs listed. Written 2026-11-02 against `gear-modes` d413d10.
 
-## Status (2026-11-02)
+## Status: done (2026-11-03)
+
+Plans 1 and 2 are complete on `architecture`. Checked against `gear-modes` d413d10 with the same screen audit (4 phone
+setups, real fixtures) and a pixel comparison of every screenshot: plan 2 changed nothing visible (one setup re-run: 135 of 169
+screens identical, the rest show search results, which vary run to run because the search stops at a deadline; icons that are
+still loading also vary). Plan 1's visible differences are the intended ones: Make room is gone; "Search changed · Update" and
+other errors show inside the screen instead of a toast; each visit to a screen keeps its own tab (Sell review and Find gear open
+on Set up when entered fresh, where `gear-modes` remembered the last tab). Saved state: the same 40 keys and files as plan 1.
+
 
 | Step | Became |
 |---|---|
@@ -15,7 +23,7 @@ change no behaviour except the bugs listed. Written 2026-11-02 against `gear-mod
 | Deferred | Text roles and the value types app-wide (`Chance`, `Gold`, `StatAmount`; only `Count` exists). |
 | Deferred | Design changes for the maintainer: the Find gear redesign; links to rows (`LinkText` is still used ~65 times behind `@LinkStyle`). |
 | Deferred | Release (step 6) and step 14. |
-| Next (proposed) | Explicit dependencies between features, tracker split, last globals: [REFACTOR_PLAN_2.md](REFACTOR_PLAN_2.md). |
+| Plan 2 | Done: explicit dependencies between features, tracker split, last globals but `Themes`: [REFACTOR_PLAN_2.md](REFACTOR_PLAN_2.md). |
 
 ## Decisions in force (assumed 2026-11-02, the maintainer may revise)
 
