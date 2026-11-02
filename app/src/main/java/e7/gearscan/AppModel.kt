@@ -47,6 +47,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
+import e7.gearscan.ui.Confirm
+import e7.gearscan.ui.Toast
 import java.io.File
 import java.io.IOException
 import kotlin.concurrent.thread
@@ -222,9 +224,13 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** With the "closest to targets" goal, results show match % unless another rating is picked. */
     var showMatch by mutableStateOf(true)
 
-    var stack: List<Screen> by mutableStateOf(listOf(Screen.Optimize))
-        internal set
-    var sheet: Sheet? by mutableStateOf(null)
+    val graph = getApplication<E7GearApp>().graph
+    var stack: List<Screen>
+        get() = graph.nav.screens()
+        internal set(v) { graph.nav.setScreens(v) }
+    var sheet: Sheet?
+        get() = graph.nav.sheet
+        set(v) { graph.nav.sheet = v }
 
     val presets = mutableStateMapOf<String, PresetTabs?>()
     val presetLoading = mutableStateMapOf<String, Boolean>()
@@ -254,18 +260,11 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         private set
 
     // ---- navigation ----
-    val screen get() = stack.last()
-    /** The sheet open on a screen when another screen was opened over it, by stack depth; back reopens it. */
-    private val sheetUnder = HashMap<Int, Pair<Screen, Sheet>>()
+    val screen get() = graph.nav.screen
 
-    fun go(s: Screen) {
-        sheet?.let { sheetUnder[stack.lastIndex] = stack.last() to it }
-        sheet = null
-        stack = stack + s
-    }
-    // replacing the only screen keeps Optimize under it, so the new screen's back link has somewhere to go
-    fun replace(s: Screen) { sheet = null; stack = stack.dropLast(1).ifEmpty { if (s == Screen.Optimize) emptyList() else listOf(Screen.Optimize) } + s }
-    fun tab(s: Screen) { sheetUnder.clear(); sheet = null; stack = listOf(s) }
+    fun go(s: Screen) = graph.nav.go(s)
+    fun replace(s: Screen) = graph.nav.replace(s)
+    fun tab(s: Screen) = graph.nav.tab(s)
     /** A screen as a back link names it: its title. */
     fun screenLabel(s: Screen): String = when (s) {
         Screen.ScanIntro, Screen.Capture -> "Scan"
@@ -295,14 +294,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** Where back goes from the current screen, by name. */
     fun backLabel(): String = stack.getOrNull(stack.size - 2)?.let(::screenLabel) ?: "Back"
 
-    fun back(): Boolean {
-        if (confirm != null) { confirm = null; return true }
-        if (sheet != null) { sheet = null; return true }
-        if (stack.size <= 1) return false
-        stack = stack.dropLast(1)
-        sheetUnder.remove(stack.lastIndex)?.takeIf { it.first == stack.last() }?.let { sheet = it.second }
-        return true
-    }
+    fun back(): Boolean = graph.nav.back()
 
     // ---- content ----
     private fun loadContent(): Content {
@@ -716,17 +708,16 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         touch(); saveBox(); save()
     }
 
-    /** A short message over the bottom of the screen, with an optional action such as Undo. */
-    class Toast(val text: String, val action: String?, val onAction: (() -> Unit)?) { val id = System.nanoTime() }
-    var toast: Toast? by mutableStateOf(null)
-    /** A reset waiting for the player's yes; every reset button goes through [askReset]. */
-    class Confirm(val title: String, val body: String, val run: (() -> Unit)?)
-    var confirm: Confirm? by mutableStateOf(null)
-    fun askReset(title: String, body: String, run: () -> Unit) { confirm = Confirm(title, body, run) }
-    /** The same window with one button: what a number means. */
-    fun explain(title: String, body: String) { confirm = Confirm(title, body, null) }
+    var toast: Toast?
+        get() = graph.messages.toast
+        set(v) { graph.messages.toast = v }
+    var confirm: Confirm?
+        get() = graph.messages.dialog
+        set(v) { graph.messages.dialog = v }
+    fun askReset(title: String, body: String, run: () -> Unit) = graph.messages.confirm(title, body, "Reset") { run() }
+    fun explain(title: String, body: String) = graph.messages.explain(title, body)
 
-    fun showToast(text: String, action: String? = null, onAction: (() -> Unit)? = null) { toast = Toast(text, action, onAction) }
+    fun showToast(text: String, action: String? = null, onAction: (() -> Unit)? = null) = graph.messages.showToast(text, action, onAction)
 
     fun saveBuild(heroId: Long, build: Build, name: String) {
         val cfg = config(heroId)
@@ -1563,7 +1554,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         if (id in reviewedIds) return
         if (keep) sellKept = sellKept + id else cleanupDone = cleanupDone + id
         upgrades.cleared = reviewedIds; save()
-        toast = Toast(if (keep) "Kept · won't come back until you unlock it" else "Marked sold", "Undo") { unmarkSellReview(id) }
+        showToast(if (keep) "Kept · won't come back until you unlock it" else "Marked sold", "Undo") { unmarkSellReview(id) }
     }
     fun unmarkSellReview(id: Long) {
         sellKept = sellKept - id; cleanupDone = cleanupDone - id; overlaySales = overlaySales.filterNot { it.id == id }
