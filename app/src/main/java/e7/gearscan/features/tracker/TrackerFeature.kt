@@ -4,19 +4,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import e7.gearscan.AppGraph
-import e7.gearscan.Screen
 import e7.gearscan.data.Box
 import e7.gearscan.data.GearStat
-import e7.gearscan.data.InventoryOrder
 import e7.gearscan.data.Item
 import e7.gearscan.data.SellQuery
 import e7.gearscan.data.SellSort
 import e7.gearscan.data.UpgradeRecord
-import e7.gearscan.opt.EsForecast
 import e7.gearscan.opt.GearPotential
 import e7.gearscan.opt.GearScore
 import e7.gearscan.opt.RollReview
-import e7.gearscan.opt.SellSearch
 import e7.gearscan.opt.UpgradeCheck
 import e7.gearscan.state.Feature
 import e7.gearscan.state.Weight
@@ -45,11 +41,12 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
                 .put("reviewCoverage", reviewCoverage).put("setName", setName).put("setIcon", setIcon ?: JSONObject.NULL)
     }
 
-    private class EquipUndo(val itemId: Long, val before: JSONObject, val owner: Long?, val displaced: Item?, val heroId: Long)
-
     val upgrades = savedFile("upgrades.json", backup = true, path = "upgrades.json")
     val check = work<Unit>("Upgrade check", Weight.Yielding, foreground = true, notice = "Checking this upgrade")
     val checkRun = UpgradeCheckRun(this, g, check)
+    val worn = WornPiece(this, g)
+    val readout = UpgradeReadout(this, g)
+    val starts = TrackStarts(this, g)
 
     var shown by mutableStateOf(false)
         private set
@@ -82,9 +79,6 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
         private set
     var editing by mutableStateOf(false)
         internal set
-    private var equipUndo: EquipUndo? by mutableStateOf(null)
-    var equippedOn: String? by mutableStateOf(null)
-        private set
 
     private val scan get() = g.scan.lastScan
     private val box get() = g.scan.box
@@ -99,7 +93,6 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
     val needsRollRefresh get() = isSellQueue && queueBasis != RollReview.BASIS && (scoreQuery?.scoreFilter == false || scoreQuery?.sort == SellSort.QUALITY)
     val canUndoSold get() = g.marks.lastSale(scan, queue.mapTo(HashSet()) { it.id }) != null
     val canMarkSold get() = isSellQueue && !sellQueueComplete && !editing && selected in pendingQueue.map { it.id }
-    val canUndoEquip get() = equipUndo != null
     val rollOn get() = g.sellReview.query.rollOn
     val rebuilds get() = g.improveHeroes.rebuilds
     val setIcon get() = record?.item?.let { content.set(it.set)?.icon }
@@ -107,93 +100,7 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
     val hasEs get() = scoreQuery != null
 
     val isRollReview get() = scoreQuery != null && !scoreQuery!!.scoreFilter && scoreGoal == null && goal == null
-    val reviewRolls get(): List<RollReview.Roll>? {
-        val entry = queue.firstOrNull { it.id == selected } ?: return null
-        var rolls = entry.reviewRolls
-        val history = record?.history.orEmpty().drop((entry.reviewHistory - 1).coerceAtLeast(0))
-        for ((a, b) in history.zipWithNext()) rolls = RollReview.append(rolls, a, b)
-        return rolls
-    }
-    val reviewSafeguards get(): List<RollReview.Safeguard> {
-        val item = record?.item ?: return emptyList()
-        val q = scoreQuery ?: return emptyList()
-        val e = queue.firstOrNull { it.id == selected } ?: return emptyList()
-        return q.keepStats.map { (stat, value) -> RollReview.safeguard(item, stat, value, q.reforge, e.reviewAllowed, e.reviewCoverage) }
-    }
-    val reviewProtected get() = reviewSafeguards.any { it.active(scoreQuery?.keepChance ?: 0.0) }
-    val reviewStatText get(): String {
-        val item = record?.item ?: return ""
-        val q = scoreQuery ?: return ""
-        val e = queue.firstOrNull { it.id == selected } ?: return ""
-        return reviewSafeguards.joinToString("\n") { g ->
-            "${g.stat.short} ${g.stat.format(g.minimum)}: " +
-                when {
-                    g.now -> "already reached"
-                    !g.known -> "future unknown"
-                    g.chance > 0 -> GearPotential.percent(g.chance)
-                    g.possible -> "rare possibility, odds unknown"
-                    else -> "not reachable"
-                }
-        } + "\n\n" +
-            item.subs.sortedBy { if (it.type == GearStat.SPD) 0 else 1 }.joinToString("\n") { sub ->
-                val line = RollReview.line(item, sub.type, q.reforge, e.reviewAllowed, e.reviewCoverage)
-                "${sub.type.short} ${sub.type.format(sub.value)} → " +
-                    (line.maximum?.let { "up to ${sub.type.format(it)} at +15${if (q.reforge) " & eligible reforge" else ""}" } ?: "finish unknown")
-            }
-    }
     val hasTarget get() = goal != null || scoreGoal != null || isRollReview
-    val goalOutcome get() =
-        record?.item?.let { item ->
-            scoreGoal?.let { GearScore.forecast(item, it).outcome(it.floor) } ?: goal?.let { GearPotential.forecast(item, it) }
-        }
-    val title get() =
-        when {
-            sellQueueComplete -> "List complete"
-            isRollReview && reviewProtected -> "Stat safeguard reached"
-            isRollReview -> reviewRolls?.let { rolls -> "${RollReview.overallWeakCount(rolls)} of ${rolls.size} rolls below midrange" } ?: "Upgrade history unavailable"
-            scoreGoal != null ->
-                goalOutcome?.let { out ->
-                    when {
-                        !out.supported -> "Catch-up chance unavailable"
-                        out.matchesNow -> "Comparison reached"
-                        record?.item?.enhance == 15 && out.chance == 1.0 -> "Reforge to catch up"
-                        out.rareOnly -> "Needs rare rolls to catch up"
-                        out.possible -> "${out.label()} chance to catch up"
-                        else -> "Cannot reach comparison"
-                    }
-                } ?: "Choose a piece"
-            goal != null ->
-                goalOutcome?.let { out ->
-                    when {
-                        out.matchesNow -> "Targets reached"
-                        record?.item?.enhance == 15 && out.chance == 1.0 -> "Reforge to meet targets"
-                        out.rareOnly -> "Rare rolls needed"
-                        out.possible -> "${out.label()} chance to meet targets"
-                        else -> "Targets no longer reachable"
-                    }
-                } ?: "Choose a piece"
-            checkRun.busy -> "Checking builds · ${checkRun.results.size}/${checkRun.expected}"
-            error != null -> "Check needs attention"
-            checkRun.expected < 0 -> "Ready to check saved setups"
-            checkRun.expected == 0 -> "Add hero setups to get advice"
-            equippedOn != null -> "Equipped on $equippedOn"
-            record?.item?.enhance == 15 ->
-                if (checkRun.equipHeroes.isNotEmpty()) {
-                    "Finished · upgrade for ${checkRun.equipHeroes.first().name}"
-                } else if (checkRun.hasPotential) {
-                    "Finished · potential upgrade"
-                } else {
-                    "Finished · no upgrade found"
-                }
-            checkRun.hasFuture && checkRun.results.any { it.provisional && it.hits.isNotEmpty() } -> "Potential upgrade · check incomplete"
-            checkRun.hasFuture ->
-                (checkRun.chance?.let { "Continue · $it% chance to upgrade" } ?: "Continue · potential upgrade") +
-                    (checkRun.results.filter { it.hits.isNotEmpty() }.maxByOrNull { it.hits.size }?.better?.size?.takeIf { it > 0 }?.let { " · $it better ${if (it == 1) "bet" else "bets"}" } ?: "")
-            checkRun.uncertain -> "Undecided · check incomplete"
-            checkRun.results.any { it.current } -> "Pause · useful as it is"
-            else -> "Pause · no upgrade found"
-        }
-
     init {
         runCatching { restore(JSONObject(upgrades.read()!!), save = false) }
             .onFailure { if (upgrades.exists) error = "Saved upgrade history could not be read. Your scan is unchanged." }
@@ -401,116 +308,9 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
         configure()
     }
 
-    // the piece as recorded, now worn by the hero: its stats and owner go into the box (a new scan replaces them)
-    fun equip(heroId: Long) {
-        val b = box ?: return
-        val r = record ?: return
-        if (r.scan != scan || b.itemsById[r.item.id] == null) {
-            error = "Your scan changed. Choose the piece again."
-            return
-        }
-        val owner = b.itemsById.getValue(r.item.id).equippedOn
-        val displaced = b.gearOf(heroId)[r.item.slot]?.takeIf { it.id != r.item.id }
-        val before = b.writeStats(r.item) ?: return
-        val next = Box(b.json)
-        next.itemsById[r.item.id]?.let { next.setEquipped(it, heroId) }
-        displaced?.let { d -> next.itemsById[d.id]?.let { next.setEquipped(it, null) } }
-        persistBox(next)
-        equippedOn = g.heroes.heroName(heroId) ?: "the hero"
-        equipUndo = EquipUndo(r.item.id, before, owner, displaced, heroId)
-    }
-
-    fun undoEquip() {
-        val u = equipUndo ?: return
-        box?.let { cur ->
-            cur.restore(u.itemId, u.before)
-            val back = Box(cur.json)
-            back.itemsById[u.itemId]?.let { back.setEquipped(it, u.owner) }
-            u.displaced?.let { d -> back.itemsById[d.id]?.let { back.setEquipped(it, u.heroId) } }
-            persistBox(back)
-        }
-        equipUndo = null
-        equippedOn = null
-    }
-
-    private fun persistBox(b: Box) {
-        g.scan.replaceBox(b)
-        g.scan.touch()
-        g.scan.saveBox()
-        g.store.saveNow()
-    }
-
     fun returnToApp() {
         // in the phone's floating window the app is already here: show all of it
         if (g.overlay.floating) g.overlay.floatingPanel = false else g.platform.showApp()
-    }
-
-    fun track(
-        item: Item,
-        goal: GearPotential.Goal,
-        openOverlay: Boolean,
-    ): Outcome {
-        checkRun.stopCheck()
-        select(item, scan)
-        configure()
-        useGoal(goal)
-        g.nav.go(Screen.Upgrade)
-        return if (openOverlay) openOverlay() else Outcome.Done
-    }
-
-    fun trackQueue(
-        entries: List<Pair<Item, QueueEntry>>,
-        openOverlay: Boolean,
-    ): Outcome {
-        checkRun.stopCheck()
-        startQueue(entries, scan)
-        configure()
-        g.nav.go(Screen.Upgrade)
-        return if (openOverlay) openOverlay() else Outcome.Done
-    }
-
-    fun trackSellQueue(
-        rows: List<Pair<Item, SellSearch.Row>>,
-        query: SellQuery,
-        openOverlay: Boolean,
-    ): Outcome {
-        val entries =
-            rows.map { (original, row) ->
-                val set = content.set(original.set)
-                original to
-                    QueueEntry(
-                        original.id, null, set?.name ?: original.set.removeSuffix("Set"), set?.icon,
-                        row.goal.takeIf { query.scoreFilter }, row.rolls, records[original.id]?.takeIf { it.scan == scan }?.history?.size ?: 1,
-                        row.goal.reforgeAllowed, row.goal.supported,
-                    )
-            }
-        startQueue(entries, scan, query)
-        configure()
-        g.nav.go(Screen.Upgrade)
-        return if (openOverlay) openOverlay() else Outcome.Done
-    }
-
-    fun trackPiece(id: Long): Outcome {
-        val original = box?.itemsById?.get(id)?.takeIf { it.id !in g.marks.cleared && UpgradeRecord.supported(it) } ?: return Outcome.Done
-        select(original, scan)
-        configure()
-        g.nav.go(Screen.Upgrade)
-        return openOverlay()
-    }
-
-    fun trackPieces(ids: List<Long>): Outcome {
-        val b = box ?: return Outcome.Done
-        val items =
-            ids.distinct().mapNotNull { id ->
-                val o = b.itemsById[id]?.takeIf { it.id !in g.marks.cleared && UpgradeRecord.supported(it) } ?: return@mapNotNull null
-                val set = content.set(o.set)
-                o to QueueEntry(o.id, null, set?.name ?: o.set.removeSuffix("Set"), set?.icon)
-            }
-        if (items.isEmpty()) return Outcome.Done
-        startQueue(items, scan, source = "heroes")
-        configure()
-        g.nav.go(Screen.Upgrade)
-        return openOverlay()
     }
 
     fun openOverlay(): Outcome {
@@ -531,17 +331,6 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
         shown = false
     }
 
-    fun esFor(item: Item): EsForecast.Es? {
-        val q = scoreQuery ?: return null
-        val b = box
-        val ctx = g.sellReview.context(q)
-        if (b == null || ctx == null) return null
-        return EsForecast.of(
-            item,
-            InventoryOrder.score(item, if (item.enhance == b.itemsById[item.id]?.enhance) ctx.raw[item.id] else null),
-            ctx.esBar(item.slot), q.reforge, b.canReforge(item.id), ctx.coverage(item), q.forecastMs,
-        )
-    }
 
     fun configure() {
         syncMarks()
@@ -592,8 +381,7 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
     fun invalidate() {
         checkRun.clear()
         error = null
-        equipUndo = null
-        equippedOn = null
+        worn.clear()
     }
 
     fun toJson() =

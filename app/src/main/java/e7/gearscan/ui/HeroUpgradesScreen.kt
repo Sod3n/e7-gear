@@ -66,7 +66,7 @@ fun HeroUpgradesScreen(graph: AppGraph, heroId: Long?) {
             running -> null
             result == null -> Action(if (graph.improveHeroes.resumable) "Continue the check" else "Check my gear",
                 enabled = graph.pool.state?.running != true) { graph.improveHeroes.start() }
-            else -> Action("Track all ${listed.size}", enabled = listed.isNotEmpty(), short = "Track ${listed.size}") { graph.messages.show(graph.tracker.trackPieces(listed)) }
+            else -> Action("Track all ${listed.size}", enabled = listed.isNotEmpty(), short = "Track ${listed.size}") { graph.messages.show(graph.tracker.starts.trackPieces(listed)) }
         },
         secondary = when {
             running -> Secondary("Stop", Span.Fill) { graph.improveHeroes.stop() }
@@ -354,7 +354,7 @@ internal fun HeroUpgradePieceSheet(graph: AppGraph, id: Long) {
     val heroes = remember(result, graph.improveHeroes.minGain, graph.scan.rev) {
         graph.improveHeroes.view(result).mapNotNull { h -> h.rows.firstOrNull { it.pick.piece == id }?.let { h to it } }
     }
-    SheetBody("Worth enhancing?", button = "Enhance over the game", onButton = { graph.nav.sheet = null; graph.messages.show(graph.tracker.trackPiece(id)) }) {
+    SheetBody("Worth enhancing?", button = "Enhance over the game", onButton = { graph.nav.sheet = null; graph.messages.show(graph.tracker.starts.trackPiece(id)) }) {
         Card(shadow = null, padding = PaddingValues(12.dp)) { GearSearchIdentity(graph, item, owner = true) }
         heroes.forEach { (h, r) ->
             Card(shadow = null, padding = PaddingValues(12.dp), onClick = { graph.nav.sheet = null; graph.nav.go(Screen.HeroUpgrades(h.hero.id)) }) {

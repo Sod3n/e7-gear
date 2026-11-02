@@ -267,7 +267,7 @@ class GearPotentialScreens {
         shot("08-picker-353-big")
         tap("Use selected piece")
         ui { graph.tracker.show(); graph.overlay.expanded = true; overlay = true }
-        assertEquals(.25, graph.tracker.goalOutcome!!.chance, 1e-10)
+        assertEquals(.25, graph.tracker.readout.goalOutcome!!.chance, 1e-10)
         shot("09-target-overlay-353-big")
         tap("Record +12")
         shot("09-editor-353-big")
@@ -281,13 +281,13 @@ class GearPotentialScreens {
             assertEquals("Heroic", r.rank); assertEquals(9, r.enhance)
             assertTrue(graph.tracker.commit(UpgradeRecord.mainAt(r, 12), r.subs.map { it.value }, GearStat.EFF to 6.0, false))
         }
-        assertEquals(.25, graph.tracker.goalOutcome!!.chance, 1e-10)
+        assertEquals(.25, graph.tracker.readout.goalOutcome!!.chance, 1e-10)
         ui {
             val r = graph.tracker.record!!.item
             assertTrue(graph.tracker.commit(UpgradeRecord.mainAt(r, 15), r.subs.map { it.value + if (it.type == GearStat.HP_P) 4 else 0 }, null, false))
         }
-        assertFalse(graph.tracker.goalOutcome!!.possible)
-        assertEquals("Targets no longer reachable", graph.tracker.title)
+        assertFalse(graph.tracker.readout.goalOutcome!!.possible)
+        assertEquals("Targets no longer reachable", graph.tracker.readout.title)
         val restored = reopenTracker(graph, ctx.filesDir)
         assertEquals(graph.tracker.goal, restored.goal)
         assertEquals(15, restored.record!!.item.enhance)

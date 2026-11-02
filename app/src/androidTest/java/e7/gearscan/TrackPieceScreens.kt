@@ -55,7 +55,7 @@ class TrackPieceScreens {
         val t0 = System.currentTimeMillis()
         if (start) ui { graph.tracker.checkRun.runCheck() }
         rule.waitUntil(5 * 60_000) { !graph.tracker.checkRun.busy && graph.tracker.checkRun.complete }
-        return (System.currentTimeMillis() - t0).also { Log.i("TrackPieceScreens", "$label: ${it} ms, ${graph.tracker.title}") }
+        return (System.currentTimeMillis() - t0).also { Log.i("TrackPieceScreens", "$label: ${it} ms, ${graph.tracker.readout.title}") }
     }
 
     /** The next +3 with the smallest roll on the first line: legal, and the weakest finish this piece can still reach. */
@@ -110,7 +110,7 @@ class TrackPieceScreens {
         rule.onNodeWithText("${graph.tracker.checkRun.chance}%").performClick()
         repeat(4) { i -> shot("3-advice-${i + 1}"); runCatching { rule.onNodeWithContentDescription("Next details page").performClick() } }
         val h = graph.tracker.checkRun.results.filter { it.alts.isNotEmpty() }.maxBy { it.hits.size }
-        File(dir, "result.txt").writeText("${piece.slot} +${piece.enhance} → +${graph.tracker.record!!.item.enhance}: ${graph.tracker.title}\n" +
+        File(dir, "result.txt").writeText("${piece.slot} +${piece.enhance} → +${graph.tracker.record!!.item.enhance}: ${graph.tracker.readout.title}\n" +
             "${h.name}: better ${h.better.size}\n" + h.alts.joinToString("\n") + "\n")
         ui { graph.tracker.hide(); overlay = false }
     }

@@ -57,7 +57,7 @@ fun UpgradeScreen(graph: AppGraph) {
                     Text(goal.label(), style = dela(18.sp))
                     VSpace(6.dp)
                 }
-                Text(t.title, style = zen(13.sp, color = C.blue))
+                Text(t.readout.title, style = zen(13.sp, color = C.blue))
                 VSpace(6.dp)
                 if (!t.hasTarget && !t.checkRun.busy) t.checkRun.results.filter { it.current || it.hits.isNotEmpty() }.sortedByDescending { it.hits.size }.take(4).forEach { h ->
                     Text(h.name + listOfNotNull(if (h.current) "an upgrade now ${h.nowGain}".trim() else null,
@@ -69,8 +69,8 @@ fun UpgradeScreen(graph: AppGraph) {
                 }
                 if (!t.hasTarget && selected.item.enhance == 15) {
                     if (selected.item.level == 85 && t.canReforge(selected.item.id)) LinkText("Record the reforge") { t.reforge() }
-                    if (t.equippedOn == null) t.checkRun.equipHeroes.forEach { h -> LinkText("Record equipped on ${h.name}") { t.equip(h.id) } }
-                    else LinkText("Undo: equipped on ${t.equippedOn}") { t.undoEquip() }
+                    if (t.worn.equippedOn == null) t.checkRun.equipHeroes.forEach { h -> LinkText("Record equipped on ${h.name}") { t.worn.equip(h.id) } }
+                    else LinkText("Undo: equipped on ${t.worn.equippedOn}") { t.worn.undoEquip() }
                     VSpace(6.dp)
                 }
                 Text(if(t.isRollReview)"Record each upgrade to update its actual roll history." else if (t.hasTarget) "Record each upgrade to see your chance change." else "Checks how this piece could help your saved hero builds.", style = zen(12.sp, FontWeight.Medium, C.muted))

@@ -27,9 +27,9 @@ import e7.gearscan.state.then
 import e7.gearscan.ui.Outcome
 
 fun AppGraph.trackMatch(match: FindGearMatch, openOverlay: Boolean = false): Outcome =
-    findGear.toTrack(match).then { (item, goal) -> tracker.track(item, goal, openOverlay) }
+    findGear.toTrack(match).then { (item, goal) -> tracker.starts.track(item, goal, openOverlay) }
 
-fun AppGraph.trackAllMatches(openOverlay: Boolean = true): Outcome = findGear.toTrackAll().then { tracker.trackQueue(it, openOverlay) }
+fun AppGraph.trackAllMatches(openOverlay: Boolean = true): Outcome = findGear.toTrackAll().then { tracker.starts.trackQueue(it, openOverlay) }
 
 private fun targetPieces(q: PotentialQuery) = q.targets.entries.map { (t, v) ->
     "${if (t.percentOfBase) t.stat.short else t.short} ${v.ifEmpty { "?" }}${if (t.showsPercent) "%" else ""}+"

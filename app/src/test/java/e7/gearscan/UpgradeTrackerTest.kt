@@ -38,7 +38,7 @@ class UpgradeTrackerTest {
         tracker.checkRun.begin("same-input", 1)
         tracker.checkRun.checkpoint(listOf(UpgradeCheck.HeroResult(1, "Hero", emptyList(), false, false, 2, false, null, "")))
         tracker.checkRun.busy = false
-        assertTrue(tracker.title.startsWith("Undecided"))
+        assertTrue(tracker.readout.title.startsWith("Undecided"))
         tracker.checkRun.begin("same-input", 1)
         assertEquals(1, tracker.checkRun.attempt)
         assertEquals(1, env.reopen().t.checkRun.attempt)
@@ -53,6 +53,6 @@ class UpgradeTrackerTest {
         tracker.checkRun.begin("same", 1)
         tracker.checkRun.checkpoint(listOf(UpgradeCheck.HeroResult(1, "Hero", emptyList(), true, false, 0, false, 1.0, "")))
         tracker.checkRun.busy = false
-        assertEquals("Pause · useful as it is", tracker.title)
+        assertEquals("Pause · useful as it is", tracker.readout.title)
     }
 }

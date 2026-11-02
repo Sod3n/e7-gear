@@ -120,11 +120,11 @@ class SellFiltersScreens {
         val index=t.queue.indexOfFirst { e->graph.records.records[e.id]!!.item.let { it.rank=="Epic"&&it.enhance<15 } }
         assertTrue(index>=0);ui { t.selectInQueue(index) }
         rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Roll review");noPoints();shot("16-overlay-roll-evidence",true);tap("Back")
-        val before=t.record!!.item;val countBefore=t.reviewRolls!!.size;val statText=t.reviewStatText
+        val before=t.record!!.item;val countBefore=t.readout.reviewRolls!!.size;val statText=t.readout.reviewStatText
         val next=(before.enhance/3+1)*3
         tap("Record +$next");val sub=before.subs.first();choose("${sub.type.short}: ${fmtNum(sub.value)}")
         shot("17-overlay-record",true);tap("Apply total");tap("Save +$next")
-        assertEquals(next,t.record!!.item.enhance);assertEquals(n,t.queue.size);assertEquals(countBefore+1,t.reviewRolls!!.size);assertNotEquals(statText,t.reviewStatText)
+        assertEquals(next,t.record!!.item.enhance);assertEquals(n,t.queue.size);assertEquals(countBefore+1,t.readout.reviewRolls!!.size);assertNotEquals(statText,t.readout.reviewStatText)
         noPoints();shot("18-overlay-updated",true)
         // This acknowledges only a fixture sale; the audit never touches the game.
         rule.onNodeWithText("Sold ›").assertIsDisplayed()
@@ -154,7 +154,7 @@ class SellFiltersScreens {
         ui { graph.overlay.floating=true;graph.overlay.floatingPanel=true };rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Open E7 Gear");assertFalse(graph.overlay.floatingPanel);ui { graph.overlay.floating=false;graph.overlay.floatingPanel=true }
         val backup=graph.scan.backupText();val saved=JSONObject(backup)
         assertEquals(graph.sellReview.query,SellQuery.of(saved.getJSONObject("fields").getJSONObject("sellReview.query")))
-        val reopened=reopenTracker(graph,ctx.filesDir);assertTrue(reopened.isRollReview);assertEquals(t.reviewRolls,reopened.reviewRolls);assertEquals(t.queue,reopened.queue)
+        val reopened=reopenTracker(graph,ctx.filesDir);assertTrue(reopened.isRollReview);assertEquals(t.readout.reviewRolls,reopened.readout.reviewRolls);assertEquals(t.queue,reopened.queue)
         val lastQuery=graph.sellReview.query
         ui { overlay=false;assertTrue(graph.scan.restore(backup));graph.nav.go(Screen.SellFilters) }
         assertEquals(lastQuery,graph.sellReview.query);assertFalse(graph.sellReview.query.scoreFilter);noPoints()

@@ -113,7 +113,7 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
     val scale = LocalDensity.current.fontScale
     val usable = if (w.usableHeightDp > 0) min(config.screenHeightDp.toFloat(), w.usableHeightDp) else config.screenHeightDp.toFloat()
     val es by produceState<EsForecast.Es?>(null, item, t.scoreQuery, t.cleared) {
-        value = if (t.hasEs) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { t.esFor(item) } else null
+        value = if (t.hasEs) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { t.readout.esFor(item) } else null
     }
     val queueRow = t.queue.isNotEmpty() && (pane == UpgradePane.PIECE || pane == UpgradePane.LIST) && !t.editing
     val bodyCap = (usable - 12).coerceAtLeast(160f) - PANEL_CHROME - if (t.queue.isNotEmpty()) QUEUE_SLOT else 0f
@@ -132,7 +132,7 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                 FitText(chanceBadge(t), dela(12.sp, C.blue))
             }
             if(t.canUndoSold&&!t.sellQueueComplete&&!t.editing)PanelAction("Undo",Modifier.width(38.dp),label="Undo last mark") { t.undoSold();pane=UpgradePane.PIECE }
-            else if (t.canUndoEquip && !t.editing) PanelAction("Undo", Modifier.width(38.dp), label = "Undo equip") { t.undoEquip(); pane = UpgradePane.PIECE }
+            else if (t.worn.canUndoEquip && !t.editing) PanelAction("Undo", Modifier.width(38.dp), label = "Undo equip") { t.worn.undoEquip(); pane = UpgradePane.PIECE }
             PanelAction(if (t.notice == null) "···" else "···!", Modifier.width(34.dp), enabled = !t.editing, label = "More") { pane = if (pane == UpgradePane.MENU) UpgradePane.PIECE else UpgradePane.MENU }
             PanelAction("–", Modifier.width(30.dp), label = "Collapse tracker") { w.expanded = false; onDock(false) }
             PanelAction("×", Modifier.width(30.dp), label = "Close tracker", click = onClose)
@@ -178,7 +178,7 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                 pane == UpgradePane.ADVICE -> PanelTextPages(adviceText(t), maxHeight.value)
                 pane == UpgradePane.BUILD -> PanelTextPages(buildText(t), maxHeight.value)
                 pane == UpgradePane.EQUIP -> PanelChoices(t.checkRun.equipHeroes.map { "${it.name} · ${it.nowGain}" }, maxHeight.value, "Equipped on") { i ->
-                    t.checkRun.equipHeroes.getOrNull(i)?.let { h -> t.equip(h.id) }; pane = UpgradePane.PIECE
+                    t.checkRun.equipHeroes.getOrNull(i)?.let { h -> t.worn.equip(h.id) }; pane = UpgradePane.PIECE
                 }
             }
         }
@@ -209,7 +209,7 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                     // a finished piece: record the reforge, then equipping it, as done in the game
                     if (!t.isSellQueue && item.enhance == 15 && item.level == 85 && t.canReforge(item.id))
                         PanelAction("Reforge", Modifier.weight(1.2f), pink = t.checkRun.equipHeroes.isEmpty(), label = "Record reforge") { t.reforge() }
-                    if (!t.isSellQueue && item.enhance == 15 && t.checkRun.equipHeroes.isNotEmpty() && t.equippedOn == null)
+                    if (!t.isSellQueue && item.enhance == 15 && t.checkRun.equipHeroes.isNotEmpty() && t.worn.equippedOn == null)
                         PanelAction("Equip", Modifier.weight(1.2f), pink = true, label = "Record equip") { pane = UpgradePane.EQUIP }
                 }
                 else -> {
@@ -235,15 +235,15 @@ private fun PanelBody(modifier: Modifier, floor: Dp, cap: Dp, need: Dp, extra: D
 }
 
 private fun chanceBadge(t: TrackerFeature) = if (!t.hasTarget && t.checkRun.results.isNotEmpty() && !t.checkRun.busy && t.scoreQuery == null)
-    when { t.equippedOn != null -> "Done"; t.record?.item?.enhance == 15 -> if (t.checkRun.equipHeroes.isNotEmpty()) "Equip" else "None"; else -> t.checkRun.chance?.let { "$it%" } ?: "Advice" }
-    else if(t.sellQueueComplete)"Done" else if(t.isRollReview)if(t.reviewProtected)"Guard" else "Review" else t.goalOutcome?.let { when { !it.supported -> "Unknown"; t.scoreGoal!=null -> if(it.matchesNow) "Above" else if(it.rareOnly) "Rare" else if(!it.possible) "0%" else it.label(); it.matchesNow -> "Ready"; it.rareOnly -> "Rare"; !it.possible -> "Stop"; else -> it.label() } } ?: if (t.checkRun.busy) "Busy" else "Advice"
+    when { t.worn.equippedOn != null -> "Done"; t.record?.item?.enhance == 15 -> if (t.checkRun.equipHeroes.isNotEmpty()) "Equip" else "None"; else -> t.checkRun.chance?.let { "$it%" } ?: "Advice" }
+    else if(t.sellQueueComplete)"Done" else if(t.isRollReview)if(t.readout.reviewProtected)"Guard" else "Review" else t.readout.goalOutcome?.let { when { !it.supported -> "Unknown"; t.scoreGoal!=null -> if(it.matchesNow) "Above" else if(it.rareOnly) "Rare" else if(!it.possible) "0%" else it.label(); it.matchesNow -> "Ready"; it.rareOnly -> "Rare"; !it.possible -> "Stop"; else -> it.label() } } ?: if (t.checkRun.busy) "Busy" else "Advice"
 
 @Composable
 private fun PieceSummary(t: TrackerFeature, item: Item, height: Float, es: EsForecast.Es?, measure: Boolean = false) {
     if (height < 60 * LocalDensity.current.fontScale + 12) {
         PanelTextPages("${item.rank} Lv.${item.level} · ${item.mainType.short} ${item.mainType.format(item.mainValue)}\n" +
             item.subs.joinToString("\n") { "${it.type.short} ${it.type.format(it.value)}" } +
-            if (!t.hasTarget||t.isRollReview) "\n${t.title}" + (weakestLine(t)?.let { "\n$it" } ?: "") else "", height)
+            if (!t.hasTarget||t.isRollReview) "\n${t.readout.title}" + (weakestLine(t)?.let { "\n$it" } ?: "") else "", height)
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -251,14 +251,14 @@ private fun PieceSummary(t: TrackerFeature, item: Item, height: Float, es: EsFor
         Row(verticalAlignment = Alignment.CenterVertically) {
             StatIcon(item.mainType.stat, 13.dp, C.ink); Spacer(Modifier.width(4.dp))
             FitText(item.mainType.format(item.mainValue), zen(11.sp), Modifier.weight(1f))
-            FitText(if(t.isRollReview)t.reviewRolls?.let { "${e7.gearscan.opt.RollReview.overallWeakCount(it)}/${it.size} low" }?:"History unknown" else "${item.rank} · Lv.${item.level}", zen(9.sp, color = C.muted))
+            FitText(if(t.isRollReview)t.readout.reviewRolls?.let { "${e7.gearscan.opt.RollReview.overallWeakCount(it)}/${it.size} low" }?:"History unknown" else "${item.rank} · Lv.${item.level}", zen(9.sp, color = C.muted))
         }
         GearSearchSubs(item, t.goal?.minimums?.keys ?: emptySet())
         }
         if (t.hasEs) {
             if (es != null) EsBlock(es, t.rollOn) else if (measure) EsBlockSpace()
         }
-        if (!t.hasTarget && !t.hasEs) FitText(t.title, zen(10.sp, color = C.blue))
+        if (!t.hasTarget && !t.hasEs) FitText(t.readout.title, zen(10.sp, color = C.blue))
         // the measuring copy keeps a line for advice that arrives after the check, so the panel doesn't grow then
         if (!t.hasTarget) (weakestLine(t) ?: " ".takeIf { measure && item.enhance < 15 })?.let { FitText(it, zen(9.sp, color = C.muted)) }
     }
@@ -380,13 +380,13 @@ private fun PanelChoices(names: List<String>, height: Float, title: String, sele
 @Composable
 private fun GoalPage(t: TrackerFeature, height: Float) {
     if(t.isRollReview) {
-        val rolls=t.reviewRolls
-        PanelTextPages("${t.title}\n\n"+(rolls?.joinToString("\n") { r->"${if(r.enhance==0)"Start" else "+${r.enhance}${if(r.reveal)" new" else ""}"}: ${r.stat.short} +${r.stat.format(r.value)} (usual ${r.stat.format(r.range.first.toDouble())}–${r.stat.format(r.range.last.toDouble())})" }?:"Roll history unavailable")+"\n\n${t.reviewStatText}\n\nEach stat limit is separate. Review the actual substat totals before selling. Recorded upgrades update this history.",height)
+        val rolls=t.readout.reviewRolls
+        PanelTextPages("${t.readout.title}\n\n"+(rolls?.joinToString("\n") { r->"${if(r.enhance==0)"Start" else "+${r.enhance}${if(r.reveal)" new" else ""}"}: ${r.stat.short} +${r.stat.format(r.value)} (usual ${r.stat.format(r.range.first.toDouble())}–${r.stat.format(r.range.last.toDouble())})" }?:"Roll history unavailable")+"\n\n${t.readout.reviewStatText}\n\nEach stat limit is separate. Review the actual substat totals before selling. Recorded upgrades update this history.",height)
         return
     }
     t.scoreGoal?.let { goal->
         val item=t.record!!.item
-        PanelTextPages("${goal.label()}\n${goal.referenceLabel()}\n\nNow: ${fmtNum(goal.model.value(item))} pts\nDiversity penalty: ${goal.model.diversity}%\nMain contribution: ${goal.model.mainPercent}%\n\n${t.title}\n\n${if(goal.reforge) "Includes eligible reforging" else "Before reforging"}. This is a score filter, not a sell verdict.",height)
+        PanelTextPages("${goal.label()}\n${goal.referenceLabel()}\n\nNow: ${fmtNum(goal.model.value(item))} pts\nDiversity penalty: ${goal.model.diversity}%\nMain contribution: ${goal.model.mainPercent}%\n\n${t.readout.title}\n\n${if(goal.reforge) "Includes eligible reforging" else "Before reforging"}. This is a score filter, not a sell verdict.",height)
         return
     }
     val goal = t.goal ?: return
@@ -394,7 +394,7 @@ private fun GoalPage(t: TrackerFeature, height: Float) {
     val finish = if (goal.reforge && goal.reforgeAllowed && item.level == 85) "At +15 & reforged" else "At +15"
     PanelTextPages(finish + "\n\n" + goal.minimums.entries.joinToString("\n") { (stat, wanted) ->
         "${stat.short}: ${stat.format(item.subs.firstOrNull { it.type == stat }?.value ?: 0.0)} / ${stat.format(wanted)}"
-    } + "\n\n${t.title}\nChance is for every target together.", height)
+    } + "\n\n${t.readout.title}\nChance is for every target together.", height)
 }
 
 @Composable
@@ -461,7 +461,7 @@ private fun buildText(t: TrackerFeature): String {
 }
 
 private fun adviceText(t: TrackerFeature) = buildList {
-    add(t.title)
+    add(t.readout.title)
     add(if (t.rebuilds) "Counting any rebuild: other pieces and sets may change." else "Counting this piece only: it goes into the hero's slot, nothing else moves.")
     if (t.checkRun.expected > 0 && t.checkRun.total > 0) add("${t.checkRun.results.size}/${t.checkRun.expected} saved setups checked. ${t.checkRun.hitCount} of ${t.checkRun.total} simulated finishes (${t.checkRun.chance}%) are an upgrade for at least one hero.")
     else if (t.checkRun.expected > 0) add("${t.checkRun.results.size}/${t.checkRun.expected} saved setups checked.")

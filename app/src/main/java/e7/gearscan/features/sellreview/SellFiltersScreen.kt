@@ -21,7 +21,7 @@ import e7.gearscan.data.*
 import e7.gearscan.opt.*
 
 private fun AppGraph.findSell() = messages.show(sellReview.find())
-fun AppGraph.trackMatches(id:Long?=null,openOverlay:Boolean=true):Outcome=sellReview.toTrack(id).then { (rows,query)->tracker.trackSellQueue(rows,query,openOverlay) }
+fun AppGraph.trackMatches(id:Long?=null,openOverlay:Boolean=true):Outcome=sellReview.toTrack(id).then { (rows,query)->tracker.starts.trackSellQueue(rows,query,openOverlay) }
 private fun AppGraph.trackSell(id:Long?=null) = messages.show(trackMatches(id))
 private fun AppGraph.markSell(id:Long,keep:Boolean) {
     val outcome=marks.markReviewed(id,keep)

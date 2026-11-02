@@ -59,7 +59,7 @@ class UpgradeViewsTest {
         }
         shot("13-continue-layout-fixture")
         ui { t.checkRun.checkpoint(listOf(UpgradeCheck.HeroResult(1, "Hero with a long saved setup", emptyList(), true, false, 0, false, 1.0, "Hp +200"))) }
-        assertEquals("Pause · useful as it is", t.title)
+        assertEquals("Pause · useful as it is", t.readout.title)
         shot("14-pause-layout-fixture")
         ui { graph.tracker.hide(); t.restore(org.json.JSONObject()) }
     }
