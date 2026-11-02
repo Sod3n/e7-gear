@@ -273,6 +273,18 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
         )
     }
 
+    /** Opens a past pool run (the pending one live); false while a run is going, which it would replace. */
+    fun openFromHistory(e: HistoryEntry): Boolean {
+        if (state?.running == true) return false
+        if (e.at == pending) {
+            openPending()
+            return true
+        }
+        state = stateOf(e, fromHistory = true)
+        g.nav.go(Screen.PoolRun)
+        return true
+    }
+
     /** Brings the pending run back as a live result (equip allowed), from its history entry. */
     fun openPending() {
         val at = pending ?: return

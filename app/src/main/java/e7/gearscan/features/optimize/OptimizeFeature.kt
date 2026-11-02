@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import e7.gearscan.AppGraph
+import e7.gearscan.Screen
 import e7.gearscan.calc.Rating
 import e7.gearscan.data.Goal
 import e7.gearscan.data.HistoryEntry
@@ -140,6 +141,23 @@ class OptimizeFeature(g: AppGraph) : Feature(g, "optimize") {
                 }
             },
         )
+    }
+
+    /** Opens a past search (the newest live); false while a search is going, which it would replace. */
+    fun openFromHistory(e: HistoryEntry): Boolean {
+        if (search?.running == true) return false
+        val id = e.builds.keys.firstOrNull() ?: return false
+        val latest = g.history.entries.firstOrNull { !it.pool }?.at == e.at
+        if (!(latest && search?.startedAt == e.at && search?.heroId == id)) {
+            val cur = g.heroes.currentBuild(id) ?: return false
+            search =
+                SearchState(
+                    id, false, e.at, e.at, e.builds[id].orEmpty().mapNotNull { g.history.restoreBuild(id, it) }, cur,
+                    historyAt = if (latest) 0 else e.at,
+                )
+        }
+        g.nav.go(Screen.Results)
+        return true
     }
 
     fun cancelSearch() = searchWork.cancel()
