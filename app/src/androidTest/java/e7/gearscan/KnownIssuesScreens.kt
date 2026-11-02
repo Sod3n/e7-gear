@@ -1,6 +1,5 @@
 package e7.gearscan
 
-import android.app.Application
 import android.graphics.Bitmap
 import android.os.Build
 import androidx.compose.foundation.layout.Box
@@ -40,12 +39,12 @@ class KnownIssuesScreens {
             {"id":"gear-import-unreachable","app":"gear","title":"Import sometimes says \"Fribbels' server unreachable\"","detail":"Your capture is kept. We're adding the exact error to reports so we can find the cause.","status":"known","fixed_on":null},
             {"id":"w","app":"gear","title":"Example: being worked on","detail":"","status":"working","fixed_on":null},
             {"id":"f","app":"gear","title":"Example: fixed lately","detail":"Update the app to get the fix.","status":"fixed","fixed_on":"2026-10-30"}]}""")
-        lateinit var model: AppModel
-        ui { model = AppModel(ctx.applicationContext as Application) }
-        rule.waitUntil(20_000) { model.ready }
-        rule.setContent { Box(Modifier.width(411.dp).fillMaxHeight()) { App(model) {} } }
+        lateinit var graph: AppGraph
+        ui { graph = startedGraph(ctx) }
+        rule.waitUntil(20_000) { graph.ready }
+        rule.setContent { Box(Modifier.width(411.dp).fillMaxHeight()) { App(graph) {} } }
         for (dark in listOf(false, true)) {
-            ui { Themes.set(ctx, dark); model.graph.nav.go(Screen.Feedback()) }
+            ui { Themes.set(ctx, dark); graph.nav.go(Screen.Feedback()) }
             Thread.sleep(1500)
             rule.waitForIdle()
             rule.onNodeWithText("Already known").assertExists()

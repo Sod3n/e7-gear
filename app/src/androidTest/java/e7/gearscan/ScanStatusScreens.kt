@@ -3,7 +3,6 @@ package e7.gearscan
 import e7.gearscan.features.scan.CaptureSession
 import e7.gearscan.features.scan.ScanError
 import e7.gearscan.features.scan.ScanPhase
-import android.app.Application
 import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.Bitmap
@@ -46,9 +45,9 @@ class ScanStatusScreens {
     }
 
     /** Puts [kb] of fake game traffic into the capture over [conns] connections, as the proxy would. */
-    private fun feed(model: AppModel, conns: Int, kb: Int) {
-        model.graph.scan.capture.clear()
-        repeat(conns) { i -> model.graph.scan.capture.open().let { c -> if (i == 0 && kb > 0) c.write(CaptureSession.DIR_S2C, ByteArray(kb * 1024), kb * 1024) } }
+    private fun feed(graph: AppGraph, conns: Int, kb: Int) {
+        graph.scan.capture.clear()
+        repeat(conns) { i -> graph.scan.capture.open().let { c -> if (i == 0 && kb > 0) c.write(CaptureSession.DIR_S2C, ByteArray(kb * 1024), kb * 1024) } }
     }
 
     private fun waitForPoll() { Thread.sleep(1600); rule.waitForIdle() }
@@ -58,35 +57,35 @@ class ScanStatusScreens {
         File(dir, "screens").apply { deleteRecursively(); mkdirs() }
         val assets = inst.context.assets
         File(ctx.filesDir, "content.json").writeText(JSONObject(assets.open("content.json").bufferedReader().use { it.readText() }).toString())
-        lateinit var model: AppModel
-        ui { model = AppModel(ctx.applicationContext as Application) }
-        rule.waitUntil(20_000) { model.ready }
-        rule.setContent { Box(Modifier.width(411.dp).fillMaxHeight()) { App(model) {} } }
-        ui { model.graph.nav.go(Screen.Capture) }
+        lateinit var graph: AppGraph
+        ui { graph = startedGraph(ctx) }
+        rule.waitUntil(20_000) { graph.ready }
+        rule.setContent { Box(Modifier.width(411.dp).fillMaxHeight()) { App(graph) {} } }
+        ui { graph.nav.go(Screen.Capture) }
 
         val states = listOf(
             Triple(ScanStep.WAITING, 0 to 0, 2_000L), Triple(ScanStep.CONNECTED, 2 to 3, 6_000L),
             Triple(ScanStep.LOGIN, 4 to 40, 12_000L), Triple(ScanStep.LOBBY, 7 to 363, 20_000L), Triple(ScanStep.LATE, 3 to 5, 45_000L))
         for (dark in listOf(false, true)) {
             val t = if (dark) "dark" else "light"
-            ui { Themes.set(ctx, dark); model.graph.scan.capture.vpnRunning = false; model.graph.scan.phase = ScanPhase.IDLE; model.graph.scan.error = null }
-            feed(model, 0, 0); waitForPoll()
+            ui { Themes.set(ctx, dark); graph.scan.capture.vpnRunning = false; graph.scan.phase = ScanPhase.IDLE; graph.scan.error = null }
+            feed(graph, 0, 0); waitForPoll()
             rule.onNodeWithText("Not scanning").assertExists()
             shot("$t-0-idle")
             for ((step, traffic, ago) in states) {
-                feed(model, traffic.first, traffic.second)
-                ui { model.graph.scan.capture.vpnRunning = true; model.graph.scan.captureStarted = System.currentTimeMillis() - ago; model.graph.scan.phase = ScanPhase.CAPTURING }
+                feed(graph, traffic.first, traffic.second)
+                ui { graph.scan.capture.vpnRunning = true; graph.scan.captureStarted = System.currentTimeMillis() - ago; graph.scan.phase = ScanPhase.CAPTURING }
                 waitForPoll()
-                check(model.graph.scan.step == step) { "expected $step, got ${model.graph.scan.step}" }
+                check(graph.scan.step == step) { "expected $step, got ${graph.scan.step}" }
                 rule.onAllNodesWithText(step.title)[0].assertExists()
                 shot("$t-${step.ordinal + 1}-${step.name.lowercase()}")
             }
-            ui { model.graph.scan.capture.vpnRunning = false; model.graph.scan.phase = ScanPhase.IDLE; model.graph.scan.error = ScanError.NOTHING }
+            ui { graph.scan.capture.vpnRunning = false; graph.scan.phase = ScanPhase.IDLE; graph.scan.error = ScanError.NOTHING }
             waitForPoll()
             shot("$t-6-nothing")
         }
-        ui { model.graph.scan.capture.vpnRunning = false; model.graph.scan.phase = ScanPhase.IDLE; model.graph.scan.error = null }
-        model.graph.scan.capture.clear()
+        ui { graph.scan.capture.vpnRunning = false; graph.scan.phase = ScanPhase.IDLE; graph.scan.error = null }
+        graph.scan.capture.clear()
     }
 
     /** The pill over a stand-in for the game screen, one picture per step. */

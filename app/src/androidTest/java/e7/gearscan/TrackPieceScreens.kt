@@ -1,6 +1,5 @@
 package e7.gearscan
 
-import android.app.Application
 import android.graphics.Bitmap
 import android.os.Build
 import android.util.Log
@@ -41,7 +40,7 @@ class TrackPieceScreens {
 
     private val ctx get() = InstrumentationRegistry.getInstrumentation().targetContext
     private val shots = File(ctx.getExternalFilesDir(null), "track")
-    private lateinit var model: AppModel
+    private lateinit var graph: AppGraph
 
     private fun ui(f: () -> Unit) { rule.runOnUiThread(f); rule.waitForIdle() }
 
@@ -54,20 +53,20 @@ class TrackPieceScreens {
     /** Waits for the advice ([start]: asks for it first); its time in ms. */
     private fun advise(label: String, start: Boolean = true): Long {
         val t0 = System.currentTimeMillis()
-        if (start) ui { model.graph.tracker.runCheck() }
-        rule.waitUntil(5 * 60_000) { !model.graph.tracker.busy && model.graph.tracker.complete }
-        return (System.currentTimeMillis() - t0).also { Log.i("TrackPieceScreens", "$label: ${it} ms, ${model.graph.tracker.title}") }
+        if (start) ui { graph.tracker.runCheck() }
+        rule.waitUntil(5 * 60_000) { !graph.tracker.busy && graph.tracker.complete }
+        return (System.currentTimeMillis() - t0).also { Log.i("TrackPieceScreens", "$label: ${it} ms, ${graph.tracker.title}") }
     }
 
     /** The next +3 with the smallest roll on the first line: legal, and the weakest finish this piece can still reach. */
     private fun recordWeakStep(): Long {
-        val r = model.graph.tracker.record!!
+        val r = graph.tracker.record!!
         val it = r.item
         val next = ((it.enhance / 3 + 1) * 3).coerceAtMost(15)
         val values = it.subs.mapIndexed { i, s -> if (i == 0) s.value + Finish.range(s.type, it.level).first else s.value }
         var ok = false
-        ui { ok = model.graph.tracker.commit(UpgradeRecord.mainAt(it, next), values, null, false) }
-        check(ok) { "could not record +$next: ${model.graph.tracker.error}" }
+        ui { ok = graph.tracker.commit(UpgradeRecord.mainAt(it, next), values, null, false) }
+        check(ok) { "could not record +$next: ${graph.tracker.error}" }
         // recording asks for the advice itself
         return advise("recheck after +$next", start = false)
     }
@@ -80,40 +79,40 @@ class TrackPieceScreens {
         File(ctx.filesDir, "content.json").writeText(assets.open("content.json").bufferedReader().use { it.readText() })
         val backup = assets.open("backup.json").bufferedReader().use { it.readText() }
         val dir = File(ctx.getExternalFilesDir(null), "bets").also { it.deleteRecursively(); it.mkdirs() }
-        rule.runOnUiThread { model = AppModel(ctx.applicationContext as Application) }
-        rule.waitUntil(20_000) { model.ready }
+        rule.runOnUiThread { graph = startedGraph(ctx) }
+        rule.waitUntil(20_000) { graph.ready }
         var restored = false
-        ui { restored = model.graph.scan.restore(backup); model.graph.tracker.reset() }
+        ui { restored = graph.scan.restore(backup); graph.tracker.reset() }
         check(restored) { "restore failed" }
         var overlay by mutableStateOf(false)
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, 1.3f)) {
-                Box(Modifier.width(353.dp).fillMaxHeight()) { if (overlay) OverlayUi(model.graph, { _, _ -> }, {}, {}) else e7.gearscan.ui.App(model) {} }
+                Box(Modifier.width(353.dp).fillMaxHeight()) { if (overlay) OverlayUi(graph, { _, _ -> }, {}, {}) else e7.gearscan.ui.App(graph) {} }
             }
         }
         fun shot(name: String) { rule.waitForIdle(); val bmp = rule.onRoot().captureToImage().asAndroidBitmap()
             File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) } }
-        fun ranked() = model.graph.tracker.results.any { it.alts.size >= 2 }
-        val necklaces = model.graph.scan.box!!.items.filter { it.slot == e7.gearscan.data.Slot.NECKLACE && it.rank == "Epic" && it.enhance in 3..9 && UpgradeRecord.supported(it) }
+        fun ranked() = graph.tracker.results.any { it.alts.size >= 2 }
+        val necklaces = graph.scan.box!!.items.filter { it.slot == e7.gearscan.data.Slot.NECKLACE && it.rank == "Epic" && it.enhance in 3..9 && UpgradeRecord.supported(it) }
             .sortedByDescending { it.score }.take(30)
         val piece = necklaces.firstOrNull { p ->
-            ui { model.graph.tracker.selectPiece(p.id) }
+            ui { graph.tracker.selectPiece(p.id) }
             advise("necklace +${p.enhance}")
-            rule.waitUntil(120_000) { ranked() || model.graph.tracker.results.none { it.hits.isNotEmpty() } }
+            rule.waitUntil(120_000) { ranked() || graph.tracker.results.none { it.hits.isNotEmpty() } }
             ranked()
         } ?: error("no necklace among ${necklaces.size} helps a hero with other necklaces")
-        ui { model.graph.tracker.show(); model.graph.overlay.expanded = true; overlay = true }
+        ui { graph.tracker.show(); graph.overlay.expanded = true; overlay = true }
         shot("1-piece")
         recordWeakStep()
         rule.waitUntil(120_000) { ranked() }
         shot("2-after-weak-roll")
-        rule.onNodeWithText("${model.graph.tracker.chance}%").performClick()
+        rule.onNodeWithText("${graph.tracker.chance}%").performClick()
         repeat(4) { i -> shot("3-advice-${i + 1}"); runCatching { rule.onNodeWithContentDescription("Next details page").performClick() } }
-        val h = model.graph.tracker.results.filter { it.alts.isNotEmpty() }.maxBy { it.hits.size }
-        File(dir, "result.txt").writeText("${piece.slot} +${piece.enhance} → +${model.graph.tracker.record!!.item.enhance}: ${model.graph.tracker.title}\n" +
+        val h = graph.tracker.results.filter { it.alts.isNotEmpty() }.maxBy { it.hits.size }
+        File(dir, "result.txt").writeText("${piece.slot} +${piece.enhance} → +${graph.tracker.record!!.item.enhance}: ${graph.tracker.title}\n" +
             "${h.name}: better ${h.better.size}\n" + h.alts.joinToString("\n") + "\n")
-        ui { model.graph.tracker.hide(); overlay = false }
+        ui { graph.tracker.hide(); overlay = false }
     }
 
     @Test
@@ -123,10 +122,10 @@ class TrackPieceScreens {
         File(ctx.filesDir, "content.json").writeText(assets.open("content.json").bufferedReader().use { it.readText() })
         val backup = assets.open("backup.json").bufferedReader().use { it.readText() }
         shots.deleteRecursively(); shots.mkdirs()
-        rule.runOnUiThread { model = AppModel(ctx.applicationContext as Application) }
-        rule.waitUntil(20_000) { model.ready }
+        rule.runOnUiThread { graph = startedGraph(ctx) }
+        rule.waitUntil(20_000) { graph.ready }
         var restored = false
-        ui { restored = model.graph.scan.restore(backup); model.graph.tracker.reset() }
+        ui { restored = graph.scan.restore(backup); graph.tracker.reset() }
         check(restored) { "restore failed" }
         var width by mutableStateOf(353)
         var font by mutableStateOf(1.3f)
@@ -134,24 +133,24 @@ class TrackPieceScreens {
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, font)) {
-                Box(Modifier.width(width.dp).fillMaxHeight()) { if (overlay) OverlayUi(model.graph, { _, _ -> }, {}, {}) else e7.gearscan.ui.App(model) {} }
+                Box(Modifier.width(width.dp).fillMaxHeight()) { if (overlay) OverlayUi(graph, { _, _ -> }, {}, {}) else e7.gearscan.ui.App(graph) {} }
             }
         }
         fun both(name: String) { for ((w, f) in listOf(353 to 1.3f, 411 to 1f)) { ui { width = w; font = f }; shoot("$name-$w") } }
 
         // an Epic piece at +9 or +12 that is an upgrade for some hero whatever its rolls
-        val candidates = model.graph.scan.box!!.items.filter { it.rank == "Epic" && it.level == 85 && it.enhance in 9..12 && UpgradeRecord.supported(it) && model.graph.scan.box!!.canReforge(it.id) }
+        val candidates = graph.scan.box!!.items.filter { it.rank == "Epic" && it.level == 85 && it.enhance in 9..12 && UpgradeRecord.supported(it) && graph.scan.box!!.canReforge(it.id) }
             .sortedByDescending { it.score }.take(40)
         var first = 0L
         val piece = candidates.firstOrNull { p ->
-            ui { model.graph.tracker.selectPiece(p.id) }
+            ui { graph.tracker.selectPiece(p.id) }
             first = advise("first check ${p.slot} +${p.enhance}")
-            model.graph.tracker.results.any { it.hits.isNotEmpty() && it.hits.size == it.total }
+            graph.tracker.results.any { it.hits.isNotEmpty() && it.hits.size == it.total }
         } ?: error("no piece among ${candidates.size} is an upgrade whatever its rolls")
-        val hero = model.graph.tracker.results.first { it.hits.size == it.total && it.total > 0 }
-        ui { model.graph.tracker.show(); model.graph.overlay.expanded = true; overlay = true }
+        val hero = graph.tracker.results.first { it.hits.size == it.total && it.total > 0 }
+        ui { graph.tracker.show(); graph.overlay.expanded = true; overlay = true }
         both("1-piece")
-        rule.onNodeWithText("${model.graph.tracker.chance}%").performClick()
+        rule.onNodeWithText("${graph.tracker.chance}%").performClick()
         both("2-advice")
         rule.onNodeWithText("Back").performClick()
         rule.onNodeWithContentDescription("More").performClick()
@@ -161,21 +160,21 @@ class TrackPieceScreens {
 
         val recheck = recordWeakStep()
         both("3-after-record")
-        while (model.graph.tracker.record!!.item.enhance < 15) recordWeakStep()
+        while (graph.tracker.record!!.item.enhance < 15) recordWeakStep()
         both("4-finished")
-        ui { overlay = false; model.graph.nav.go(Screen.Upgrade) }
+        ui { overlay = false; graph.nav.go(Screen.Upgrade) }
         both("4b-app-finished")
         ui { overlay = true }
         rule.onNodeWithContentDescription("Record reforge").performClick()
-        rule.waitUntil(60_000) { model.graph.tracker.record!!.item.level == 90 && !model.graph.tracker.busy && model.graph.tracker.complete }
+        rule.waitUntil(60_000) { graph.tracker.record!!.item.level == 90 && !graph.tracker.busy && graph.tracker.complete }
         both("5-reforged")
-        check(model.graph.tracker.equipHeroes.any { it.id == hero.id }) { "${hero.name} isn't offered after the reforge" }
+        check(graph.tracker.equipHeroes.any { it.id == hero.id }) { "${hero.name} isn't offered after the reforge" }
         rule.onNodeWithContentDescription("Record equip").performClick()
         both("6-equip-choices")
-        val target = model.graph.tracker.equipHeroes.first()
+        val target = graph.tracker.equipHeroes.first()
         rule.onNodeWithText("${target.name} · ${target.nowGain}").performClick()
         rule.waitForIdle()
-        val worn = model.graph.scan.box!!.gearOf(target.id)[piece.slot]
+        val worn = graph.scan.box!!.gearOf(target.id)[piece.slot]
         check(worn?.id == piece.id && worn.level == 90) { "the box doesn't show the reforged piece on ${target.name}" }
         both("7-equipped")
         ui { overlay = false }
@@ -183,10 +182,10 @@ class TrackPieceScreens {
         ui { overlay = true }
         rule.onNodeWithContentDescription("Undo equip").performClick()
         rule.waitForIdle()
-        val back = model.graph.scan.box!!.itemsById.getValue(piece.id)
+        val back = graph.scan.box!!.itemsById.getValue(piece.id)
         check(back.level == 85 && back.enhance == piece.enhance && back.equippedOn == piece.equippedOn) { "Undo didn't restore the scanned piece" }
         File(shots, "result.txt").writeText("piece ${piece.slot} +${piece.enhance}: first check $first ms, recheck after +3 $recheck ms; " +
             "hero ${hero.name} ${hero.hits.size}/${hero.total}; equipped on ${target.name} (${target.nowGain}) and undone\n")
-        ui { model.graph.tracker.hide(); overlay = false }
+        ui { graph.tracker.hide(); overlay = false }
     }
 }

@@ -187,7 +187,7 @@ class TProxyService : VpnService() {
         const val ACTION_RESET_CLOCK = "e7.gearscan.RESET_CLOCK"
         const val EXTRA_GAME = "game"
         const val EXTRA_UPSTREAM = "upstream"
-        /** Matches AppModel.lobbyLikely: the lobby's login reply carries the whole box. */
+        /** Matches ScanFeature.lobbyLikely: the lobby's login reply carries the whole box. */
         const val LOBBY_KB = 100L
         private const val CHANNEL = "capture"
         private const val CHANNEL_DONE = "capture-done"

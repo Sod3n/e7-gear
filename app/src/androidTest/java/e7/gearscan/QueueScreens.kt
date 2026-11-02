@@ -1,6 +1,5 @@
 package e7.gearscan
 
-import android.app.Application
 import android.graphics.Bitmap
 import android.os.Build
 import androidx.compose.foundation.layout.*
@@ -38,30 +37,30 @@ class QueueScreens {
         assumeTrue(Build.FINGERPRINT.contains("generic") || Build.HARDWARE.contains("ranchu"))
         val assets = inst.context.assets
         File(ctx.filesDir, "content.json").writeText(assets.open("content.json").bufferedReader().use { it.readText() })
-        lateinit var model: AppModel
-        ui { model = AppModel(ctx.applicationContext as Application) }
-        rule.waitUntil(20_000) { model.ready }
-        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.graph.nav.go(Screen.GearPotential) }
+        lateinit var graph: AppGraph
+        ui { graph = startedGraph(ctx) }
+        rule.waitUntil(20_000) { graph.ready }
+        ui { assertTrue(graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); graph.nav.go(Screen.GearPotential) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
-        if (images.isDirectory) model.graph.content.imageBase = images.toURI().toString()
+        if (images.isDirectory) graph.content.imageBase = images.toURI().toString()
         var overlay by mutableStateOf(false)
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, 1.3f)) {
-                Box(Modifier.width(353.dp).fillMaxHeight()) { if (overlay) androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides model.graph.content.imageBase) { OverlayUi(model.graph, { _, _ -> }, {}, {}) } else App(model) {} }
+                Box(Modifier.width(353.dp).fillMaxHeight()) { if (overlay) androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides graph.content.imageBase) { OverlayUi(graph, { _, _ -> }, {}, {}) } else App(graph) {} }
             }
         }
-        rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle(); rule.waitUntil(30_000) { !model.graph.findGear.busy }
-        val matches = model.graph.findGear.result!!.matches
+        rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle(); rule.waitUntil(30_000) { !graph.findGear.busy }
+        val matches = graph.findGear.result!!.matches
         assertTrue(matches.size > 20)
         rule.onNodeWithText("Track all ${matches.size} matches").assertExists()
         shot("30-track-all-matches-353-big")
-        ui { model.graph.messages.show(model.graph.findGear.trackAll(openOverlay = false)) }
-        val t = model.graph.tracker
+        ui { graph.messages.show(graph.findGear.trackAll(openOverlay = false)) }
+        val t = graph.tracker
         assertEquals(matches.map { it.item.id }, t.queue.map { it.id })
         assertEquals(matches.size, t.queue.size)
         assertTrue(t.queue.none { t.records[it.id]!!.item.slot == Slot.BOOTS })
-        ui { t.show(); model.graph.overlay.expanded = true; model.graph.overlay.floating = true; overlay = true }
+        ui { t.show(); graph.overlay.expanded = true; graph.overlay.floating = true; overlay = true }
         shot("31-queue-first-353-big")
         tap("›"); assertEquals(1, t.queueIndex)
         shot("32-queue-next-353-big")
@@ -70,8 +69,8 @@ class QueueScreens {
         ui { t.selectInQueue(25) }
         tap("Piece")
         assertEquals(25, t.queueIndex)
-        ui { model.graph.overlay.floatingPanel = true }
-        rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle(); tap("Open E7 Gear"); assertFalse(model.graph.overlay.floatingPanel)
+        ui { graph.overlay.floatingPanel = true }
+        rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle(); tap("Open E7 Gear"); assertFalse(graph.overlay.floatingPanel)
         val helmet = t.queue.indexOfFirst { e -> t.records[e.id]!!.item.let { it.slot == Slot.HELMET && it.rank == "Heroic" && it.enhance == 9 } }
         assertTrue(helmet >= 0)
         ui { t.selectInQueue(helmet) }
@@ -88,10 +87,10 @@ class QueueScreens {
         tap("›"); tap("‹")
         assertEquals(helmet, t.queueIndex)
         assertEquals(12, t.record!!.item.enhance)
-        val restored = reopenTracker(model.graph, ctx.filesDir)
+        val restored = reopenTracker(graph, ctx.filesDir)
         assertEquals(t.queue, restored.queue); assertEquals(helmet, restored.queueIndex)
         assertEquals(2, restored.record!!.history.size)
         File(ctx.getExternalFilesDir(null), "queue/receipt.txt").writeText("${matches.size} filtered matches in queue; next/list/page-two/return callback and Heroic +12 recording passed; selected=$helmet; queue/history restored.\n")
-        ui { model.graph.tracker.hide(); model.graph.overlay.floating = false; model.graph.overlay.floatingPanel = true }
+        ui { graph.tracker.hide(); graph.overlay.floating = false; graph.overlay.floatingPanel = true }
     }
 }

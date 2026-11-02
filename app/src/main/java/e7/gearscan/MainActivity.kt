@@ -11,9 +11,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.toArgb
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import e7.gearscan.features.feedback.CRASH_FILE
 import e7.gearscan.ui.App
@@ -24,10 +26,11 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 class MainActivity : ComponentActivity() {
-    private val model: AppModel by viewModels()
+    private val graph get() = (application as E7GearApp).graph
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        ViewModelProvider(this)[Session::class.java]
         installCrashCatcher()
         installImageLoader(this)
         Themes.load(this)
@@ -35,7 +38,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { snapshotFlow { Themes.dark }.collect { applySystemBars(it) } }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
-        setContent { App(model) { finish() } }
+        setContent { App(graph) { finish() } }
         updateFloating()
     }
 
@@ -46,26 +49,26 @@ class MainActivity : ComponentActivity() {
 
     /** In the phone's floating or split window the app follows the window; full screen it stays portrait. */
     private fun updateFloating() {
-        model.graph.overlay.floating = isInMultiWindowMode
+        graph.overlay.floating = isInMultiWindowMode
         requestedOrientation = if (isInMultiWindowMode) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
     }
 
     override fun onResume() {
         super.onResume()
-        model.graph.overlay.appInFront = true
+        graph.overlay.appInFront = true
         updateFloating()
-        model.graph.appUpdate.resumed()
+        graph.appUpdate.resumed()
     }
 
     override fun onPause() {
         super.onPause()
-        model.graph.overlay.appInFront = false
+        graph.overlay.appInFront = false
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.getBooleanExtra(EXTRA_CAPTURE, false)) model.graph.scan.showCapture()
+        if (intent.getBooleanExtra(EXTRA_CAPTURE, false)) graph.scan.showCapture()
     }
 
     private fun applySystemBars(dark: Boolean) {
@@ -82,6 +85,19 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_CAPTURE = "capture"
+    }
+}
+
+/** Runs the app's startup once per activity and stops the work when the player leaves for good. */
+class Session(app: Application) : AndroidViewModel(app) {
+    private val graph = getApplication<E7GearApp>().graph
+    private val startup = graph.start()
+
+    // swiped away from recents: nothing is left to show the result, so stop rather than leave the service running
+    override fun onCleared() {
+        startup.cancel()
+        graph.work.cancelAll()
+        super.onCleared()
     }
 }
 

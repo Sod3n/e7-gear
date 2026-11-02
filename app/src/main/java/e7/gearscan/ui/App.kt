@@ -23,38 +23,38 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import e7.gearscan.AppModel
+import e7.gearscan.AppGraph
 import e7.gearscan.features.sellreview.SellFiltersScreen
 import e7.gearscan.features.sellreview.SellKeptScreen
 import e7.gearscan.Screen
 
 @Composable
-fun App(model: AppModel, onExit: () -> Unit) {
-    val back = remember(model) {
+fun App(graph: AppGraph, onExit: () -> Unit) {
+    val back = remember(graph) {
         object : BackLink {
-            override val label get() = model.graph.nav.backLabel()
-            override fun go() { model.graph.nav.back() }
+            override val label get() = graph.nav.backLabel()
+            override fun go() { graph.nav.back() }
         }
     }
-    CompositionLocalProvider(LocalBack provides back, LocalImageBase provides model.graph.content.imageBase) { AppContent(model, onExit) }
+    CompositionLocalProvider(LocalBack provides back, LocalImageBase provides graph.content.imageBase) { AppContent(graph, onExit) }
 }
 
 @Composable
-private fun AppContent(model: AppModel, onExit: () -> Unit) {
-    BackHandler { if (!model.graph.nav.back()) onExit() }
-    if (!model.ready) { Box(Modifier.fillMaxSize().background(C.paper)); return }
-    if (model.graph.content.content.heroes.isEmpty()) { GameDataScreen(model); return }
+private fun AppContent(graph: AppGraph, onExit: () -> Unit) {
+    BackHandler { if (!graph.nav.back()) onExit() }
+    if (!graph.ready) { Box(Modifier.fillMaxSize().background(C.paper)); return }
+    if (graph.content.content.heroes.isEmpty()) { GameDataScreen(graph); return }
     // in the phone's floating window, a loaded tracker or checklist is all the window shows
-    val window = model.graph.overlay
-    val loaded = model.graph.tracker.shown || model.graph.checklist.build != null
-    if (window.floating && window.floatingPanel && loaded) { FloatingPanel(model); return }
+    val window = graph.overlay
+    val loaded = graph.tracker.shown || graph.checklist.build != null
+    if (window.floating && window.floatingPanel && loaded) { FloatingPanel(graph); return }
     androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
     // the whole app in the floating window: a slim bar above it goes back to the panel, covering nothing
     if (window.floating && loaded) Row(Modifier.fillMaxWidth().background(C.pink).tap { window.floatingPanel = true }.padding(horizontal = 14.dp, vertical = 7.dp)) {
-        Text("‹ Back to the " + if (model.graph.tracker.shown) "tracker" else "checklist", style = zen(13.sp, color = C.onAccent))
+        Text("‹ Back to the " + if (graph.tracker.shown) "tracker" else "checklist", style = zen(13.sp, color = C.onAccent))
     }
     Box(Modifier.fillMaxWidth().weight(1f)) {
-        val nav = model.graph.nav
+        val nav = graph.nav
         val entry = nav.entries.last()
         val saveable = rememberSaveableStateHolder()
         val known = remember { HashSet<Long>() }
@@ -65,33 +65,33 @@ private fun AppContent(model: AppModel, onExit: () -> Unit) {
         }
         saveable.SaveableStateProvider(entry.id) {
         when (val s = entry.screen) {
-            Screen.ScanIntro -> ScanIntroScreen(model)
-            Screen.ScanData -> ScanDataScreen(model)
-            Screen.Capture -> CaptureScreen(model)
-            Screen.ScanResult -> ScanResultScreen(model)
-            Screen.Optimize -> OptimizeScreen(model)
-            Screen.Heroes -> HeroesScreen(model)
-            Screen.Gear -> GearScreen(model)
-            Screen.Results -> ResultsScreen(model)
-            Screen.GhostBuild -> GhostBuildScreen(model)
-            is Screen.Compare -> CompareScreen(model, s.index, s.poolHero)
-            is Screen.HeroDetail -> HeroDetailScreen(model, s.id)
-            is Screen.DiffItems -> DiffItemsScreen(model, s.kind)
-            Screen.OverlayIntro -> OverlayIntroScreen(model)
-            is Screen.Feedback -> FeedbackScreen(model, s.error)
-            Screen.PoolRun -> PoolRunScreen(model)
-            Screen.Upgrade -> UpgradeScreen(model)
-            Screen.GearPotential -> FindGearScreen(model)
-            Screen.SellFilters -> SellFiltersScreen(model)
-            Screen.SellKept -> SellKeptScreen(model)
-            is Screen.HeroUpgrades -> HeroUpgradesScreen(model, s.heroId)
-            is Screen.PoolHero -> PoolHeroScreen(model, s.id, s.setup)
-            is Screen.PoolReview -> CompareScreen(model, 0, s.id, review = true)
+            Screen.ScanIntro -> ScanIntroScreen(graph)
+            Screen.ScanData -> ScanDataScreen(graph)
+            Screen.Capture -> CaptureScreen(graph)
+            Screen.ScanResult -> ScanResultScreen(graph)
+            Screen.Optimize -> OptimizeScreen(graph)
+            Screen.Heroes -> HeroesScreen(graph)
+            Screen.Gear -> GearScreen(graph)
+            Screen.Results -> ResultsScreen(graph)
+            Screen.GhostBuild -> GhostBuildScreen(graph)
+            is Screen.Compare -> CompareScreen(graph, s.index, s.poolHero)
+            is Screen.HeroDetail -> HeroDetailScreen(graph, s.id)
+            is Screen.DiffItems -> DiffItemsScreen(graph, s.kind)
+            Screen.OverlayIntro -> OverlayIntroScreen(graph)
+            is Screen.Feedback -> FeedbackScreen(graph, s.error)
+            Screen.PoolRun -> PoolRunScreen(graph)
+            Screen.Upgrade -> UpgradeScreen(graph)
+            Screen.GearPotential -> FindGearScreen(graph)
+            Screen.SellFilters -> SellFiltersScreen(graph)
+            Screen.SellKept -> SellKeptScreen(graph)
+            is Screen.HeroUpgrades -> HeroUpgradesScreen(graph, s.heroId)
+            is Screen.PoolHero -> PoolHeroScreen(graph, s.id, s.setup)
+            is Screen.PoolReview -> CompareScreen(graph, 0, s.id, review = true)
         }
         }
-        SheetHost(model)
-        ToastHost(model.graph.messages, Modifier.align(Alignment.BottomCenter))
-        ConfirmHost(model.graph.messages)
+        SheetHost(graph)
+        ToastHost(graph.messages, Modifier.align(Alignment.BottomCenter))
+        ConfirmHost(graph.messages)
     }
     }
 }

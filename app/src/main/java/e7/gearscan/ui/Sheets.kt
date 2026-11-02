@@ -72,7 +72,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import e7.gearscan.AppModel
+import e7.gearscan.AppGraph
 import e7.gearscan.Sheet
 import e7.gearscan.SheetKind
 import e7.gearscan.calc.Rating
@@ -87,16 +87,16 @@ import e7.gearscan.opt.Ghost
 import e7.gearscan.opt.Mods
 
 @Composable
-fun SheetHost(model: AppModel) {
-    val sheet = model.graph.nav.sheet ?: return
-    BackHandler { model.graph.nav.sheet = null }
+fun SheetHost(graph: AppGraph) {
+    val sheet = graph.nav.sheet ?: return
+    BackHandler { graph.nav.sheet = null }
     val scope = rememberCoroutineScope()
     var dy by remember(sheet) { mutableFloatStateOf(0f) }
     var height by remember { mutableFloatStateOf(1f) }
     fun settle(velocity: Float) = scope.launch {
         val close = dy > height * 0.25f || velocity > 1800f
         animate(dy, if (close) height else 0f, animationSpec = if (close) tween(160) else spring()) { v, _ -> dy = v }
-        if (close) model.graph.nav.sheet = null
+        if (close) graph.nav.sheet = null
     }
     // content scrolled to its top hands the rest of a downward drag to the sheet, like a standard bottom sheet
     val nested = remember(sheet) {
@@ -124,7 +124,7 @@ fun SheetHost(model: AppModel) {
     }
     val drag = rememberDraggableState { d -> dy = (dy + d).coerceAtLeast(0f) }
     Box(Modifier.fillMaxSize().background(C.scrim.copy(alpha = C.scrim.alpha * (1f - dy / height).coerceIn(0f, 1f)))
-        .tap { model.graph.nav.sheet = null }) {
+        .tap { graph.nav.sheet = null }) {
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().then(if (sheet.kind in tall) Modifier.fillMaxHeight(0.92f) else Modifier.heightIn(max = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.86f).dp))
             .onSizeChanged { height = it.height.toFloat().coerceAtLeast(1f) }
             .offset { IntOffset(0, dy.roundToInt()) }
@@ -139,35 +139,35 @@ fun SheetHost(model: AppModel) {
                 Box(Modifier.width(44.dp).height(5.dp).clip(RoundedCornerShape(3.dp)).background(C.ink))
             }
             when (sheet.kind) {
-                SheetKind.PRESET -> PresetSheet(model, sheet.heroId)
-                SheetKind.TARGETS -> TargetsSheet(model, sheet.heroId)
-                SheetKind.ADVANCED -> AdvancedSheet(model, sheet.heroId)
-                SheetKind.BONUS -> BonusSheet(model, sheet.heroId)
-                SheetKind.ARTIFACT -> ArtifactSheet(model, sheet)
-                SheetKind.SETS -> SetsSheet(model, sheet.heroId)
-                SheetKind.MAINS -> MainsSheet(model, sheet.heroId)
-                SheetKind.GOALS -> GoalsSheet(model, sheet.heroId)
-                SheetKind.SHOW -> ShowSheet(model)
-                SheetKind.HERO_PICK -> HeroPickSheet(model, sheet)
-                SheetKind.POOL_HEROES -> PoolHeroesSheet(model)
-                SheetKind.POOL_LIST -> PoolListSheet(model)
-                SheetKind.POOL_PICK -> PoolPickSheet(model)
-                SheetKind.POOL_WORSE -> PoolWorseSheet(model)
-                SheetKind.POOL_LOW -> PoolLowSheet(model)
-                SheetKind.POOL_TRADES -> PoolTradesSheet(model)
-                SheetKind.SCAN_RESTART -> ScanRestartSheet(model)
-                SheetKind.POTENTIAL_TARGETS -> PotentialTargetsSheet(model)
-                SheetKind.POTENTIAL_SLOTS -> PotentialSlotsSheet(model)
-                SheetKind.POTENTIAL_SETS -> PotentialSetsSheet(model)
-                SheetKind.POTENTIAL_MAINS -> PotentialMainsSheet(model)
-                SheetKind.POTENTIAL_OPTIONS -> PotentialOptionsSheet(model)
-                SheetKind.POTENTIAL_HELP -> PotentialHelpSheet(model)
-                SheetKind.POTENTIAL_PIECE -> PotentialPieceSheet(model, sheet.heroId)
-                SheetKind.HERO_UPGRADE_PIECE -> HeroUpgradePieceSheet(model, sheet.heroId)
-                SheetKind.HERO_UPGRADE_HELP -> HeroUpgradeHelpSheet(model)
-                SheetKind.HERO_UPGRADE_SETTINGS -> HeroUpgradeSettingsSheet(model)
-                SheetKind.HERO_UPGRADE_BUILD -> HeroUpgradeBuildSheet(model)
-                SheetKind.SELL_SAFEGUARDS,SheetKind.SELL_EXTRA,SheetKind.SELL_WORTH,SheetKind.SELL_SCORE,SheetKind.SELL_WEIGHTS,SheetKind.SELL_FLOORS,SheetKind.SELL_CUSTOMS,SheetKind.SELL_HEROES,SheetKind.SELL_INVENTORY,SheetKind.SELL_SLOTS,SheetKind.SELL_SETS,SheetKind.SELL_MAINS,SheetKind.SELL_LEVELS,SheetKind.SELL_QUALITY,SheetKind.SELL_DETAILS,SheetKind.SELL_HELP -> SellSheet(model,sheet)
+                SheetKind.PRESET -> PresetSheet(graph, sheet.heroId)
+                SheetKind.TARGETS -> TargetsSheet(graph, sheet.heroId)
+                SheetKind.ADVANCED -> AdvancedSheet(graph, sheet.heroId)
+                SheetKind.BONUS -> BonusSheet(graph, sheet.heroId)
+                SheetKind.ARTIFACT -> ArtifactSheet(graph, sheet)
+                SheetKind.SETS -> SetsSheet(graph, sheet.heroId)
+                SheetKind.MAINS -> MainsSheet(graph, sheet.heroId)
+                SheetKind.GOALS -> GoalsSheet(graph, sheet.heroId)
+                SheetKind.SHOW -> ShowSheet(graph)
+                SheetKind.HERO_PICK -> HeroPickSheet(graph, sheet)
+                SheetKind.POOL_HEROES -> PoolHeroesSheet(graph)
+                SheetKind.POOL_LIST -> PoolListSheet(graph)
+                SheetKind.POOL_PICK -> PoolPickSheet(graph)
+                SheetKind.POOL_WORSE -> PoolWorseSheet(graph)
+                SheetKind.POOL_LOW -> PoolLowSheet(graph)
+                SheetKind.POOL_TRADES -> PoolTradesSheet(graph)
+                SheetKind.SCAN_RESTART -> ScanRestartSheet(graph)
+                SheetKind.POTENTIAL_TARGETS -> PotentialTargetsSheet(graph)
+                SheetKind.POTENTIAL_SLOTS -> PotentialSlotsSheet(graph)
+                SheetKind.POTENTIAL_SETS -> PotentialSetsSheet(graph)
+                SheetKind.POTENTIAL_MAINS -> PotentialMainsSheet(graph)
+                SheetKind.POTENTIAL_OPTIONS -> PotentialOptionsSheet(graph)
+                SheetKind.POTENTIAL_HELP -> PotentialHelpSheet(graph)
+                SheetKind.POTENTIAL_PIECE -> PotentialPieceSheet(graph, sheet.heroId)
+                SheetKind.HERO_UPGRADE_PIECE -> HeroUpgradePieceSheet(graph, sheet.heroId)
+                SheetKind.HERO_UPGRADE_HELP -> HeroUpgradeHelpSheet(graph)
+                SheetKind.HERO_UPGRADE_SETTINGS -> HeroUpgradeSettingsSheet(graph)
+                SheetKind.HERO_UPGRADE_BUILD -> HeroUpgradeBuildSheet(graph)
+                SheetKind.SELL_SAFEGUARDS,SheetKind.SELL_EXTRA,SheetKind.SELL_WORTH,SheetKind.SELL_SCORE,SheetKind.SELL_WEIGHTS,SheetKind.SELL_FLOORS,SheetKind.SELL_CUSTOMS,SheetKind.SELL_HEROES,SheetKind.SELL_INVENTORY,SheetKind.SELL_SLOTS,SheetKind.SELL_SETS,SheetKind.SELL_MAINS,SheetKind.SELL_LEVELS,SheetKind.SELL_QUALITY,SheetKind.SELL_DETAILS,SheetKind.SELL_HELP -> SellSheet(graph,sheet)
             }
         }
     }
@@ -176,18 +176,18 @@ fun SheetHost(model: AppModel) {
 private val tall = setOf(SheetKind.TARGETS, SheetKind.HERO_PICK, SheetKind.ARTIFACT, SheetKind.POOL_PICK, SheetKind.POOL_HEROES, SheetKind.POOL_LIST)
 
 @Composable
-private fun PresetSheet(model: AppModel, heroId: Long) {
-    val h = model.graph.heroes.hero(heroId) ?: return
+private fun PresetSheet(graph: AppGraph, heroId: Long) {
+    val h = graph.heroes.hero(heroId) ?: return
     var tab by remember { mutableIntStateOf(0) }
     var sel by remember { mutableIntStateOf(0) }
-    val tabs = model.graph.heroes.presets[h.code]
+    val tabs = graph.heroes.presets[h.code]
     val list = tabs?.tab(tab).orEmpty()
     SheetBody("Presets", trailing = {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Face(model.graph.heroes.face(h), 26.dp, ringWidth = 2.dp); Text(model.graph.heroes.heroName(h), style = zen(12.sp))
+            Face(graph.heroes.face(h), 26.dp, ringWidth = 2.dp); Text(graph.heroes.heroName(h), style = zen(12.sp))
         }
     }, button = list.getOrNull(sel)?.let { "Use ${it.label}" }, onButton = list.getOrNull(sel)?.let { p -> {
-        model.graph.heroes.applyPreset(heroId, p, tabs!!.names[tab]); model.graph.nav.sheet = null
+        graph.heroes.applyPreset(heroId, p, tabs!!.names[tab]); graph.nav.sheet = null
     } }) {
         Text("Builds other players run, from the Fribbels hero library" +
             (tabs?.let { t -> " (${"%,d".format(java.util.Locale.US, t.total)} builds${t.date?.let { d -> ", newest $d" } ?: ""})" } ?: "") +
@@ -197,10 +197,10 @@ private fun PresetSheet(model: AppModel, heroId: Long) {
         if (tabs?.names?.getOrNull(tab) == "RTA") Text("The same 8 community builds the RTA helper shows: real players' builds, not averages.",
             style = zen(11.sp, FontWeight.Medium, C.muted))
         when {
-            model.graph.heroes.presetLoading[h.code] == true -> repeat(3) { PresetSkeleton() }
+            graph.heroes.presetLoading[h.code] == true -> repeat(3) { PresetSkeleton() }
             tabs == null -> {
                 Text("Community builds couldn't load. Check the connection and try again.", style = zen(13.sp, FontWeight.Medium))
-                OutlineButton("Try again", height = 40.dp) { model.graph.heroes.ensurePresets(heroId, force = true) }
+                OutlineButton("Try again", height = 40.dp) { graph.heroes.ensurePresets(heroId, force = true) }
             }
             else -> list.forEachIndexed { i, p ->
                 val on = i == sel
@@ -209,7 +209,7 @@ private fun PresetSheet(model: AppModel, heroId: Long) {
                         Text(p.label, style = dela(15.sp), modifier = Modifier.weight(1f))
                         Text(if (p.rta) "RTA sample" else "used by ${p.share}%", style = zen(11.sp, color = if (on) C.deepPink else C.muted), softWrap = false)
                     }
-                    model.graph.heroes.matchFor(heroId, p)?.let { m ->
+                    graph.heroes.matchFor(heroId, p)?.let { m ->
                         VSpace(2.dp)
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text("Your gear matches", style = zen(12.sp))
@@ -219,15 +219,15 @@ private fun PresetSheet(model: AppModel, heroId: Long) {
                     }
                     VSpace(4.dp)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        p.sets.entries.sortedByDescending { it.value }.forEach { (k, _) -> SetIcon(model.graph.content.content.set(k)?.icon, 22.dp) }
+                        p.sets.entries.sortedByDescending { it.value }.forEach { (k, _) -> SetIcon(graph.content.content.set(k)?.icon, 22.dp) }
                         HSpace(4.dp)
-                        val art = model.graph.content.content.artifact(p.artifact)
-                        if (art != null) ArtifactIcon(model, art, 22.dp)
+                        val art = graph.content.content.artifact(p.artifact)
+                        if (art != null) ArtifactIcon(graph, art, 22.dp)
                         Text(art?.name ?: "", style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     VSpace(4.dp)
                     // all eight in fixed cells: dark ones become targets, faint ones the build has but won't chase
-                    val asks = model.graph.heroes.presetRequest(heroId, p)
+                    val asks = graph.heroes.presetRequest(heroId, p)
                     CardGrid(Stat.entries, columns = 4, gap = 0.dp) { st, cell ->
                         val v = p.median[st.ordinal]
                         val target = asks?.targets?.get(st.ordinal)?.isNaN() == false
@@ -264,10 +264,10 @@ private fun NumBox(value: Double, pink: Boolean, modifier: Modifier = Modifier, 
 }
 
 @Composable
-private fun TargetsSheet(model: AppModel, heroId: Long) {
-    model.graph.scan.rev
-    val req = model.graph.heroes.request(heroId)
-    val cur = remember(heroId) { model.graph.heroes.currentBuild(heroId) }
+private fun TargetsSheet(graph: AppGraph, heroId: Long) {
+    graph.scan.rev
+    val req = graph.heroes.request(heroId)
+    val cur = remember(heroId) { graph.heroes.currentBuild(heroId) }
     var open by remember { mutableStateOf<Stat?>(null) }
     var extra by remember { mutableStateOf(emptySet<Stat>()) }
     val focus = LocalFocusManager.current
@@ -280,15 +280,15 @@ private fun TargetsSheet(model: AppModel, heroId: Long) {
     val rows = first + sorted.filter { it !in first }
     SheetBody("Stat targets", trailing = {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            model.graph.heroes.presetReset(heroId)?.let { reset -> LinkText("Reset to preset") { model.graph.messages.askReset("Reset to the preset?", "Your target changes for this hero are replaced by the preset's.") { reset(); open = null } } }
+            graph.heroes.presetReset(heroId)?.let { reset -> LinkText("Reset to preset") { graph.messages.askReset("Reset to the preset?", "Your target changes for this hero are replaced by the preset's.") { reset(); open = null } } }
             LinkText("Clear") {
                 req.targets.fill(Double.NaN); req.mins.fill(Double.NaN); req.maxs.fill(Double.NaN); req.weights.fill(0); req.fromPreset.fill(false)
-                model.graph.scan.touch(); model.graph.store.saveNow()
+                graph.scan.touch(); graph.store.saveNow()
             }
         }
     }, button = open?.let { "Done with ${it.label}" } ?: "Done", onButton = {
         // with a stat open the button finishes that stat; the sheet closes only from the list
-        if (open != null) { focus.clearFocus(); open = null } else { model.graph.store.saveNow(); model.graph.nav.sheet = null }
+        if (open != null) { focus.clearFocus(); open = null } else { graph.store.saveNow(); graph.nav.sheet = null }
     }) {
         Text("Tap a stat to edit. Min and max drop builds outside them; target is where to land; weight decides which miss hurts most. " +
             "Pink targets come from the preset, blue ones you changed.",
@@ -306,7 +306,7 @@ private fun TargetsSheet(model: AppModel, heroId: Long) {
             Box(Modifier.fillMaxWidth().height(2.dp).background(C.edge))
             for (st in rows) {
                 val now = cur?.final?.get(st)
-                if (st == open) TargetEditor(model, req, st, now) { open = null }
+                if (st == open) TargetEditor(graph, req, st, now) { open = null }
                 else TargetRow(req, st, now) { open = st }
             }
         }
@@ -345,7 +345,7 @@ private fun ValueChip(v: Double, style: TextStyle, modifier: Modifier, bg: Color
 }
 
 @Composable
-private fun TargetEditor(model: AppModel, req: Request, st: Stat, now: Double?, onClose: () -> Unit) {
+private fun TargetEditor(graph: AppGraph, req: Request, st: Stat, now: Double?, onClose: () -> Unit) {
     val i = st.ordinal
     val step = when (st) { Stat.ATK -> 50.0; Stat.DEF -> 25.0; Stat.HP -> 250.0; else -> 1.0 }
     val start = now?.let { Math.round(it / step) * step } ?: 0.0
@@ -357,20 +357,20 @@ private fun TargetEditor(model: AppModel, req: Request, st: Stat, now: Double?, 
             if (now != null) Text("now ${fmtNum(Math.floor(now))}", style = zen(12.sp, color = C.muted))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Stepper("MIN", req.mins[i], step, start, Modifier.weight(1f)) { req.mins[i] = it; model.graph.scan.touch() }
+            Stepper("MIN", req.mins[i], step, start, Modifier.weight(1f)) { req.mins[i] = it; graph.scan.touch() }
             Stepper("TARGET", req.targets[i], step, start, Modifier.weight(1f)) {
                 req.targets[i] = it; req.fromPreset[i] = false
                 if (!it.isNaN() && req.weights[i] == 0) req.weights[i] = 1
-                model.graph.scan.touch()
+                graph.scan.touch()
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
-            Stepper("MAX", req.maxs[i], step, start, Modifier.weight(1f)) { req.maxs[i] = it; model.graph.scan.touch() }
+            Stepper("MAX", req.maxs[i], step, start, Modifier.weight(1f)) { req.maxs[i] = it; graph.scan.touch() }
             Text(if (st == Stat.CR && req.capCrit && req.maxs[i].isNaN()) "105 by default: over 100 is wasted"
                 else "Builds above it are left out", style = zen(11.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f).padding(bottom = 6.dp))
         }
         Text("WEIGHT · how much a miss hurts", style = zen(11.sp, color = C.muted))
-        WeightBar(req.weights[i]) { req.weights[i] = it; model.graph.scan.touch() }
+        WeightBar(req.weights[i]) { req.weights[i] = it; graph.scan.touch() }
     }
 }
 
@@ -402,36 +402,36 @@ private fun Stepper(label: String, value: Double, step: Double, start: Double, m
 }
 
 @Composable
-private fun AdvancedSheet(model: AppModel, heroId: Long) {
-    model.graph.scan.rev
+private fun AdvancedSheet(graph: AppGraph, heroId: Long) {
+    graph.scan.rev
     val pool = heroId == POOL_RULES
     val reqs = when {
-        pool -> model.graph.pool.heroes().map { model.graph.heroes.request(it.id) }
-        heroId == -1L -> model.graph.heroes.team.map { model.graph.heroes.request(it) }
-        else -> listOf(model.graph.heroes.request(heroId))
+        pool -> graph.pool.heroes().map { graph.heroes.request(it.id) }
+        heroId == -1L -> graph.heroes.team.map { graph.heroes.request(it) }
+        else -> listOf(graph.heroes.request(heroId))
     }
     val req = reqs.firstOrNull() ?: return
-    fun edit(f: (Request) -> Unit) { reqs.forEach(f); model.graph.scan.touch(); model.graph.store.saveNow() }
+    fun edit(f: (Request) -> Unit) { reqs.forEach(f); graph.scan.touch(); graph.store.saveNow() }
     // with several heroes a switch reads on only when it is on for all, and a choice shows only when all agree
     fun on(f: (Request) -> Boolean) = reqs.all(f)
     fun <T> pick(options: List<T>, f: (Request) -> T) = reqs.map(f).distinct().singleOrNull()?.let { options.indexOf(it) } ?: -1
     SheetBody(if (pool) "Rules for every hero" else "Advanced", trailing = if (pool) ({ Text("${reqs.size} heroes", style = zen(12.sp, color = C.muted)) }) else null,
-        button = "Done", onButton = { model.graph.nav.sheet = null }) {
+        button = "Done", onButton = { graph.nav.sheet = null }) {
         if (pool) {
             Text("A change here applies to every hero in the run. A hero's own Advanced can still differ afterwards.",
                 style = zen(12.sp, FontWeight.Medium, C.muted))
             Text("Losses", style = zen(13.sp))
-            Segmented(e7.gearscan.opt.PoolLosses.entries.map { it.label }, model.graph.pool.losses.ordinal) { i ->
-                model.graph.pool.losses = e7.gearscan.opt.PoolLosses.entries[i]; model.graph.scan.touch(); model.graph.store.saveNow()
+            Segmented(e7.gearscan.opt.PoolLosses.entries.map { it.label }, graph.pool.losses.ordinal) { i ->
+                graph.pool.losses = e7.gearscan.opt.PoolLosses.entries[i]; graph.scan.touch(); graph.store.saveNow()
             }
-            Text(if (model.graph.pool.losses == e7.gearscan.opt.PoolLosses.SAFE) "No hero ends worse than now."
+            Text(if (graph.pool.losses == e7.gearscan.opt.PoolLosses.SAFE) "No hero ends worse than now."
                 else "A hero may give up a little when another gains at least twice as much, weighted by tier.",
                 style = zen(11.sp, FontWeight.Medium, C.muted), minLines = 2)
             Text("Effort", style = zen(13.sp))
-            Segmented(e7.gearscan.opt.PoolEffort.entries.map { it.label }, model.graph.pool.effort.ordinal) { i ->
-                model.graph.pool.effort = e7.gearscan.opt.PoolEffort.entries[i]; model.graph.scan.touch(); model.graph.store.saveNow()
+            Segmented(e7.gearscan.opt.PoolEffort.entries.map { it.label }, graph.pool.effort.ordinal) { i ->
+                graph.pool.effort = e7.gearscan.opt.PoolEffort.entries[i]; graph.scan.touch(); graph.store.saveNow()
             }
-            Text(when (model.graph.pool.effort) {
+            Text(when (graph.pool.effort) {
                 e7.gearscan.opt.PoolEffort.TIDY -> "Only moves that clearly pay off. Fewest swaps."
                 e7.gearscan.opt.PoolEffort.BALANCED -> "A move must earn about one match point on a top-tier hero."
                 e7.gearscan.opt.PoolEffort.REBUILD -> "Small gains are worth a move too. Most swaps."
@@ -464,7 +464,7 @@ private fun AdvancedSheet(model: AppModel, heroId: Long) {
             Column(Modifier.alpha(if (reqs.any { it.mods }) 1f else 0.4f)) {
                 if (heroId >= 0) {
                     VSpace(4.dp)
-                    Text("Mods into: " + (model.graph.heroes.setup(heroId)?.modWanted()?.joinToString(", ") { it.short } ?: "—"),
+                    Text("Mods into: " + (graph.heroes.setup(heroId)?.modWanted()?.joinToString(", ") { it.short } ?: "—"),
                         style = zen(11.sp, color = C.deepPink), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 VSpace(10.dp)
@@ -520,20 +520,20 @@ private fun ToggleRow(title: String, sub: String?, on: Boolean, onChange: (Boole
 }
 
 @Composable
-private fun BonusSheet(model: AppModel, heroId: Long) {
-    model.graph.scan.rev
-    val h = model.graph.heroes.hero(heroId) ?: return
-    val g = model.graph.heroes.gameHero(h)
-    val cfg = model.graph.heroes.config(heroId)
+private fun BonusSheet(graph: AppGraph, heroId: Long) {
+    graph.scan.rev
+    val h = graph.heroes.hero(heroId) ?: return
+    val g = graph.heroes.gameHero(h)
+    val cfg = graph.heroes.config(heroId)
     var more by remember { mutableStateOf(false) }
-    SheetBody("Bonus stats", trailing = { Text(model.graph.heroes.heroName(h), style = zen(12.sp, color = C.muted)) },
-        button = "Save", onButton = { model.graph.store.saveNow(); model.graph.nav.sheet = null }) {
+    SheetBody("Bonus stats", trailing = { Text(graph.heroes.heroName(h), style = zen(12.sp, color = C.muted)) },
+        button = "Save", onButton = { graph.store.saveNow(); graph.nav.sheet = null }) {
         Text("Artifact", style = zen(13.sp))
-        val art = model.graph.content.content.artifact(cfg.artifact ?: model.graph.heroes.request(heroId).artifact)
+        val art = graph.content.content.artifact(cfg.artifact ?: graph.heroes.request(heroId).artifact)
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(2.5.dp, C.edge, RoundedCornerShape(12.dp))
-            .tap { model.graph.nav.sheet = Sheet(SheetKind.ARTIFACT, heroId, back = SheetKind.BONUS) }.padding(horizontal = 12.dp, vertical = 8.dp),
+            .tap { graph.nav.sheet = Sheet(SheetKind.ARTIFACT, heroId, back = SheetKind.BONUS) }.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ArtifactIcon(model, art, 30.dp)
+            ArtifactIcon(graph, art, 30.dp)
             Text(art?.name ?: "None (from preset)", style = zen(13.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("+30", style = zen(11.sp), modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(C.paper).padding(horizontal = 6.dp, vertical = 2.dp))
             ChevronSlot(true)
@@ -544,7 +544,7 @@ private fun BonusSheet(model: AppModel, heroId: Long) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Stars", style = zen(12.sp))
-                Segmented(listOf("6★", "5★"), if (cfg.stars == 5) 1 else 0) { cfg.stars = if (it == 1) 5 else 6; model.graph.scan.touch() }
+                Segmented(listOf("6★", "5★"), if (cfg.stars == 5) 1 else 0) { cfg.stars = if (it == 1) 5 else 6; graph.scan.touch() }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Exclusive equip.", style = zen(12.sp))
@@ -554,7 +554,7 @@ private fun BonusSheet(model: AppModel, heroId: Long) {
                     val pct = ee.first != "speed"
                     val v = cfg.eeValue ?: ee.second
                     NumBox(if (pct) v * 100 else v, false, Modifier.fillMaxWidth()) { x ->
-                        cfg.eeValue = if (x.isNaN()) null else if (pct) x / 100 else x; model.graph.scan.touch()
+                        cfg.eeValue = if (x.isNaN()) null else if (pct) x / 100 else x; graph.scan.touch()
                     }
                     Text(eeLabel(ee.first), style = zen(10.sp, FontWeight.Medium, C.muted))
                 }
@@ -567,7 +567,7 @@ private fun BonusSheet(model: AppModel, heroId: Long) {
             Column(cell.clip(RoundedCornerShape(10.dp)).border(2.dp, C.edge, RoundedCornerShape(10.dp)).padding(8.dp)) {
                 FitText(b.label, zen(9.sp, color = C.muted))
                 var t by remember(b, cfg.bonus[b.ordinal]) { mutableStateOf(fmtNum(cfg.bonus[b.ordinal])) }
-                LegacyStatField(t, { s -> t = s.filter { it.isDigit() || it == '.' || it == '-' }.take(6); cfg.bonus[b.ordinal] = t.toDoubleOrNull() ?: 0.0; model.graph.scan.touch() },
+                LegacyStatField(t, { s -> t = s.filter { it.isDigit() || it == '.' || it == '-' }.take(6); cfg.bonus[b.ordinal] = t.toDoubleOrNull() ?: 0.0; graph.scan.touch() },
                     textStyle = dela(14.sp), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
             }
         }
@@ -581,28 +581,28 @@ private fun eeLabel(t: String) = when (t) {
 }
 
 @Composable
-private fun ArtifactSheet(model: AppModel, sheet: Sheet) {
-    model.graph.scan.rev
+private fun ArtifactSheet(graph: AppGraph, sheet: Sheet) {
+    graph.scan.rev
     val heroId = sheet.heroId
-    val h = model.graph.heroes.hero(heroId) ?: return
-    val role = model.graph.heroes.gameHero(h)?.role
+    val h = graph.heroes.hero(heroId) ?: return
+    val role = graph.heroes.gameHero(h)?.role
     var q by remember { mutableStateOf("") }
     var stars by remember { mutableIntStateOf(0) }
-    val cfg = model.graph.heroes.config(heroId)
-    val fromPreset = model.graph.content.content.artifact(model.graph.heroes.request(heroId).artifact)
-    fun pick(code: String?) { cfg.artifact = code; model.graph.scan.touch(); model.graph.store.saveNow(); model.graph.nav.sheet = sheet.back?.let { Sheet(it, heroId) } }
-    SheetBody("Artifact", trailing = { Text(model.graph.heroes.heroName(h), style = zen(12.sp, color = C.muted)) }) {
+    val cfg = graph.heroes.config(heroId)
+    val fromPreset = graph.content.content.artifact(graph.heroes.request(heroId).artifact)
+    fun pick(code: String?) { cfg.artifact = code; graph.scan.touch(); graph.store.saveNow(); graph.nav.sheet = sheet.back?.let { Sheet(it, heroId) } }
+    SheetBody("Artifact", trailing = { Text(graph.heroes.heroName(h), style = zen(12.sp, color = C.muted)) }) {
         NameFilter(q, "Name") { q = it }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(0 to "All", 5 to "5★", 4 to "4★", 3 to "3★ and lower").forEach { (n, label) -> Pill(label, selected = stars == n, onClick = { stars = n }) }
         }
         // only what this hero's class can wear: its own class's artifacts and the ones for every class
-        val list = model.graph.content.content.artifacts.filter { (role == null || it.role == null || it.role == role) && (q.isBlank() || nameMatches(it.name, q)) &&
+        val list = graph.content.content.artifacts.filter { (role == null || it.role == null || it.role == role) && (q.isBlank() || nameMatches(it.name, q)) &&
             (stars == 0 || if (stars == 3) it.rarity <= 3 else it.rarity == stars) }
             .sortedBy { if (it.role == role) 0 else 1 }
         Row(Modifier.fillMaxWidth().tap { pick(null) }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ArtifactIcon(model, fromPreset, 32.dp)
+            ArtifactIcon(graph, fromPreset, 32.dp)
             Column(Modifier.weight(1f)) {
                 Text("Use the preset's artifact", style = zen(13.sp, color = if (cfg.artifact == null) C.deepPink else C.blue))
                 Text(fromPreset?.name ?: "The preset names none", style = zen(10.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -613,7 +613,7 @@ private fun ArtifactSheet(model: AppModel, sheet: Sheet) {
             val on = a.code == cfg.artifact
             Row(Modifier.fillMaxWidth().tap { pick(a.code) }
                 .padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ArtifactIcon(model, a, 32.dp)
+                ArtifactIcon(graph, a, 32.dp)
                 Column(Modifier.weight(1f)) {
                     Text(a.name, style = zen(13.sp, color = if (on) C.deepPink else C.ink), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     // some artifacts exist twice: the class one and a later all-class one with the same name
@@ -629,24 +629,24 @@ private fun ArtifactSheet(model: AppModel, sheet: Sheet) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SetsSheet(model: AppModel, heroId: Long) {
-    model.graph.scan.rev
-    val req = model.graph.heroes.request(heroId)
-    val choice = SetChoice.from(req.setAlts, model.graph.content.content)
-    fun commit(c: SetChoice) { req.setAlts = c.toAlts(); model.graph.scan.touch() }
+private fun SetsSheet(graph: AppGraph, heroId: Long) {
+    graph.scan.rev
+    val req = graph.heroes.request(heroId)
+    val choice = SetChoice.from(req.setAlts, graph.content.content)
+    fun commit(c: SetChoice) { req.setAlts = c.toAlts(); graph.scan.touch() }
     SheetBody("Sets", trailing = { LinkText("Any sets") { commit(SetChoice(emptyList(), emptyMap())) } }, button = "Done",
-        onButton = { model.graph.store.saveNow(); model.graph.nav.sheet = null }) {
+        onButton = { graph.store.saveNow(); graph.nav.sheet = null }) {
         Text("4-piece: pick every set you'd accept. With one, the 2-piece picks are its partner (any one of them). " +
             "Without one, the + on a picked 2-piece set asks for ×2 or ×3. A tap on a set drops it.",
             style = zen(12.sp, FontWeight.Medium, C.muted))
         Row(Modifier.fillMaxWidth().height(28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Needs:", style = zen(13.sp))
-            SetChoiceSummary(model, choice, 20.dp)
+            SetChoiceSummary(graph, choice, 20.dp)
         }
         for ((title, pieces) in listOf("4-piece · any one of" to 4, "2-piece · + for ×2, ×3" to 2)) {
             SectionTitle(title)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                model.graph.content.content.sets.filter { it.pieces == pieces }.forEach { st ->
+                graph.content.content.sets.filter { it.pieces == pieces }.forEach { st ->
                     val n = if (pieces == 4) (if (st.key in choice.four) 1 else 0) else choice.two[st.key] ?: 0
                     val on = n > 0
                     // same size selected or not, so the grid never jumps; the count sits on the tile's corner
@@ -676,13 +676,13 @@ private fun SetsSheet(model: AppModel, heroId: Long) {
 
 /** "Speed / Revenge 4 + Crit / Hit 2", or "Health ×2 + Crit" without a 4-piece set, in icons on one line. */
 @Composable
-fun SetChoiceSummary(model: AppModel, c: SetChoice, size: androidx.compose.ui.unit.Dp) {
+fun SetChoiceSummary(graph: AppGraph, c: SetChoice, size: androidx.compose.ui.unit.Dp) {
     if (c.four.isEmpty() && c.two.isEmpty()) { Text("any", style = zen(13.sp, color = C.muted)); return }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         @Composable fun anyOf(keys: Collection<String>, n: String) {
             keys.forEachIndexed { i, k ->
                 if (i > 0) Text("/", style = zen(11.sp, color = C.muted))
-                SetIcon(model.graph.content.content.set(k)?.icon, size)
+                SetIcon(graph.content.content.set(k)?.icon, size)
             }
             Text(n, style = zen(12.sp))
         }
@@ -694,7 +694,7 @@ fun SetChoiceSummary(model: AppModel, c: SetChoice, size: androidx.compose.ui.un
             }
             else -> c.two.entries.forEachIndexed { i, (k, n) ->
                 if (i > 0) Text("+", style = zen(12.sp, color = C.muted))
-                SetIcon(model.graph.content.content.set(k)?.icon, size)
+                SetIcon(graph.content.content.set(k)?.icon, size)
                 if (n > 1) Text("×$n", style = zen(12.sp))
             }
         }
@@ -703,11 +703,11 @@ fun SetChoiceSummary(model: AppModel, c: SetChoice, size: androidx.compose.ui.un
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MainsSheet(model: AppModel, heroId: Long) {
-    model.graph.scan.rev
-    val req = model.graph.heroes.request(heroId)
-    SheetBody("Mains", trailing = { LinkText("Any") { req.mains = emptyMap(); model.graph.scan.touch() } }, button = "Done",
-        onButton = { model.graph.store.saveNow(); model.graph.nav.sheet = null }) {
+private fun MainsSheet(graph: AppGraph, heroId: Long) {
+    graph.scan.rev
+    val req = graph.heroes.request(heroId)
+    SheetBody("Mains", trailing = { LinkText("Any") { req.mains = emptyMap(); graph.scan.touch() } }, button = "Done",
+        onButton = { graph.store.saveNow(); graph.nav.sheet = null }) {
         Text("Main stats allowed on each accessory. None selected means any.", style = zen(12.sp, FontWeight.Medium, C.muted))
         for (slot in Slot.ACCESSORIES) {
             SectionTitle(slot.label)
@@ -717,7 +717,7 @@ private fun MainsSheet(model: AppModel, heroId: Long) {
                     Pill(g.short, selected = on, leading = { StatIcon(g.stat) }, onClick = {
                         val s = (req.mains[slot] ?: emptySet()).let { if (on) it - g else it + g }
                         req.mains = (req.mains + (slot to s)).filterValues { it.isNotEmpty() }
-                        model.graph.scan.touch()
+                        graph.scan.touch()
                     })
                 }
             }
@@ -726,9 +726,9 @@ private fun MainsSheet(model: AppModel, heroId: Long) {
 }
 
 @Composable
-private fun GoalsSheet(model: AppModel, heroId: Long) {
-    model.graph.scan.rev
-    val req = model.graph.heroes.request(heroId)
+private fun GoalsSheet(graph: AppGraph, heroId: Long) {
+    graph.scan.rev
+    val req = graph.heroes.request(heroId)
     val desc = mapOf(
         Goal.TARGETS to "Lands each stat on its target; misses cost by weight. Best with a preset.",
         Goal.DAMAGE to "Average hit of a skill from the game's own skill data: attack, plus the hero's health, defense or speed where the skill scales off them; crit and Penetration included.",
@@ -737,20 +737,20 @@ private fun GoalsSheet(model: AppModel, heroId: Long) {
         Goal.CP to "The game's combat power formula.",
         Goal.GEAR_SCORE to "Sum of the pieces' substat scores, as in Fribbels.",
     )
-    SheetBody("Goal", button = "Done", onButton = { model.graph.store.saveNow(); model.graph.nav.sheet = null }) {
+    SheetBody("Goal", button = "Done", onButton = { graph.store.saveNow(); graph.nav.sheet = null }) {
         Goal.entries.forEach { g ->
             val on = req.goal == g
             Card(shadow = if (on) C.pink else null, radius = 14.dp, border = 2.dp, bg = if (on) C.lightPink else C.card,
-                onClick = { req.goal = g; model.graph.scan.touch() }) {
+                onClick = { req.goal = g; graph.scan.touch() }) {
                 Text(g.label.replaceFirstChar { it.uppercase() }, style = dela(14.sp))
                 Text(desc.getValue(g), style = zen(11.sp, FontWeight.Medium, C.muted))
-                val skills = model.graph.heroes.hero(heroId)?.let { model.graph.heroes.gameHero(it) }?.skills.orEmpty()
+                val skills = graph.heroes.hero(heroId)?.let { graph.heroes.gameHero(it) }?.skills.orEmpty()
                 if (g == Goal.DAMAGE && skills.isNotEmpty()) {
                     VSpace(6.dp)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         (listOf(0) + skills.map { it.n }).forEach { n ->
                             Pill(if (n == 0) "Hardest-hitting" else "S$n", selected = req.skill == n,
-                                onClick = { req.goal = Goal.DAMAGE; req.skill = n; model.graph.scan.touch() })
+                                onClick = { req.goal = Goal.DAMAGE; req.skill = n; graph.scan.touch() })
                         }
                     }
                 }
@@ -761,34 +761,34 @@ private fun GoalsSheet(model: AppModel, heroId: Long) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ShowSheet(model: AppModel) {
+private fun ShowSheet(graph: AppGraph) {
     SheetBody("Show") {
         Text("The number on each result card. Results stay ranked by the goal.", style = zen(12.sp, FontWeight.Medium, C.muted))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Rating.entries.forEach { r ->
-                Pill(r.label, selected = model.graph.settings.showRating == r, onClick = { model.graph.settings.showRating = r; model.graph.store.saveNow(); model.graph.nav.sheet = null })
+                Pill(r.label, selected = graph.settings.showRating == r, onClick = { graph.settings.showRating = r; graph.store.saveNow(); graph.nav.sheet = null })
             }
         }
     }
 }
 
 @Composable
-private fun HeroPickSheet(model: AppModel, sheet: Sheet) {
-    val box = model.graph.scan.box ?: return
+private fun HeroPickSheet(graph: AppGraph, sheet: Sheet) {
+    val box = graph.scan.box ?: return
     val f = remember { HeroFilter() }
     SheetBody("Choose hero") {
         HeroFilterBar(f)
-        box.heroes.sortedWith(compareByDescending<OwnedHero> { model.graph.heroes.tier(it.id) }.thenBy { model.graph.heroes.heroName(it) })
-            .filter { f.matches(model, it) }
+        box.heroes.sortedWith(compareByDescending<OwnedHero> { graph.heroes.tier(it.id) }.thenBy { graph.heroes.heroName(it) })
+            .filter { f.matches(graph, it) }
             .forEach { h ->
                 Row(Modifier.fillMaxWidth().tap {
-                    model.graph.heroes.pickHero(h.id)
-                    model.graph.nav.sheet = null
+                    graph.heroes.pickHero(h.id)
+                    graph.nav.sheet = null
                 }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Face(model.graph.heroes.face(h), 36.dp, ring = if (model.graph.heroes.tier(h.id) >= 3) C.pink else C.faint)
-                    Text(model.graph.heroes.heroName(h), style = zen(14.sp), modifier = Modifier.weight(1f))
-                    TierDots(model.graph.heroes.tier(h.id), 8.dp)
-                    if (model.graph.heroes.gameHero(h) == null) Text("no data", style = zen(10.sp, color = C.red))
+                    Face(graph.heroes.face(h), 36.dp, ring = if (graph.heroes.tier(h.id) >= 3) C.pink else C.faint)
+                    Text(graph.heroes.heroName(h), style = zen(14.sp), modifier = Modifier.weight(1f))
+                    TierDots(graph.heroes.tier(h.id), 8.dp)
+                    if (graph.heroes.gameHero(h) == null) Text("no data", style = zen(10.sp, color = C.red))
                 }
             }
     }

@@ -17,7 +17,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import e7.gearscan.AppModel
+import e7.gearscan.AppGraph
 import e7.gearscan.Sheet
 import e7.gearscan.SheetKind
 import e7.gearscan.data.*
@@ -42,19 +42,17 @@ private fun slots(q: PotentialQuery) = when (q.slots) {
     Slot.entries.toSet() - Slot.BOOTS -> "No boots"
     else -> if (q.slots.size <= 2) q.slots.joinToString { it.label } else "${q.slots.size} slots"
 }
-private fun sets(model: AppModel, q: PotentialQuery) = when {
+private fun sets(graph: AppGraph, q: PotentialQuery) = when {
     q.sets.isEmpty() -> "Any set"
-    q.sets.size <= 2 -> q.sets.joinToString(" / ") { model.graph.content.content.set(it)?.name ?: it.removeSuffix("Set") }
+    q.sets.size <= 2 -> q.sets.joinToString(" / ") { graph.content.content.set(it)?.name ?: it.removeSuffix("Set") }
     else -> "${q.sets.size} sets"
 }
-internal val AppModel.f get() = graph.findGear
-internal fun AppModel.show(o: Outcome) = graph.messages.show(o)
-internal fun open(model: AppModel, kind: SheetKind, id: Long = 0) { model.graph.nav.sheet = Sheet(kind, id) }
+internal fun open(graph: AppGraph, kind: SheetKind, id: Long = 0) { graph.nav.sheet = Sheet(kind, id) }
 
 @Composable
-fun FindGearScreen(model: AppModel) {
-    val q = model.graph.findGear.query
-    val result = model.graph.findGear.result
+fun FindGearScreen(graph: AppGraph) {
+    val q = graph.findGear.query
+    val result = graph.findGear.result
     var tab by rememberSaveable { mutableStateOf(if (result == null) 0 else 1) }
     var count by rememberSavedFor(result, 20)
     val resultId = System.identityHashCode(result)
@@ -62,43 +60,43 @@ fun FindGearScreen(model: AppModel) {
     LaunchedEffect(result) { if (result != null && seenResult != resultId) tab = 1; seenResult = resultId }
     key(tab, result) {
         Frame(null, null, actions = if (tab == 0) ({
-            PinkButton(if (model.graph.findGear.busy) "Searching" else "Find gear", Modifier.weight(1f), enabled = !model.graph.findGear.busy) { model.graph.messages.show(model.graph.findGear.find()) }
+            PinkButton(if (graph.findGear.busy) "Searching" else "Find gear", Modifier.weight(1f), enabled = !graph.findGear.busy) { graph.messages.show(graph.findGear.find()) }
         }) else if (result != null && result.matches.isNotEmpty()) ({
-            val fresh = !model.graph.findGear.stale
-            PinkButton(if (fresh) Count(result.matches.size).of("match", "matches").let { "Track all $it" } else "Update matches", Modifier.weight(1f), enabled = !model.graph.findGear.busy) {
-                model.graph.messages.show(if (fresh) model.graph.findGear.trackAll() else model.graph.findGear.find())
+            val fresh = !graph.findGear.stale
+            PinkButton(if (fresh) Count(result.matches.size).of("match", "matches").let { "Track all $it" } else "Update matches", Modifier.weight(1f), enabled = !graph.findGear.busy) {
+                graph.messages.show(if (fresh) graph.findGear.trackAll() else graph.findGear.find())
             }
         }) else null) {
             BackToPrevious()
             ScreenTitle("Find gear")
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                LinkText("Help") { open(model, SheetKind.POTENTIAL_HELP) }
+                LinkText("Help") { open(graph, SheetKind.POTENTIAL_HELP) }
             }
             Segmented(listOf("Set up", "Matches"), tab) { tab = it }
             if (tab == 0) {
                 Card(shadow = C.pink, padding = PaddingValues(12.dp)) {
-                    ListRow({ open(model, SheetKind.POTENTIAL_TARGETS) }, leading = { Tag("GOAL") }) {
+                    ListRow({ open(graph, SheetKind.POTENTIAL_TARGETS) }, leading = { Tag("GOAL") }) {
                         TargetsLine(q, dela(16.sp), "Choose substats")
                         Text("On one piece at +15", style = zen(11.sp, FontWeight.Medium, C.muted))
                     }
                 }
                 SectionTitle("Your filters")
                 Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    RowCard("Slots", { open(model, SheetKind.POTENTIAL_SLOTS) }) {
+                    RowCard("Slots", { open(graph, SheetKind.POTENTIAL_SLOTS) }) {
                         if (q.slots.size <= 2) q.slots.forEach { GearIcon(it.icon, 18.dp, C.ink) }
                         Text(slots(q), style = zen(12.sp))
                     }
-                    RowCard("Sets", { open(model, SheetKind.POTENTIAL_SETS) }) {
-                        q.sets.take(3).forEach { SetIcon(model.graph.content.content.set(it)?.icon, 18.dp) }
-                        Text(sets(model, q), style = zen(12.sp))
+                    RowCard("Sets", { open(graph, SheetKind.POTENTIAL_SETS) }) {
+                        q.sets.take(3).forEach { SetIcon(graph.content.content.set(it)?.icon, 18.dp) }
+                        Text(sets(graph, q), style = zen(12.sp))
                     }
-                    RowCard("Mains", { open(model, SheetKind.POTENTIAL_MAINS) }) {
+                    RowCard("Mains", { open(graph, SheetKind.POTENTIAL_MAINS) }) {
                         Text(if (q.mains.isEmpty()) "Any main stat" else q.mains.joinToString { it.short }, style = zen(12.sp))
                     }
-                    RowCard("Finish", { open(model, SheetKind.POTENTIAL_OPTIONS) }) {
+                    RowCard("Finish", { open(graph, SheetKind.POTENTIAL_OPTIONS) }) {
                         Text(if (q.reforge) "+15 & reforged" else "+15, before reforging", style = zen(12.sp))
                     }
-                    RowCard("Show", { open(model, SheetKind.POTENTIAL_OPTIONS) }) {
+                    RowCard("Show", { open(graph, SheetKind.POTENTIAL_OPTIONS) }) {
                         Text(listOf("Upgrades", "Unfinished", "All gear")[q.show] +
                             if (q.minimumChance.toDoubleOrNull()?.let { it > 0 } == true) " · ${q.minimumChance}%+ chance" else " · any chance", style = zen(12.sp))
                     }
@@ -118,10 +116,10 @@ fun FindGearScreen(model: AppModel) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Column(Modifier.weight(1f)) {
                             TargetsLine(applied, zen(13.sp, color = C.blue))
-                            if (model.graph.findGear.stale) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (graph.findGear.stale) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Search changed", style = zen(11.sp, FontWeight.Medium, C.deepPink))
-                                LinkText("Update", size = 11) { model.graph.messages.show(model.graph.findGear.find()) }
-                            } else Text("${slots(applied)} · ${sets(model, applied)}", style = zen(11.sp, FontWeight.Medium, C.muted))
+                                LinkText("Update", size = 11) { graph.messages.show(graph.findGear.find()) }
+                            } else Text("${slots(applied)} · ${sets(graph, applied)}", style = zen(11.sp, FontWeight.Medium, C.muted))
                         }
                         Pill("Edit", onClick = { tab = 0 })
                     }
@@ -130,7 +128,7 @@ fun FindGearScreen(model: AppModel) {
                     CountText(Count(result.matches.size), "piece", style = dela(16.sp), modifier = Modifier.weight(1f))
                     Text("Best odds first", style = zen(11.sp, color = C.muted))
                 }
-                if (model.graph.findGear.busy) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (graph.findGear.busy) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Spinner(); Text("Checking your gear", style = zen(12.sp))
                 }
                 if (result.matches.isEmpty()) Card {
@@ -142,8 +140,8 @@ fun FindGearScreen(model: AppModel) {
                 }
                 result.matches.take(count).forEach { match ->
                     Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp)) {
-                        Column(Modifier.tap { open(model, SheetKind.POTENTIAL_PIECE, match.item.id) }) {
-                            GearSearchIdentity(model, match.item, applied.targets.keys) {
+                        Column(Modifier.tap { open(graph, SheetKind.POTENTIAL_PIECE, match.item.id) }) {
+                            GearSearchIdentity(graph, match.item, applied.targets.keys) {
                                 Column(Modifier.width(72.dp), horizontalAlignment = Alignment.End) {
                                     FitText(if (match.outcome.rareOnly) "Rare" else match.outcome.label(), dela(15.sp, if (match.outcome.rareOnly) C.deepPink else C.blue))
                                     Text(if (match.outcome.rareOnly) "rolls needed" else "chance", style = zen(9.sp, FontWeight.Medium, C.muted))
@@ -151,7 +149,7 @@ fun FindGearScreen(model: AppModel) {
                             }
                             VSpace(8.dp)
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(gearOwner(model, match.item), style = zen(10.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f))
+                                Text(gearOwner(graph, match.item), style = zen(10.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f))
                                 Text(finishAction(match, applied), style = zen(10.sp, color = C.blue))
                                 Spacer(Modifier.width(7.dp)); ChevronSlot(true)
                             }
@@ -159,13 +157,13 @@ fun FindGearScreen(model: AppModel) {
                     }
                 }
                 if (count < result.matches.size) OutlineButton("Show 20 more", Modifier.fillMaxWidth(), height = 42.dp) { count += 20 }
-                LinkText("About this search") { open(model, SheetKind.POTENTIAL_HELP) }
+                LinkText("About this search") { open(graph, SheetKind.POTENTIAL_HELP) }
             }
         }
     }
 }
 
-internal fun gearOwner(model: AppModel, item: Item) = item.equippedOn?.let { model.graph.heroes.hero(it)?.let(model.graph.heroes::heroName) ?: "Hero not in scan" } ?: "In bag"
+internal fun gearOwner(graph: AppGraph, item: Item) = item.equippedOn?.let { graph.heroes.hero(it)?.let(graph.heroes::heroName) ?: "Hero not in scan" } ?: "In bag"
 internal fun finishAction(match: FindGearMatch, q: PotentialQuery) = when {
     match.outcome.matchesNow -> "Ready now"
     match.item.enhance == 15 -> "Reforge only"
@@ -175,15 +173,15 @@ internal fun finishAction(match: FindGearMatch, q: PotentialQuery) = when {
 
 /** The app's gear tile and 2-column stat grid, with no nested item card. */
 @Composable
-internal fun GearSearchIdentity(model: AppModel, original: Item, highlight: Set<GearStat> = emptySet(), explicitGameScore:Boolean=false,
+internal fun GearSearchIdentity(graph: AppGraph, original: Item, highlight: Set<GearStat> = emptySet(), explicitGameScore:Boolean=false,
                                 owner: Boolean = false, trailing: (@Composable () -> Unit)? = null) {
     val item = if (original.enhance < 15) UpgradeRecord.fromScan(original) else original
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.padding(top = 4.dp)) { GearTile(item, 46.dp, setIcon = model.graph.content.content.set(item.set)?.icon) }
+        Box(Modifier.padding(top = 4.dp)) { GearTile(item, 46.dp, setIcon = graph.content.content.set(item.set)?.icon) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
-                    Text("${model.graph.content.content.set(item.set)?.name ?: item.set.removeSuffix("Set")} ${item.slot.label}", style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text("${graph.content.content.set(item.set)?.name ?: item.set.removeSuffix("Set")} ${item.slot.label}", style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         StatValue(item.mainType.stat, item.mainType.format(item.mainValue), C.ink, 12)
                         Text("Lv.${item.level}", style = zen(10.sp, FontWeight.Medium, C.muted))
@@ -194,8 +192,8 @@ internal fun GearSearchIdentity(model: AppModel, original: Item, highlight: Set<
             VSpace(2.dp)
             GearSearchSubs(item, highlight)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GearPositionLabel(model, item,explicitGameScore)
-                if (owner) item.equippedOn?.let { model.graph.heroes.hero(it) }?.let { h -> OwnerTag(model.graph.heroes.heroName(h)) }
+                GearPositionLabel(graph, item,explicitGameScore)
+                if (owner) item.equippedOn?.let { graph.heroes.hero(it) }?.let { h -> OwnerTag(graph.heroes.heroName(h)) }
             }
         }
     }
@@ -220,6 +218,6 @@ internal fun GearSearchSubs(item: Item, highlight: Set<GearStat> = emptySet()) {
 }
 
 @Composable
-internal fun GearPositionLabel(model: AppModel, item: Item, explicitGameScore:Boolean=false) {
+internal fun GearPositionLabel(graph: AppGraph, item: Item, explicitGameScore:Boolean=false) {
     if (!item.ghost) Text("ES ${e7.gearscan.data.InventoryOrder.score(item)}", style = zen(10.sp, FontWeight.Medium, C.blue))
 }

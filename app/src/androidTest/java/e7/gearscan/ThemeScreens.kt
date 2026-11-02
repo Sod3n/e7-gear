@@ -1,6 +1,5 @@
 package e7.gearscan
 
-import android.app.Application
 import android.graphics.Bitmap
 import android.os.Build
 import androidx.compose.foundation.layout.Box
@@ -38,12 +37,12 @@ class ThemeScreens {
         dir.deleteRecursively(); dir.mkdirs()
         val assets = inst.context.assets
         File(ctx.filesDir, "content.json").writeText(JSONObject(assets.open("content.json").bufferedReader().use { it.readText() }).toString())
-        lateinit var model: AppModel
-        ui { model = AppModel(ctx.applicationContext as Application) }
-        rule.waitUntil(20_000) { model.ready }
-        ui { check(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })) }
-        rule.setContent { Box(Modifier.width(411.dp).fillMaxHeight()) { App(model) {} } }
-        val hero = model.graph.scan.box!!.heroes.first { model.graph.heroes.gameHero(it) != null && model.graph.scan.box!!.gearOf(it.id).size == 6 }.id
+        lateinit var graph: AppGraph
+        ui { graph = startedGraph(ctx) }
+        rule.waitUntil(20_000) { graph.ready }
+        ui { check(graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })) }
+        rule.setContent { Box(Modifier.width(411.dp).fillMaxHeight()) { App(graph) {} } }
+        val hero = graph.scan.box!!.heroes.first { graph.heroes.gameHero(it) != null && graph.scan.box!!.gearOf(it.id).size == 6 }.id
         val screens = listOf("optimize" to Screen.Optimize, "heroes" to Screen.Heroes, "hero" to Screen.HeroDetail(hero),
             "scan-data" to Screen.ScanData, "sell-filters" to Screen.SellFilters,
             "gear-potential" to Screen.GearPotential, "upgrade" to Screen.Upgrade, "overlay-intro" to Screen.OverlayIntro,
@@ -51,7 +50,7 @@ class ThemeScreens {
         for (dark in listOf(false, true)) {
             ui { Themes.set(ctx, dark) }
             for ((name, screen) in screens) {
-                ui { model.graph.nav.go(screen) }
+                ui { graph.nav.go(screen) }
                 shot((if (dark) "dark-" else "light-") + name)
             }
         }

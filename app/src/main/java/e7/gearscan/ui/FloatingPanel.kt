@@ -9,7 +9,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import e7.gearscan.AppModel
+import e7.gearscan.AppGraph
 import e7.gearscan.overlay.OverlayUi
 
 /**
@@ -17,12 +17,12 @@ import e7.gearscan.overlay.OverlayUi
  * system moves, resizes and minimizes the window; collapsing here shows the whole app instead, closing ends the panel.
  */
 @Composable
-fun FloatingPanel(model: AppModel) {
+fun FloatingPanel(graph: AppGraph) {
     DisposableEffect(Unit) {
-        model.graph.overlay.native = true; model.graph.overlay.expanded = true
-        onDispose { model.graph.overlay.native = false }
+        graph.overlay.native = true; graph.overlay.expanded = true
+        onDispose { graph.overlay.native = false }
     }
     Box(Modifier.fillMaxSize().background(C.paper).padding(6.dp), contentAlignment = Alignment.TopCenter) {
-        OverlayUi(model.graph, { _, _ -> }, { expanded -> if (!expanded) { model.graph.overlay.expanded = true; model.graph.overlay.floatingPanel = false } }) { model.graph.overGame.closeFloatingPanel() }
+        OverlayUi(graph, { _, _ -> }, { expanded -> if (!expanded) { graph.overlay.expanded = true; graph.overlay.floatingPanel = false } }) { graph.overGame.closeFloatingPanel() }
     }
 }

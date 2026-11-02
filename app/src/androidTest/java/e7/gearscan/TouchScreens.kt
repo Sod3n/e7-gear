@@ -1,6 +1,5 @@
 package e7.gearscan
 
-import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -42,41 +41,41 @@ class TouchScreens {
         assumeTrue(Build.FINGERPRINT.contains("generic") || Build.HARDWARE.contains("ranchu"))
         val assets = inst.context.assets
         File(ctx.filesDir, "content.json").writeText(assets.open("content.json").bufferedReader().use { it.readText() })
-        lateinit var model: AppModel
-        ui { model = AppModel(ctx.applicationContext as Application) }
-        rule.waitUntil(20_000) { model.ready }
-        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.graph.nav.go(Screen.Heroes) }
+        lateinit var graph: AppGraph
+        ui { graph = startedGraph(ctx) }
+        rule.waitUntil(20_000) { graph.ready }
+        ui { assertTrue(graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); graph.nav.go(Screen.Heroes) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
-        if (images.isDirectory) model.graph.content.imageBase = images.toURI().toString()
+        if (images.isDirectory) graph.content.imageBase = images.toURI().toString()
         rule.setContent {
             val d = LocalDensity.current
-            CompositionLocalProvider(LocalDensity provides Density(d.density, 1.3f)) { Box(Modifier.width(353.dp).fillMaxHeight()) { App(model) {} } }
+            CompositionLocalProvider(LocalDensity provides Density(d.density, 1.3f)) { Box(Modifier.width(353.dp).fillMaxHeight()) { App(graph) {} } }
         }
         tap("All names"); shot("20-hero-browse-353-big"); tap("A-F")
         shot("21-hero-filtered-353-big")
-        val hero = model.graph.scan.box!!.heroes.first()
-        ui { model.graph.nav.sheet = Sheet(SheetKind.ARTIFACT, hero.id) }
+        val hero = graph.scan.box!!.heroes.first()
+        ui { graph.nav.sheet = Sheet(SheetKind.ARTIFACT, hero.id) }
         tap("All names"); tap("G-L"); shot("22-artifact-browse-353-big")
-        ui { model.graph.nav.sheet = Sheet(SheetKind.TARGETS, hero.id) }
+        ui { graph.nav.sheet = Sheet(SheetKind.TARGETS, hero.id) }
         tap("Speed")
         val oldStatFields = rule.onAllNodes(hasSetTextAction(), useUnmergedTree = true)
         assertTrue(oldStatFields.fetchSemanticsNodes().size >= 3)
         oldStatFields[1].performTextReplacement("220")
         rule.waitForIdle()
-        assertEquals(220.0, model.graph.heroes.request(hero.id).targets[Stat.SPD.ordinal], 1e-8)
+        assertEquals(220.0, graph.heroes.request(hero.id).targets[Stat.SPD.ordinal], 1e-8)
         shot("23-legacy-stat-input-353-big", legacyStats = true)
-        ui { model.graph.nav.sheet = Sheet(SheetKind.BONUS, hero.id) }
+        ui { graph.nav.sheet = Sheet(SheetKind.BONUS, hero.id) }
         assertTrue(rule.onAllNodes(hasSetTextAction(), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         shot("24-legacy-bonus-input-353-big", legacyStats = true)
-        ui { model.graph.nav.sheet = null; model.graph.settings.proxyOn = true; model.graph.nav.go(Screen.ScanData) }
+        ui { graph.nav.sheet = null; graph.settings.proxyOn = true; graph.nav.go(Screen.ScanData) }
         clipboard("127.0.0.1:10808"); tap("Paste")
-        assertEquals("127.0.0.1:10808", model.graph.settings.proxy)
+        assertEquals("127.0.0.1:10808", graph.settings.proxy)
         shot("25-proxy-paste-353-big")
-        ui { model.graph.nav.go(Screen.Feedback()) }
+        ui { graph.nav.go(Screen.Feedback()) }
         clipboard("Local screenshot audit, never sent.")
         tap("Paste"); shot("26-feedback-paste-353-big")
         rule.onAllNodesWithText("Local screenshot audit, never sent.").assertCountEquals(1)
         // Nothing is sent. Reset only the isolated emulator state.
-        ui { model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() }) }
+        ui { graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() }) }
     }
 }

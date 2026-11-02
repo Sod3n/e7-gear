@@ -21,14 +21,14 @@ class SelfUpdateTest {
     fun updatesItself() {
         val apk = File(rule.activity.getExternalFilesDir(null), "update-test.apk")
         assumeTrue("needs a newer build at ${apk.path}", apk.exists())
-        val model = ViewModelProvider(rule.activity)[AppModel::class.java]
-        rule.waitUntil(20_000) { model.ready }
+        val graph = (rule.activity.application as E7GearApp).graph
+        rule.waitUntil(20_000) { graph.ready }
         rule.runOnUiThread {
-            model.graph.appUpdate.release = AppUpdate.Release("1.0.2", "https://example.invalid", apk.toURI().toString(), apk.length())
-            model.graph.appUpdate.update()
+            graph.appUpdate.release = AppUpdate.Release("1.0.2", "https://example.invalid", apk.toURI().toString(), apk.length())
+            graph.appUpdate.update()
         }
-        rule.waitUntil(60_000) { model.graph.appUpdate.progress == null }
-        assertNull(model.graph.appUpdate.problem?.takeUnless { it.startsWith("Allow installs") })
+        rule.waitUntil(60_000) { graph.appUpdate.progress == null }
+        assertNull(graph.appUpdate.problem?.takeUnless { it.startsWith("Allow installs") })
         // keeps the test clock drawing frames while the installer is up; the new version ends this process
         runCatching { rule.waitUntil(180_000) { false } }
     }

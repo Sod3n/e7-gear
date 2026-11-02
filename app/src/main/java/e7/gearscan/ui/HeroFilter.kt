@@ -31,7 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import e7.gearscan.AppModel
+import e7.gearscan.AppGraph
 import e7.gearscan.data.OwnedHero
 
 class HeroFilter {
@@ -41,9 +41,9 @@ class HeroFilter {
 
     val active get() = query.isNotBlank() || element != null || role != null
 
-    fun matches(model: AppModel, h: OwnedHero): Boolean {
-        if (query.isNotBlank() && !nameMatches(model.graph.heroes.heroName(h), query)) return false
-        val g = model.graph.heroes.gameHero(h)
+    fun matches(graph: AppGraph, h: OwnedHero): Boolean {
+        if (query.isNotBlank() && !nameMatches(graph.heroes.heroName(h), query)) return false
+        val g = graph.heroes.gameHero(h)
         return (element == null || g?.element == element) && (role == null || g?.role == role)
     }
 }

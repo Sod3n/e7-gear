@@ -9,15 +9,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import e7.gearscan.AppModel
+import e7.gearscan.AppGraph
 import e7.gearscan.Screen
 import e7.gearscan.data.*
 
 @Composable
-fun UpgradeScreen(model: AppModel) {
-    val box = model.graph.scan.box ?: return
-    val t = model.graph.tracker
-    val selected = t.record?.takeIf { it.scan == model.graph.scan.lastScan && it.item.id in box.itemsById }
+fun UpgradeScreen(graph: AppGraph) {
+    val box = graph.scan.box ?: return
+    val t = graph.tracker
+    val selected = t.record?.takeIf { it.scan == graph.scan.lastScan && it.item.id in box.itemsById }
     var choosing by rememberSaveable { mutableStateOf(selected == null) }
     var set by rememberSaveable { mutableStateOf<String?>(null) }
     var choosingSet by rememberSaveable { mutableStateOf(false) }
@@ -25,18 +25,18 @@ fun UpgradeScreen(model: AppModel) {
     var count by rememberSavedFor(set to slot, 20)
     Frame(null, null, actions = {
         PinkButton(if (choosing) "Use selected piece" else "Track over game", Modifier.weight(1f), enabled = selected != null) {
-            if (choosing) choosing = false else model.graph.messages.show(t.openOverlay())
+            if (choosing) choosing = false else graph.messages.show(t.openOverlay())
         }
     }) {
         BackToPrevious()
         ScreenTitle("Track upgrades")
-        if (t.queue.isNotEmpty()) RowCard("Gear list", { model.graph.nav.go(when { t.scoreQuery!=null -> Screen.SellFilters; t.queueSource == "heroes" -> Screen.HeroUpgrades(); else -> Screen.GearPotential }) }) {
+        if (t.queue.isNotEmpty()) RowCard("Gear list", { graph.nav.go(when { t.scoreQuery!=null -> Screen.SellFilters; t.queueSource == "heroes" -> Screen.HeroUpgrades(); else -> Screen.GearPotential }) }) {
             Text(if(t.sellQueueComplete)"List complete" else "${t.queueIndex + 1} of ${t.pendingQueue.size} ${if(t.isSellQueue)"remaining" else "matches"}", style = zen(12.sp))
         }
         if(t.needsRollRefresh)Card(shadow=null,padding=PaddingValues(12.dp)) {
             Text("Refresh the roll ranking",style=dela(16.sp))
             Text("Starting rolls now count too. This saved list still has its old order and filters.",style=zen(12.sp))
-            LinkText("Update Sell filters") { model.graph.nav.go(Screen.SellFilters) }
+            LinkText("Update Sell filters") { graph.nav.go(Screen.SellFilters) }
         }
         if(t.sellQueueComplete)Card(shadow=C.pink,padding=PaddingValues(14.dp)) {
             Text("List complete",style=dela(18.sp));VSpace(7.dp)
@@ -48,9 +48,9 @@ fun UpgradeScreen(model: AppModel) {
                 Pill("Change", onClick = { choosing = true })
             }
             Card(shadow = null, padding = PaddingValues(12.dp)) {
-                GearSearchIdentity(model, selected.item, t.goal?.minimums?.keys ?: emptySet())
+                GearSearchIdentity(graph, selected.item, t.goal?.minimums?.keys ?: emptySet())
                 VSpace(10.dp)
-                Text(gearOwner(model, selected.item), style = zen(11.sp, FontWeight.Medium, C.muted))
+                Text(gearOwner(graph, selected.item), style = zen(11.sp, FontWeight.Medium, C.muted))
             }
             Card(shadow = C.pink, padding = PaddingValues(14.dp)) {
                 t.scoreGoal?.let { goal->Text(goal.label(),style=dela(18.sp));Text(goal.reference,style=zen(11.sp,color=C.muted));VSpace(6.dp) }
@@ -76,8 +76,8 @@ fun UpgradeScreen(model: AppModel) {
                 }
                 Text(if(t.isRollReview)"Record each upgrade to update its actual roll history." else if (t.hasTarget) "Record each upgrade to see your chance change." else "Checks how this piece could help your saved hero builds.", style = zen(12.sp, FontWeight.Medium, C.muted))
                 VSpace(12.dp)
-                if (t.queueSource == "heroes" && !t.hasTarget) LinkText("Back to Improve heroes") { model.graph.nav.go(Screen.HeroUpgrades()) }
-                else LinkText(if(t.scoreQuery!=null) "Change filters" else "Change targets") { model.graph.nav.go(if(t.scoreQuery!=null)Screen.SellFilters else Screen.GearPotential) }
+                if (t.queueSource == "heroes" && !t.hasTarget) LinkText("Back to Improve heroes") { graph.nav.go(Screen.HeroUpgrades()) }
+                else LinkText(if(t.scoreQuery!=null) "Change filters" else "Change targets") { graph.nav.go(if(t.scoreQuery!=null)Screen.SellFilters else Screen.GearPotential) }
             }
             SectionTitle("Progress", trailing = "${selected.history.size - 1} steps")
             Card(shadow = null, padding = PaddingValues(12.dp)) {
@@ -90,32 +90,32 @@ fun UpgradeScreen(model: AppModel) {
             }
             t.notice?.let { Text(it, style = zen(11.sp, FontWeight.Medium, C.blue)) }
             Text(if(t.isSellQueue)"Sell in Epic Seven first, then tap Sold → next in the overlay. Undo mark restores only the helper's mark." else "Open the floating panel over the game, enhance your piece, then record the totals at each +3.", style = zen(12.sp, FontWeight.Medium, C.muted))
-            LinkText("Find another piece by final stats") { model.graph.nav.go(Screen.GearPotential) }
+            LinkText("Find another piece by final stats") { graph.nav.go(Screen.GearPotential) }
         } else {
             Text("Choose a piece to follow as you upgrade.", style = zen(12.sp, FontWeight.Medium, C.muted))
-            RowCard("Looking for", { model.graph.nav.go(Screen.GearPotential) }) { Text("A final stat target", style = zen(12.sp)) }
-            RowCard("Set", { choosingSet = !choosingSet }) { Text(set?.let { model.graph.content.content.set(it)?.name } ?: "Any set", style = zen(12.sp)) }
+            RowCard("Looking for", { graph.nav.go(Screen.GearPotential) }) { Text("A final stat target", style = zen(12.sp)) }
+            RowCard("Set", { choosingSet = !choosingSet }) { Text(set?.let { graph.content.content.set(it)?.name } ?: "Any set", style = zen(12.sp)) }
             if (choosingSet) {
                 LinkText("Any set") { set = null; choosingSet = false }
-                CardGrid(model.graph.content.content.sets, columns = 4, gap = 6.dp) { s, m ->
+                CardGrid(graph.content.content.sets, columns = 4, gap = 6.dp) { s, m ->
                     Pill(s.name, modifier = m, selected = set == s.key, onClick = { set = s.key; choosingSet = false })
                 }
             }
             CardGrid(listOf<Slot?>(null) + Slot.entries, columns = 3, gap = 6.dp) { s, m ->
                 Pill(s?.label ?: "All", selected = slot == s, modifier = m, onClick = { slot = s })
             }
-            val items = box.items.filter { it.id !in model.graph.marks.cleared && UpgradeRecord.supported(it) && (it.enhance < 15 || t.records[it.id]?.scan == model.graph.scan.lastScan) && (slot == null || it.slot == slot) }
+            val items = box.items.filter { it.id !in graph.marks.cleared && UpgradeRecord.supported(it) && (it.enhance < 15 || t.records[it.id]?.scan == graph.scan.lastScan) && (slot == null || it.slot == slot) }
                 .filter { set == null || it.set == set }
-                .sortedWith(compareByDescending<Item> { t.records[it.id]?.scan == model.graph.scan.lastScan }.thenBy { it.slot.ordinal }.thenByDescending { it.enhance })
+                .sortedWith(compareByDescending<Item> { t.records[it.id]?.scan == graph.scan.lastScan }.thenBy { it.slot.ordinal }.thenByDescending { it.enhance })
             SectionTitle("Your gear", trailing = "${items.size}")
             items.take(count).forEach { original ->
-                val item = t.records[original.id]?.takeIf { it.scan == model.graph.scan.lastScan }?.item ?: UpgradeRecord.fromScan(original)
+                val item = t.records[original.id]?.takeIf { it.scan == graph.scan.lastScan }?.item ?: UpgradeRecord.fromScan(original)
                 Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp)) {
                     Column(Modifier.tap { t.selectPiece(original.id); choosing = false }) {
-                        GearSearchIdentity(model, item)
+                        GearSearchIdentity(graph, item)
                         VSpace(8.dp)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(gearOwner(model, item), style = zen(10.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f))
+                            Text(gearOwner(graph, item), style = zen(10.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f))
                             Text(if (item.id == selected?.item?.id) "Selected" else "Choose piece", style = zen(10.sp, color = C.blue))
                             Spacer(Modifier.width(7.dp)); ChevronSlot(true)
                         }

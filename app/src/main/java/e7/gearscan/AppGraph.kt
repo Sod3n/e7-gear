@@ -1,6 +1,10 @@
 package e7.gearscan
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import e7.gearscan.data.Box
+import e7.gearscan.data.Http
 import e7.gearscan.data.Mirror
 import e7.gearscan.features.content.ContentFeature
 import e7.gearscan.features.feedback.FeedbackFeature
@@ -30,6 +34,10 @@ import e7.gearscan.state.Store
 import e7.gearscan.state.WorkHost
 import e7.gearscan.ui.Messages
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 const val STATE_VERSION = 2
 
@@ -58,6 +66,9 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
     val features = listOf(content, appUpdate, scan, heroes, marks, optimize, pool, history, sellReview, improveHeroes, findGear, tracker, checklist, settings, feedback)
     private var loaded = false
 
+    var ready by mutableStateOf(false)
+        private set
+
     init {
         store.beforeSave = { if (content.mirror != Mirror.active) content.mirror = Mirror.active }
         store.afterLoad = { Mirror.active = content.mirror }
@@ -73,5 +84,29 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
         store.load()
         disk.delete("cleanup_progress.json")
         return true
+    }
+
+    /** Loads the saved state and the box, shows the first screen, and starts the daily checks; the job ends the scan watcher. */
+    fun start(): Job {
+        ready = false
+        Http.agent = "E7Gear/${appUpdate.version}"
+        scan.detectGame()
+        return scope.launch {
+            launch { scan.watch() }
+            val b = withContext(Dispatchers.IO) { loadOnce(); scan.readBox() }
+            feedback.loadCrash()
+            scan.adopt(b)
+            nav.stack = listOf(if (!settings.consent && scan.box == null) Screen.ScanIntro else Screen.Optimize)
+            ready = true
+            heroes.team.firstOrNull()?.let { heroes.ensurePresets(it) }
+            if (content.content.heroes.isEmpty()) {
+                content.checkNow()
+            } else if (System.currentTimeMillis() - content.checkedAt > 24 * 3600 * 1000L) {
+                content.checkNow(quiet = true)
+            }
+            appUpdate.checkNow()
+            appUpdate.cleanOld()
+            feedback.flushQueued()
+        }
     }
 }

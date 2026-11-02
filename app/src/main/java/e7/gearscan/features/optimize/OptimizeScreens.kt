@@ -35,7 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import e7.gearscan.AppModel
+import e7.gearscan.AppGraph
 import e7.gearscan.Screen
 import e7.gearscan.Sheet
 import e7.gearscan.SheetKind
@@ -57,125 +57,125 @@ import e7.gearscan.opt.Ghost
 import kotlinx.coroutines.delay
 
 @Composable
-fun OptimizeScreen(model: AppModel) {
-    model.graph.scan.rev
-    val box = model.graph.scan.box
-    val team = model.graph.heroes.team.mapNotNull { model.graph.heroes.hero(it) }
-    val pool = box != null && model.graph.pool.mode
-    val history = box != null && model.graph.history.shown
-    Frame(model, Screen.Optimize, actions = when {
+fun OptimizeScreen(graph: AppGraph) {
+    graph.scan.rev
+    val box = graph.scan.box
+    val team = graph.heroes.team.mapNotNull { graph.heroes.hero(it) }
+    val pool = box != null && graph.pool.mode
+    val history = box != null && graph.history.shown
+    Frame(graph, Screen.Optimize, actions = when {
         history -> null
-        pool -> ({ PoolButton(model) })
+        pool -> ({ PoolButton(graph) })
         team.isEmpty() -> null
         else -> ({
             PinkButton("Search", Modifier.weight(1f),
-                enabled = team.all { model.graph.heroes.gameHero(it) != null }) {
-                model.graph.optimize.startSearch()
-                if (team.size == 1) model.graph.nav.go(Screen.Results)
+                enabled = team.all { graph.heroes.gameHero(it) != null }) {
+                graph.optimize.startSearch()
+                if (team.size == 1) graph.nav.go(Screen.Results)
             }
         })
     }) {
-        ScreenTitle("Optimize", "最適化") { ScanChip(model.graph.scan.scannedLabel(), model.graph.scan.phase != ScanPhase.IDLE) { if (model.graph.scan.phase != ScanPhase.IDLE) model.graph.nav.go(Screen.Capture) else model.graph.nav.go(Screen.ScanData) } }
-        CrashCard(model)
-        model.graph.appUpdate.release?.let { u ->
-            val p = model.graph.appUpdate.progress
+        ScreenTitle("Optimize", "最適化") { ScanChip(graph.scan.scannedLabel(), graph.scan.phase != ScanPhase.IDLE) { if (graph.scan.phase != ScanPhase.IDLE) graph.nav.go(Screen.Capture) else graph.nav.go(Screen.ScanData) } }
+        CrashCard(graph)
+        graph.appUpdate.release?.let { u ->
+            val p = graph.appUpdate.progress
             Card(shadow = C.pink, padding = PaddingValues(0.dp)) {
-                ListRow({ model.graph.appUpdate.update() }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp), trailing = {
+                ListRow({ graph.appUpdate.update() }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp), trailing = {
                     Box(Modifier.widthIn(min = 56.dp), contentAlignment = Alignment.CenterEnd) {
                         Text(if (p != null) "${(p * 100).toInt()}%" else if (u.apk != null) "Update" else "Download", style = zen(12.sp, color = C.deepPink))
                     }
                 }) {
                     Text("E7 Gear ${u.version} is out", style = zen(13.sp))
-                    Text(model.graph.appUpdate.problem ?: "You have ${model.graph.appUpdate.version}. Your heroes and builds stay.",
-                        style = zen(11.sp, FontWeight.Medium, if (model.graph.appUpdate.problem != null) C.deepPink else C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(graph.appUpdate.problem ?: "You have ${graph.appUpdate.version}. Your heroes and builds stay.",
+                        style = zen(11.sp, FontWeight.Medium, if (graph.appUpdate.problem != null) C.deepPink else C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
-        if (box != null) Segmented(listOf("One hero", "Whole pool", "History"), if (model.graph.history.shown) 2 else if (model.graph.pool.mode) 1 else 0) {
-            model.graph.history.shown = it == 2
-            if (it < 2) model.graph.pool.mode = it == 1
+        if (box != null) Segmented(listOf("One hero", "Whole pool", "History"), if (graph.history.shown) 2 else if (graph.pool.mode) 1 else 0) {
+            graph.history.shown = it == 2
+            if (it < 2) graph.pool.mode = it == 1
         }
-        if (box != null && model.graph.pool.state?.running == true) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(C.ink)
-            .tap { model.graph.nav.go(Screen.PoolRun) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
+        if (box != null && graph.pool.state?.running == true) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(C.ink)
+            .tap { graph.nav.go(Screen.PoolRun) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PulseDot(8.dp)
-            Text("Pool running · ${model.graph.pool.state!!.builds.size} of ${model.graph.pool.state!!.ids.size}", style = zen(12.sp, color = C.card), modifier = Modifier.weight(1f))
+            Text("Pool running · ${graph.pool.state!!.builds.size} of ${graph.pool.state!!.ids.size}", style = zen(12.sp, color = C.card), modifier = Modifier.weight(1f))
             Text("Open ›", style = zen(12.sp, color = C.card))
         }
         when {
-            box == null -> NoBox(model)
-            history -> HistoryList(model)
-            pool -> PoolSetup(model)
+            box == null -> NoBox(graph)
+            history -> HistoryList(graph)
+            pool -> PoolSetup(graph)
             team.isEmpty() -> Card {
                 Text("Choose a hero to optimize", style = dela(16.sp))
                 VSpace(8.dp)
-                OutlineButton("Choose hero", height = 40.dp) { model.graph.nav.sheet = Sheet(SheetKind.HERO_PICK, 0) }
+                OutlineButton("Choose hero", height = 40.dp) { graph.nav.sheet = Sheet(SheetKind.HERO_PICK, 0) }
             }
-            else -> SingleSetup(model, team[0])
+            else -> SingleSetup(graph, team[0])
         }
     }
 }
 
 @Composable
-private fun NoBox(model: AppModel) {
+private fun NoBox(graph: AppGraph) {
     Card {
         Text("No heroes yet", style = dela(17.sp))
         VSpace(4.dp)
         Text("Scan the game once to load your heroes and gear, or import a Fribbels gear.txt.", style = zen(13.sp, FontWeight.Medium, C.muted))
         VSpace(10.dp)
-        PinkButton("Scan the game", Modifier.fillMaxWidth()) { model.graph.nav.go(if (model.graph.settings.consent) Screen.ScanData else Screen.ScanIntro) }
+        PinkButton("Scan the game", Modifier.fillMaxWidth()) { graph.nav.go(if (graph.settings.consent) Screen.ScanData else Screen.ScanIntro) }
         VSpace(8.dp)
-        LinkText("Restore a backup or import a gear.txt") { model.graph.nav.go(Screen.ScanData) }
+        LinkText("Restore a backup or import a gear.txt") { graph.nav.go(Screen.ScanData) }
     }
 }
 
 /** The artifact icon beside the subtitle line on hero cards. */
 @Composable
-fun HeroSubtitle(model: AppModel, h: OwnedHero, text: String) {
+fun HeroSubtitle(graph: AppGraph, h: OwnedHero, text: String) {
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        ArtifactIcon(model, model.graph.content.content.artifact(model.graph.heroes.config(h.id).artifact ?: model.graph.heroes.request(h.id).artifact), 18.dp)
+        ArtifactIcon(graph, graph.content.content.artifact(graph.heroes.config(h.id).artifact ?: graph.heroes.request(h.id).artifact), 18.dp)
         Text(text, style = zen(12.sp, FontWeight.Medium, C.muted), maxLines = 3, overflow = TextOverflow.Ellipsis)
     }
 }
 
-fun heroSubtitle(model: AppModel, h: OwnedHero): String {
-    val cfg = model.graph.heroes.config(h.id)
-    val art = model.graph.content.content.artifact(cfg.artifact ?: model.graph.heroes.request(h.id).artifact)
+fun heroSubtitle(graph: AppGraph, h: OwnedHero): String {
+    val cfg = graph.heroes.config(h.id)
+    val art = graph.content.content.artifact(cfg.artifact ?: graph.heroes.request(h.id).artifact)
     return (art?.let { "${it.name} +30" } ?: "Artifact +30") + " · full imprint, always"
 }
 
 @Composable
-private fun SingleSetup(model: AppModel, h: OwnedHero) {
-    val req = model.graph.heroes.request(h.id)
+private fun SingleSetup(graph: AppGraph, h: OwnedHero) {
+    val req = graph.heroes.request(h.id)
     Card(padding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Face(model.graph.heroes.face(h), 50.dp)
+            Face(graph.heroes.face(h), 50.dp)
             Column(Modifier.weight(1f)) {
-                Text(model.graph.heroes.heroName(h), style = dela(17.sp).copy(lineHeight = 21.sp), maxLines = 3, overflow = TextOverflow.Ellipsis)
-                HeroSubtitle(model, h, heroSubtitle(model, h))
+                Text(graph.heroes.heroName(h), style = dela(17.sp).copy(lineHeight = 21.sp), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                HeroSubtitle(graph, h, heroSubtitle(graph, h))
             }
-            Pill("Change", onClick = { model.graph.nav.sheet = Sheet(SheetKind.HERO_PICK, h.id) })
+            Pill("Change", onClick = { graph.nav.sheet = Sheet(SheetKind.HERO_PICK, h.id) })
         }
-        if (model.graph.heroes.gameHero(h) == null) {
+        if (graph.heroes.gameHero(h) == null) {
             VSpace(6.dp)
             Text("No game data for this hero yet. It arrives with the next content update.", style = zen(12.sp, color = C.red))
         }
     }
-    PresetCard(model, h, req)
+    PresetCard(graph, h, req)
     SectionTitle("What it looks for")
-    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { LooksFor(model, h, req) }
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { LooksFor(graph, h, req) }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text("Goal: ${req.goal.label}", style = zen(12.sp, color = C.muted))
-        LinkText("More goals") { model.graph.nav.sheet = Sheet(SheetKind.GOALS, h.id) }
+        LinkText("More goals") { graph.nav.sheet = Sheet(SheetKind.GOALS, h.id) }
     }
 }
 
 @Composable
-internal fun PresetCard(model: AppModel, h: OwnedHero, req: Request) {
-    val loading = model.graph.heroes.presetLoading[h.code] == true
+internal fun PresetCard(graph: AppGraph, h: OwnedHero, req: Request) {
+    val loading = graph.heroes.presetLoading[h.code] == true
     val shape = RoundedCornerShape(14.dp)
     Row(Modifier.fillMaxWidth().hardShadow(C.pink, 3.dp, 3.dp, 14.dp).clip(shape).background(C.card).border(2.5.dp, C.edge, shape)
-        .tap { model.graph.nav.sheet = Sheet(SheetKind.PRESET, h.id) }.padding(horizontal = 12.dp, vertical = 8.dp),
+        .tap { graph.nav.sheet = Sheet(SheetKind.PRESET, h.id) }.padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Tag("PRESET")
         Column(Modifier.weight(1f)) {
@@ -189,20 +189,20 @@ internal fun PresetCard(model: AppModel, h: OwnedHero, req: Request) {
                     Text("Loading community builds…", style = zen(13.sp))
                     Skeleton(Modifier.padding(top = 4.dp).width(140.dp).height(8.dp))
                 }
-                model.graph.heroes.presets.containsKey(h.code) && model.graph.heroes.presets[h.code] == null -> {
+                graph.heroes.presets.containsKey(h.code) && graph.heroes.presets[h.code] == null -> {
                     Text("No preset", style = zen(13.sp))
                     Text("Community builds couldn't load; set targets yourself", style = zen(11.sp, FontWeight.Medium, C.muted))
                 }
                 else -> Text("Choose a preset", style = zen(13.sp))
             }
         }
-        LinkText("Change") { model.graph.nav.sheet = Sheet(SheetKind.PRESET, h.id) }
+        LinkText("Change") { graph.nav.sheet = Sheet(SheetKind.PRESET, h.id) }
     }
 }
 
 @Composable
-fun SetsSummary(model: AppModel, req: Request) {
-    SetChoiceSummary(model, e7.gearscan.data.SetChoice.from(req.setAlts, model.graph.content.content), 20.dp)
+fun SetsSummary(graph: AppGraph, req: Request) {
+    SetChoiceSummary(graph, e7.gearscan.data.SetChoice.from(req.setAlts, graph.content.content), 20.dp)
 }
 
 /** All eight stats in fixed 4×2 cells (same as preset cards); a stat with a target is blue once met, pink while short. */
@@ -216,16 +216,16 @@ fun StatGrid(req: Request, value: (Stat) -> Double) {
 }
 
 @Composable
-internal fun LooksFor(model: AppModel, h: OwnedHero, req: Request) {
-    RowCard("Artifact", { model.graph.nav.sheet = Sheet(SheetKind.ARTIFACT, h.id) }) {
-        val art = model.graph.content.content.artifact(model.graph.heroes.config(h.id).artifact ?: req.artifact)
+internal fun LooksFor(graph: AppGraph, h: OwnedHero, req: Request) {
+    RowCard("Artifact", { graph.nav.sheet = Sheet(SheetKind.ARTIFACT, h.id) }) {
+        val art = graph.content.content.artifact(graph.heroes.config(h.id).artifact ?: req.artifact)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ArtifactIcon(model, art, 20.dp)
+            ArtifactIcon(graph, art, 20.dp)
             Text(art?.name ?: "None chosen", style = zen(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
-    RowCard("Sets", { model.graph.nav.sheet = Sheet(SheetKind.SETS, h.id) }) { SetsSummary(model, req) }
-    RowCard("Mains", { model.graph.nav.sheet = Sheet(SheetKind.MAINS, h.id) }) {
+    RowCard("Sets", { graph.nav.sheet = Sheet(SheetKind.SETS, h.id) }) { SetsSummary(graph, req) }
+    RowCard("Mains", { graph.nav.sheet = Sheet(SheetKind.MAINS, h.id) }) {
         if (req.mains.isEmpty()) Text("Any", style = zen(12.sp))
         for (s in Slot.ACCESSORIES) {
             val m = req.mains[s] ?: continue
@@ -238,15 +238,15 @@ internal fun LooksFor(model: AppModel, h: OwnedHero, req: Request) {
             }
         }
     }
-    RowCard("Targets", { model.graph.nav.sheet = Sheet(SheetKind.TARGETS, h.id) }) {
+    RowCard("Targets", { graph.nav.sheet = Sheet(SheetKind.TARGETS, h.id) }) {
         val set = Stat.entries.filter { !req.targets[it.ordinal].isNaN() }
         if (set.isEmpty()) Text(if (req.goal == Goal.TARGETS) "None · ranks by gear score" else "None", style = zen(12.sp))
         // every target in a fixed stat order (the row wraps), so a weight change never adds, drops or reorders one
         set.forEach { s -> StatValue(s, fmtK(req.targets[s.ordinal])) }
     }
-    val cur = model.graph.heroes.currentBuild(h.id)
-    if (cur != null) RowCard("Now", { model.graph.nav.sheet = Sheet(SheetKind.TARGETS, h.id) }) { StatGrid(req) { cur.final[it] } }
-    RowCard("Advanced", { model.graph.nav.sheet = Sheet(SheetKind.ADVANCED, h.id) }) {
+    val cur = graph.heroes.currentBuild(h.id)
+    if (cur != null) RowCard("Now", { graph.nav.sheet = Sheet(SheetKind.TARGETS, h.id) }) { StatGrid(req) { cur.final[it] } }
+    RowCard("Advanced", { graph.nav.sheet = Sheet(SheetKind.ADVANCED, h.id) }) {
         Text("Rules · ghost gear ${if (req.ghost) "on" else "off"}", style = zen(12.sp))
     }
 }
@@ -262,31 +262,31 @@ fun ratingText(r: Rating, v: Double) = when (r) {
 }
 
 @Composable
-fun ResultsScreen(model: AppModel) {
-    model.graph.scan.rev
-    val s = model.graph.optimize.search ?: run { OptimizeScreen(model); return }
-    val h = model.graph.heroes.hero(s.heroId) ?: return
-    val req = model.graph.heroes.request(h.id)
+fun ResultsScreen(graph: AppGraph) {
+    graph.scan.rev
+    val s = graph.optimize.search ?: run { OptimizeScreen(graph); return }
+    val h = graph.heroes.hero(s.heroId) ?: return
+    val req = graph.heroes.request(h.id)
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(s.running) { while (s.running) { now = System.currentTimeMillis(); delay(100) } }
-    val r = model.graph.settings.showRating
-    val byMatch = req.goal == Goal.TARGETS && model.graph.optimize.showMatch
-    Frame(model, Screen.Optimize, actions = if (s.builds.isEmpty()) null else ({
-        PinkButton("Compare #1", Modifier.weight(1f)) { model.graph.nav.go(Screen.Compare(0)) }
+    val r = graph.settings.showRating
+    val byMatch = req.goal == Goal.TARGETS && graph.optimize.showMatch
+    Frame(graph, Screen.Optimize, actions = if (s.builds.isEmpty()) null else ({
+        PinkButton("Compare #1", Modifier.weight(1f)) { graph.nav.go(Screen.Compare(0)) }
     })) {
         BackToPrevious()
         if (s.historyAt != 0L) HistoryNote(s.historyAt)
-        ScreenTitle("Best 50") { ScanChip(model.graph.scan.scannedLabel(), model.graph.scan.phase != ScanPhase.IDLE) { if (model.graph.scan.phase != ScanPhase.IDLE) model.graph.nav.go(Screen.Capture) else model.graph.nav.go(Screen.ScanData) } }
+        ScreenTitle("Best 50") { ScanChip(graph.scan.scannedLabel(), graph.scan.phase != ScanPhase.IDLE) { if (graph.scan.phase != ScanPhase.IDLE) graph.nav.go(Screen.Capture) else graph.nav.go(Screen.ScanData) } }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Face(model.graph.heroes.face(h), 26.dp, ringWidth = 2.dp)
-            Text("${model.graph.heroes.heroName(h)} · ${req.goal.label}", style = zen(13.sp).copy(lineHeight = 16.sp), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Face(graph.heroes.face(h), 26.dp, ringWidth = 2.dp)
+            Text("${graph.heroes.heroName(h)} · ${req.goal.label}", style = zen(13.sp).copy(lineHeight = 16.sp), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        StaleBox(model)
+        StaleBox(graph)
         if (s.running) {
             Card(shadow = null, radius = 14.dp, border = 2.5.dp) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Searching · ${"%.1f".format(java.util.Locale.US, (now - s.startedAt) / 1000.0)} s", style = zen(12.sp), modifier = Modifier.weight(1f))
-                    LinkText("Cancel", color = C.deepPink) { model.graph.optimize.cancelSearch() }
+                    LinkText("Cancel", color = C.deepPink) { graph.optimize.cancelSearch() }
                 }
                 VSpace(6.dp)
                 val frac = ((now - s.startedAt).toFloat() / s.limitMs).coerceIn(0.02f, 1f)
@@ -301,16 +301,16 @@ fun ResultsScreen(model: AppModel) {
                 Text("SHOW", style = zen(12.sp, color = C.muted).copy(letterSpacing = 0.7.sp))
                 val targets = req.goal == Goal.TARGETS
                 val main = if (targets) listOf(Rating.DMG, Rating.SPD, Rating.EHP) else listOf(Rating.DMG, Rating.SPD, Rating.CP, Rating.EHP)
-                if (targets) Pill("Match", selected = byMatch, onClick = { model.graph.optimize.showMatch = true })
+                if (targets) Pill("Match", selected = byMatch, onClick = { graph.optimize.showMatch = true })
                 main.forEach { x -> Pill(when (x) { Rating.DMG -> "Damage"; Rating.SPD -> "Speed"; else -> x.short }, selected = !byMatch && r == x,
-                    onClick = { model.graph.settings.showRating = x; model.graph.optimize.showMatch = false; model.graph.store.saveNow() }) }
+                    onClick = { graph.settings.showRating = x; graph.optimize.showMatch = false; graph.store.saveNow() }) }
                 Pill(if (byMatch || r in main) "+${Rating.entries.size - main.size}" else r.short, selected = !byMatch && r !in main,
-                    onClick = { model.graph.optimize.showMatch = false; model.graph.nav.sheet = Sheet(SheetKind.SHOW, h.id) })
+                    onClick = { graph.optimize.showMatch = false; graph.nav.sheet = Sheet(SheetKind.SHOW, h.id) })
             }
         }
         // history and other finished lists without a ghost run have nothing to report there
-        if (req.ghost && (s.running || s.ghostRunning || s.ghostSearched)) GhostBand(model, s, r, if (byMatch) h.id else null)
-        ModsLine(model, s, req)
+        if (req.ghost && (s.running || s.ghostRunning || s.ghostSearched)) GhostBand(graph, s, r, if (byMatch) h.id else null)
+        ModsLine(graph, s, req)
         val cur = s.current
         if (!s.running && s.builds.isEmpty()) {
             Card(shadow = null, radius = 14.dp, border = 2.dp) {
@@ -327,16 +327,16 @@ fun ResultsScreen(model: AppModel) {
                     bl.isNullOrEmpty() -> "Loosening any single rule isn't enough. Loosen several: minimums, sets, mains or enhance level."
                     else -> "Loosen any one of these and builds appear: " + bl.joinToString(" · ")
                 }, style = zen(12.sp, FontWeight.Medium, C.muted), minLines = 2)
-                if (s.timedOut && !s.cancelled && s.limitMs < model.graph.optimize.longLimitMs) {
+                if (s.timedOut && !s.cancelled && s.limitMs < graph.optimize.longLimitMs) {
                     VSpace(6.dp)
                     Text("It stopped before checking every combination, so a build may still exist. Mods make the search slower.",
                         style = zen(12.sp, FontWeight.Medium, C.muted))
                     VSpace(4.dp)
-                    LinkText("Search for ${model.graph.optimize.longLimitMs / 1000} s") { model.graph.optimize.startSearch(model.graph.optimize.longLimitMs) }
+                    LinkText("Search for ${graph.optimize.longLimitMs / 1000} s") { graph.optimize.startSearch(graph.optimize.longLimitMs) }
                 }
             }
         }
-        s.builds.forEachIndexed { i, b -> ResultCard(model, i, b, cur, r, req, if (byMatch) h.id else null) }
+        s.builds.forEachIndexed { i, b -> ResultCard(graph, i, b, cur, r, req, if (byMatch) h.id else null) }
         if (s.running) for (i in s.builds.size until 4) SkeletonCard(i)
         if (!s.running && s.builds.isNotEmpty()) {
             Text(when {
@@ -350,20 +350,20 @@ fun ResultsScreen(model: AppModel) {
 
 /** A box scanned more than a day ago gives stale results; say so where results are made. */
 @Composable
-fun StaleBox(model: AppModel) {
-    val age = if (model.graph.scan.lastScan > 0) (System.currentTimeMillis() - model.graph.scan.lastScan) / 3_600_000 else return
+fun StaleBox(graph: AppGraph) {
+    val age = if (graph.scan.lastScan > 0) (System.currentTimeMillis() - graph.scan.lastScan) / 3_600_000 else return
     if (age < 24) return
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).hatch().border(2.dp, C.edge, RoundedCornerShape(10.dp))
         .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("Box is ${if (age < 48) "a day" else "${age / 24} days"} old · new gear isn't counted", style = zen(12.sp),
             modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        LinkText("Scan now") { model.graph.nav.go(Screen.ScanData) }
+        LinkText("Scan now") { graph.nav.go(Screen.ScanData) }
     }
 }
 
 /** Says whether substat mods were part of this search, so a list without 改 is not a mystery. */
 @Composable
-private fun ModsLine(model: AppModel, s: e7.gearscan.features.optimize.SearchState, req: Request) {
+private fun ModsLine(graph: AppGraph, s: e7.gearscan.features.optimize.SearchState, req: Request) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("改", style = dela(12.sp, if (req.mods) C.deepPink else C.muted))
         val top = s.builds.take(10)
@@ -373,16 +373,16 @@ private fun ModsLine(model: AppModel, s: e7.gearscan.features.optimize.SearchSta
             top.isEmpty() -> "Mods on"
             else -> top.count { b -> b.items.any { it.mod != null } }.let { n -> if (n == 0) "Mods on · no mod beats these builds" else "Mods on · $n of the top ${top.size} use a mod" }
         }, style = zen(12.sp, color = if (req.mods) C.deepPink else C.muted), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (!req.mods && !s.running) LinkText("Turn on") { req.mods = true; model.graph.scan.touch(); model.graph.store.saveNow(); model.graph.optimize.startSearch() }
+        if (!req.mods && !s.running) LinkText("Turn on") { req.mods = true; graph.scan.touch(); graph.store.saveNow(); graph.optimize.startSearch() }
     }
 }
 
 @Composable
-private fun GhostBand(model: AppModel, s: e7.gearscan.features.optimize.SearchState, r: Rating, matchHero: Long? = null) {
+private fun GhostBand(graph: AppGraph, s: e7.gearscan.features.optimize.SearchState, r: Rating, matchHero: Long? = null) {
     val g = s.ghost
     val best = s.builds.firstOrNull()
     DashedBox(Modifier.fillMaxWidth().heightIn(min = 70.dp), color = C.blue, bg = C.ghostBg, radius = 14.dp, width = 2.5.dp,
-        onClick = if (g != null) ({ model.graph.nav.go(Screen.GhostBuild) }) else null,
+        onClick = if (g != null) ({ graph.nav.go(Screen.GhostBuild) }) else null,
         padding = PaddingValues(horizontal = 12.dp, vertical = 9.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             GhostTag()
@@ -401,7 +401,7 @@ private fun GhostBand(model: AppModel, s: e7.gearscan.features.optimize.SearchSt
         VSpace(5.dp)
         if (g != null && best != null) Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val spd = g.final[Stat.SPD] - best.final[Stat.SPD]
-            val gm = matchHero?.let { model.graph.heroes.matchOf(it, g)?.pct }; val bm = matchHero?.let { model.graph.heroes.matchOf(it, best)?.pct }
+            val gm = matchHero?.let { graph.heroes.matchOf(it, g)?.pct }; val bm = matchHero?.let { graph.heroes.matchOf(it, best)?.pct }
             if (gm != null && bm != null) {
                 Text((if (gm >= bm) "+" else "−") + "${Math.abs(gm - bm)}%", style = dela(18.sp, C.blue))
                 Text("match over #1" + if (Math.abs(spd) >= 1) ", ${fmtSigned(spd)} spd" else "", style = zen(12.sp, color = C.blue),
@@ -419,20 +419,20 @@ private fun GhostBand(model: AppModel, s: e7.gearscan.features.optimize.SearchSt
 }
 
 @Composable
-private fun ResultCard(model: AppModel, i: Int, b: Build, cur: Build?, r: Rating, req: Request, matchHero: Long? = null) {
+private fun ResultCard(graph: AppGraph, i: Int, b: Build, cur: Build?, r: Rating, req: Request, matchHero: Long? = null) {
     val shape = RoundedCornerShape(14.dp)
     Row(Modifier.fillMaxWidth().then(if (i == 0) Modifier.hardShadow(C.pink, 4.dp, 4.dp, 14.dp) else Modifier)
-        .clip(shape).background(C.card).then(if (i == 0) Modifier.halftone() else Modifier).border(2.5.dp, C.edge, shape).tap { model.graph.nav.go(Screen.Compare(i)) }
+        .clip(shape).background(C.card).then(if (i == 0) Modifier.halftone() else Modifier).border(2.5.dp, C.edge, shape).tap { graph.nav.go(Screen.Compare(i)) }
         .padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         RankChip(i + 1)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val m = matchHero?.let { model.graph.heroes.matchOf(it, b)?.pct }
+                val m = matchHero?.let { graph.heroes.matchOf(it, b)?.pct }
                 // fixed slots: switching Match/Damage (or a longer number) must not push "from others" sideways
                 val (main, delta, up) = if (m != null) {
                     // targets goal: the number people compare is how close the build gets, as on Heroes and hero detail
-                    val was = cur?.let { c -> model.graph.heroes.matchOf(matchHero, c)?.pct }
+                    val was = cur?.let { c -> graph.heroes.matchOf(matchHero, c)?.pct }
                     Triple("$m%", was?.let { (if (m >= it) "+" else "−") + "${Math.abs(m - it)}%" }, was == null || m >= was)
                 } else {
                     val d = cur?.let { b.rating(r) - it.rating(r) }
@@ -451,7 +451,7 @@ private fun ResultCard(model: AppModel, i: Int, b: Build, cur: Build?, r: Rating
             StatGrid(req) { b.final[it] }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Calc.setCounts(b.items, model.graph.content.content).forEach { (sd, _) -> SetIcon(sd.icon, 22.dp) }
+            Calc.setCounts(b.items, graph.content.content).forEach { (sd, _) -> SetIcon(sd.icon, 22.dp) }
         }
     }
 }
@@ -471,51 +471,51 @@ private fun SkeletonCard(i: Int) {
 }
 
 @Composable
-fun CompareScreen(model: AppModel, index: Int, poolHero: Long?, review: Boolean = false) {
-    model.graph.scan.rev
-    val s = model.graph.optimize.search
+fun CompareScreen(graph: AppGraph, index: Int, poolHero: Long?, review: Boolean = false) {
+    graph.scan.rev
+    val s = graph.optimize.search
     val heroId = poolHero ?: s?.heroId ?: return
-    val b = (if (poolHero != null) model.graph.pool.state?.builds?.get(poolHero) else s?.builds?.getOrNull(index)) ?: return
-    val cur = if (poolHero != null) model.graph.heroes.currentBuild(heroId) else s?.current
+    val b = (if (poolHero != null) graph.pool.state?.builds?.get(poolHero) else s?.builds?.getOrNull(index)) ?: return
+    val cur = if (poolHero != null) graph.heroes.currentBuild(heroId) else s?.current
     val teamHero = poolHero
-    val req = model.graph.heroes.request(heroId)
-    val heroName = model.graph.heroes.hero(heroId)?.let(model.graph.heroes::heroName) ?: "Build"
-    val queue = if (review) model.graph.pool.reviewQueue() else emptyList()
+    val req = graph.heroes.request(heroId)
+    val heroName = graph.heroes.hero(heroId)?.let(graph.heroes::heroName) ?: "Build"
+    val queue = if (review) graph.pool.reviewQueue() else emptyList()
     val at = queue.indexOf(heroId)
-    val readOnly = model.graph.pool.state?.fromHistory == true && poolHero != null || model.graph.optimize.search?.historyAt?.let { it != 0L } == true && poolHero == null
+    val readOnly = graph.pool.state?.fromHistory == true && poolHero != null || graph.optimize.search?.historyAt?.let { it != 0L } == true && poolHero == null
     Frame(null, null, actions = if (review) ({
         // always laid out (dimmed on the first hero) so Next keeps its place
         val prev = queue.getOrNull(at - 1)
-        OutlineButton("‹ Previous", Modifier.width(118.dp), enabled = prev != null) { prev?.let { model.graph.nav.replace(Screen.PoolReview(it)) } }
-        val next = queue.drop(at + 1).firstOrNull { it !in model.graph.pool.state!!.reviewed }
-        PinkButton(next?.let { "Next · ${model.graph.heroes.hero(it)?.let(model.graph.heroes::heroName)} ›" } ?: "Done", Modifier.weight(1f), short = next?.let { "Next ›" }) {
-            model.graph.pool.markReviewed(heroId)
-            if (next != null) model.graph.nav.replace(Screen.PoolReview(next)) else model.graph.nav.back()
+        OutlineButton("‹ Previous", Modifier.width(118.dp), enabled = prev != null) { prev?.let { graph.nav.replace(Screen.PoolReview(it)) } }
+        val next = queue.drop(at + 1).firstOrNull { it !in graph.pool.state!!.reviewed }
+        PinkButton(next?.let { "Next · ${graph.heroes.hero(it)?.let(graph.heroes::heroName)} ›" } ?: "Done", Modifier.weight(1f), short = next?.let { "Next ›" }) {
+            graph.pool.markReviewed(heroId)
+            if (next != null) graph.nav.replace(Screen.PoolReview(next)) else graph.nav.back()
         }
     }) else ({
-        val at = model.graph.pool.state?.startedAt?.takeIf { poolHero != null } ?: model.graph.optimize.search?.startedAt ?: 0
+        val at = graph.pool.state?.startedAt?.takeIf { poolHero != null } ?: graph.optimize.search?.startedAt ?: 0
         PinkButton("Show over game", Modifier.weight(1f)) {
-            if (!model.graph.overGame.show(heroId, b, if (teamHero != null) heroName else "$heroName #${index + 1}",
-                    if (readOnly) model.graph.history.flag(at) else null)) model.graph.nav.go(Screen.OverlayIntro)
+            if (!graph.overGame.show(heroId, b, if (teamHero != null) heroName else "$heroName #${index + 1}",
+                    if (readOnly) graph.history.flag(at) else null)) graph.nav.go(Screen.OverlayIntro)
         }
         // a past run's pieces may have moved; the checklist checks each one in the game, equipping blind here doesn't
-        if (!readOnly) OutlineButton("Equip in app") { model.graph.heroes.recordBuild(heroId, b) }
+        if (!readOnly) OutlineButton("Equip in app") { graph.heroes.recordBuild(heroId, b) }
     })) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             BackToPrevious(Modifier.weight(1f))
             if (review) {
-                if (heroId in model.graph.pool.state!!.reviewed) { Stamp("済", "reviewed", C.blue); HSpace(8.dp) }
+                if (heroId in graph.pool.state!!.reviewed) { Stamp("済", "reviewed", C.blue); HSpace(8.dp) }
                 Text("${at + 1} of ${queue.size}", style = zen(12.sp, color = C.muted))
-            } else Calc.setCounts(b.items, model.graph.content.content).forEach { (sd, _) -> SetIcon(sd.icon, 22.dp) }
+            } else Calc.setCounts(b.items, graph.content.content).forEach { (sd, _) -> SetIcon(sd.icon, 22.dp) }
         }
-        if (readOnly) HistoryNote(model.graph.pool.state?.startedAt?.takeIf { poolHero != null } ?: model.graph.optimize.search?.startedAt ?: 0)
+        if (readOnly) HistoryNote(graph.pool.state?.startedAt?.takeIf { poolHero != null } ?: graph.optimize.search?.startedAt ?: 0)
         // reviewing a run: change what this hero aims for, then re-run from Pool done
         else if (poolHero != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            LinkText("Edit targets") { model.graph.nav.sheet = Sheet(SheetKind.TARGETS, heroId) }
+            LinkText("Edit targets") { graph.nav.sheet = Sheet(SheetKind.TARGETS, heroId) }
         }
         if (teamHero != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            model.graph.heroes.hero(heroId)?.let { Face(model.graph.heroes.face(it), 44.dp) }
-            FitText(model.graph.heroes.hero(heroId)?.let(model.graph.heroes::heroName) ?: "Build", TitleStyle, Modifier.weight(1f))
+            graph.heroes.hero(heroId)?.let { Face(graph.heroes.face(it), 44.dp) }
+            FitText(graph.heroes.hero(heroId)?.let(graph.heroes::heroName) ?: "Build", TitleStyle, Modifier.weight(1f))
         } else ScreenTitle("Build #${index + 1}")
         Card(padding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
             CompareRow(null, "STAT", "NOW", "NEW", "Δ", header = true)
@@ -525,23 +525,23 @@ fun CompareScreen(model: AppModel, index: Int, poolHero: Long?, review: Boolean 
                 CompareRow(st, st.label.replace("Crit dmg", "Crit damage"), fmtNum(Math.floor(n)), fmtNum(Math.floor(v)), Math.floor(v) - Math.floor(n))
             }
             run {
-                val was = cur?.let { model.graph.heroes.matchOf(heroId, it)?.pct }; val now = model.graph.heroes.matchOf(heroId, b)?.pct
+                val was = cur?.let { graph.heroes.matchOf(heroId, it)?.pct }; val now = graph.heroes.matchOf(heroId, b)?.pct
                 if (now != null) CompareRow(null, "Match", was?.let { "$it%" } ?: "—", "$now%", (now - (was ?: now)).toDouble())
             }
             val fr = focusRating(req.goal).let { if (it == Rating.SPD) Rating.DMG else it }
             CompareRow(null, fr.label, fmtInt(cur?.rating(fr) ?: 0.0), fmtInt(b.rating(fr)), b.rating(fr) - (cur?.rating(fr) ?: 0.0))
         }
-        if (poolHero != null) TakenByOthers(model, poolHero)
+        if (poolHero != null) TakenByOthers(graph, poolHero)
         SectionTitle("Gear", trailing = if (b.fromOthers > 0) "${b.fromOthers} from others" else "all own")
-        GearGrid(model, b.items, heroId, req.reforged, openHolder = poolHero?.let { { who: Long -> model.graph.pool.open(who) } })
+        GearGrid(graph, b.items, heroId, req.reforged, openHolder = poolHero?.let { { who: Long -> graph.pool.open(who) } })
     }
 }
 
 /** Pieces the hero wears now that another hero of the pool run took: why its new build can be worse. */
 @Composable
-private fun TakenByOthers(model: AppModel, heroId: Long) {
-    val p = model.graph.pool.state ?: return
-    val worn = model.graph.scan.box?.gearOf(heroId).orEmpty()
+private fun TakenByOthers(graph: AppGraph, heroId: Long) {
+    val p = graph.pool.state ?: return
+    val worn = graph.scan.box?.gearOf(heroId).orEmpty()
     val takenBy = p.builds.filterKeys { it != heroId }.flatMap { (who, b) -> b?.items.orEmpty().map { it.id to who } }.toMap()
     val lost = Slot.entries.mapNotNull { s -> worn[s]?.let { it to (takenBy[it.id] ?: return@mapNotNull null) } }
     if (lost.isEmpty()) return
@@ -553,16 +553,16 @@ private fun TakenByOthers(model: AppModel, heroId: Long) {
             val shape = RoundedCornerShape(10.dp)
             Row(Modifier.fillMaxWidth().clip(shape).background(C.card).border(2.dp, C.edge, shape).padding(7.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GearTile(item, 40.dp, setIcon = model.graph.content.content.set(item.set)?.icon)
+                GearTile(item, 40.dp, setIcon = graph.content.content.set(item.set)?.icon)
                 Column(Modifier.weight(1f)) {
                     Text("${item.slot.label} · ${item.mainType.short} ${item.mainType.format(item.mainValue)}", style = zen(12.sp, FontWeight.Black),
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    SubGrid(item, model.graph.heroes.request(heroId).reforged, 10)
+                    SubGrid(item, graph.heroes.request(heroId).reforged, 10)
                 }
-                model.graph.heroes.hero(who)?.let { h ->
-                    Column(Modifier.width(72.dp).tap { model.graph.pool.open(who) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                        Face(model.graph.heroes.face(h), 30.dp, ringWidth = 2.dp)
-                        Text("to ${model.graph.heroes.heroName(h)}", style = zen(10.sp, color = C.deepPink).copy(lineHeight = 12.sp), maxLines = 2,
+                graph.heroes.hero(who)?.let { h ->
+                    Column(Modifier.width(72.dp).tap { graph.pool.open(who) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                        Face(graph.heroes.face(h), 30.dp, ringWidth = 2.dp)
+                        Text("to ${graph.heroes.heroName(h)}", style = zen(10.sp, color = C.deepPink).copy(lineHeight = 12.sp), maxLines = 2,
                             overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                     }
                 }
@@ -589,17 +589,17 @@ private fun CompareRow(stat: Stat?, label: String, now: String, new: String, del
 }
 
 @Composable
-fun GearGrid(model: AppModel, items: List<Item>, heroId: Long, reforged: Boolean, openHolder: ((Long) -> Unit)? = null) {
-    CardGrid(Slot.entries.map { s -> items.firstOrNull { it.slot == s } }) { it, cell -> GearCard(model, it, heroId, reforged, cell, openHolder) }
+fun GearGrid(graph: AppGraph, items: List<Item>, heroId: Long, reforged: Boolean, openHolder: ((Long) -> Unit)? = null) {
+    CardGrid(Slot.entries.map { s -> items.firstOrNull { it.slot == s } }) { it, cell -> GearCard(graph, it, heroId, reforged, cell, openHolder) }
 }
 
 @Composable
-private fun GearCard(model: AppModel, it: Item?, heroId: Long, reforged: Boolean, modifier: Modifier, openHolder: ((Long) -> Unit)? = null) {
+private fun GearCard(graph: AppGraph, it: Item?, heroId: Long, reforged: Boolean, modifier: Modifier, openHolder: ((Long) -> Unit)? = null) {
     val shape = RoundedCornerShape(10.dp)
     Row(modifier.clip(shape).background(if (it?.ghost == true) C.ghostBg else C.card)
         .then(if (it?.ghost == true) Modifier.dashedBorder(C.blue, 2.dp, 10.dp) else Modifier.border(2.dp, C.edge, shape))
         .padding(7.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GearTile(it, 40.dp, setIcon = it?.let { i -> model.graph.content.content.set(i.set)?.icon })
+        GearTile(it, 40.dp, setIcon = it?.let { i -> graph.content.content.set(i.set)?.icon })
         Column(Modifier.weight(1f)) {
             if (it == null) { Text("Empty", style = zen(12.sp, color = C.muted)); return@Column }
             val ref = reforged && it.reforgeable
@@ -610,10 +610,10 @@ private fun GearCard(model: AppModel, it: Item?, heroId: Long, reforged: Boolean
                     it.ghost -> "ghost"
                     it.equippedOn == null -> "free"
                     it.equippedOn == heroId -> "own"
-                    else -> model.graph.heroes.hero(it.equippedOn!!)?.let(model.graph.heroes::heroName) ?: "other"
+                    else -> graph.heroes.hero(it.equippedOn!!)?.let(graph.heroes::heroName) ?: "other"
                 }
                 val holder = it.equippedOn?.takeIf { h -> h != heroId && !it.ghost }
-                val link = holder?.takeIf { h -> openHolder != null && model.graph.pool.state?.builds?.get(h) != null }
+                val link = holder?.takeIf { h -> openHolder != null && graph.pool.state?.builds?.get(h) != null }
                 Text(if (who == "own" || who == "free" || who == "ghost") who else "on $who", style = zen(10.sp, color = if (who == "own" || who == "free") C.muted else C.blue).copy(lineHeight = 12.sp,
                     textDecoration = if (link != null) androidx.compose.ui.text.style.TextDecoration.Underline else null),
                     maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.tap(link?.let { h -> { openHolder!!(h) } }))
@@ -626,16 +626,16 @@ private fun GearCard(model: AppModel, it: Item?, heroId: Long, reforged: Boolean
 }
 
 @Composable
-fun GhostBuildScreen(model: AppModel) {
-    val s = model.graph.optimize.search ?: return
+fun GhostBuildScreen(graph: AppGraph) {
+    val s = graph.optimize.search ?: return
     val g = s.ghost ?: return
     val best = s.builds.firstOrNull() ?: s.current ?: return
     val owned = s.builds.isNotEmpty()
     val gp = g.ghost ?: return
-    val req = model.graph.heroes.request(s.heroId)
-    val r = model.graph.settings.showRating.let { if (it == Rating.SPD) Rating.DMG else it }
+    val req = graph.heroes.request(s.heroId)
+    val r = graph.settings.showRating.let { if (it == Rating.SPD) Rating.DMG else it }
     Frame(null, null, actions = {
-        PinkButton("Back to results", Modifier.weight(1f)) { model.graph.nav.back() }
+        PinkButton("Back to results", Modifier.weight(1f)) { graph.nav.back() }
         OutlineButton("Equip", dashed = true, enabled = false) {}
     }) {
         BackToPrevious()
@@ -661,10 +661,10 @@ fun GhostBuildScreen(model: AppModel) {
             Slot.entries.forEach { sl ->
                 val it = g.items.firstOrNull { x -> x.slot == sl }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    GearTile(it, 46.dp, setIcon = it?.let { i -> model.graph.content.content.set(i.set)?.icon })
+                    GearTile(it, 46.dp, setIcon = it?.let { i -> graph.content.content.set(i.set)?.icon })
                     Text(when {
                         it == null -> "—"; it.ghost -> "ghost"; it.equippedOn == s.heroId -> "own"; it.equippedOn == null -> "free"
-                        else -> model.graph.heroes.hero(it.equippedOn!!)?.let(model.graph.heroes::heroName)?.take(7) ?: "other"
+                        else -> graph.heroes.hero(it.equippedOn!!)?.let(graph.heroes::heroName)?.take(7) ?: "other"
                     }, style = zen(10.sp, color = if (it?.ghost == true) C.blue else C.muted))
                 }
             }
@@ -673,7 +673,7 @@ fun GhostBuildScreen(model: AppModel) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GearTile(gp, 40.dp)
                 Column(Modifier.weight(1f)) {
-                    val set = model.graph.content.content.set(gp.set)
+                    val set = graph.content.content.set(gp.set)
                     Text("${set?.name ?: gp.set.removeSuffix("Set")} ${gp.slot.label.lowercase()}", style = dela(15.sp))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         SetIcon(set?.icon, 16.dp)
@@ -695,7 +695,7 @@ fun GhostBuildScreen(model: AppModel) {
             val q = req.ghostQuality.coerceIn(0, 2)
             val oneIn = maxOf(1, Math.round(1 / gp.odds.coerceAtLeast(1e-4)).toInt())
             val replaced = best.items.firstOrNull { it.slot == gp.slot }
-            Text("About 1 in $oneIn Epic ${set(model, gp)} ${gp.slot.label.lowercase()} with this main and 3 useful starting substats " +
+            Text("About 1 in $oneIn Epic ${set(graph, gp)} ${gp.slot.label.lowercase()} with this main and 3 useful starting substats " +
                 "beats your current one by +15" + (if (req.reforged) " (level 85, then reforged)" else "") +
                 ". This ghost is a ${listOf("typical", "top 25%", "top 5%")[q]} one of those.", style = zen(12.sp, FontWeight.Medium))
             if (replaced != null) {
@@ -711,4 +711,4 @@ fun GhostBuildScreen(model: AppModel) {
     }
 }
 
-private fun set(model: AppModel, it: Item) = model.graph.content.content.set(it.set)?.name ?: it.set
+private fun set(graph: AppGraph, it: Item) = graph.content.content.set(it.set)?.name ?: it.set

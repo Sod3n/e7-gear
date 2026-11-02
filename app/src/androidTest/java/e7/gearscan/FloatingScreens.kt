@@ -1,6 +1,5 @@
 package e7.gearscan
 
-import android.app.Application
 import android.graphics.Bitmap
 import android.os.Build
 import androidx.compose.foundation.layout.Box
@@ -32,7 +31,7 @@ class FloatingScreens {
 
     private val ctx get() = InstrumentationRegistry.getInstrumentation().targetContext
     private val shots = File(ctx.getExternalFilesDir(null), "floating")
-    private lateinit var model: AppModel
+    private lateinit var graph: AppGraph
 
     private fun ui(f: () -> Unit) { rule.runOnUiThread(f); rule.waitForIdle() }
 
@@ -49,34 +48,34 @@ class FloatingScreens {
         File(ctx.filesDir, "content.json").writeText(assets.open("content.json").bufferedReader().use { it.readText() })
         val backup = assets.open("backup.json").bufferedReader().use { it.readText() }
         shots.deleteRecursively(); shots.mkdirs()
-        rule.runOnUiThread { model = AppModel(ctx.applicationContext as Application) }
-        rule.waitUntil(20_000) { model.ready }
+        rule.runOnUiThread { graph = startedGraph(ctx) }
+        rule.waitUntil(20_000) { graph.ready }
         var restored = false
-        ui { restored = model.graph.scan.restore(backup); model.graph.tracker.reset() }
+        ui { restored = graph.scan.restore(backup); graph.tracker.reset() }
         check(restored) { "restore failed" }
-        rule.setContent { Box(Modifier.width(353.dp).height(571.dp)) { App(model) {} } }
+        rule.setContent { Box(Modifier.width(353.dp).height(571.dp)) { App(graph) {} } }
 
-        val piece = model.graph.scan.box!!.items.first { it.rank == "Epic" && it.enhance == 9 && UpgradeRecord.supported(it) }
-        ui { model.graph.settings.useOverGameNative(true); model.graph.tracker.selectPiece(piece.id); model.graph.tracker.show(); model.graph.overlay.expanded = true
-            model.graph.overlay.floating = true; model.graph.overlay.floatingPanel = true }
-        rule.waitUntil(120_000) { !model.graph.tracker.busy }
-        ui { model.graph.tracker.runCheck() }
-        rule.waitUntil(120_000) { !model.graph.tracker.busy && model.graph.tracker.complete }
+        val piece = graph.scan.box!!.items.first { it.rank == "Epic" && it.enhance == 9 && UpgradeRecord.supported(it) }
+        ui { graph.settings.useOverGameNative(true); graph.tracker.selectPiece(piece.id); graph.tracker.show(); graph.overlay.expanded = true
+            graph.overlay.floating = true; graph.overlay.floatingPanel = true }
+        rule.waitUntil(120_000) { !graph.tracker.busy }
+        ui { graph.tracker.runCheck() }
+        rule.waitUntil(120_000) { !graph.tracker.busy && graph.tracker.complete }
         shoot("1-tracker")
         rule.onNodeWithContentDescription("Collapse tracker").performClick()
         rule.waitForIdle()
-        check(!model.graph.overlay.floatingPanel) { "collapse didn't show the app" }
+        check(!graph.overlay.floatingPanel) { "collapse didn't show the app" }
         shoot("2-app-with-panel-chip")
         rule.onNodeWithText("‹ Back to the tracker").performClick()
         rule.waitForIdle()
-        check(model.graph.overlay.floatingPanel) { "the Panel chip didn't bring the tracker back" }
-        ui { model.graph.tracker.hide() }
-        val hero = model.graph.improveHeroes.heroes().first { model.graph.scan.box!!.gearOf(it.id).size == 6 }
-        ui { model.graph.checklist.loadBuild(hero.id, model.graph.heroes.currentBuild(hero.id)!!, "Floating check"); model.graph.overlay.expanded = true }
+        check(graph.overlay.floatingPanel) { "the Panel chip didn't bring the tracker back" }
+        ui { graph.tracker.hide() }
+        val hero = graph.improveHeroes.heroes().first { graph.scan.box!!.gearOf(it.id).size == 6 }
+        ui { graph.checklist.loadBuild(hero.id, graph.heroes.currentBuild(hero.id)!!, "Floating check"); graph.overlay.expanded = true }
         shoot("3-checklist")
-        ui { model.graph.overGame.closeFloatingPanel() }
-        check(model.graph.checklist.build == null && !model.graph.tracker.shown) { "close left a panel loaded" }
+        ui { graph.overGame.closeFloatingPanel() }
+        check(graph.checklist.build == null && !graph.tracker.shown) { "close left a panel loaded" }
         shoot("4-closed")
-        ui { model.graph.overlay.floating = false; model.graph.settings.useOverGameNative(false) }
+        ui { graph.overlay.floating = false; graph.settings.useOverGameNative(false) }
     }
 }

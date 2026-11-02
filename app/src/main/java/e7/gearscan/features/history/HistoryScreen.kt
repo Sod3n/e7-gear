@@ -18,7 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import e7.gearscan.AppModel
+import e7.gearscan.AppGraph
 import e7.gearscan.data.HistoryEntry
 import e7.gearscan.data.fmtInt
 import java.time.Instant
@@ -32,16 +32,16 @@ fun historyStamp(at: Long): String = STAMP.format(Instant.ofEpochMilli(at).atZon
 
 /** Optimize's History: every finished pool run and one-hero search, newest first; open one to see its results as they were. */
 @Composable
-fun HistoryList(model: AppModel) {
-    model.graph.scan.rev
-    if (model.graph.history.entries.isEmpty()) {
+fun HistoryList(graph: AppGraph) {
+    graph.scan.rev
+    if (graph.history.entries.isEmpty()) {
         Text("Every pool run and one-hero search you finish shows up here, to look back at its results.", style = zen(13.sp, FontWeight.Medium, C.muted))
         return
     }
     Card(padding = PaddingValues(0.dp)) {
-        model.graph.history.entries.forEachIndexed { i, e ->
+        graph.history.entries.forEachIndexed { i, e ->
             if (i > 0) Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(1.5.dp).background(C.line))
-            HistoryRow(model, e)
+            HistoryRow(graph, e)
         }
     }
     Text("Gear may have moved since a run: each piece shows where it is now, and its checklist is flagged as from history. The last ${e7.gearscan.data.History.KEEP} are kept.",
@@ -49,11 +49,11 @@ fun HistoryList(model: AppModel) {
 }
 
 @Composable
-private fun HistoryRow(model: AppModel, e: HistoryEntry) {
-    val hero = if (e.pool) null else e.builds.keys.firstOrNull()?.let { model.graph.heroes.hero(it) }
-    ListRow({ if (!model.graph.history.openHistory(e)) model.graph.messages.showToast(if (e.pool) "A pool run is going; open this when it ends" else "A search is going; open this when it ends") },
+private fun HistoryRow(graph: AppGraph, e: HistoryEntry) {
+    val hero = if (e.pool) null else e.builds.keys.firstOrNull()?.let { graph.heroes.hero(it) }
+    ListRow({ if (!graph.history.openHistory(e)) graph.messages.showToast(if (e.pool) "A pool run is going; open this when it ends" else "A search is going; open this when it ends") },
         Modifier.padding(horizontal = 12.dp, vertical = 10.dp), leading = {
-            if (hero != null) Face(model.graph.heroes.face(hero), 34.dp)
+            if (hero != null) Face(graph.heroes.face(hero), 34.dp)
             else Box(Modifier.size(34.dp).clip(CircleShape).background(C.pink).border(2.dp, C.edge, CircleShape), contentAlignment = Alignment.Center) {
                 Text("一括", style = zen(10.sp, FontWeight.Bold, C.onAccent))
             }
@@ -64,7 +64,7 @@ private fun HistoryRow(model: AppModel, e: HistoryEntry) {
         }) {
         Text(e.title, style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text("${historyStamp(e.at)} · ${e.detail} · ${e.moves} " + (if (e.moves == 1) "move" else "moves") +
-            (if (e.pool && e.reviewed.isNotEmpty()) " · ${e.reviewed.size} reviewed" else "") + if (e.at == model.graph.pool.pending) " · pending" else "",
+            (if (e.pool && e.reviewed.isNotEmpty()) " · ${e.reviewed.size} reviewed" else "") + if (e.at == graph.pool.pending) " · pending" else "",
             style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
