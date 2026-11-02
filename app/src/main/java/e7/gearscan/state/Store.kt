@@ -146,8 +146,6 @@ class Store(
     private val fields = LinkedHashMap<String, SavedField<*>>()
     private val files = LinkedHashMap<String, SavedFile>()
     private val dirs = LinkedHashMap<String, SavedDir>()
-    var beforeSave: (() -> Unit)? = null
-    var afterLoad: (() -> Unit)? = null
     internal val fieldKeys: Set<String> get() = fields.keys
     internal val registeredFiles: List<SavedFile> get() = files.values.toList()
     internal val registeredDirs: List<SavedDir> get() = dirs.values.toList()
@@ -176,13 +174,11 @@ class Store(
             if (from < version && disk.read(legacyName(from)) == null) disk.write(legacyName(from), text)
         }
         applyFields(json?.let(::migrate)?.optJSONObject("fields"))
-        afterLoad?.invoke()
     }
 
     private fun legacyName(from: Int) = "$fileName.v$from"
 
     fun backup(): JSONObject {
-        beforeSave?.invoke()
         val f = JSONObject()
         fields.values.forEach { f.put(it.key, it.write()) }
         val fs = JSONObject()
@@ -193,7 +189,6 @@ class Store(
     fun restore(json: JSONObject) {
         val m = migrate(json)
         applyFields(m.optJSONObject("fields"))
-        afterLoad?.invoke()
         val fs = m.optJSONObject("files")
         val untouched = m.optJSONArray("untouched")?.let { a -> (0 until a.length()).map(a::getString).toSet() }.orEmpty()
         files.values.filter { it.backup && it.name !in untouched }.forEach { file ->
@@ -218,7 +213,6 @@ class Store(
     }
 
     fun saveNow() {
-        beforeSave?.invoke()
         pending?.cancel()
         val f = JSONObject()
         fields.values.forEach { f.put(it.key, it.write()) }

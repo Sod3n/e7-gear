@@ -14,10 +14,15 @@ object Mirror {
     const val SITE = "https://e7-gear-content.pages.dev/"
     const val COPY = "https://storage.googleapis.com/e7-gear-content/"
 
-    /** The copy answered where the site couldn't; saved, so the next start doesn't wait on the site first. */
-    @Volatile var active = false
+    /** Whether the copy answered where the site couldn't; the owner saves it, so the next start doesn't wait on the site first. */
+    interface Switch {
+        var active: Boolean
+    }
 
-    fun url(u: String) = if (active && u.startsWith(SITE)) COPY + u.removePrefix(SITE) else u
+    fun url(
+        u: String,
+        active: Boolean,
+    ) = if (active && u.startsWith(SITE)) COPY + u.removePrefix(SITE) else u
 
     /**
      * [get]s [u] from whichever host answers, trying the one that worked last time first. [siteFirst] asks the site
@@ -25,18 +30,19 @@ object Mirror {
      */
     fun <T> fetch(
         u: String,
+        mirror: Switch,
         siteFirst: Boolean = false,
         get: (String) -> T,
     ): T {
         if (!u.startsWith(SITE)) return get(u)
         val copy = COPY + u.removePrefix(SITE)
-        val first = if (active && !siteFirst) copy else u
+        val first = if (mirror.active && !siteFirst) copy else u
         val second = if (first == u) copy else u
         return try {
-            get(first).also { active = first == copy }
+            get(first).also { mirror.active = first == copy }
         } catch (e: IOException) {
             if (!unreachable(e)) throw e
-            get(second).also { active = second == copy }
+            get(second).also { mirror.active = second == copy }
         }
     }
 

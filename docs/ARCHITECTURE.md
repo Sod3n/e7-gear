@@ -36,8 +36,9 @@ Package names stay `e7.gearscan.*` in every module, so moving a file between mod
 | `net` | `Net` interface (requests that name the app), content and release checks |
 
 Rules for `:core`:
-- Functions take what they need and return a result; no global mutable state. (`Mirror.active`, `Problems` and
-  `Http`'s user agent move into objects the app passes in.)
+- Functions take what they need and return a result; no global mutable state. `Http` (user agent, third-party guard)
+  and the mirror switch (`Mirror.Switch`) are passed in by the caller. The exceptions are `Problems` and `Ghost.nextId`,
+  named under "The graph".
 - `org.json` is `compileOnly`: Android provides it at run time, tests get it from Maven.
 - Tests: `./gradlew :core:test`. They run in seconds and need no device. The synthetic box (`testing/SyntheticBox`)
   gives every test a deterministic account with gear at every level, so no test needs anyone's real data.
@@ -49,14 +50,14 @@ Rules for `:core`:
 `E7GearApp : Application` builds one `AppGraph` at start. It holds the shared services and every feature:
 
 ```kotlin
-class AppGraph(app: Application) {
-    val disk = Disk(app.filesDir)
-    val store = Store(disk, version = STATE_VERSION, migrations = Migrations.all)
-    val net: Net = AndroidNet(userAgent = "E7Gear/${BuildConfig.VERSION_NAME}")
-    val platform: Platform                    // what the phone does for features: VPN, launching the game, Downloads, installer
+class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: ForegroundHost = NoForeground, val platform: Platform = NoPlatform) {
+    val store = Store(disk, version = STATE_VERSION, migrations = Migrations.all, scope = scope, fileName = "state.json")
+    val http = Http("E7Gear/${platform.appVersion}")  // every request names the app; blocks third parties under instrumented tests
+    val rev = Revision { store.saveSoon() }   // "inputs changed" counter that makes derived results stale
+    val work = WorkHost(scope, foreground)    // the one foreground notification for long searches
     val messages = Messages()                 // toasts, explanations, confirmations
-    val nav = Nav(start = Screen.Optimize)
-    val work = WorkHost(app)                  // the one foreground notification for long searches
+    val nav = Nav(Screen.Optimize, heroName, poolRunning, dismissConfirm)
+    // platform: what the phone does for features: VPN, launching the game, Downloads, installer
     val content = ContentFeature(this)        // game content, image base, mirror
     val appUpdate = AppUpdateFeature(this)
     val scan = ScanFeature(this)              // the box: scans, imports, export, backup, restore, erase
@@ -78,8 +79,12 @@ class AppGraph(app: Application) {
 ```
 
 `MainActivity`, `OverlayService`, `WorkService` and `CaptureVpnService` all reach the graph through
-`(application as E7GearApp).graph`. There are no other global objects with state. There is no dependency-injection
-framework: the graph is plain code a newcomer can read top to bottom.
+`(application as E7GearApp).graph`. There are no other global objects with state except two that are not app state:
+`Problems` (a log of data gaps the screen audit and reports read) and `Ghost.nextId` (hands out app-wide unique
+negative ids; a pool run shows several heroes' ghost builds together, so per-search counters could repeat an id on one
+screen). `Themes`, the saved theme choice and the phone's dark mode, is also still an object read by `C`; the palette
+reads in `C.*` are not composable. There is no dependency-injection framework: the graph is plain code a newcomer can
+read top to bottom.
 
 Screens are functions of the graph (or of one feature): `App(graph)` routes `graph.nav` to a screen, and each screen
 reads and calls the features it shows. Nothing sits between a screen and a feature.
@@ -93,6 +98,28 @@ tracker or a checklist over the game. Features call each other through the graph
 no host interfaces left. Data a feature shows or searches comes from the feature that owns it: setups, names, build
 origins and gain labels from `HeroesFeature`, the overlay checklists from `ChecklistFeature`, Improve heroes from
 `ImproveHeroesFeature`.
+
+### Feature layers
+
+Features are ordered; feature logic uses only features below it. Screens and sheets may read any feature.
+
+| Layer | Holds |
+|---|---|
+| 0 | Services in `AppGraph`: store, work, messages, nav, platform, disk, rev, http |
+| 1 | settings, appUpdate |
+| 2 | content |
+| 3 | feedback |
+| 4 | scan |
+| 5 | marks, records (the tracker's upgrade records) |
+| 6 | heroes |
+| 7 | history |
+| 8 | optimize |
+| 9 | pool |
+| 10 | sellReview, improveHeroes, findGear |
+| 11 | tracker |
+| 12 | checklist, then overGame |
+
+`FeatureLayersTest` checks this in the unit gate and lists the connections not yet removed; the list may only shrink.
 
 ### A feature
 

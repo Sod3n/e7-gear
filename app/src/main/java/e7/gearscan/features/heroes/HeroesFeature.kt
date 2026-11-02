@@ -121,7 +121,7 @@ class HeroesFeature(g: AppGraph) : Feature(g, "heroes") {
         }
         presetLoading[h.code] = true
         g.scope.launch {
-            val tabs = withContext(presetIo) { Presets.load(presetCache, content, h.code, heroName(h), allowNetwork = presetNetwork) }
+            val tabs = withContext(presetIo) { Presets.load(g.http, presetCache, content, h.code, heroName(h), allowNetwork = presetNetwork) }
             presets[h.code] = tabs
             presetsOnline += h.code
             presetLoading[h.code] = false
@@ -135,7 +135,7 @@ class HeroesFeature(g: AppGraph) : Feature(g, "heroes") {
         if (presets.containsKey(h.code) && (!network || h.code in presetsOnline)) return
         presetLoading[h.code] = true
         g.scope.launch {
-            val tabs = withContext(presetIo) { Presets.load(presetCache, content, h.code, heroName(h), allowNetwork = network && presetNetwork) }
+            val tabs = withContext(presetIo) { Presets.load(g.http, presetCache, content, h.code, heroName(h), allowNetwork = network && presetNetwork) }
             presets[h.code] = tabs
             if (network) presetsOnline += h.code
             presetLoading[h.code] = false

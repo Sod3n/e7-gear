@@ -2,7 +2,6 @@ package e7.gearscan.features.scan
 
 import e7.gearscan.AppGraph
 import e7.gearscan.data.Box
-import e7.gearscan.data.Mirror
 import e7.gearscan.state.Disk
 import e7.gearscan.Screen
 import e7.gearscan.state.Feature
@@ -16,7 +15,6 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.json.JSONArray
 import org.json.JSONObject
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -26,7 +24,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ScanFeatureTest {
-    @After fun resetMirror() { Mirror.active = false }
 
     private fun graph(scope: CoroutineScope, dir: File = createTempDirectory("scan").toFile()) = AppGraph(Disk(dir), scope)
 

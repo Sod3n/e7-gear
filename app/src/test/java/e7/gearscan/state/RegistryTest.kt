@@ -16,9 +16,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.json.JSONArray
 import org.json.JSONObject
-import e7.gearscan.data.Mirror
-import org.junit.After
-import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -32,8 +29,6 @@ class RegistryTest {
         val disk get() = g.disk
         fun text(name: String) = disk.read(name)
     }
-
-    @Before @After fun resetMirror() { Mirror.active = false }
 
     private val keptKeys = setOf(
         "settings.proxyOn", "settings.proxy", "settings.overlaySeen", "settings.overGameNative", "settings.nativeSeen",
@@ -63,7 +58,7 @@ class RegistryTest {
         "improveHeroes.minGain" to { g.improveHeroes.minGain = 1.5 },
         "improveHeroes.rebuilds" to { g.improveHeroes.rebuilds = true },
         "content.checkedAt" to { g.content.checkedAt = 99L },
-        "content.mirror" to { Mirror.active = true },
+        "content.mirror" to { g.content.mirror = true },
         "settings.consent" to { g.settings.consent = true },
         "settings.proxyOn" to { g.settings.proxyOn = true },
         "settings.proxy" to { g.settings.proxy = "1.2.3.4:80" },

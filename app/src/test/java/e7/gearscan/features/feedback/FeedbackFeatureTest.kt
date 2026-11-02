@@ -1,7 +1,6 @@
 package e7.gearscan.features.feedback
 
 import e7.gearscan.AppGraph
-import e7.gearscan.data.Mirror
 import e7.gearscan.data.Reports
 import e7.gearscan.state.Disk
 import java.io.File
@@ -11,7 +10,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -20,7 +18,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FeedbackFeatureTest {
-    @After fun resetMirror() { Mirror.active = false }
 
     private fun graph(scope: CoroutineScope, dir: File = createTempDirectory("feedback").toFile()) = AppGraph(Disk(dir), scope)
 

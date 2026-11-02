@@ -6,7 +6,6 @@ import androidx.compose.runtime.setValue
 import e7.gearscan.AppGraph
 import e7.gearscan.data.Content
 import e7.gearscan.data.ContentUpdate
-import e7.gearscan.data.Http
 import e7.gearscan.data.Mirror
 import e7.gearscan.state.Codecs
 import e7.gearscan.state.Feature
@@ -20,6 +19,14 @@ import kotlinx.coroutines.withContext
 class ContentFeature(g: AppGraph) : Feature(g, "content") {
     var checkedAt by saved("checkedAt", 0L, Codecs.long, keepOnErase = true)
     var mirror by saved("mirror", false, Codecs.bool, keepOnErase = true)
+    val mirrorSwitch =
+        object : Mirror.Switch {
+            override var active: Boolean
+                get() = mirror
+                set(value) {
+                    if (mirror != value) mirror = value
+                }
+        }
     val file = savedFile("content.json", backup = false, keepOnErase = true, path = "content.json")
 
     // the APK carries no game data: the last download, or nothing until the first one arrives
@@ -40,7 +47,7 @@ class ContentFeature(g: AppGraph) : Feature(g, "content") {
     }
 
     private fun download(url: String): ByteArray {
-        val c = Http.open(url) as HttpURLConnection
+        val c = g.http.open(url) as HttpURLConnection
         c.connectTimeout = 8000
         c.readTimeout = 20000
         c.useCaches = false
@@ -55,7 +62,7 @@ class ContentFeature(g: AppGraph) : Feature(g, "content") {
         val out =
             withContext(Dispatchers.IO) {
                 runCatching {
-                    ContentUpdate.check(current) { site -> Mirror.fetch(site, siteFirst = true) { url -> fetch(url) } }
+                    ContentUpdate.check(current) { site -> Mirror.fetch(site, mirrorSwitch, siteFirst = true) { url -> fetch(url) } }
                         // whole-file replace, so a write cut short never leaves half a content file
                         .also { o -> o.bytes?.let { b -> file.write(String(b, Charsets.UTF_8)) } }
                 }

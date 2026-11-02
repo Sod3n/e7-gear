@@ -2,7 +2,6 @@ package e7.gearscan.features.tracker
 
 import e7.gearscan.AppGraph
 import e7.gearscan.data.Box
-import e7.gearscan.data.Mirror
 import e7.gearscan.overlay.OverlayBuild
 import e7.gearscan.overlay.OverlayPiece
 import e7.gearscan.state.Disk
@@ -13,7 +12,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -22,7 +20,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChecklistFeatureTest {
-    @After fun resetMirror() { Mirror.active = false }
 
     private val items = Box.parse(SyntheticBox.generate(1).gearText).items.take(3)
 

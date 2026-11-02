@@ -2,7 +2,6 @@ package e7.gearscan.features.heroes
 
 import e7.gearscan.AppGraph
 import e7.gearscan.TestContent
-import e7.gearscan.data.Mirror
 import e7.gearscan.state.Disk
 import e7.gearscan.testing.SyntheticBox
 import java.io.File
@@ -16,7 +15,6 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -25,7 +23,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HeroesFeatureTest {
-    @After fun resetMirror() { Mirror.active = false }
 
     private val made = SyntheticBox.generate(1)
 

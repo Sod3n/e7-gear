@@ -5,7 +5,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import e7.gearscan.data.Box
 import e7.gearscan.data.Http
-import e7.gearscan.data.Mirror
 import e7.gearscan.features.content.ContentFeature
 import e7.gearscan.features.feedback.FeedbackFeature
 import e7.gearscan.features.findgear.FindGearFeature
@@ -44,6 +43,7 @@ const val STATE_VERSION = 2
 
 class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: ForegroundHost = NoForeground, val platform: Platform = NoPlatform) {
     val store = Store(disk, version = STATE_VERSION, migrations = Migrations.all, scope = scope, fileName = "state.json")
+    val http = Http("E7Gear/${platform.appVersion}")
     val rev = Revision { store.saveSoon() }
     val work = WorkHost(scope, foreground)
     val messages = Messages()
@@ -71,11 +71,6 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
     var ready by mutableStateOf(false)
         private set
 
-    init {
-        store.beforeSave = { if (content.mirror != Mirror.active) content.mirror = Mirror.active }
-        store.afterLoad = { Mirror.active = content.mirror }
-    }
-
     fun boxReplacing() = features.forEach { it.onBoxReplacing() }
 
     fun boxChanged(old: Box?, new: Box?) {
@@ -101,7 +96,6 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
     /** Loads the saved state and the box, shows the first screen, and starts the daily checks; the job ends the scan watcher. */
     fun start(): Job {
         ready = false
-        Http.agent = "E7Gear/${appUpdate.version}"
         scan.detectGame()
         return scope.launch {
             launch { scan.watch() }

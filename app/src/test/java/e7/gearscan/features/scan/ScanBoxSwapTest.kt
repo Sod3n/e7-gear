@@ -3,7 +3,6 @@ package e7.gearscan.features.scan
 import e7.gearscan.AppGraph
 import e7.gearscan.data.Box
 import e7.gearscan.data.Item
-import e7.gearscan.data.Mirror
 import e7.gearscan.data.SellQuery
 import e7.gearscan.data.UpgradeRecord
 import e7.gearscan.features.tracker.TrackerFeature
@@ -33,7 +32,6 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class ScanBoxSwapTest {
     @After fun reset() {
-        Mirror.active = false
         Dispatchers.resetMain()
     }
 
