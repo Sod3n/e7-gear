@@ -52,9 +52,10 @@ class QueueScreens {
             }
         }
         rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle(); rule.waitUntil(30_000) { !graph.findGear.busy }
-        val matches = graph.findGear.result!!.matches
+        // Track all takes the pieces with odds; rare-roll pieces stay in their fold
+        val matches = graph.findGear.result!!.withOdds
         assertTrue(matches.size > 20)
-        rule.onNodeWithText("Track all ${matches.size} matches").assertExists()
+        rule.onNodeWithText("Track all ${matches.size}").assertExists()
         shot("30-track-all-matches-353-big")
         ui { graph.messages.show(graph.trackAllMatches(openOverlay = false)) }
         val t = graph.tracker
