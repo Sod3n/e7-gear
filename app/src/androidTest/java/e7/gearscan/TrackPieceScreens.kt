@@ -53,8 +53,8 @@ class TrackPieceScreens {
     /** Waits for the advice ([start]: asks for it first); its time in ms. */
     private fun advise(label: String, start: Boolean = true): Long {
         val t0 = System.currentTimeMillis()
-        if (start) ui { graph.tracker.runCheck() }
-        rule.waitUntil(5 * 60_000) { !graph.tracker.busy && graph.tracker.complete }
+        if (start) ui { graph.tracker.checkRun.runCheck() }
+        rule.waitUntil(5 * 60_000) { !graph.tracker.checkRun.busy && graph.tracker.checkRun.complete }
         return (System.currentTimeMillis() - t0).also { Log.i("TrackPieceScreens", "$label: ${it} ms, ${graph.tracker.title}") }
     }
 
@@ -93,13 +93,13 @@ class TrackPieceScreens {
         }
         fun shot(name: String) { rule.waitForIdle(); val bmp = rule.onRoot().captureToImage().asAndroidBitmap()
             File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) } }
-        fun ranked() = graph.tracker.results.any { it.alts.size >= 2 }
+        fun ranked() = graph.tracker.checkRun.results.any { it.alts.size >= 2 }
         val necklaces = graph.scan.box!!.items.filter { it.slot == e7.gearscan.data.Slot.NECKLACE && it.rank == "Epic" && it.enhance in 3..9 && UpgradeRecord.supported(it) }
             .sortedByDescending { it.score }.take(30)
         val piece = necklaces.firstOrNull { p ->
             ui { graph.tracker.selectPiece(p.id) }
             advise("necklace +${p.enhance}")
-            rule.waitUntil(120_000) { ranked() || graph.tracker.results.none { it.hits.isNotEmpty() } }
+            rule.waitUntil(120_000) { ranked() || graph.tracker.checkRun.results.none { it.hits.isNotEmpty() } }
             ranked()
         } ?: error("no necklace among ${necklaces.size} helps a hero with other necklaces")
         ui { graph.tracker.show(); graph.overlay.expanded = true; overlay = true }
@@ -107,9 +107,9 @@ class TrackPieceScreens {
         recordWeakStep()
         rule.waitUntil(120_000) { ranked() }
         shot("2-after-weak-roll")
-        rule.onNodeWithText("${graph.tracker.chance}%").performClick()
+        rule.onNodeWithText("${graph.tracker.checkRun.chance}%").performClick()
         repeat(4) { i -> shot("3-advice-${i + 1}"); runCatching { rule.onNodeWithContentDescription("Next details page").performClick() } }
-        val h = graph.tracker.results.filter { it.alts.isNotEmpty() }.maxBy { it.hits.size }
+        val h = graph.tracker.checkRun.results.filter { it.alts.isNotEmpty() }.maxBy { it.hits.size }
         File(dir, "result.txt").writeText("${piece.slot} +${piece.enhance} → +${graph.tracker.record!!.item.enhance}: ${graph.tracker.title}\n" +
             "${h.name}: better ${h.better.size}\n" + h.alts.joinToString("\n") + "\n")
         ui { graph.tracker.hide(); overlay = false }
@@ -145,12 +145,12 @@ class TrackPieceScreens {
         val piece = candidates.firstOrNull { p ->
             ui { graph.tracker.selectPiece(p.id) }
             first = advise("first check ${p.slot} +${p.enhance}")
-            graph.tracker.results.any { it.hits.isNotEmpty() && it.hits.size == it.total }
+            graph.tracker.checkRun.results.any { it.hits.isNotEmpty() && it.hits.size == it.total }
         } ?: error("no piece among ${candidates.size} is an upgrade whatever its rolls")
-        val hero = graph.tracker.results.first { it.hits.size == it.total && it.total > 0 }
+        val hero = graph.tracker.checkRun.results.first { it.hits.size == it.total && it.total > 0 }
         ui { graph.tracker.show(); graph.overlay.expanded = true; overlay = true }
         both("1-piece")
-        rule.onNodeWithText("${graph.tracker.chance}%").performClick()
+        rule.onNodeWithText("${graph.tracker.checkRun.chance}%").performClick()
         both("2-advice")
         rule.onNodeWithText("Back").performClick()
         rule.onNodeWithContentDescription("More").performClick()
@@ -166,12 +166,12 @@ class TrackPieceScreens {
         both("4b-app-finished")
         ui { overlay = true }
         rule.onNodeWithContentDescription("Record reforge").performClick()
-        rule.waitUntil(60_000) { graph.tracker.record!!.item.level == 90 && !graph.tracker.busy && graph.tracker.complete }
+        rule.waitUntil(60_000) { graph.tracker.record!!.item.level == 90 && !graph.tracker.checkRun.busy && graph.tracker.checkRun.complete }
         both("5-reforged")
-        check(graph.tracker.equipHeroes.any { it.id == hero.id }) { "${hero.name} isn't offered after the reforge" }
+        check(graph.tracker.checkRun.equipHeroes.any { it.id == hero.id }) { "${hero.name} isn't offered after the reforge" }
         rule.onNodeWithContentDescription("Record equip").performClick()
         both("6-equip-choices")
-        val target = graph.tracker.equipHeroes.first()
+        val target = graph.tracker.checkRun.equipHeroes.first()
         rule.onNodeWithText("${target.name} · ${target.nowGain}").performClick()
         rule.waitForIdle()
         val worn = graph.scan.box!!.gearOf(target.id)[piece.slot]

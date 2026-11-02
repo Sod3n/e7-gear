@@ -154,8 +154,8 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                 pane == UpgradePane.LIST -> QueuePage(g, maxHeight.value) { pane = UpgradePane.PIECE }
                 pane == UpgradePane.MENU -> {
                     val options = listOfNotNull("Open E7 Gear", if(t.isRollReview)"Roll review" else if (!t.hasTarget) "Build advice" else "Targets", "History", "Help") + listOfNotNull("Correct".takeIf { UpgradeRecord.supported(item) }) +
-                        listOfNotNull("Track the better bet".takeIf { t.betterBet != null },
-                            "Final build".takeIf { !t.hasTarget && t.results.any { it.build.isNotEmpty() && (it.hits.isNotEmpty() || it.current) } },
+                        listOfNotNull("Track the better bet".takeIf { t.checkRun.betterBet != null },
+                            "Final build".takeIf { !t.hasTarget && t.checkRun.results.any { it.build.isNotEmpty() && (it.hits.isNotEmpty() || it.current) } },
                             (if (t.rebuilds) "This piece only" else "Allow rebuilds").takeIf { !t.hasTarget },
                             "Recheck builds".takeIf { !t.hasTarget }, "Notice".takeIf { t.notice != null })
                     PanelChoices(options, maxHeight.value, "") { i -> when (options[i]) {
@@ -165,9 +165,9 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                         "History" -> pane = UpgradePane.HISTORY
                         "Correct" -> if (UpgradeRecord.supported(item)) { correction = true; t.beginEdit() }
                         "Help" -> pane = UpgradePane.HELP
-                        "Recheck builds" -> { t.runCheck(); pane = UpgradePane.ADVICE }
+                        "Recheck builds" -> { t.checkRun.runCheck(); pane = UpgradePane.ADVICE }
                         "Final build" -> pane = UpgradePane.BUILD
-                        "Track the better bet" -> { t.betterBet?.let { t.switchTo(it.first) }; pane = UpgradePane.PIECE }
+                        "Track the better bet" -> { t.checkRun.betterBet?.let { t.switchTo(it.first) }; pane = UpgradePane.PIECE }
                         "This piece only", "Allow rebuilds" -> { t.useRebuilds(!t.rebuilds); pane = UpgradePane.ADVICE }
                         "Notice" -> pane = UpgradePane.HELP
                     } }
@@ -177,8 +177,8 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                 pane == UpgradePane.HELP -> PanelTextPages(helpText(t), maxHeight.value)
                 pane == UpgradePane.ADVICE -> PanelTextPages(adviceText(t), maxHeight.value)
                 pane == UpgradePane.BUILD -> PanelTextPages(buildText(t), maxHeight.value)
-                pane == UpgradePane.EQUIP -> PanelChoices(t.equipHeroes.map { "${it.name} · ${it.nowGain}" }, maxHeight.value, "Equipped on") { i ->
-                    t.equipHeroes.getOrNull(i)?.let { h -> t.equip(h.id) }; pane = UpgradePane.PIECE
+                pane == UpgradePane.EQUIP -> PanelChoices(t.checkRun.equipHeroes.map { "${it.name} · ${it.nowGain}" }, maxHeight.value, "Equipped on") { i ->
+                    t.checkRun.equipHeroes.getOrNull(i)?.let { h -> t.equip(h.id) }; pane = UpgradePane.PIECE
                 }
             }
         }
@@ -208,8 +208,8 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                     if (item.enhance < 15 && UpgradeRecord.supported(item)) PanelAction("Record +${((item.enhance / 3 + 1) * 3).coerceAtMost(15)}", Modifier.weight(if(t.isSellQueue)1.2f else 1.7f), pink = !t.isSellQueue) { correction = false; t.beginEdit() }
                     // a finished piece: record the reforge, then equipping it, as done in the game
                     if (!t.isSellQueue && item.enhance == 15 && item.level == 85 && t.canReforge(item.id))
-                        PanelAction("Reforge", Modifier.weight(1.2f), pink = t.equipHeroes.isEmpty(), label = "Record reforge") { t.reforge() }
-                    if (!t.isSellQueue && item.enhance == 15 && t.equipHeroes.isNotEmpty() && t.equippedOn == null)
+                        PanelAction("Reforge", Modifier.weight(1.2f), pink = t.checkRun.equipHeroes.isEmpty(), label = "Record reforge") { t.reforge() }
+                    if (!t.isSellQueue && item.enhance == 15 && t.checkRun.equipHeroes.isNotEmpty() && t.equippedOn == null)
                         PanelAction("Equip", Modifier.weight(1.2f), pink = true, label = "Record equip") { pane = UpgradePane.EQUIP }
                 }
                 else -> {
@@ -234,9 +234,9 @@ private fun PanelBody(modifier: Modifier, floor: Dp, cap: Dp, need: Dp, extra: D
     }
 }
 
-private fun chanceBadge(t: TrackerFeature) = if (!t.hasTarget && t.results.isNotEmpty() && !t.busy && t.scoreQuery == null)
-    when { t.equippedOn != null -> "Done"; t.record?.item?.enhance == 15 -> if (t.equipHeroes.isNotEmpty()) "Equip" else "None"; else -> t.chance?.let { "$it%" } ?: "Advice" }
-    else if(t.sellQueueComplete)"Done" else if(t.isRollReview)if(t.reviewProtected)"Guard" else "Review" else t.goalOutcome?.let { when { !it.supported -> "Unknown"; t.scoreGoal!=null -> if(it.matchesNow) "Above" else if(it.rareOnly) "Rare" else if(!it.possible) "0%" else it.label(); it.matchesNow -> "Ready"; it.rareOnly -> "Rare"; !it.possible -> "Stop"; else -> it.label() } } ?: if (t.busy) "Busy" else "Advice"
+private fun chanceBadge(t: TrackerFeature) = if (!t.hasTarget && t.checkRun.results.isNotEmpty() && !t.checkRun.busy && t.scoreQuery == null)
+    when { t.equippedOn != null -> "Done"; t.record?.item?.enhance == 15 -> if (t.checkRun.equipHeroes.isNotEmpty()) "Equip" else "None"; else -> t.checkRun.chance?.let { "$it%" } ?: "Advice" }
+    else if(t.sellQueueComplete)"Done" else if(t.isRollReview)if(t.reviewProtected)"Guard" else "Review" else t.goalOutcome?.let { when { !it.supported -> "Unknown"; t.scoreGoal!=null -> if(it.matchesNow) "Above" else if(it.rareOnly) "Rare" else if(!it.possible) "0%" else it.label(); it.matchesNow -> "Ready"; it.rareOnly -> "Rare"; !it.possible -> "Stop"; else -> it.label() } } ?: if (t.checkRun.busy) "Busy" else "Advice"
 
 @Composable
 private fun PieceSummary(t: TrackerFeature, item: Item, height: Float, es: EsForecast.Es?, measure: Boolean = false) {
@@ -445,16 +445,16 @@ private fun helpText(t: TrackerFeature) = listOfNotNull(t.notice,
 
 /** The weakest finish that still helps the hero it helps most often, for the piece page. */
 private fun weakestLine(t: TrackerFeature): String? {
-    if (t.busy || t.record?.item?.enhance == 15) return null
-    t.betterBet?.let { return "Better bet: ${it.second}" }
-    val h = t.results.filter { it.hits.isNotEmpty() }.maxByOrNull { it.hits.size } ?: return null
+    if (t.checkRun.busy || t.record?.item?.enhance == 15) return null
+    t.checkRun.betterBet?.let { return "Better bet: ${it.second}" }
+    val h = t.checkRun.results.filter { it.hits.isNotEmpty() }.maxByOrNull { it.hits.size } ?: return null
     return if (h.hits.size == h.total) "An upgrade whatever the rolls" else h.minimal.firstOrNull()?.let { "Upgrade at +15 from: $it" }
 }
 
 /** The final build for the hero the piece helps most (or can be equipped on), as lines. */
 private fun buildText(t: TrackerFeature): String {
-    val h = t.equipHeroes.firstOrNull()?.takeIf { t.record?.item?.enhance == 15 }
-        ?: t.results.filter { it.build.isNotEmpty() && (it.hits.isNotEmpty() || it.current) }.maxByOrNull { it.hits.size } ?: return "No build to show yet."
+    val h = t.checkRun.equipHeroes.firstOrNull()?.takeIf { t.record?.item?.enhance == 15 }
+        ?: t.checkRun.results.filter { it.build.isNotEmpty() && (it.hits.isNotEmpty() || it.current) }.maxByOrNull { it.hits.size } ?: return "No build to show yet."
     val with = if (t.record?.item?.enhance == 15 || h.hits.isEmpty()) "this piece as it is" else "a usual finish of this piece"
     return "Final build for ${h.name}, with $with" + (if (h.typical.isNotEmpty() && h.hits.isNotEmpty()) " (usually ${h.typical})" else if (h.nowGain.isNotEmpty()) " (${h.nowGain})" else "") +
         "\n\n" + h.build.joinToString("\n") + if (h.changes.isNotEmpty()) "\n\nBest finish: ${h.changes}" else ""
@@ -463,9 +463,9 @@ private fun buildText(t: TrackerFeature): String {
 private fun adviceText(t: TrackerFeature) = buildList {
     add(t.title)
     add(if (t.rebuilds) "Counting any rebuild: other pieces and sets may change." else "Counting this piece only: it goes into the hero's slot, nothing else moves.")
-    if (t.expected > 0 && t.total > 0) add("${t.results.size}/${t.expected} saved setups checked. ${t.hitCount} of ${t.total} simulated finishes (${t.chance}%) are an upgrade for at least one hero.")
-    else if (t.expected > 0) add("${t.results.size}/${t.expected} saved setups checked.")
-    t.results.filter { it.current || it.hits.isNotEmpty() || it.combo }.sortedByDescending { it.hits.size }.forEach { h ->
+    if (t.checkRun.expected > 0 && t.checkRun.total > 0) add("${t.checkRun.results.size}/${t.checkRun.expected} saved setups checked. ${t.checkRun.hitCount} of ${t.checkRun.total} simulated finishes (${t.checkRun.chance}%) are an upgrade for at least one hero.")
+    else if (t.checkRun.expected > 0) add("${t.checkRun.results.size}/${t.checkRun.expected} saved setups checked.")
+    t.checkRun.results.filter { it.current || it.hits.isNotEmpty() || it.combo }.sortedByDescending { it.hits.size }.forEach { h ->
         add(buildString {
             append(h.name)
             if (h.current) append(" · an upgrade now${if (h.nowGain.isNotEmpty()) ", ${h.nowGain}" else ""}")
@@ -478,7 +478,7 @@ private fun adviceText(t: TrackerFeature) = buildList {
                 h.alts.mapIndexed { i, line -> "${i + 1}. $line" }.joinToString("\n"))
         })
     }
-    if (t.expected > 0 && !t.busy && t.uncertain) add("Some searches are unfinished. No stop decision is certain; use Recheck builds to continue.")
+    if (t.checkRun.expected > 0 && !t.checkRun.busy && t.checkRun.uncertain) add("Some searches are unfinished. No stop decision is certain; use Recheck builds to continue.")
 }.joinToString("\n\n")
 
 @Composable

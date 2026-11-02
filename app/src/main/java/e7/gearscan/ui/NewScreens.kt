@@ -55,7 +55,7 @@ fun OverlayIntroScreen(graph: AppGraph) {
         graph.settings.overlaySeen = true
         graph.store.saveNow()
         graph.nav.back()
-        if (graph.tracker.shown) graph.tracker.runCheck()
+        if (graph.tracker.shown) graph.tracker.checkRun.runCheck()
         graph.scan.openGame()
     }
     val native = graph.settings.overGameNative

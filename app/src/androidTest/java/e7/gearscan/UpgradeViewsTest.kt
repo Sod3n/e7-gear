@@ -53,12 +53,12 @@ class UpgradeViewsTest {
         tap("Apply total"); tap("Save +12")
         assertEquals(4, t.record!!.item.subs.size)
         ui {
-            t.begin("synthetic-layout-only", 1)
-            t.checkpoint(listOf(UpgradeCheck.HeroResult(1, "Hero with a long saved setup", (0 until 17).toList(), false, false, 0, false, 1.0, "Hp +200 · Spd +4 · Def -20")))
-            t.busy = false
+            t.checkRun.begin("synthetic-layout-only", 1)
+            t.checkRun.checkpoint(listOf(UpgradeCheck.HeroResult(1, "Hero with a long saved setup", (0 until 17).toList(), false, false, 0, false, 1.0, "Hp +200 · Spd +4 · Def -20")))
+            t.checkRun.busy = false
         }
         shot("13-continue-layout-fixture")
-        ui { t.checkpoint(listOf(UpgradeCheck.HeroResult(1, "Hero with a long saved setup", emptyList(), true, false, 0, false, 1.0, "Hp +200"))) }
+        ui { t.checkRun.checkpoint(listOf(UpgradeCheck.HeroResult(1, "Hero with a long saved setup", emptyList(), true, false, 0, false, 1.0, "Hp +200"))) }
         assertEquals("Pause · useful as it is", t.title)
         shot("14-pause-layout-fixture")
         ui { graph.tracker.hide(); t.restore(org.json.JSONObject()) }

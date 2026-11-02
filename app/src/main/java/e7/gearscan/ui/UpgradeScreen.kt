@@ -59,7 +59,7 @@ fun UpgradeScreen(graph: AppGraph) {
                 }
                 Text(t.title, style = zen(13.sp, color = C.blue))
                 VSpace(6.dp)
-                if (!t.hasTarget && !t.busy) t.results.filter { it.current || it.hits.isNotEmpty() }.sortedByDescending { it.hits.size }.take(4).forEach { h ->
+                if (!t.hasTarget && !t.checkRun.busy) t.checkRun.results.filter { it.current || it.hits.isNotEmpty() }.sortedByDescending { it.hits.size }.take(4).forEach { h ->
                     Text(h.name + listOfNotNull(if (h.current) "an upgrade now ${h.nowGain}".trim() else null,
                         if (h.hits.isNotEmpty()) "${h.hits.size * 100 / h.total}% of finishes do better, usually ${h.typical}" else null).joinToString(" · ", " · "),
                         style = zen(12.sp))
@@ -69,7 +69,7 @@ fun UpgradeScreen(graph: AppGraph) {
                 }
                 if (!t.hasTarget && selected.item.enhance == 15) {
                     if (selected.item.level == 85 && t.canReforge(selected.item.id)) LinkText("Record the reforge") { t.reforge() }
-                    if (t.equippedOn == null) t.equipHeroes.forEach { h -> LinkText("Record equipped on ${h.name}") { t.equip(h.id) } }
+                    if (t.equippedOn == null) t.checkRun.equipHeroes.forEach { h -> LinkText("Record equipped on ${h.name}") { t.equip(h.id) } }
                     else LinkText("Undo: equipped on ${t.equippedOn}") { t.undoEquip() }
                     VSpace(6.dp)
                 }
