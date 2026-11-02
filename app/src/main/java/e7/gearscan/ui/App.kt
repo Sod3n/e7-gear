@@ -9,6 +9,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.material3.Text
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.padding
@@ -37,7 +40,17 @@ fun App(model: AppModel, onExit: () -> Unit) {
         Text("‹ Back to the " + if (e7.gearscan.overlay.OverlayState.upgrade != null) "tracker" else "checklist", style = zen(13.sp, color = C.onAccent))
     }
     Box(Modifier.fillMaxWidth().weight(1f)) {
-        when (val s = model.screen) {
+        val nav = model.graph.nav
+        val entry = nav.stack.last()
+        val saveable = rememberSaveableStateHolder()
+        val known = remember { HashSet<Long>() }
+        SideEffect {
+            val live = nav.stack.map { it.id }.toSet()
+            (known - live).forEach { saveable.removeState(it) }
+            known.clear(); known.addAll(live)
+        }
+        saveable.SaveableStateProvider(entry.id) {
+        when (val s = entry.screen) {
             Screen.ScanIntro -> ScanIntroScreen(model)
             Screen.ScanData -> ScanDataScreen(model)
             Screen.Capture -> CaptureScreen(model)
@@ -62,6 +75,7 @@ fun App(model: AppModel, onExit: () -> Unit) {
             is Screen.PoolHero -> PoolHeroScreen(model, s.id, s.setup)
             is Screen.PoolReview -> CompareScreen(model, 0, s.id, review = true)
         }
+        }
         SheetHost(model)
         ToastHost(model, Modifier.align(Alignment.BottomCenter))
         ConfirmHost(model)
@@ -82,7 +96,7 @@ private fun ConfirmHost(model: AppModel) {
             if (run == null) PinkButton("Got it", Modifier.fillMaxWidth()) { model.confirm = null }
             else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlineButton("Cancel", Modifier.weight(1f), height = 46.dp) { model.confirm = null }
-                PinkButton("Reset", Modifier.weight(1f)) { model.confirm = null; c.run?.invoke() }
+                PinkButton(c.action ?: "Reset", Modifier.weight(1f)) { model.confirm = null; c.run?.invoke() }
             }
         }
     }

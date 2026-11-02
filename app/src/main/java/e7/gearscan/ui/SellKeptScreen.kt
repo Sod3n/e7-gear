@@ -1,5 +1,6 @@
 package e7.gearscan.ui
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -14,10 +15,10 @@ import e7.gearscan.data.*
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SellKeptScreen(model: AppModel) {
-    var slots by remember { mutableStateOf(emptySet<Slot>()) }
-    var sets by remember { mutableStateOf(emptySet<String>()) }
-    var sort by remember { mutableIntStateOf(0) }
-    var count by remember { mutableIntStateOf(30) }
+    var slots by rememberSaveable { mutableStateOf(emptySet<Slot>()) }
+    var sets by rememberSaveable { mutableStateOf(emptySet<String>()) }
+    var sort by rememberSaveable { mutableIntStateOf(0) }
+    var count by rememberSaveable { mutableIntStateOf(30) }
     val box = model.box
     // sellKept keeps the order pieces were kept in
     val all = model.sellKept.toList().mapNotNull { box?.itemsById?.get(it) }

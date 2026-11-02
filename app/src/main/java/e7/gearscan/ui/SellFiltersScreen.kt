@@ -222,8 +222,8 @@ private fun SafeguardReason(guard:RollReview.Safeguard,active:Boolean) {
 fun SellFiltersScreen(model:AppModel) {
     val q=model.sellQuery;val result=model.sellResult
     var tab by model::sellTab
-    var count by remember(result) { mutableIntStateOf(20) }
-    var category by remember(result) { mutableIntStateOf(0) }
+    var count by rememberSavedFor(result, 20)
+    var category by rememberSavedFor(result, 0)
     // only the main button moves to Matches; Show my numbers in a sheet keeps the player on Set up
     var jump by remember { mutableStateOf(false) }
     LaunchedEffect(result) { if(result!=null&&jump) { tab=1;jump=false } }

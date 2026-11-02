@@ -1,5 +1,6 @@
 package e7.gearscan.ui
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -51,11 +52,11 @@ fun HeroesScreen(model: AppModel) {
     model.rev
     val box = model.box
     val f = remember { HeroFilter() }
-    var open by remember { mutableStateOf<Long?>(null) }
+    var open by rememberSaveable { mutableStateOf<Long?>(null) }
     // the open row stays in the tier it was opened in, so it doesn't jump while the bar is dragged
-    var openGroup by remember { mutableIntStateOf(0) }
-    var showLow by remember { mutableStateOf(false) }
-    var byMatch by remember { mutableStateOf(false) }
+    var openGroup by rememberSaveable { mutableIntStateOf(0) }
+    var showLow by rememberSaveable { mutableStateOf(false) }
+    var byMatch by rememberSaveable { mutableStateOf(false) }
     Frame(model, Screen.Heroes) {
         ScreenTitle("Heroes") { ScanChip(model.scannedLabel(), model.scanPhase != ScanPhase.IDLE) { if (model.scanPhase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
         if (box == null) { Text("Scan the game to see your heroes.", style = zen(13.sp, FontWeight.Medium, C.muted)); return@Frame }

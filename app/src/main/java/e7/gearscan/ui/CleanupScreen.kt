@@ -1,5 +1,6 @@
 package e7.gearscan.ui
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -107,7 +108,7 @@ private fun Results(model: AppModel, r: e7.gearscan.CleanupState) {
                 style = zen(11.sp, FontWeight.Medium, C.deepPink))
         }
     }
-    var count by remember(r.finishedAt) { mutableStateOf(20) }
+    var count by rememberSavedFor(r.finishedAt, 20)
     var budget = count
     val copies = r.picks.filter { it.twin != null }
     val tickets = r.picks.filter { it.twin == null }
@@ -147,7 +148,7 @@ private fun where(model: AppModel, it: e7.gearscan.data.Item) =
 @Composable
 private fun PickRow(model: AppModel, p: Cleanup.Pick, reason: String) {
     val done = p.item.id in model.cleanupDone
-    var open by remember(p.item.id) { mutableStateOf(false) }
+    var open by rememberSaveable(p.item.id) { mutableStateOf(false) }
     val shown = p.better.ifEmpty { listOfNotNull(p.twin) }
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.padding(top = 20.dp)) { Checkbox(done) { model.markCleaned(p.item.id, it) } }
