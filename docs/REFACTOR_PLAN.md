@@ -3,6 +3,19 @@
 How to get from today's code to [ARCHITECTURE.md](ARCHITECTURE.md), in steps that each build, pass every check and
 change no behaviour except the bugs listed. Written 2026-11-02 against `gear-modes` d413d10.
 
+## Status (2026-11-02)
+
+| Step | Became |
+|---|---|
+| 0-12 | Done. |
+| Make room | Removed (dropped 2026-11-01); its cleared marks live in `MarksFeature`. |
+| `PoolService` | Renamed `WorkService` (step 7). |
+| Added | `Platform`, `OverGame` and `OverlayWindow`, which take the Android and overlay-window calls out of the features. |
+| 13 | Done: `Frame` draws the screen's one pink button from `primary` (+ optional outlined `secondary`) and `PinkButton` is internal to `:kit`; `@LinkStyle` and `@KeyboardInput` opt-ins; every reset and erase takes `Confirmed`, and Erase all data uses the confirm dialog. Source checks removed: `keyboardInputIsLimitedToLegacyStatControls` (kept as `appHasNoRawTextFields`) and `resetButtonsAskFirst`. Kept: `upgradeTrackerHasNoScrollContainers` (raw `verticalScroll` cannot be hidden), fonts, icons, no bundled game data, number formatting, one-line texts, grids, requests. `FixedSize` and `Scrolling` opt-ins were not built. |
+| Deferred | Text roles and the value types app-wide (`Chance`, `Gold`, `StatAmount`; only `Count` exists). |
+| Deferred | Design changes for the maintainer: the Find gear redesign; links to rows (`LinkText` is still used ~65 times behind `@LinkStyle`). |
+| Deferred | Release (step 6) and step 14. |
+
 ## Decisions in force (assumed 2026-11-02, the maintainer may revise)
 
 - Steps 0–5 come before release 1.1; the release itself (step 6) and any push wait for the maintainer.
