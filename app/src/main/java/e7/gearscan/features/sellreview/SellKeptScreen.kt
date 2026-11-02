@@ -1,4 +1,6 @@
-package e7.gearscan.ui
+package e7.gearscan.features.sellreview
+
+import e7.gearscan.ui.*
 
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.*
@@ -20,8 +22,8 @@ fun SellKeptScreen(model: AppModel) {
     var sort by rememberSaveable { mutableIntStateOf(0) }
     var count by rememberSaveable { mutableIntStateOf(30) }
     val box = model.box
-    // sellKept keeps the order pieces were kept in
-    val all = model.sellKept.toList().mapNotNull { box?.itemsById?.get(it) }
+    // kept keeps the order pieces were kept in
+    val all = model.graph.marks.kept.toList().mapNotNull { box?.itemsById?.get(it) }
     fun es(item: Item) = InventoryOrder.score(item)
     val shown = all.filter { (slots.isEmpty() || it.slot in slots) && (sets.isEmpty() || it.set in sets) }.let { list ->
         when (sort) { 0 -> list.asReversed(); 1 -> list.sortedBy(::es); else -> list.sortedByDescending(::es) }
@@ -57,7 +59,7 @@ fun SellKeptScreen(model: AppModel) {
                     }
                 }
                 VSpace(6.dp)
-                OutlineButton("Unlock", Modifier.fillMaxWidth(), height = 36.dp) { model.unmarkSellReview(item.id) }
+                OutlineButton("Unlock", Modifier.fillMaxWidth(), height = 36.dp) { model.graph.marks.unmark(item.id) }
             }
         }
         if (count < shown.size) OutlineButton("Show 30 more", Modifier.fillMaxWidth(), height = 42.dp) { count += 30 }

@@ -85,28 +85,28 @@ class SellFiltersScreens {
         fun noPoints() { rule.onAllNodes(hasText(" pts",substring=true),useUnmergedTree=true).assertCountEquals(0) }
         noPoints();shot("01-roll-review-411")
         ui { width=353;font=1.3f };noPoints();shot("02-roll-review-353-big")
-        assertFalse(model.sellQuery.scoreFilter);assertEquals(SellSort.QUALITY,model.sellQuery.sort)
-        assertEquals(SellQuery.DEFAULT_GUARDS,model.sellQuery.keepStats);assertTrue(model.sellQuery.includeLocked)
-        tap("Find matches");rule.waitUntil(90_000) { !model.sellBusy }
-        assertNotNull(model.sellResult);assertTrue(model.sellResult!!.matches.size>20);assertTrue(model.sellFresh)
-        val first=model.sellResult!!.matches.first()
-        assertTrue(model.sellResult!!.matches.all { !it.scoreUsed })
+        assertFalse(model.graph.sellReview.query.scoreFilter);assertEquals(SellSort.QUALITY,model.graph.sellReview.query.sort)
+        assertEquals(SellQuery.DEFAULT_GUARDS,model.graph.sellReview.query.keepStats);assertTrue(model.graph.sellReview.query.includeLocked)
+        tap("Find matches");rule.waitUntil(90_000) { !model.graph.sellReview.busy }
+        assertNotNull(model.graph.sellReview.result);assertTrue(model.graph.sellReview.result!!.matches.size>20);assertTrue(model.graph.sellReview.fresh)
+        val first=model.graph.sellReview.result!!.matches.first()
+        assertTrue(model.graph.sellReview.result!!.matches.all { !it.scoreUsed })
         noPoints();shot("04-raw-results")
         ui { model.sheet=Sheet(SheetKind.SELL_DETAILS,first.item.id) };noPoints();shot("05-roll-history")
         ui { model.sheet=Sheet(SheetKind.SELL_EXTRA,0) };shot("08-more-filters")
-        tap("Also filter by combined score");assertTrue(model.sellQuery.scoreFilter)
-        tap("Also filter by combined score");assertFalse(model.sellQuery.scoreFilter);tap("Done")
+        tap("Also filter by combined score");assertTrue(model.graph.sellReview.query.scoreFilter)
+        tap("Also filter by combined score");assertFalse(model.graph.sellReview.query.scoreFilter);tap("Done")
         // what the safeguard slider commits: Speed 20 alone
-        ui { model.sheet=null;model.updateSellQuery(model.sellQuery.copy(keepStats=mapOf(GearStat.SPD to 20.0))) }
-        assertEquals(20.0,model.sellQuery.keepStats.getValue(GearStat.SPD),0.0)
-        ui { model.sellTab=1 };assertFalse(model.sellFresh);noPoints();shot("10-stale")
-        val old=model.screen;ui { model.trackSellMatches(openOverlay=false) };assertEquals(old,model.screen)
-        tap("Update matches");rule.waitUntil(90_000) { !model.sellBusy };assertTrue(model.sellFresh)
-        val result=model.sellResult!!;assertTrue(result.matches.size>20);assertTrue(result.matches.none { it.protected })
+        ui { model.sheet=null;model.graph.sellReview.edit(model.graph.sellReview.query.copy(keepStats=mapOf(GearStat.SPD to 20.0))) }
+        assertEquals(20.0,model.graph.sellReview.query.keepStats.getValue(GearStat.SPD),0.0)
+        tap("Matches");assertFalse(model.graph.sellReview.fresh);noPoints();shot("10-stale")
+        val old=model.screen;ui { model.graph.sellReview.trackMatches(openOverlay=false) };assertEquals(old,model.screen)
+        tap("Update matches");rule.waitUntil(90_000) { !model.graph.sellReview.busy };assertTrue(model.graph.sellReview.fresh)
+        val result=model.graph.sellReview.result!!;assertTrue(result.matches.size>20);assertTrue(result.matches.none { it.protected })
         val protected=result.rows.count { it.protected };assertTrue(protected>0)
         tap("$protected kept by safeguards");noPoints();shot("11-stat-safeguards-applied");tap("$protected kept by safeguards")
         val n=result.matches.size
-        ui { model.trackSellMatches(openOverlay=false) }
+        ui { model.graph.sellReview.trackMatches(openOverlay=false) }
         val t=model.upgrades
         assertEquals(n,t.queue.size);assertTrue(t.isRollReview);assertTrue(t.queue.all { it.scoreGoal==null&&it.goal==null });noPoints();shot("12-review-tracker")
         ui { OverlayState.expanded=true;OverlayState.usableHeightDp=240f;overlay=true }
@@ -148,14 +148,14 @@ class SellFiltersScreens {
         shot("21-sold-mark-restored",true)
         var returned=0;ui { t.returnToApp={returned++} };rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Open E7 Gear");assertEquals(1,returned)
         val backup=model.backupText();val saved=JSONObject(backup)
-        assertEquals(model.sellQuery,SellQuery.of(saved.getJSONObject("state").getJSONObject("sellQuery")))
+        assertEquals(model.graph.sellReview.query,SellQuery.of(saved.getJSONObject("state").getJSONObject("sellQuery")))
         val reopened=UpgradeTracker(File(ctx.filesDir,"upgrades.json"));assertTrue(reopened.isRollReview);assertEquals(t.reviewRolls,reopened.reviewRolls);assertEquals(t.queue,reopened.queue)
-        val lastQuery=model.sellQuery
+        val lastQuery=model.graph.sellReview.query
         ui { overlay=false;assertTrue(model.restore(backup));model.go(Screen.SellFilters) }
-        assertEquals(lastQuery,model.sellQuery);assertFalse(model.sellQuery.scoreFilter);noPoints()
-        ui { model.findSellGear() };rule.waitUntil(90_000) { !model.sellBusy }
-        val only=model.sellResult!!.matches.first().item.id
-        ui { model.trackSellMatches(only,openOverlay=false);OverlayState.expanded=true;overlay=true }
+        assertEquals(lastQuery,model.graph.sellReview.query);assertFalse(model.graph.sellReview.query.scoreFilter);noPoints()
+        ui { model.graph.sellReview.find() };rule.waitUntil(90_000) { !model.graph.sellReview.busy }
+        val only=model.graph.sellReview.result!!.matches.first().item.id
+        ui { model.graph.sellReview.trackMatches(only,openOverlay=false);OverlayState.expanded=true;overlay=true }
         tap("Sold ›");assertTrue(t.sellQueueComplete);assertEquals(0,t.pendingQueue.size)
         assertTrue(only in model.clearedIds);shot("22-all-marked",true)
         ui { model.markOverlaySold(only) };assertEquals(0,t.pendingQueue.size)

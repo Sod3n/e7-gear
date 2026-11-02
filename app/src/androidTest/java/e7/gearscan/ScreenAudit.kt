@@ -225,14 +225,14 @@ class ScreenAudit {
         }
 
         // Sell review: one search with its keep-rolling numbers, and Find gear: one search; every setup reuses them
-        ui { model.findSellGear() }
-        rule.waitUntil(300_000) { !model.sellBusy }
-        runCatching { rule.waitUntil(180_000) { !model.sellCurveBusy && model.sellCurve != null } }
-        if (model.sellResult?.matches.isNullOrEmpty()) add("Sell review finds nothing on the fixture, so its cards go unchecked", "sell")
-        if (model.sellCurve == null) add("the keep-rolling numbers never arrive", "sell")
-        val baseSellQuery = model.sellQuery
-        val sellFirst = model.sellResult?.matches?.firstOrNull()?.item?.id
-        ui { model.sellResult?.matches?.drop(1)?.take(3)?.forEach { model.markSellReview(it.item.id, keep = true) }; model.toast = null }
+        ui { model.graph.sellReview.find() }
+        rule.waitUntil(300_000) { !model.graph.sellReview.busy }
+        runCatching { rule.waitUntil(180_000) { !model.graph.sellReview.curveBusy && model.graph.sellReview.keepCurve != null } }
+        if (model.graph.sellReview.result?.matches.isNullOrEmpty()) add("Sell review finds nothing on the fixture, so its cards go unchecked", "sell")
+        if (model.graph.sellReview.keepCurve == null) add("the keep-rolling numbers never arrive", "sell")
+        val baseSellQuery = model.graph.sellReview.query
+        val sellFirst = model.graph.sellReview.result?.matches?.firstOrNull()?.item?.id
+        ui { model.graph.sellReview.result?.matches?.drop(1)?.take(3)?.forEach { model.graph.marks.markReviewed(it.item.id, keep = true) }; model.toast = null }
         ui { model.findGearPotential() }
         runCatching { rule.waitUntil(120_000) { model.potentialResult != null } }
 
@@ -593,21 +593,21 @@ class ScreenAudit {
         (0..2).forEach { screen("diff-$it", Screen.ScanResult, Screen.DiffItems(it)) }
         // the Gear tab and its three modes
         screen("gear-home", Screen.Gear)
-        steps.add("sell-setup" to { ui { model.sheet = null; model.confirm = null; model.sellTab = 0; model.stack = listOf(Screen.Gear, Screen.SellFilters) } })
-        steps.add("sell-matches" to { ui { model.sellTab = 1 } })
+        steps.add("sell-setup" to { ui { model.sheet = null; model.confirm = null; model.stack = listOf(Screen.Gear, Screen.SellFilters) } })
+        steps.add("sell-matches" to { clickText("Matches") })
         listOf(SheetKind.SELL_WORTH, SheetKind.SELL_SAFEGUARDS, SheetKind.SELL_INVENTORY, SheetKind.SELL_SLOTS, SheetKind.SELL_SETS, SheetKind.SELL_MAINS, SheetKind.SELL_EXTRA).forEach { k ->
             steps.add("sell-${k.name.lowercase()}" to { ui { model.confirm = null; model.stack = listOf(Screen.Gear, Screen.SellFilters); model.sheet = Sheet(k, 0) } })
         }
-        steps.add("sell-details" to { ui { model.stack = listOf(Screen.Gear, Screen.SellFilters); model.sellTab = 1; model.sheet = sellFirst?.let { Sheet(SheetKind.SELL_DETAILS, it) } } })
+        steps.add("sell-details" to { ui { model.stack = listOf(Screen.Gear, Screen.SellFilters) }; clickText("Matches"); ui { model.sheet = sellFirst?.let { Sheet(SheetKind.SELL_DETAILS, it) } } })
         steps.add("sell-explain" to { ui { model.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; clickText("Total gold") })
         steps.add("sell-confirm" to { ui { model.confirm = null; model.sheet = Sheet(SheetKind.SELL_WORTH, 0); model.askReset("Reset the ES bars?", "Every slot goes back to the middle ES of your own +15 pieces.") {} } })
-        steps.add("sell-kept" to { ui { model.confirm = null; model.sheet = null; model.sellTab = 0; model.stack = listOf(Screen.Gear, Screen.SellFilters, Screen.SellKept) } })
+        steps.add("sell-kept" to { ui { model.confirm = null; model.sheet = null; model.stack = listOf(Screen.Gear, Screen.SellFilters, Screen.SellKept) } })
         steps.add("sell-kept-back" to {
             ui { model.back() }
-            if (model.screen != Screen.SellFilters || model.sellTab != 0) add("back from Kept pieces doesn't return to the Sell review tab you left", "sell kept: ${model.screen}, tab ${model.sellTab}")
+            if (model.screen != Screen.SellFilters || rule.onAllNodesWithText("Worth rolling").fetchSemanticsNodes().isEmpty()) add("back from Kept pieces doesn't return to the Sell review tab you left", "sell kept: ${model.screen}")
         })
         steps.add("sell-overlay" to {
-            ui { model.sheet = null; model.trackSellMatches(openOverlay = false); OverlayState.upgrade = model.upgrades; OverlayState.expanded = true }
+            ui { model.sheet = null; model.graph.sellReview.trackMatches(openOverlay = false); OverlayState.upgrade = model.upgrades; OverlayState.expanded = true }
             overlay = true
         })
         steps.add("improve-heroes" to { ui { overlay = false; OverlayState.upgrade = null; model.sheet = null; model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) } })
@@ -793,9 +793,9 @@ class ScreenAudit {
         flips += listOf(
             Triple("sell: a safeguard to off", { ui { overlay = false; model.stack = listOf(Screen.Gear, Screen.SellFilters); model.sheet = Sheet(SheetKind.SELL_SAFEGUARDS, 0) }
                 runCatching { rule.onAllNodesWithText("Spd", useUnmergedTree = true)[0].performScrollTo() }; rule.waitForIdle() },
-                { ui { model.updateSellQuery(model.sellQuery.copy(keepStats = model.sellQuery.keepStats - e7.gearscan.data.GearStat.SPD)) } }),
-            Triple("sell: keep-rolling chance", { ui { model.updateSellQuery(model.sellQuery.copy(keepStats = e7.gearscan.data.SellQuery.DEFAULT_GUARDS)); model.sheet = Sheet(SheetKind.SELL_WORTH, 0) } },
-                { ui { model.updateSellQuery(model.sellQuery.copy(rollOn = if (model.sellQuery.rollOn == 1.0) 10.0 else 1.0)) } }),
+                { ui { model.graph.sellReview.edit(model.graph.sellReview.query.copy(keepStats = model.graph.sellReview.query.keepStats - e7.gearscan.data.GearStat.SPD)) } }),
+            Triple("sell: keep-rolling chance", { ui { model.graph.sellReview.edit(model.graph.sellReview.query.copy(keepStats = e7.gearscan.data.SellQuery.DEFAULT_GUARDS)); model.sheet = Sheet(SheetKind.SELL_WORTH, 0) } },
+                { ui { model.graph.sellReview.edit(model.graph.sellReview.query.copy(rollOn = if (model.graph.sellReview.query.rollOn == 1.0) 10.0 else 1.0)) } }),
         )
         // flips edit the hero's request; every setup starts from the request the searches were run with
         val baseRequest = model.request(hero).copy()
@@ -810,10 +810,10 @@ class ScreenAudit {
             overlay = false
             ui { OverlayState.expanded = false; resetCapture(model); model.team = listOf(hero); model.pickHero(hero) }
             // the last setup's flips edited the sell filters, which drops the keep-rolling numbers
-            if (model.sellQuery != baseSellQuery || model.sellCurve == null) {
-                ui { model.updateSellQuery(baseSellQuery); model.findSellGear() }
-                rule.waitUntil(300_000) { !model.sellBusy }
-                runCatching { rule.waitUntil(180_000) { !model.sellCurveBusy && model.sellCurve != null } }
+            if (model.graph.sellReview.query != baseSellQuery || model.graph.sellReview.keepCurve == null) {
+                ui { model.graph.sellReview.edit(baseSellQuery); model.graph.sellReview.find() }
+                rule.waitUntil(300_000) { !model.graph.sellReview.busy }
+                runCatching { rule.waitUntil(180_000) { !model.graph.sellReview.curveBusy && model.graph.sellReview.keepCurve != null } }
             }
             for ((name, act) in steps) {
                 if (!matches(only, name)) continue

@@ -1,4 +1,6 @@
-package e7.gearscan.ui
+package e7.gearscan.features.sellreview
+
+import e7.gearscan.ui.*
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
