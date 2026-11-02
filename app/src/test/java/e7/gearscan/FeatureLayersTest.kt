@@ -23,7 +23,6 @@ class FeatureLayersTest {
 
     // Wrong-way connections not yet removed. Plan 2 empties this list; a fixed one must leave it.
     private val notYetFixed = setOf(
-        "feedback->scan",
         "heroes->pool", "history->optimize", "history->pool",
         "sellreview->tracker", "improveheroes->tracker", "findgear->tracker",
     )

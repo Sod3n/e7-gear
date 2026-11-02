@@ -209,10 +209,10 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
                     error = err ?: ScanError.NOTHING
                     // the reason goes into bug reports ("last error"), so a failed import can be told apart later
                     g.feedback.lastError = "scan: ${error!!.name.lowercase()}" + (cause?.let { " · $it" } ?: "")
-                    g.feedback.saveScanLog()
+                    g.feedback.saveScanLog(capture.logText())
                     return@launch
                 }
-                g.feedback.saveScanLog()
+                g.feedback.saveScanLog(capture.logText())
                 capture.clear()
                 decodeSec = ((System.currentTimeMillis() - t0) / 1000).toInt().coerceAtLeast(1)
                 import(text)

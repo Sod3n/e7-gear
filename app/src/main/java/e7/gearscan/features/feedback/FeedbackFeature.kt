@@ -41,9 +41,9 @@ class FeedbackFeature(g: AppGraph) : Feature(g, "feedback") {
         g.disk.file(CRASH_FILE).delete()
     }
 
-    fun saveScanLog() = logFile.write(g.scan.capture.logText())
+    fun saveScanLog(text: String) = logFile.write(text)
 
-    fun scanLog(): String = g.scan.capture.logText().ifEmpty { logFile.file.takeIf { it.exists() }?.readText().orEmpty() }
+    fun scanLog(live: String): String = live.ifEmpty { logFile.file.takeIf { it.exists() }?.readText().orEmpty() }
 
     fun deviceInfo(): String {
         val v = runCatching { g.platform.appVersion }.getOrNull() ?: "?"
