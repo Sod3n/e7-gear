@@ -10,7 +10,8 @@ import kotlin.random.Random
 /**
  * Simulated +15 finishes of a piece below +15, with the game's rules as checked on players' roll histories: every +3 rolls
  * one existing line with equal chance; a Heroic piece gets its fourth line at +12 instead; rolls are uniform in the
- * level's range (speed and flat stats round down, so their table maximum almost never shows and is left out).
+ * level's range (speed and flat stats round down, so their table maximum almost never shows and is left out; level 88
+ * Speed is the exception: its 5 is a quarter of the Speed rolls in a real 2,467-piece inventory, 195 of 775).
  */
 object Finish {
     private val roll85 =
@@ -29,7 +30,7 @@ object Finish {
         )
     private val roll88 =
         mapOf(
-            GearStat.SPD to (3 to 4),
+            GearStat.SPD to (3 to 5),
             GearStat.CR to (3 to 6),
             GearStat.CD to (4 to 8),
             GearStat.ATK_P to (5 to 9),

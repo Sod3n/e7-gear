@@ -100,11 +100,19 @@ class GearPotentialTest {
     }
 
     @Test fun rareEndpointsArePossibleButDoNotGetInventedPercentages() {
-        val q = item(12, 15.0, level = 88)
-        val out = chance(q, GearStat.SPD to 20.0)
+        val q = item(12, 15.0, level = 85)
+        val out = chance(q, GearStat.SPD to 20.0, reforge = false)
         assertEquals(0.0, out.chance, 0.0)
         assertTrue(out.possible)
         assertTrue(out.rareOnly)
+        assertFalse(chance(q, GearStat.SPD to 21.0, reforge = false).possible)
+    }
+
+    @Test fun level88SpeedFiveIsAnOrdinaryRoll() {
+        val q = item(12, 15.0, level = 88)
+        val out = chance(q, GearStat.SPD to 20.0)
+        assertTrue(out.chance > 0)
+        assertFalse(out.rareOnly)
         assertFalse(chance(q, GearStat.SPD to 21.0).possible)
     }
 
