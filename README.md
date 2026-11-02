@@ -45,5 +45,37 @@ against Epic Seven's terms of service; use the scan at your own risk.
 
 ## Building
 
-Android Studio or `./gradlew assembleDebug` (JDK 17). The app downloads its game data at runtime, so a debug build
-works without any data files. Tests that need game data download a copy on first run.
+You need JDK 17 and the Android SDK with NDK 29.0.14206865 (the build asks Gradle to install the SDK parts it can;
+install the NDK from Android Studio's SDK Manager).
+
+The VPN capture builds from a native submodule that has submodules of its own, so clone with all of them:
+
+```
+git clone --recurse-submodules https://github.com/Sod3n/e7-gear.git
+```
+
+In an existing clone run `git submodule update --init --recursive`. A plain `--init` fails.
+
+```
+./gradlew assembleDebug                  # debug APK in app/build/outputs/apk/debug
+./gradlew :core:test :app:testDebugUnitTest
+./gradlew :app:lintDebug :core:ktlintCheck
+```
+
+The app downloads its game data at runtime, so a debug build works without any data files. Tests that need game
+data download a copy to `content/content.json` on first run (it is not committed).
+
+### Screen audit
+
+The audit renders every screen on an emulator (never a phone: it replaces the app's saved data) and fails on
+crashes, clipped or broken text and missing images. It needs no real account. Generate the synthetic one, start an
+emulator, then run the audit:
+
+```
+./gradlew :core:syntheticFixtures
+E7_FIXTURES=$PWD/core/build/fixtures/synthetic tools/audit.sh
+```
+
+Screenshots and `report.txt` land in `app/build/audit/`. `E7_FIXTURES` takes any folder with `gear.txt` or
+`backup.json`, so you can point it at your own backup instead. The same audit runs on GitHub from the "Screen audit"
+workflow.
