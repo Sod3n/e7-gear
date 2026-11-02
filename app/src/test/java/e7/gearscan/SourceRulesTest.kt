@@ -73,7 +73,7 @@ class SourceRulesTest {
     @Test
     fun gridsGoThroughCardGrid() {
         // a hand-made grid lets one cell grow taller than its neighbour; CardGrid gives every row one height
-        val hits = File(src, "e7/gearscan/ui").walk().filter { it.extension == "kt" && it.name != "Kit.kt" }.flatMap { f ->
+        val hits = listOf("ui", "features").map { File(src, "e7/gearscan/$it") }.flatMap { it.walk() }.filter { it.extension == "kt" && it.name != "Kit.kt" }.flatMap { f ->
             f.readLines().withIndex().filter { ".chunked(" in it.value }.map { "${f.name}:${it.index + 1}: ${it.value.trim()}" }
         }.toList()
         assertTrue("grids built by hand (use CardGrid):\n" + hits.joinToString("\n"), hits.isEmpty())

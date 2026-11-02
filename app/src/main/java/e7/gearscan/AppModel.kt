@@ -8,7 +8,6 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import e7.gearscan.calc.Rating
 import e7.gearscan.features.scan.ScanFeature
 import e7.gearscan.data.Box
 import e7.gearscan.data.GameHero
@@ -16,25 +15,17 @@ import e7.gearscan.data.Goal
 import e7.gearscan.data.HeroConfig
 import e7.gearscan.data.Item
 import e7.gearscan.data.OwnedHero
-import e7.gearscan.data.PresetTabs
-import e7.gearscan.data.Presets
 import e7.gearscan.data.Request
-import e7.gearscan.data.SavedBuild
 import e7.gearscan.data.Stat
 import e7.gearscan.data.fmtNum
 import e7.gearscan.data.Slot
 import e7.gearscan.opt.Build
 import e7.gearscan.opt.Ghost
-import e7.gearscan.opt.SearchRun
 import e7.gearscan.opt.Setup
-import e7.gearscan.state.Weight
-import e7.gearscan.state.Work
-import e7.gearscan.state.WorkScope
 import e7.gearscan.state.blocking
 import e7.gearscan.ui.Outcome
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -77,72 +68,10 @@ enum class SheetKind { PRESET, TARGETS, ADVANCED, BONUS, SETS, MAINS, GOALS, SHO
 /** [back] is the sheet to return to when this one finishes; null closes. */
 data class Sheet(val kind: SheetKind, val heroId: Long, val back: SheetKind? = null)
 
-data class SearchState(
-    val heroId: Long,
-    val running: Boolean = true,
-    val startedAt: Long = System.currentTimeMillis(),
-    val finishedAt: Long = 0,
-    val builds: List<Build> = emptyList(),
-    val current: Build? = null,
-    val timedOut: Boolean = false,
-    val cancelled: Boolean = false,
-    val ghostRunning: Boolean = false,
-    val ghost: Build? = null,
-    val ghostSearched: Boolean = false,
-    val team: List<Pair<Long, Build?>> = emptyList(),
-    val moved: Int = 0,
-    /** Opened from history (its start time): no equip in the app, only a checklist flagged as from history. */
-    val historyAt: Long = 0,
-    /** No build: the rules that each, loosened alone, let builds through. */
-    val blockers: List<String>? = null,
-    val checkingBlockers: Boolean = false,
-    val limitMs: Long = 15_000L,
-)
-
-/** Builds a one-hero search keeps in history: the top of the list, not all fifty. */
-const val HISTORY_BUILDS = 10
-
-/** Time cap per hero in a pool run; top-1 searches usually finish far sooner. */
-const val POOL_HERO_MS = 6_000L
 /** Saved Improve heroes results of another format are dropped on load. */
 const val HERO_UPGRADES_FORMAT = 2
 /** Simulated finishes the tracker checks a piece with: the chance it ends up an upgrade, and its weakest helping finishes. */
 const val PIECE_SIMS = 120
-/** Sheet hero id for the Advanced sheet editing every hero in the pool run at once. */
-const val POOL_RULES = -2L
-
-/**
- * Pieces [taker] wanted from [holder], both in the run: [made] if they moved. A trade not made carries what it would have
- * done in match points ([gain] for the taker, [loss] for the holder); a made one reads its effect off the run's before/after.
- */
-class Trade(val taker: Long, val holder: Long, val items: List<Long>, val made: Boolean,
-            val takerPoints: Pair<Double, Double> = e7.gearscan.opt.NaN2, val holderPoints: Pair<Double, Double> = e7.gearscan.opt.NaN2, val moves: Int = 0,
-            /** The player gave these pieces away, but the wearer has no full build at all without them. */
-            val stuck: Boolean = false)
-
-data class PoolState(
-    val ids: List<Long>,
-    val before: Map<Long, Int?>,
-    val builds: Map<Long, Build?>,
-    val after: Map<Long, Int?>,
-    val current: Long?,
-    val currentBest: Int?,
-    val running: Boolean,
-    val startedAt: Long,
-    val finishedAt: Long,
-    /** Pieces one hero of the run wanted from another, made or not; the player may overrule each and re-run. */
-    val trades: List<Trade> = emptyList(),
-    /** Pass over the heroes; a later pass looks again at what earlier trades freed up. */
-    val round: Int = 1,
-    /** Heroes looked at in the results walk-through; kept with the run's history entry. */
-    val reviewed: Set<Long> = emptySet(),
-    /** Opened from history: the gear may have moved since; its checklist is flagged. */
-    val fromHistory: Boolean = false,
-    /** Each hero's setup as the run used it, so an edit made while reviewing can offer a re-run. */
-    val setups: Map<Long, String> = emptyMap(),
-) {
-    val moves get() = builds.entries.sumOf { (id, b) -> b?.items?.count { it.equippedOn != id && !it.ghost } ?: 0 }
-}
 
 /** The hero-upgrade check for the inputs behind [key] (see AppModel.heroUpgradeKey); [result] null until one finished. */
 data class HeroUpgradeState(
@@ -160,19 +89,11 @@ data class HeroUpgradeState(
 class AppModel(app: Application) : AndroidViewModel(app) {
     val graph = getApplication<E7GearApp>().graph
     private val files = app.filesDir
-    internal val buildsDir = graph.heroes.builds.dir
-    val limitMs = 15_000L
-    val longLimitMs = 60_000L
 
     val content get() = graph.content.content
     val box get() = graph.scan.box
     val rev get() = graph.scan.rev
     private val configs get() = graph.heroes.configs
-    /** Gear tier per hero, 1 (just geared) to 5 (best of account); unset means 1. */
-    var tiers get() = graph.heroes.tiers
-        set(v) { graph.heroes.tiers = v }
-    var team get() = graph.heroes.team
-        set(v) { graph.heroes.team = v }
     val lastScan get() = graph.scan.lastScan
     /** With the "closest to targets" goal, results show match % unless another rating is picked. */
     var showMatch by mutableStateOf(true)
@@ -183,12 +104,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var sheet: Sheet?
         get() = graph.nav.sheet
         set(v) { graph.nav.sheet = v }
-
-    val presets = mutableStateMapOf<String, PresetTabs?>()
-    val presetLoading = mutableStateMapOf<String, Boolean>()
-
-    var search: SearchState? by mutableStateOf(null)
-        internal set
 
     var ready by mutableStateOf(false)
         private set
@@ -233,308 +148,33 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun touch() = graph.scan.touch()
 
     // ---- heroes ----
-    fun hero(id: Long): OwnedHero? = box?.hero(id)
-    fun gameHero(h: OwnedHero): GameHero? = content.heroes[h.code]
-    fun heroName(h: OwnedHero) = h.name.ifEmpty { content.heroes[h.code]?.name ?: h.code }
-    fun face(h: OwnedHero) = content.face(h.code)
-    fun config(id: Long): HeroConfig = configs.getOrPut(id) { HeroConfig() }
+    fun hero(id: Long): OwnedHero? = graph.heroes.hero(id)
+    fun gameHero(h: OwnedHero): GameHero? = graph.heroes.gameHero(h)
+    fun heroName(h: OwnedHero) = graph.heroes.heroName(h)
+    fun face(h: OwnedHero) = graph.heroes.face(h)
 
-    fun request(id: Long): Request {
-        val cfg = config(id)
-        return cfg.request ?: Request().also { cfg.request = it }
-    }
-
-    fun setup(id: Long, excluded: Set<Long> = emptySet(), canTakeFrom: (Long) -> Boolean = { tier(it) < tier(id) }): Setup? {
-        val b = box ?: return null
-        val h = b.hero(id) ?: return null
-        val g = gameHero(h) ?: return null
-        return Setup(h, g, config(id), request(id), b, content, canTakeFrom, excluded)
-    }
-
-    fun tier(id: Long) = tiers[id] ?: 1
-
-    fun setTier(id: Long, t: Int) { tiers = tiers + (id to t.coerceIn(1, 5)); save() }
-
-    fun currentBuild(id: Long): Build? = setup(id)?.let { s -> s.build(s.current().values.toList()) }
-
-    fun pickHero(id: Long) {
-        team = listOf(id) + team.drop(1).filter { it != id }
-        ensurePresets(id)
-        save()
-    }
-
-
-    // ---- presets ----
-    /** Heroes whose presets were loaded with the network allowed; a cache-only load (Heroes list, low tiers) misses RTA files never fetched. */
-    internal val presetsOnline = mutableSetOf<String>()
-
-    // a hero's builds file is up to ~700 KB of JSON and parsing takes many times that; dozens at once ran out of heap
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    private val presetIo = Dispatchers.IO.limitedParallelism(2)
-    /** Off in tests: community builds come from Fribbels' free service, which tests must never call. */
-    var presetNetwork = true
-    fun ensurePresets(id: Long, force: Boolean = false) {
-        val h = hero(id) ?: return
-        if (presetLoading[h.code] == true) return
-        if (!force && presets.containsKey(h.code) && h.code in presetsOnline) { autoPreset(id); return }
-        presetLoading[h.code] = true
-        viewModelScope.launch {
-            val tabs = withContext(presetIo) {
-                Presets.load(buildsDir, content, h.code, heroName(h), allowNetwork = presetNetwork)
-            }
-            presets[h.code] = tabs
-            presetsOnline += h.code
-            presetLoading[h.code] = false
-            autoPreset(id)
-        }
-    }
-
-    /** Loads a hero's community builds for the match % without applying one; network only when asked. */
-    fun loadPresetsQuietly(id: Long, network: Boolean) {
-        val h = hero(id) ?: return
-        if (presetLoading[h.code] == true) return
-        if (presets.containsKey(h.code) && (!network || h.code in presetsOnline)) return
-        presetLoading[h.code] = true
-        viewModelScope.launch {
-            val tabs = withContext(presetIo) { Presets.load(buildsDir, content, h.code, heroName(h), allowNetwork = network && presetNetwork) }
-            presets[h.code] = tabs
-            if (network) presetsOnline += h.code
-            presetLoading[h.code] = false
-        }
-    }
-
-    private fun missingSets(b: Build, req: Request) =
-        e7.gearscan.data.Match.missingSets(b.items.groupingBy { it.set }.eachCount(), req.setAlts) { content.set(it) }
-
-    /** 0% of match: mains and sets with no substats, so the % is what substats have closed toward the targets. */
-    private fun mainsOnly(id: Long, req: Request): ((e7.gearscan.data.Stat) -> Double)? {
-        val s = setup(id) ?: return null
-        val f = e7.gearscan.calc.Calc.final(s.hb, e7.gearscan.opt.Ghost.mainsOnly(req), req.reforged, content)
-        return { f[it] }
-    }
-
-    /** Roll sizes the targets goal scores shortfall in, so match % orders builds exactly as the search does. */
-    private fun rolls(id: Long): ((e7.gearscan.data.Stat) -> Double)? {
-        val s = setup(id) ?: return null
-        val r = e7.gearscan.opt.Objectives.rollSize(s.hb)
-        return { r[it.ordinal] }
-    }
-
-    /** Match with the hero's own targets when it has some (usually from its preset), else with the most used build. */
-    fun matchFor(id: Long): e7.gearscan.data.Match.Result? {
-        val h = hero(id) ?: return null
-        val cur = currentBuild(id) ?: return null
-        val req = config(id).request?.takeIf { r -> r.targets.any { !it.isNaN() } }
-        if (req != null) return e7.gearscan.data.Match.of({ cur.final[it] }, mainsOnly(id, req) ?: return null, req.targets, req.weights,
-            req.presetLabel?.substringAfter("· ") ?: "your targets", rolls(id) ?: { 1.0 }, missingSets(cur, req))
-        val p = presets[h.code]?.mostUsed?.firstOrNull() ?: return null
-        return matchFor(id, p)
-    }
-
-    /** What applying [p] would ask for, without applying it. */
-    fun presetRequest(id: Long, p: e7.gearscan.data.Preset): Request? {
-        val g = hero(id)?.let { gameHero(it) } ?: return null
-        val cfg = config(id)
-        return Presets.toRequest(p, e7.gearscan.calc.Calc.heroBase(g, cfg, cfg.artifact ?: p.artifact, content), null)
-    }
-
-    fun matchFor(id: Long, p: e7.gearscan.data.Preset): e7.gearscan.data.Match.Result? {
-        val cur = currentBuild(id) ?: return null
-        val r = presetRequest(id, p) ?: return null
-        return e7.gearscan.data.Match.of({ cur.final[it] }, mainsOnly(id, r) ?: return null, r.targets, r.weights, p.label, rolls(id) ?: { 1.0 },
-            missingSets(cur, r))
-    }
-
-    private fun autoPreset(id: Long) {
-        val cfg = config(id)
-        val h = hero(id) ?: return
-        cfg.request?.let { r -> if (!r.isBlank()) return }
-        val t = presets[h.code] ?: return
-        // the build closest to the gear already worn; most used first so ties keep the common build
-        val all = listOf("Most used" to t.mostUsed, "RTA" to t.rta, "Top ranked" to t.topRanked, "Fastest" to t.fastest)
-            .flatMap { (tab, ps) -> ps.map { tab to it } }
-        val (tab, p) = all.maxByOrNull { (_, p) -> matchFor(id, p)?.pct ?: -1 } ?: return
-        applyPreset(id, p, tab, auto = true)
-    }
-
-    fun applyPreset(id: Long, p: e7.gearscan.data.Preset, tab: String = "Most used", auto: Boolean = false) {
-        val h = hero(id) ?: return
-        val g = gameHero(h) ?: return
-        val cfg = config(id)
-        val hb = e7.gearscan.calc.Calc.heroBase(g, cfg, cfg.artifact ?: p.artifact, content)
-        cfg.request = Presets.toRequest(p, hb, cfg.request, tab, auto)
-        touch(); save()
-    }
-
-    // ---- search ----
-    private val searchWork = Work<Unit>("Search", graph.work, Weight.Light)
-
-    private fun begin(out: Outcome) { if (out is Outcome.Failed) showToast(out.text) }
-
-    private fun failed(label: String, e: Throwable) {
-        android.util.Log.e("E7Work", "$label failed", e)
-        graph.feedback.lastError = "$label: ${e.javaClass.simpleName}: ${e.message.orEmpty()}".take(160)
-    }
-
-    fun startSearch(limit: Long = limitMs) {
-        cancelSearch()
-        val id = team.firstOrNull() ?: return
-        val setup = setup(id) ?: return
-        val cur = setup.build(setup.current().values.toList())
-        graph.settings.showRating = when (setup.req.goal) {
-            Goal.EHP -> Rating.EHP; Goal.SPEED -> Rating.SPD; Goal.CP -> Rating.CP; Goal.GEAR_SCORE -> Rating.GS
-            else -> if (graph.settings.showRating in listOf(Rating.EHP, Rating.SPD, Rating.CP, Rating.GS)) Rating.DMG else graph.settings.showRating
-        }
-        val r = SearchRun(setup, 50)
-        search = SearchState(id, current = cur, limitMs = limit)
-        val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 6)
-        begin(searchWork.start {
-            onCancel { r.cancel(); searchStopped() }
-            launch {
-                while (search?.running == true) {
-                    delay(300)
-                    if (search?.running != true) break
-                    val partial = withContext(Dispatchers.Default) { r.builds() }
-                    if (search?.running == true) search = search?.let {
-                        SearchState(id, true, it.startedAt, builds = partial, current = cur, limitMs = it.limitMs)
-                    }
-                }
-            }
-            try {
-                val builds = blocking("search") {
-                    val t0 = System.nanoTime()
-                    r.run(threads, limit)
-                    r.builds().also { b ->
-                        android.util.Log.i("E7Search", "threads=$threads ms=${(System.nanoTime() - t0) / 1_000_000} nodes=${r.engine.nodes.get()} " +
-                            "timedOut=${r.engine.timedOut} kept=${r.engine.keptPerSlot.toList()} best=${b.firstOrNull()?.value}")
-                    }
-                }
-                val stopped = r.engine.cancelled
-                val started = search?.startedAt ?: return@start
-                // into history before the search reads as done, as with pool runs
-                if (builds.isNotEmpty() && !stopped) {
-                    val best = builds.first()
-                    record(e7.gearscan.data.HistoryEntry(started, false, hero(id)?.let(::heroName) ?: "Hero",
-                        setup.req.goal.short + (setup.req.presetLabel?.let { " · " + it.substringAfter(" · ") } ?: ""),
-                        matchOf(id, cur)?.pct ?: 0, matchOf(id, best)?.pct ?: 0, best.items.count { !it.ghost && (it.equippedOn != id || it.mod != null) },
-                        mapOf(id to builds.take(HISTORY_BUILDS).map { b -> b.items.filter { !it.ghost }.map(e7.gearscan.data.PieceRef::of) })))
-                }
-                val none = builds.isEmpty() && !stopped
-                search = SearchState(id, false, started, System.currentTimeMillis(), builds, cur, r.engine.timedOut, stopped,
-                    ghostRunning = setup.req.ghost && !stopped, checkingBlockers = none, limitMs = limit)
-                if (none) rescue(setup, r)
-                else if (setup.req.ghost && !stopped) ghostSearch(setup, builds.first(), r)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                failed("search", e)
-                searchStopped()
-            }
-        })
-    }
-
-    private fun searchStopped() {
-        search = search?.let {
-            if (it.running) SearchState(it.heroId, false, it.startedAt, System.currentTimeMillis(), it.builds, it.current, cancelled = true, team = it.team)
-            else it.copy(ghostRunning = false, checkingBlockers = false)
-        }
-    }
-
-    /** [best] null: no build meets the rules, so any build with one ghost piece that meets them counts. */
-    private suspend fun WorkScope.ghostSearch(setup: Setup, best: Build?, main: SearchRun) {
-        val b = best?.let { base ->
-            blocking("ghost") {
-                val floor = if (main.builds().isEmpty()) Double.NEGATIVE_INFINITY else base.value
-                val ghosts = Ghost.candidates(setup, base, setup.req.reforged, floor)
-                val g = SearchRun(setup, 1, ghosts, maxGhost = 1, startThreshold = floor)
-                onCancel { g.cancel() }
-                g.run(Runtime.getRuntime().availableProcessors().coerceIn(1, 6), 10_000)
-                g.builds().firstOrNull()?.takeIf { it.ghost != null }
-            }
-        }
-        search = search?.copy(ghostRunning = false, ghost = b, ghostSearched = true)
-    }
-
-    /** No build met the rules: find which rule alone rules out every build, then try one ghost piece. */
-    private suspend fun WorkScope.rescue(setup: Setup, main: SearchRun) {
-        val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 6)
-        fun searchOf(q: e7.gearscan.data.Request) =
-            SearchRun(Setup(setup.hero, setup.game, setup.cfg, q, setup.box, setup.content, setup.canTakeFrom, setup.excluded), 1)
-                .also { r -> onCancel { r.cancel() } }
-        val blockers = blocking("rescue") {
-            val found = ArrayList<String>()
-            for ((label, relax) in relaxations(setup.req)) {
-                if (!isActive) break
-                if (searchOf(setup.req.copy().also(relax)).anyBuild(threads, 3_000) == true) found += label
-            }
-            found
-        }
-        search = search?.copy(blockers = blockers, checkingBlockers = false)
-        if (!setup.req.ghost) return
-        val base = blocking("rescue") {
-            searchOf(setup.req.copy().also { q -> q.mins.fill(Double.NaN); q.maxs.fill(Double.NaN); q.capCrit = false })
-                .also { it.run(threads, 3_000) }.builds().firstOrNull()
-        }
-        ghostSearch(setup, base, main)
-    }
-
-    private fun relaxations(req: e7.gearscan.data.Request): List<Pair<String, (e7.gearscan.data.Request) -> Unit>> = buildList {
-        Stat.entries.forEach { st ->
-            val i = st.ordinal
-            if (!req.mins[i].isNaN()) add("${st.label} at least ${fmtNum(req.mins[i])}" to { q -> q.mins[i] = Double.NaN })
-            if (!req.maxs[i].isNaN()) add("${st.label} at most ${fmtNum(req.maxs[i])}" to { q -> q.maxs[i] = Double.NaN })
-        }
-        if (req.capCrit && req.maxs[Stat.CR.ordinal].isNaN()) add("Crit chance cap" to { q -> q.capCrit = false })
-        if (req.setAlts.isNotEmpty()) add("The sets" to { q -> q.setAlts = emptyList() })
-        if (req.mains.values.any { it.isNotEmpty() }) add("The mains" to { q -> q.mains = emptyMap() })
-        if (req.minEnhance > 0) add("Enhanced to +${req.minEnhance}" to { q -> q.minEnhance = 0 })
-        if (req.lowerPriorityOnly) add("Only lower tiers" to { q -> q.lowerPriorityOnly = false })
-        if (!req.allowLocked) add("No locked items" to { q -> q.allowLocked = true })
-        if (req.keepCurrent) add("Keep current gear" to { q -> q.keepCurrent = false })
-        if (req.maxChanges < 6) add("Change at most ${req.maxChanges}" to { q -> q.maxChanges = 6 })
-    }
-
-    fun cancelSearch() = searchWork.cancel()
-
-    // ---- build actions ----
-    /** Equips in the app's box; returns every touched item's previous owner, for [undoEquip]. */
-    fun equip(heroId: Long, build: Build): Map<Long, Long?> {
-        val b = box ?: return emptyMap()
-        val prev = LinkedHashMap<Long, Long?>()
-        for (it in build.items) {
-            if (it.ghost) continue
-            val item = b.itemsById[it.id] ?: it
-            b.gearOf(heroId)[it.slot]?.takeIf { cur -> cur.id != it.id }?.let { cur -> prev.putIfAbsent(cur.id, cur.equippedOn); b.setEquipped(cur, null) }
-            prev.putIfAbsent(item.id, item.equippedOn)
-            b.setEquipped(item, heroId)
-        }
-        touch(); saveBox(); save()
-        return prev
-    }
-
-    /**
-     * Equips [b] in the app's box and keeps it in the hero's saved builds; the toast offers Undo. [mods]: what the game
-     * rolled (the checklist asks); without them, the build's planned values.
-     */
-    fun recordBuild(heroId: Long, b: Build, reforge: List<Long> = emptyList(), mods: List<Pair<Long, e7.gearscan.data.Mod>>? = null) {
-        val prev = equip(heroId, b)
-        val before = recordReforges(reforge)
-        val modded = recordMods(mods ?: plannedMods(b))
-        val name = request(heroId).presetLabel?.let { "${it.substringAfter("· ").replace("Community ", "Preset ")} build" } ?: "Build ${config(heroId).saved.size + 1}"
-        if (config(heroId).saved.none { it.items.toSet() == b.items.filter { i -> !i.ghost }.map { i -> i.id }.toSet() }) saveBuild(heroId, b, name)
-        showToast("Equipped in this app and saved to ${hero(heroId)?.let(::heroName) ?: "the hero"}'s builds" + reforgedNote(before) +
-            moddedNote(modded, planned = mods == null), "Undo") {
-            undoWrites(before + modded); undoEquip(prev)
-        }
-    }
-
-    private fun plannedMods(b: Build) = b.items.mapNotNull { i -> i.mod?.let { i.id to it } }
-
-    fun undoEquip(prev: Map<Long, Long?>) {
-        val b = box ?: return
-        for ((id, owner) in prev) b.itemsById[id]?.let { b.setEquipped(it, owner) }
-        touch(); saveBox(); save()
-    }
+    // kept for Improve heroes, the tracker and the checklists until those move
+    private val pool get() = graph.pool.state
+    private val poolTiers get() = graph.pool.tiers
+    private val poolExtra get() = graph.pool.extra
+    private val tiers get() = graph.heroes.tiers
+    private fun poolMembers() = graph.pool.members()
+    private fun tier(id: Long) = graph.heroes.tier(id)
+    private fun request(id: Long) = graph.heroes.request(id)
+    private fun currentBuild(id: Long) = graph.heroes.currentBuild(id)
+    private fun matchFor(id: Long) = graph.heroes.matchFor(id)
+    private fun matchOf(id: Long, b: Build) = graph.heroes.matchOf(id, b)
+    private fun setupKey(id: Long) = graph.heroes.setupKey(id)
+    private fun mainsOnly(id: Long, req: Request) = graph.heroes.mainsOnly(id, req)
+    private fun rolls(id: Long) = graph.heroes.rolls(id)
+    private fun worn(id: Long): Set<Long> = box?.gearOf(id)?.values.orEmpty().map { it.id }.toSet()
+    private fun begin(out: Outcome) = graph.messages.show(out)
+    private fun setup(id: Long, excluded: Set<Long> = emptySet(), canTakeFrom: (Long) -> Boolean = { tier(it) < tier(id) }) =
+        graph.heroes.setup(id, excluded, canTakeFrom)
+    private fun recordBuild(heroId: Long, b: Build, reforge: List<Long>, mods: List<Pair<Long, e7.gearscan.data.Mod>>?) =
+        graph.heroes.recordBuild(heroId, b, reforge, mods)
+    private fun equipPool(run: e7.gearscan.features.pool.PoolState?, reforge: List<Long>, mods: List<Pair<Long, e7.gearscan.data.Mod>>?) =
+        graph.pool.equip(run, reforge, mods)
 
     var toast: Toast?
         get() = graph.messages.toast
@@ -547,250 +187,16 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun showToast(text: String, action: String? = null, onAction: (() -> Unit)? = null) = graph.messages.showToast(text, action, onAction)
 
-    fun saveBuild(heroId: Long, build: Build, name: String) {
-        val cfg = config(heroId)
-        cfg.saved += SavedBuild(name, build.items.filter { !it.ghost }.map { it.id })
-        touch(); save()
-    }
-
-    fun lockBuild(build: Build) {
-        val b = box ?: return
-        build.items.filter { !it.ghost }.forEach { b.setLocked(it, true) }
-        touch(); saveBox()
-    }
-
-    fun savedItems(s: SavedBuild): List<Item> = s.items.mapNotNull { box?.itemsById?.get(it) }
-
-    private fun defaultHero(b: Box): Long? =
-        b.heroes.maxWithOrNull(compareBy({ tier(it.id) }, { h -> b.items.filter { it.equippedOn == h.id }.sumOf { it.score } }))?.id
-
-    // ---- whole pool ----
-    var poolMode by mutableStateOf(false)
-    /** Optimize's third switch position: past runs and searches instead of a setup. */
-    var showHistory by mutableStateOf(false)
-    var poolTiers get() = graph.pool.tiers
-        set(v) { graph.pool.tiers = v }
-    var poolExtra get() = graph.pool.extra
-        set(v) { graph.pool.extra = v }
-    /** Heroes left out of this pool run (skipped in setup, or kept as is after review); their gear stays where it is. */
-    var poolSkip get() = graph.pool.skip
-        set(v) { graph.pool.skip = v }
-    /** The player's calls on contested pieces for re-runs: piece -> hero that keeps it, piece -> hero that gets it. */
-    var poolKeep by mutableStateOf(emptyMap<Long, Long>())
-    var poolGive by mutableStateOf(emptyMap<Long, Long>())
-    var poolLosses get() = graph.pool.losses
-        set(v) { graph.pool.losses = v }
-    var poolEffort get() = graph.pool.effort
-        set(v) { graph.pool.effort = v }
-    var pool: PoolState? by mutableStateOf(null)
-        internal set
-    var lastPool get() = graph.pool.lastPool
-        set(v) { graph.pool.lastPool = v }
-
-    /** Run order: higher tiers first; inside a tier the hero furthest from their build picks first (name breaks ties). */
-    fun poolHeroes(): List<OwnedHero> = poolMembers().filter { it.id !in poolSkip }
-
-    /** The run's heroes including those kept as they are. */
-    fun poolMembers(): List<OwnedHero> = box?.heroes.orEmpty()
-        .filter { (tier(it.id) in poolTiers || it.id in poolExtra) && gameHero(it) != null }
-        .sortedWith(compareByDescending<OwnedHero> { tier(it.id) }.thenBy { matchFor(it.id)?.pct ?: 101 }.thenBy { heroName(it) })
-
-    /** null while its community builds are still loading. */
-    fun hasBuild(id: Long): Boolean? {
-        val h = hero(id) ?: return false
-        if (config(id).request?.targets?.any { !it.isNaN() } == true) return true
-        if (!presets.containsKey(h.code) || presetLoading[h.code] == true) return null
-        val t = presets[h.code] ?: return false
-        return t.mostUsed.isNotEmpty() || t.rta.isNotEmpty()
-    }
-
-    fun poolScore(matches: Map<Long, Int?>): Int {
-        var sum = 0.0; var w = 0.0
-        for ((id, m) in matches) { if (m == null) continue; val k = tier(id).toDouble(); sum += k * m; w += k }
-        return if (w == 0.0) 0 else Math.round(sum / w * 100).toInt()
-    }
-
-    fun matchOf(id: Long, b: Build): e7.gearscan.data.Match.Result? {
-        val req = config(id).request?.takeIf { r -> r.targets.any { !it.isNaN() } } ?: return null
-        val base = mainsOnly(id, req) ?: return null
-        return e7.gearscan.data.Match.of({ b.final[it] }, base, req.targets, req.weights, req.presetLabel?.substringAfter("· ") ?: "", rolls(id) ?: { 1.0 },
-            missingSets(b, req))
-    }
-
-    /** Re-applies the hero's preset (community build or role) by its saved label, or null when it can't be found. */
-    fun presetReset(id: Long): (() -> Unit)? {
-        val label = config(id).request?.presetLabel ?: return null
-        val tab = label.substringBefore(" · "); val name = label.substringAfter(" · ")
-        if (tab == "Role") return e7.gearscan.data.Role.entries.firstOrNull { it.label == name }?.let { r -> { applyRole(id, r) } }
-        val t = hero(id)?.let { presets[it.code] } ?: return null
-        val p = t.names.indexOf(tab).takeIf { it >= 0 }?.let { i -> t.tab(i).firstOrNull { it.label == name } } ?: return null
-        return { applyPreset(id, p, tab) }
-    }
-
-    fun applyRole(id: Long, role: e7.gearscan.data.Role) {
-        val h = hero(id) ?: return
-        val g = gameHero(h) ?: return
-        val cfg = config(id)
-        cfg.request = role.request(e7.gearscan.calc.Calc.heroBase(g, cfg, cfg.artifact, content), cfg.request)
-        touch(); save()
-    }
-
-    /** Whether the player wants this trade's pieces to move: their call if they made one, else what the run did. */
-    fun tradeMoves(t: Trade): Boolean = when {
-        t.items.all { poolGive[it] == t.taker } -> true
-        t.items.all { poolKeep[it] == t.holder } -> false
-        else -> t.made
-    }
-
-    fun callTrade(t: Trade, moves: Boolean) {
-        poolKeep = poolKeep - t.items.toSet(); poolGive = poolGive - t.items.toSet()
-        // a call the same as what the run did is no call: the re-run stays free to change it
-        if (moves != t.made) { if (moves) poolGive = poolGive + t.items.associateWith { t.taker } else poolKeep = poolKeep + t.items.associateWith { t.holder } }
-        touch()
-    }
-
-    /** A fresh run forgets the player's calls on trades; [keepCalls] re-runs with them. False when another long search is running. */
-    fun startPool(keepCalls: Boolean = false): Boolean {
-        val out = graph.pool.run.start {
-            val scope = this
-            val alive = { scope.isActive }
-            if (!keepCalls) { poolKeep = emptyMap(); poolGive = emptyMap() }
-            // another run replaces the one waiting to be equipped
-            pendingPool = null
-            val lastTrades = pool?.trades.orEmpty()
-            val heroes = poolHeroes().filter { hasBuild(it.id) == true }
-            for (h in heroes) if (config(h.id).request?.targets?.any { !it.isNaN() } != true) {
-                presets[h.code]?.let { t -> (t.mostUsed.firstOrNull() ?: t.rta.firstOrNull())?.let { applyPreset(h.id, it, auto = true) } }
-            }
-            val ids = heroes.map { it.id }
-            val before = ids.associateWith { matchFor(it)?.pct }
-            pool = PoolState(ids, before, emptyMap(), emptyMap(), null, null, true, System.currentTimeMillis(), 0, setups = ids.associateWith { setupKey(it) })
-            onCancel { poolStopped() }
-            val inRun = ids.toSet()
-            val keepGear = poolSkip.flatMap { worn(it) }.toSet()
-            // builds holds every hero looked at so far: its new build, or null while it keeps its gear
-            val builds = LinkedHashMap<Long, Build?>()
-            val after = LinkedHashMap<Long, Int?>()
-            fun publish(round: Int? = null) {
-                val snapB = LinkedHashMap(builds); val snapA = LinkedHashMap(after)
-                viewModelScope.launch { if (alive()) pool = pool?.copy(builds = snapB, after = snapA, round = round ?: pool?.round ?: 1) }
-                scope.progress(snapB.size, ids.size, (if ((round ?: 1) > 1) "Round $round · " else "") + "${snapB.size} of ${ids.size} heroes")
-            }
-            try {
-                val trades = blocking("pool") {
-                    // heroes of the run may be asked for any piece, at a price; from heroes outside it, only lower tiers' pieces are free
-                    val pr = e7.gearscan.opt.pricedPool(ids, ::tier, keepGear, { id, excluded -> setup(id, excluded) { h -> h in inRun || tier(h) < tier(id) } },
-                        { s, r -> runWatched(s.hero.id, r, s.req.mods, scope) }, poolLosses, poolEffort, { !alive() },
-                        onVisit = { id, round -> if (id !in builds) builds[id] = null; publish(round) },
-                        onAccept = { assign -> changed(assign, builds, after, before); publish() }, keep = poolKeep, give = poolGive)
-                    val t0 = System.nanoTime()
-                    val result = pr.run()
-                    android.util.Log.i("E7Pool", "pool run: ${ids.size} heroes, %.1f s, ${pr.proposals} proposals, ".format(java.util.Locale.US, (System.nanoTime() - t0) / 1e9) +
-                        pr.spent.entries.joinToString { (k, v) -> "$k ${v.first}× %.1f s".format(java.util.Locale.US, v.second) } + "; slowest: " +
-                        pr.heroTime.entries.sortedByDescending { it.value.first }.take(6).joinToString { (h, v) -> "${hero(h)?.let(::heroName)} %.1f s".format(java.util.Locale.US, v.first) + if (v.second > 0) " (${v.second} capped)" else "" })
-                    if (!alive()) return@blocking null
-                    ids.forEach { if (it !in builds) builds[it] = null }
-                    changed(result, builds, after, before)
-                    val wornBy = HashMap<Long, Long>().also { m -> ids.forEach { h -> worn(h).forEach { m[it] = h } } }
-                    val made = ids.flatMap { t -> result[t]?.items.orEmpty().mapNotNull { i -> wornBy[i.id]?.takeIf { it != t }?.let { h -> Triple(h, t, i.id) } } }
-                        .groupBy({ it.first to it.second }, { it.third }).map { (k, items) -> Trade(k.second, k.first, items, true) }
-                        // a made trade is only worth a look when its wearer paid for it; when both ended better there is nothing to decide
-                        .filter { t -> (after[t.holder] ?: 0) < (before[t.holder] ?: 0) }
-                    val notMade = pr.refusals(result).groupBy { it.holder to it.taker }
-                        .map { (k, ds) -> Trade(k.second, k.first, ds.map { it.item }, false, ds.first().takerPoints, ds.first().holderPoints, ds.first().moves) }
-                    // a piece the player kept is never asked for again, but stays listed so the call can be undone
-                    val kept = poolKeep.entries.filter { (item, h) -> notMade.none { item in it.items } && result[h]?.items?.any { it.id == item } == true }
-                        .groupBy({ it.value }, { it.key }).flatMap { (h, items) -> lastTrades.filter { it.holder == h && it.items.any { i -> i in items } }
-                            .map { Trade(it.taker, h, it.items.filter { i -> i in items }, false) } }
-                    val stuck = poolGive.filterKeys { it in pr.unmoved }.entries.groupBy({ it.value }, { it.key }).flatMap { (t, items) ->
-                        items.groupBy { i -> wornBy[i] }.mapNotNull { (h, its) -> h?.let { Trade(t, it, its, false, stuck = true) } }
-                    }
-                    made + notMade.filter { n -> stuck.none { s -> s.taker == n.taker && s.holder == n.holder } } + kept + stuck
-                } ?: return@start
-                pool = pool?.copy(builds = LinkedHashMap(builds), after = LinkedHashMap(after), trades = trades)
-                finishPool()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                failed("pool", e)
-                poolStopped()
-            }
-        }
-        begin(out)
-        return out !is Outcome.Failed
-    }
-
-    /** Copies a run's assignment into [builds]: a new build for heroes whose gear changed, null for the rest. */
-    private fun changed(assign: Map<Long, Build>, builds: MutableMap<Long, Build?>, after: MutableMap<Long, Int?>, before: Map<Long, Int?>) {
-        for ((id, b) in assign) {
-            if (id !in builds) continue
-            val moved = b.items.any { it.equippedOn != id || it.mod != null }
-            builds[id] = if (moved) b else null
-            after[id] = if (moved) matchOf(id, b)?.pct else before[id]
-        }
-    }
-
-    private fun finishPool() {
-        val done = pool?.copy(running = false, current = null, currentBest = null, finishedAt = System.currentTimeMillis()) ?: return
-        val score = poolScore(done.ids.associateWith { done.after[it] ?: done.before[it] })
-        if (done.ids.isNotEmpty()) poolSecondsPerHero = (done.finishedAt - done.startedAt) / 1000.0 / done.ids.size
-        // into history before the run reads as done: whatever reacts to "done" finds it there
-        record(e7.gearscan.data.HistoryEntry(done.startedAt, true, "Whole pool · ${done.ids.size} heroes", "${poolLosses.label} · ${poolEffort.label}",
-            poolScore(done.before), score, done.moves,
-            done.builds.filterValues { it != null }.mapValues { (_, b) -> listOf(b!!.items.filter { !it.ghost }.map(e7.gearscan.data.PieceRef::of)) },
-            done.before, done.after))
-        pool = done
-        pendingPool = done.startedAt
-        lastPool = System.currentTimeMillis() to score
-        save()
-        notifyPoolDone(done)
-    }
-
-    private fun poolStopped() {
-        pool = pool?.copy(running = false, current = null, currentBest = null, finishedAt = System.currentTimeMillis())
-    }
-
-    /** Runs one pool hero's search, showing its best match so far. */
-    private fun runWatched(id: Long, r: SearchRun, mods: Boolean, scope: WorkScope) {
-        scope.onCancel { r.cancel() }
-        val watch = thread(name = "pool-watch") {
-            // interrupted when the hero's search ends; that is the normal way out
-            try {
-                while (scope.isActive && !r.engine.done) {
-                    Thread.sleep(400)
-                    val best = r.builds().firstOrNull()?.let { matchOf(id, it)?.pct }
-                    viewModelScope.launch { pool = pool?.copy(current = id, currentBest = best) }
-                }
-            } catch (_: InterruptedException) {}
-        }
-        viewModelScope.launch { pool = pool?.copy(current = id, currentBest = null) }
-        // mods search a few times more pieces; give those heroes twice the time
-        r.run(Runtime.getRuntime().availableProcessors().coerceIn(1, 6), if (mods) 2 * POOL_HERO_MS else POOL_HERO_MS)
-        watch.interrupt()
-    }
-
-    private fun worn(id: Long): Set<Long> = box?.gearOf(id)?.values.orEmpty().map { it.id }.toSet()
-
-    /** Another hero of the finished pool run: its new build next to what it wears, or its setup if the run left it as is. */
-    fun openPoolHero(id: Long) {
-        if (pool?.builds?.get(id) != null) go(Screen.Compare(0, id)) else go(Screen.PoolHero(id, setup = false))
-    }
-
     // swiped away from recents: nothing is left to show the result, so stop rather than leave the service running
     override fun onCleared() {
         cancelAllWork()
         super.onCleared()
     }
 
-    fun stopPool() = graph.pool.run.cancel()
-
     // ---- Sell review host (the feature reads the box, scan and tracker through this) ----
     private val sellHost = object : e7.gearscan.features.sellreview.SellHost {
         override val records get() = upgrades.records
-        override val settingsKey get() = listOf(poolTiers, poolExtra, tiers, content.version, rev)
         override val contentVersion get() = content.version
-        override fun poolMembers() = this@AppModel.poolMembers().map { it.id }.toSet()
-        override fun heroNames(box: Box) = box.allHeroes.associate { it.id to heroName(it) }
         override fun startQueue(rows: List<Pair<Item, e7.gearscan.opt.SellSearch.Row>>, query: e7.gearscan.data.SellQuery, openOverlay: Boolean) {
             val entries = rows.map { (original, row) ->
                 val set = content.set(original.set)
@@ -1418,86 +824,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         openUpgradeOverlay()
     }
 
-    fun equipPool(run: PoolState? = pool, reforge: List<Long> = emptyList(), mods: List<Pair<Long, e7.gearscan.data.Mod>>? = null) {
-        val p = run ?: return
-        val prev = LinkedHashMap<Long, Long?>()
-        // first owner wins: undo must restore the box as it was before any of these equips
-        for ((id, b) in p.builds) b?.let { equip(id, it).forEach { (item, owner) -> prev.putIfAbsent(item, owner) } }
-        val before = recordReforges(reforge)
-        val modded = recordMods(mods ?: p.builds.values.filterNotNull().flatMap(::plannedMods))
-        // equipping is what makes the run done
-        if (pendingPool == p.startedAt) { pendingPool = null; save() }
-        showToast("Equipped ${p.builds.count { it.value != null }} heroes in this app" + reforgedNote(before) + moddedNote(modded, planned = mods == null), "Undo") {
-            undoWrites(before + modded); undoEquip(prev); pendingPool = p.startedAt; save()
-        }
-    }
-
-    /**
-     * Finished level 85 pieces reforged in the game (checklist reforge steps): the game's level 90 main and each substat's
-     * bonus for its rolls go into the box until the next scan. Returns each piece's JSON before, for Undo.
-     */
-    fun recordReforges(ids: List<Long>): List<Pair<Long, JSONObject>> {
-        val b = box ?: return emptyList()
-        val before = ids.distinct().mapNotNull { id ->
-            val it = b.itemsById[id]?.takeIf { x -> x.level == 85 && x.enhance == 15 && b.canReforge(x.id) } ?: return@mapNotNull null
-            val reforged = e7.gearscan.data.UpgradeRecord(lastScan, listOf(e7.gearscan.data.UpgradeRecord.fromScan(it))).reforged().item
-            b.writeStats(reforged)?.let { j -> id to j }
-        }
-        if (before.isNotEmpty()) { graph.scan.replaceBox(Box(b.json)); touch(); saveBox(); save() }
-        return before
-    }
-
-    /**
-     * Substat modifications done in the game (checklist mod steps): the rolled substat goes into the box until the next
-     * scan. Returns each piece's JSON before, for Undo.
-     */
-    fun recordMods(mods: List<Pair<Long, e7.gearscan.data.Mod>>): List<Pair<Long, JSONObject>> {
-        val b = box ?: return emptyList()
-        val before = mods.mapNotNull { (id, m) -> b.itemsById[id]?.let { b.writeSubs(e7.gearscan.opt.Mods.apply(it, m)) }?.let { id to it } }
-        if (before.isNotEmpty()) { graph.scan.replaceBox(Box(b.json)); touch(); saveBox(); save() }
-        return before
-    }
-
-    /** Takes back [recordReforges] and [recordMods], latest first: a piece reforged then modified ends as it was. */
-    fun undoWrites(before: List<Pair<Long, JSONObject>>) {
-        val b = box ?: return
-        if (before.isEmpty()) return
-        before.asReversed().forEach { (id, j) -> b.restore(id, j) }
-        graph.scan.replaceBox(Box(b.json)); touch(); saveBox(); save()
-    }
-
-    private fun reforgedNote(before: List<Pair<Long, JSONObject>>) = if (before.isEmpty()) "" else " · ${before.size} reforged"
-
-    private fun moddedNote(before: List<Pair<Long, JSONObject>>, planned: Boolean) =
-        if (before.isEmpty()) "" else " · ${before.size} modified" + if (planned) " (planned values; rescan for the rolls)" else ""
-
-
-    /** The last pool run, waiting until it is equipped or another run replaces it; its history entry's start time. */
-    var pendingPool get() = graph.pool.pending
-        set(v) { graph.pool.pending = v }
-
-    /** How long a pool run takes per hero on this phone, from the last full run; a slow phone's figure until then. */
-    var poolSecondsPerHero get() = graph.pool.secondsPerHero
-        set(v) { graph.pool.secondsPerHero = v }
-
-    /** Brings the pending run back as a live result (equip allowed), from its history entry. */
-    fun openPending() {
-        val at = pendingPool ?: return
-        if (pool?.startedAt != at || pool?.fromHistory == true) {
-            val e = history.firstOrNull { it.at == at } ?: run { pendingPool = null; save(); return }
-            val ids = e.beforeMatch.keys.filter { hero(it) != null }.sortedWith(compareByDescending<Long> { tier(it) }.thenBy { hero(it)?.let(::heroName) })
-            pool = PoolState(ids, e.beforeMatch, ids.associateWith { id -> e.builds[id]?.firstOrNull()?.let { restoreBuild(id, it) } }, e.afterMatch,
-                null, null, false, e.at, e.at, reviewed = e.reviewed)
-        }
-        go(Screen.PoolRun)
-    }
-
-    /** A hero's setup as the pool run reads it (not its reviewed mark): what an edit while reviewing changes. */
-    fun setupKey(id: Long): String = request(id).toJson().apply { remove("reviewed") }.toString() + config(id).artifact
-
-    /** Heroes whose setup changed since the shown run used it. */
-    fun editedSinceRun(): List<Long> = pool?.let { p -> p.setups.filter { (id, k) -> setupKey(id) != k }.keys.toList() }.orEmpty()
-
     /** Loads one hero's build as the in-game checklist; finishing it records the build. */
     fun loadBuildChecklist(heroId: Long, b: Build, title: String, flag: String? = null) {
         val ob = overlayBuild(heroId, b, title, flag)
@@ -1521,67 +847,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         }
         val pieces = steps.filter { it.menu == 0 } + steps.filter { it.menu == 1 } + steps.filter { it.menu == 2 }
         return e7.gearscan.overlay.OverlayBuild("Pool · ${pieces.size} moves", null, pieces, emptyList(), p.takeIf { it.fromHistory }?.let { historyFlag(it.startedAt) })
-    }
-
-    // ---- history ----
-    var history: List<e7.gearscan.data.HistoryEntry> by mutableStateOf(emptyList())
-        private set
-
-    private fun record(e: e7.gearscan.data.HistoryEntry) {
-        history = (listOf(e) + history.filter { it.at != e.at }).take(e7.gearscan.data.History.KEEP)
-        graph.history.file.write(e7.gearscan.data.History.encode(history))
-    }
-
-    /** A stored build on today's gear (a mod put back on its piece); null if the hero or a piece is gone. */
-    fun restoreBuild(heroId: Long, refs: List<e7.gearscan.data.PieceRef>): Build? {
-        val b = box ?: return null
-        val items = refs.map { r -> (b.itemsById[r.id] ?: return null).let { r.mod?.let { m -> e7.gearscan.opt.Mods.apply(it, m) } ?: it } }
-        return setup(heroId)?.build(items)
-    }
-
-    /** Opens a past run (the pending pool run and the newest search live); false while a run or search is going, which it would replace. */
-    fun openHistory(e: e7.gearscan.data.HistoryEntry): Boolean {
-        if (e.pool) {
-            if (pool?.running == true) return false
-            // the run still waiting to be equipped opens live, not read only
-            if (e.at == pendingPool) { openPending(); return true }
-            val ids = e.beforeMatch.keys.filter { hero(it) != null }.sortedWith(compareByDescending<Long> { tier(it) }.thenBy { hero(it)?.let(::heroName) })
-            pool = PoolState(ids, e.beforeMatch, ids.associateWith { id -> e.builds[id]?.firstOrNull()?.let { restoreBuild(id, it) } }, e.afterMatch,
-                null, null, false, e.at, e.at, reviewed = e.reviewed, fromHistory = true)
-            go(Screen.PoolRun)
-        } else {
-            if (search?.running == true) return false
-            val id = e.builds.keys.firstOrNull() ?: return false
-            // the newest search opens live, ready to equip, like the pending pool run
-            val latest = history.firstOrNull { !it.pool }?.at == e.at
-            if (!(latest && search?.startedAt == e.at && search?.heroId == id)) {
-                val cur = currentBuild(id) ?: return false
-                search = SearchState(id, false, e.at, e.at, e.builds[id].orEmpty().mapNotNull { restoreBuild(id, it) }, cur,
-                    historyAt = if (latest) 0 else e.at)
-            }
-            go(Screen.Results)
-        }
-        return true
-    }
-
-    /** Heroes of the shown pool run whose gear changes, in walk order. */
-    fun reviewQueue(): List<Long> = pool?.let { p -> p.ids.filter { p.builds[it] != null } }.orEmpty()
-
-    fun markReviewed(id: Long) {
-        val p = pool ?: return
-        pool = p.copy(reviewed = p.reviewed + id)
-        history.firstOrNull { it.at == p.startedAt }?.let { record(it.copy(reviewed = p.reviewed + id)) }
-    }
-
-    private fun notifyPoolDone(p: PoolState) {
-        val app = getApplication<Application>()
-        val nm = app.getSystemService(android.app.NotificationManager::class.java)
-        nm.createNotificationChannel(android.app.NotificationChannel("pool", "Pool optimize", android.app.NotificationManager.IMPORTANCE_DEFAULT))
-        val open = android.app.PendingIntent.getActivity(app, 5, Intent(app, MainActivity::class.java).setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
-            android.app.PendingIntent.FLAG_IMMUTABLE)
-        nm.notify(4, android.app.Notification.Builder(app, "pool").setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle("Pool optimized").setContentText("${p.builds.count { it.value != null }} heroes · open to review and equip")
-            .setContentIntent(open).setAutoCancel(true).build())
     }
 
     // ---- over the game ----
@@ -1653,25 +918,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         return true
     }
 
-    fun searchContext(): JSONObject? {
-        val s = search ?: return null
-        val h = hero(s.heroId)
-        return JSONObject().put("hero", h?.let(::heroName)).put("request", request(s.heroId).toJson())
-            .put("builds", s.builds.size).put("timedOut", s.timedOut).put("cancelled", s.cancelled)
-            .put("ghost", s.ghost != null).put("team", s.team.size)
-    }
-
     private fun cancelAllWork() {
         graph.work.cancelAll()
     }
 
     // ---- persistence ----
     private fun adopted(b: Box?) {
-        // early RTA presets saved single pieces of 2-piece sets as requirements; keep only complete sets
-        configs.values.forEach { cfg -> cfg.request?.let { r ->
-            r.setAlts = r.setAlts.map { alt -> alt.mapNotNull { (k, n) -> content.set(k)?.takeIf { n >= it.pieces }?.let { k to (n / it.pieces) * it.pieces } }.toMap() }
-                .filter { it.isNotEmpty() }
-        } }
         syncTrackerMarks()
         // results saved before the swap fields existed can't answer "this piece only": they are dropped
         heroUpgrades = runCatching { JSONObject(graph.improveHeroes.result.read().orEmpty()) }.getOrNull()?.takeIf { it.optInt("format") == HERO_UPGRADES_FORMAT }?.let { o -> b?.let { bx -> runCatching {
@@ -1680,7 +932,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         }.getOrNull() } }
         heroUpgradesResumable = runCatching { JSONObject(graph.improveHeroes.progress.read().orEmpty()).let { !it.getBoolean("finished") && it.getString("light") == heroUpgradeKey() } }
             .getOrDefault(false)
-        history = graph.history.file.read()?.let(e7.gearscan.data.History::decode).orEmpty()
     }
 
     private fun syncTrackerMarks() {
@@ -1697,16 +948,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         e7.gearscan.data.Http.agent = "E7Gear/${graph.appUpdate.version}"
         graph.scan.detectGame()
         graph.scan.host = object : ScanFeature.Host {
-            override fun imported(box: Box) {
-                if (team.isEmpty() || team.any { box.hero(it) == null }) team = listOfNotNull(defaultHero(box))
-                tiers = tiers.filterKeys { box.hero(it) != null }
-                save()
-                team.firstOrNull()?.let { ensurePresets(it) }
-            }
             override fun adopted(box: Box?) = this@AppModel.adopted(box)
-            override fun beforeBackup() {
-                if (history.isNotEmpty() || graph.history.file.exists) graph.history.file.write(e7.gearscan.data.History.encode(history))
-            }
             override fun restored() {
                 upgrades.restore(runCatching { JSONObject(graph.tracker.upgrades.read().orEmpty()) }.getOrDefault(JSONObject()))
                 syncTrackerMarks()
@@ -1714,7 +956,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             override fun erased() {
                 e7.gearscan.overlay.OverlayState.upgrade = null
                 upgrades.restore(JSONObject(), write = false)
-                presets.clear(); search = null; pool = null
             }
         }
         e7.gearscan.overlay.OverlayState.progressFile = graph.tracker.checklist.file
@@ -1729,10 +970,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             val b = withContext(Dispatchers.IO) { graph.loadOnce(); graph.scan.readBox() }
             graph.feedback.loadCrash()
             graph.scan.adopt(b)
-            box?.let { b -> if (team.isEmpty() || team.any { b.hero(it) == null }) team = listOfNotNull(defaultHero(b)) }
             stack = listOf(if (!graph.settings.consent && box == null) Screen.ScanIntro else Screen.Optimize)
             ready = true
-            team.firstOrNull()?.let { ensurePresets(it) }
+            graph.heroes.team.firstOrNull()?.let { graph.heroes.ensurePresets(it) }
             if (content.heroes.isEmpty()) graph.content.checkNow()
             else if (System.currentTimeMillis() - graph.content.checkedAt > 24 * 3600 * 1000L) graph.content.checkNow(quiet = true)
             graph.appUpdate.checkNow()

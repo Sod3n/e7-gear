@@ -63,7 +63,7 @@ class TouchScreens {
         assertTrue(oldStatFields.fetchSemanticsNodes().size >= 3)
         oldStatFields[1].performTextReplacement("220")
         rule.waitForIdle()
-        assertEquals(220.0, model.request(hero.id).targets[Stat.SPD.ordinal], 1e-8)
+        assertEquals(220.0, model.graph.heroes.request(hero.id).targets[Stat.SPD.ordinal], 1e-8)
         shot("23-legacy-stat-input-353-big", legacyStats = true)
         ui { model.sheet = Sheet(SheetKind.BONUS, hero.id) }
         assertTrue(rule.onAllNodes(hasSetTextAction(), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())

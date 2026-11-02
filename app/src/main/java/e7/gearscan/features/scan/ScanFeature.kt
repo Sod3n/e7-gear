@@ -27,20 +27,16 @@ enum class ScanPhase { IDLE, CAPTURING, IMPORTING }
 
 class ScanFeature(g: AppGraph) : Feature(g, "scan") {
     interface Host {
-        fun imported(box: Box) {}
-
         fun adopted(box: Box?) {}
 
         fun restored() {}
 
         fun erased() {}
-
-        fun beforeBackup() {}
     }
 
     private object NoHost : Host
 
-    // what the hero, pool, history and tracker sections still keep in AppModel
+    // what the tracker and Improve heroes still keep in AppModel
     var host: Host = NoHost
 
     val capture = CaptureSession()
@@ -94,6 +90,12 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
         boxVersion++
     }
 
+    fun commit() {
+        touch()
+        saveBox()
+        g.store.saveNow()
+    }
+
     fun saveBox() {
         box?.let { boxFile.write(it.toText()) }
     }
@@ -103,7 +105,6 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
     fun adopt(b: Box? = readBox()) {
         val old = box
         replaceBox(b)
-        g.heroes.adoptConfigs()
         g.sellReview.reset()
         g.findGear.reset()
         g.boxChanged(old, b)
@@ -122,12 +123,11 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
         boxFile.write(text)
         touch()
         g.store.saveNow()
-        host.imported(nb)
+        g.heroes.afterImport()
     }
 
     fun backupText(): String {
         saveBox()
-        host.beforeBackup()
         g.disk.flush()
         return g.store.backup().toString()
     }

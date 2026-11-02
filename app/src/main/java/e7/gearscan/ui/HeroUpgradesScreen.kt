@@ -62,7 +62,7 @@ fun HeroUpgradesScreen(model: AppModel, heroId: Long?) {
         when {
             running -> OutlineButton("Stop", Modifier.weight(1f)) { model.stopHeroUpgrades() }
             result == null -> PinkButton(if (model.heroUpgradesResumable) "Continue the check" else "Check my gear", Modifier.weight(1f),
-                enabled = model.pool?.running != true) { model.startHeroUpgrades() }
+                enabled = model.graph.pool.state?.running != true) { model.startHeroUpgrades() }
             else -> {
                 OutlineButton(if (model.heroUpgradesResumable) "Continue" else "Check again", Modifier.weight(1f)) { model.startHeroUpgrades() }
                 PinkButton("Track all ${listed.size}", Modifier.weight(1f), enabled = listed.isNotEmpty(), short = "Track ${listed.size}") { model.trackHeroUpgrades(listed) }
@@ -125,7 +125,7 @@ private fun Intro(model: AppModel) {
         }
     }
     if (model.heroUpgradesResumable) Text("The last check stopped before the end; it picks up where it was.", style = zen(11.sp, FontWeight.Medium, C.muted))
-    if (model.pool?.running == true) Text("Starts after the other gear check.", style = zen(11.sp, FontWeight.Medium, C.muted))
+    if (model.graph.pool.state?.running == true) Text("Starts after the other gear check.", style = zen(11.sp, FontWeight.Medium, C.muted))
 }
 
 @Composable
@@ -219,8 +219,8 @@ private fun HeroRow(model: AppModel, h: AppModel.HeroUpgradeHero) {
 /** Every listed piece with the heroes it helps, the pieces for higher tiers and bigger expected gains first. */
 private fun piecesOf(model: AppModel, view: List<AppModel.HeroUpgradeHero>): List<Pair<Long, List<Pair<AppModel.HeroUpgradeHero, AppModel.HeroUpgradeRow>>>> =
     view.flatMap { h -> h.rows.map { r -> r.pick.piece to (h to r) } }.groupBy({ it.first }, { it.second })
-        .map { (id, hs) -> id to hs.sortedWith(compareByDescending<Pair<AppModel.HeroUpgradeHero, AppModel.HeroUpgradeRow>> { model.tier(it.first.hero.id) }.thenByDescending { it.second.expected }) }
-        .sortedWith(compareByDescending<Pair<Long, List<Pair<AppModel.HeroUpgradeHero, AppModel.HeroUpgradeRow>>>> { model.tier(it.second.first().first.hero.id) }
+        .map { (id, hs) -> id to hs.sortedWith(compareByDescending<Pair<AppModel.HeroUpgradeHero, AppModel.HeroUpgradeRow>> { model.graph.heroes.tier(it.first.hero.id) }.thenByDescending { it.second.expected }) }
+        .sortedWith(compareByDescending<Pair<Long, List<Pair<AppModel.HeroUpgradeHero, AppModel.HeroUpgradeRow>>>> { model.graph.heroes.tier(it.second.first().first.hero.id) }
             .thenByDescending { it.second.first().second.expected }.thenBy { it.first })
 
 @Composable
@@ -311,7 +311,7 @@ private fun HeroPage(model: AppModel, h: AppModel.HeroUpgradeHero) {
     // what it wears is behind its best build: optimizing comes before any upgrade
     val best = h.base.value; val worn = h.base.worn
     if (!rebuilds && best != null && worn != null && best > worn + HeroUpgrades.MIN_GAIN * h.base.unit)
-        Card(shadow = null, padding = PaddingValues(12.dp), onClick = { model.pickHero(h.hero.id); model.team = listOf(h.hero.id); model.tab(Screen.Optimize) }) {
+        Card(shadow = null, padding = PaddingValues(12.dp), onClick = { model.graph.heroes.pickHero(h.hero.id); model.graph.heroes.team = listOf(h.hero.id); model.tab(Screen.Optimize) }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Optimize first: a better build from gear you have is " +

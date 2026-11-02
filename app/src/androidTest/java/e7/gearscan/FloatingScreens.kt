@@ -73,7 +73,7 @@ class FloatingScreens {
         check(model.floatingPanel) { "the Panel chip didn't bring the tracker back" }
         ui { OverlayState.upgrade = null }
         val hero = model.heroUpgradeHeroes().first { model.box!!.gearOf(it.id).size == 6 }
-        ui { model.loadBuildChecklist(hero.id, model.currentBuild(hero.id)!!, "Floating check"); OverlayState.expanded = true }
+        ui { model.loadBuildChecklist(hero.id, model.graph.heroes.currentBuild(hero.id)!!, "Floating check"); OverlayState.expanded = true }
         shoot("3-checklist")
         ui { model.closeFloatingPanel() }
         check(OverlayState.build == null && OverlayState.upgrade == null) { "close left a panel loaded" }

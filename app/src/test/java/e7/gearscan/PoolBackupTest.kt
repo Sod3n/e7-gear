@@ -1,5 +1,6 @@
 package e7.gearscan
 
+import e7.gearscan.features.pool.POOL_HERO_MS
 import e7.gearscan.calc.Calc
 import e7.gearscan.data.Box
 import e7.gearscan.data.Content

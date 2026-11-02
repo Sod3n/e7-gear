@@ -51,15 +51,14 @@ class ScanFeatureTest {
         assertEquals(text, g.scan.boxFile.read())
     }
 
-    @Test fun importCallsTheHostAfterTheBoxIsInPlace() = runTest(UnconfinedTestDispatcher()) {
+    @Test fun importPicksATeamAndDropsTiersOfHeroesThatLeft() = runTest(UnconfinedTestDispatcher()) {
         val g = graph(this)
-        var seen: Box? = null
-        g.scan.host = object : ScanFeature.Host {
-            override fun imported(box: Box) { seen = g.scan.box }
-        }
+        g.heroes.team = listOf(-5L)
+        g.heroes.tiers = mapOf(-5L to 4)
         g.scan.import(text)
-        assertNotNull(seen)
-        assertTrue(seen === g.scan.box)
+        assertEquals(1, g.heroes.team.size)
+        assertNotNull(g.scan.box!!.hero(g.heroes.team.first()))
+        assertTrue(g.heroes.tiers.isEmpty())
     }
 
     @Test fun importTellsEveryFeatureAndMarksForVanishedPiecesGo() = runTest(UnconfinedTestDispatcher()) {

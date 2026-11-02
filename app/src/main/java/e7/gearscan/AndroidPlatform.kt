@@ -134,4 +134,20 @@ class AndroidPlatform(private val app: Application) : Platform {
     }
 
     override fun cleanUpdates(installed: String) = AppInstall.clean(app, installed)
+
+    override fun notifyPoolDone(heroes: Int) {
+        val nm = app.getSystemService(android.app.NotificationManager::class.java)
+        nm.createNotificationChannel(android.app.NotificationChannel("pool", "Pool optimize", android.app.NotificationManager.IMPORTANCE_DEFAULT))
+        val open =
+            android.app.PendingIntent.getActivity(
+                app, 5, Intent(app, MainActivity::class.java).setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                android.app.PendingIntent.FLAG_IMMUTABLE,
+            )
+        nm.notify(
+            4,
+            android.app.Notification.Builder(app, "pool").setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setContentTitle("Pool optimized").setContentText("$heroes heroes · open to review and equip")
+                .setContentIntent(open).setAutoCancel(true).build(),
+        )
+    }
 }

@@ -27,6 +27,11 @@ class FeedbackFeature(g: AppGraph) : Feature(g, "feedback") {
 
     private val reportsDir get() = g.disk.file("reports")
 
+    fun failed(label: String, e: Throwable) {
+        android.util.Log.e("E7Work", "$label failed", e)
+        lastError = "$label: ${e.javaClass.simpleName}: ${e.message.orEmpty()}".take(160)
+    }
+
     suspend fun loadCrash() {
         lastCrash = withContext(Dispatchers.IO) { g.disk.file(CRASH_FILE).takeIf { it.exists() }?.readText() }
     }
