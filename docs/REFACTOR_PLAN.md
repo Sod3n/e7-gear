@@ -15,6 +15,7 @@ change no behaviour except the bugs listed. Written 2026-11-02 against `gear-mod
 | Deferred | Text roles and the value types app-wide (`Chance`, `Gold`, `StatAmount`; only `Count` exists). |
 | Deferred | Design changes for the maintainer: the Find gear redesign; links to rows (`LinkText` is still used ~65 times behind `@LinkStyle`). |
 | Deferred | Release (step 6) and step 14. |
+| Next (proposed) | Explicit dependencies between features, tracker split, last globals: [REFACTOR_PLAN_2.md](REFACTOR_PLAN_2.md). |
 
 ## Decisions in force (assumed 2026-11-02, the maintainer may revise)
 
