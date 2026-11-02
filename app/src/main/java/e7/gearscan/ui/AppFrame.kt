@@ -22,10 +22,11 @@ fun Frame(
     graph: AppGraph?,
     tab: Screen?,
     scroll: Boolean = true,
-    actions: (@Composable RowScope.() -> Unit)? = null,
+    primary: Action? = null,
+    secondary: Secondary? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Frame(scroll = scroll, actions = actions, tabBar = if (tab != null && graph != null) ({ TabBar(graph, tab) }) else null, content = content)
+    Frame(scroll = scroll, primary = primary, secondary = secondary, tabBar = if (tab != null && graph != null) ({ TabBar(graph, tab) }) else null, content = content)
 }
 
 @Composable
@@ -56,6 +57,7 @@ fun ArtifactIcon(graph: AppGraph, art: e7.gearscan.data.Artifact?, size: android
 
 /** Shown after the app crashed: what happened, with a one-tap report. */
 @Composable
+@OptIn(LinkStyle::class)
 fun CrashCard(graph: AppGraph) {
     val crash = graph.feedback.lastCrash ?: return
     Card(shadow = null, radius = 14.dp, border = 2.dp) {

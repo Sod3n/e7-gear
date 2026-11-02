@@ -174,7 +174,7 @@ The kit is the only module that touches Compose layout details. Screens compose 
 
 | Part | Contract |
 |---|---|
-| `Frame(title, kana, primary, secondary)` | Draws the back link (none on the first screen), the title, the content and the action row. The back link comes from `LocalBack`, a small kit interface (`label`, `go()`) that `App` provides from `Nav`, so the kit never depends on the app. At most one pink button per screen: `primary` is a value, not a slot. |
+| `Frame(…, primary, secondary)` | Draws the content, the action row and the tab bar. `primary` is an `Action` (label, enabled, short label, optional detail line) and `Frame` draws the one pink button from it; `PinkButton` is `internal` to `:kit`, so a screen cannot place another. `secondary` is an optional outlined `Secondary` (before or after the primary, wrapped, filled or fixed width). `CardAction` is the primary of an empty-state card on a screen whose `Frame` has none at that moment. `SheetBody(button, onButton)` is the sheet's single primary. The overlay's `PanelAction` is its own kit. |
 | `SheetBody(title, primary)` / `TallSheet` | Sheets end at their content; only `TallSheet` may fill the screen. |
 | `Panel` (overlay) | Sizes to its main page and keeps that height while one thing is shown; pages split themselves to fit. |
 | Text roles: `Title`, `Heading`, `Body`, `Note`, `Value`, `Label` | Size, weight, colour and line rule per role. One-line roles shrink to fit or end in "…". |
@@ -191,15 +191,16 @@ decision in review:
 |---|---|
 | `@OptIn(LinkStyle::class)` | `LinkText` (prefer a row, pill or fold) |
 | `@OptIn(KeyboardInput::class)` | typed number fields (only the optimizer's stat minimums and slider values) |
-| `@OptIn(FixedSize::class)` | a frame with a fixed height (say why in the call) |
-| `@OptIn(Scrolling::class)` | scroll containers in overlay pages (they must page instead) |
+
+`FixedSize` and `Scrolling` were not built: raw Compose `verticalScroll` and a fixed `height` cannot be hidden behind a kit API, so overlay pages stay covered by `SourceRulesTest`.
 
 ## Checks that stay
 
 Structure can't express everything. These stay as tests:
 - `:core` — the gear math against brute force and recorded results.
 - `SourceRulesTest` — fonts cover every character used; every icon exists in the image store; no game data in the
-  APK; colours come from the palettes; requests go through `Net`.
+  APK; locale-proof number formatting; one-line texts say they are cut; grids go through `CardGrid`; requests go
+  through `Http`; the upgrade tracker overlay has no scroll containers; `:app` has no raw text fields.
 - `ScreenAudit` (emulator) — every screen at 353 dp with large text and 411 dp, English and Russian: text cut or
   broken mid-word, past the edge, layout shift when a state flips, frames with large empty areas. It runs on the
   synthetic box by default (`./gradlew syntheticFixtures`), or on your own backup with `E7_FIXTURES`.
@@ -211,4 +212,4 @@ Structure can't express everything. These stay as tests:
   using `Frame`.
 - **Add a background search:** `private val s = work<R>("name", Weight.Heavy)`, or `freshWork("name") { inputs }` if its result can go stale.
 - **Show a number:** a value type from `:core/value` and its kit renderer; never format a number in a screen.
-- **Delete or reset data:** an action that takes `Confirmed`; the screen calls `messages.confirm(...)` first.
+- **Delete or reset data:** an action that takes `Confirmed`; the screen calls `messages.confirm(...)` or `askReset(...)` and passes the token on. Erase all data, every reset, clearing a hero's targets and the pool's reviewed marks work this way.

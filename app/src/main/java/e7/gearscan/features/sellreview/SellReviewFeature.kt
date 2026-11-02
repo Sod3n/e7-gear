@@ -17,6 +17,8 @@ import e7.gearscan.opt.SellSearch
 import e7.gearscan.state.Codecs
 import e7.gearscan.state.Feature
 import e7.gearscan.state.Weight
+import e7.gearscan.opt.GearScore
+import e7.gearscan.ui.Confirmed
 import e7.gearscan.ui.Outcome
 import java.io.StringReader
 import kotlinx.coroutines.CancellationException
@@ -86,6 +88,14 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
         query = if (!q.scoreFilter && q.sort in listOf(SellSort.SCORE, SellSort.CHANCE)) q.copy(sort = SellSort.QUALITY) else q
         g.scan.touch()
     }
+
+    fun resetSettings(confirmed: Confirmed) = edit(SellQuery())
+
+    fun resetScoreModel(confirmed: Confirmed) = edit(query.copy(score = GearScore.Model()))
+
+    fun resetEsBars(confirmed: Confirmed) = edit(query.copy(esBars = emptyMap()))
+
+    fun resetSafeguards(confirmed: Confirmed) = edit(query.copy(keepStats = SellQuery.DEFAULT_GUARDS, keepChance = 1.0))
 
     fun stop() = run.cancel()
 

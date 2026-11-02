@@ -21,14 +21,12 @@ class SourceRulesTest {
     }
 
     @Test
-    fun keyboardInputIsLimitedToLegacyStatControls() {
+    fun appHasNoRawTextFields() {
         val forbidden = Regex("""\b(?:BasicTextField|TextField|OutlinedTextField|EditText|AutoCompleteTextView)\b""")
-        val hits = sources().filter { it.extension == "kt" && it.name != "LegacyStatInput.kt" }.flatMap { f ->
+        val hits = src.walk().filter { it.extension == "kt" }.flatMap { f ->
             f.readLines().withIndex().filter { forbidden.containsMatchIn(it.value) }.map { "${f.name}:${it.index + 1}" }
         }.toList()
-        val callers = sources().filter { it.extension == "kt" && it.name !in setOf("LegacyStatInput.kt", "Sheets.kt", "SellParts.kt") }.filter { Regex("""LegacyStatField(Value)?\(""").containsMatchIn(it.readText()) }.toList()
-        assertTrue("Legacy stat keyboard reused elsewhere: $callers", callers.isEmpty())
-        assertTrue("Keyboard input is allowed only in the existing optimizer stat controls: " + hits.joinToString(), hits.isEmpty())
+        assertTrue("Keyboard input goes through the kit's @KeyboardInput fields only: " + hits.joinToString(), hits.isEmpty())
     }
 
     @Test
@@ -123,11 +121,5 @@ class SourceRulesTest {
             Stat.entries.map { "icons/stats/${it.icon}.png" } + Slot.entries.map { "gear/gear_${it.icon}.png" }
         val missing = wanted.filterNot { File(store, it).exists() }
         assertTrue("missing icons:\n" + missing.joinToString("\n"), missing.isEmpty())
-    }
-    @Test fun resetButtonsAskFirst() {
-        // user, 2026-11-01: every reset button asks for confirmation
-        val bad = sources().filter { it.extension == "kt" }.flatMap { f -> f.readLines().mapIndexedNotNull { i, l ->
-            if (Regex("""(LinkText|OutlineButton|PinkButton|PanelAction)\("Reset""").containsMatchIn(l) && "askReset(" !in l && "c.run" !in l) "${f.name}:${i + 1}" else null } }.toList()
-        assertTrue("Reset without confirmation: $bad", bad.isEmpty())
     }
 }

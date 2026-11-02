@@ -96,7 +96,7 @@ class HeroesFeatureTest {
         g.scan.import(made.gearText)
         g.heroes.presetCache.write("x.json", "{}")
         g.heroes.presets["x"] = null
-        g.scan.erase()
+        g.scan.erase(e7.gearscan.userConfirmed())
         g.disk.flush()
         assertTrue(g.heroes.presets.isEmpty())
         assertFalse(File(g.heroes.builds.dir, "x.json").exists())

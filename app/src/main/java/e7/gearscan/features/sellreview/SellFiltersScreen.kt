@@ -115,6 +115,7 @@ private fun FinishComparison(row:SellSearch.Row) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 private fun ScoringControls(graph: AppGraph) {
     val q=graph.sellReview.query
     val example=remember(graph.scan.lastScan) { graph.sellReview.floorPreview(Slot.HELMET)?.item?:graph.scan.box?.items?.firstOrNull() }
@@ -131,7 +132,7 @@ private fun ScoringControls(graph: AppGraph) {
         VSpace(6.dp);LinkText(if(calculation)"Hide point calculation" else "Show point calculation") { calculation=!calculation }
     }
     LinkText("Edit stat weights & main") { openSell(graph,SheetKind.SELL_WEIGHTS) }
-    LinkText("Reset score model") { graph.messages.askReset("Reset the score model?","Weights and diversity go back to the game's values.") { graph.sellReview.edit(q.copy(score=GearScore.Model())) } }
+    LinkText("Reset score model") { graph.messages.askReset("Reset the score model?","Weights and diversity go back to the game's values.",graph.sellReview::resetScoreModel) }
 }
 
 internal fun esVerdict(es:EsForecast.Es,rollOn:Double):Pair<String,Boolean>? = when {
@@ -238,13 +239,18 @@ fun SellFiltersScreen(graph: AppGraph) {
     var jump by remember { mutableStateOf(false) }
     LaunchedEffect(result) { if(result!=null&&jump) { tab=1;jump=false } }
     LaunchedEffect(result==null) { if(result==null)tab=0 }
-    Frame(null,null,actions={
-        if(graph.sellReview.busy)OutlineButton("Stop",Modifier.weight(1f)) { graph.sellReview.stop() }
-        else if(tab==1&&result!=null&&result.matches.any { it.item.id !in graph.marks.reviewed }&&graph.sellReview.fresh&&category==0) {
-            OutlineButton("Edit filters",Modifier.weight(1f)) { tab=0 }
-            PinkButton("Review over game",Modifier.weight(1f),short="Over game") { graph.trackSell() }
-        }else PinkButton(if(result!=null&&!graph.sellReview.fresh)"Update matches" else "Find matches",Modifier.weight(1f)) { jump=true;graph.findSell() }
-    }) {
+    val reviewing = tab==1&&result!=null&&result.matches.any { it.item.id !in graph.marks.reviewed }&&graph.sellReview.fresh&&category==0
+    Frame(null,null,
+        primary=when {
+            graph.sellReview.busy -> null
+            reviewing -> Action("Review over game",short="Over game") { graph.trackSell() }
+            else -> Action(if(result!=null&&!graph.sellReview.fresh)"Update matches" else "Find matches") { jump=true;graph.findSell() }
+        },
+        secondary=when {
+            graph.sellReview.busy -> Secondary("Stop",Span.Fill) { graph.sellReview.stop() }
+            reviewing -> Secondary("Edit filters",Span.Fill,before=true) { tab=0 }
+            else -> null
+        }) {
         BackToPrevious();ScreenTitle("Sell review")
         Segmented(listOf("Set up","Matches"),tab) { tab=it }
         if(graph.sellReview.busy)Card(shadow=null,padding=PaddingValues(12.dp)) {
@@ -345,6 +351,7 @@ private fun SellChoice(text:String,modifier:Modifier=Modifier,selected:Boolean,s
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 fun SellSheet(graph: AppGraph,sheet:Sheet) {
     val q=graph.sellReview.query
     fun update(v:SellQuery)=graph.sellReview.edit(v)
@@ -367,7 +374,7 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                     SellNumber("Maximum current score",q.maximumCurrentScore,0.0,graph.sellReview.scoreLimit,4,true) { update(q.copy(maximumCurrentScore=it)) }
                     SellToggle("Include rare-only possibilities",q.includeRare) { update(q.copy(includeRare=it)) }
                 }
-                OutlineButton("Reset all Sell review settings",Modifier.fillMaxWidth(),height=40.dp) { graph.messages.askReset("Reset Sell review?","Every Sell review setting goes back to its default. Sold and kept marks stay.") { update(SellQuery()) } }
+                OutlineButton("Reset all Sell review settings",Modifier.fillMaxWidth(),height=40.dp) { graph.messages.askReset("Reset Sell review?","Every Sell review setting goes back to its default. Sold and kept marks stay.",graph.sellReview::resetSettings) }
             }
             SheetKind.SELL_WORTH->{
                 KeepRollingSlider(q.rollOn,graph.sellReview.keepCurve,graph.sellReview.curveBusy||graph.sellReview.busy,{ graph.findSell() },{ t,b->graph.messages.explain(t,b) }) { update(q.copy(rollOn=it)) }
@@ -376,7 +383,7 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                 val auto=graph.sellReview.autoEsBars()
                 Slot.entries.forEach { slot->ValueSlider(slot.label,{ GearIcon(slot.icon,18.dp,C.ink) },(q.esBars[slot]?:auto[slot]?:80).toDouble(),EsForecast.esRange.first.toDouble(),EsForecast.esRange.last.toDouble(),1.0,{ "${it.toInt()}" }) { v->
                     update(q.copy(esBars=q.esBars+(slot to v.toInt()))) } }
-                OutlineButton("Reset all to your +15 medians",Modifier.fillMaxWidth(),height=40.dp,enabled=q.esBars.isNotEmpty()) { graph.messages.askReset("Reset the ES bars?","Every slot goes back to the middle ES of your own +15 pieces.") { update(q.copy(esBars=emptyMap())) } }
+                OutlineButton("Reset all to your +15 medians",Modifier.fillMaxWidth(),height=40.dp,enabled=q.esBars.isNotEmpty()) { graph.messages.askReset("Reset the ES bars?","Every slot goes back to the middle ES of your own +15 pieces.",graph.sellReview::resetEsBars) }
             }
             SheetKind.SELL_SAFEGUARDS->{
                 Text("Pieces that can still reach one of these stay out of Sell review.",style=zen(13.sp))
@@ -389,7 +396,7 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                 }
                 Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     OutlineButton("Turn all off",Modifier.weight(1f),height=40.dp,enabled=q.keepStats.isNotEmpty()) { update(q.copy(keepStats=emptyMap())) }
-                    OutlineButton("Reset to defaults",Modifier.weight(1f),height=40.dp,enabled=q.keepStats!=SellQuery.DEFAULT_GUARDS||q.keepChance!=1.0) { graph.messages.askReset("Reset the safeguards?","Spd 20, Cr 25%, Cd 35% and 40% for every % stat; flat stats off.") { update(q.copy(keepStats=SellQuery.DEFAULT_GUARDS,keepChance=1.0)) } }
+                    OutlineButton("Reset to defaults",Modifier.weight(1f),height=40.dp,enabled=q.keepStats!=SellQuery.DEFAULT_GUARDS||q.keepChance!=1.0) { graph.messages.askReset("Reset the safeguards?","Spd 20, Cr 25%, Cd 35% and 40% for every % stat; flat stats off.",graph.sellReview::resetSafeguards) }
                 }
             }
             SheetKind.SELL_SCORE->ScoringControls(graph)
@@ -397,7 +404,7 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                 Text("Points for 1 stat unit. For example, Speed ×2 gives 20 points for 10 Speed. Both candidate and comparison pieces use these weights.",style=zen(12.sp))
                 SellNumber("Main contribution %",q.score.mainPercent.toDouble(),0.0,500.0,0) { update(q.copy(score=q.score.copy(mainPercent=(it?:100.0).toInt()))) }
                 GearStat.entries.forEach { stat->SellNumber("Weight ${stat.short}",q.score.weight(stat),0.0,10.0,4) { value->update(q.copy(score=q.score.copy(weights=q.score.weights+(stat to (value?:GearScore.weights.getValue(stat)))))) } }
-                LinkText("Reset score model") { graph.messages.askReset("Reset the score model?","Weights and diversity go back to the game's values.") { update(q.copy(score=GearScore.Model())) } }
+                LinkText("Reset score model") { graph.messages.askReset("Reset the score model?","Weights and diversity go back to the game's values.",graph.sellReview::resetScoreModel) }
             }
             SheetKind.SELL_FLOORS->{
                 Text("For each slot, start with the lowest-point piece equipped on your selected heroes. Any custom scores replace those comparisons below.",style=zen(12.sp))

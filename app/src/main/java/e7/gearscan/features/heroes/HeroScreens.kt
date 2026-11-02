@@ -48,6 +48,7 @@ import e7.gearscan.data.fmtInt
 import e7.gearscan.data.Match
 
 @Composable
+@OptIn(LinkStyle::class)
 fun HeroesScreen(graph: AppGraph) {
     graph.scan.rev
     val box = graph.scan.box
@@ -132,6 +133,7 @@ private fun HeroRow(graph: AppGraph, h: OwnedHero, last: Boolean, onTap: () -> U
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 private fun TierEditor(graph: AppGraph, h: OwnedHero, onClose: () -> Unit) {
     val t = graph.heroes.tier(h.id)
     Column(Modifier.fillMaxWidth().hatch().border(2.5.dp, C.edge).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -164,6 +166,7 @@ fun MissingSetRow(st: e7.gearscan.data.SetDef) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 private fun MatchCard(graph: AppGraph, id: Long, m: Match.Result) {
     Card(shadow = C.shadow, radius = 14.dp, border = 2.5.dp, padding = PaddingValues(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -205,12 +208,11 @@ fun HeroDetailScreen(graph: AppGraph, id: Long) {
     val gear = graph.scan.box?.gearOf(id) ?: emptyMap()
     val cfg = graph.heroes.config(id)
     val tier = graph.heroes.tier(id)
-    Frame(graph, Screen.Heroes, actions = {
-        PinkButton("Optimize ${graph.heroes.heroName(h)}", Modifier.weight(1f), enabled = graph.heroes.gameHero(h) != null, short = "Optimize") {
+    Frame(graph, Screen.Heroes,
+        primary = Action("Optimize ${graph.heroes.heroName(h)}", enabled = graph.heroes.gameHero(h) != null, short = "Optimize") {
             graph.heroes.pickHero(id); graph.heroes.team = listOf(id); graph.nav.tab(Screen.Optimize)
-        }
-        OutlineButton("Bonus stats") { graph.nav.sheet = Sheet(SheetKind.BONUS, id) }
-    }) {
+        },
+        secondary = Secondary("Bonus stats") { graph.nav.sheet = Sheet(SheetKind.BONUS, id) }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BackToPrevious(Modifier.weight(1f))
             Text("Tier $tier", style = zen(12.sp, color = C.muted))

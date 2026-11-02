@@ -10,6 +10,7 @@ import e7.gearscan.Fribbels
 import e7.gearscan.Screen
 import e7.gearscan.TProxyService
 import e7.gearscan.data.Box
+import e7.gearscan.ui.Confirmed
 import e7.gearscan.data.ScanDiff
 import e7.gearscan.data.ScanStatus
 import e7.gearscan.state.Codec
@@ -133,7 +134,7 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
             true
         }.getOrDefault(false)
 
-    fun erase() {
+    fun erase(confirmed: Confirmed) {
         stopAll()
         g.store.erase()
         g.tracker.reset()

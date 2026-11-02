@@ -63,17 +63,14 @@ fun OptimizeScreen(graph: AppGraph) {
     val team = graph.heroes.team.mapNotNull { graph.heroes.hero(it) }
     val pool = box != null && graph.pool.mode
     val history = box != null && graph.history.shown
-    Frame(graph, Screen.Optimize, actions = when {
+    Frame(graph, Screen.Optimize, primary = when {
         history -> null
-        pool -> ({ PoolButton(graph) })
+        pool -> poolAction(graph)
         team.isEmpty() -> null
-        else -> ({
-            PinkButton("Search", Modifier.weight(1f),
-                enabled = team.all { graph.heroes.gameHero(it) != null }) {
-                graph.optimize.startSearch()
-                if (team.size == 1) graph.nav.go(Screen.Results)
-            }
-        })
+        else -> Action("Search", enabled = team.all { graph.heroes.gameHero(it) != null }) {
+            graph.optimize.startSearch()
+            if (team.size == 1) graph.nav.go(Screen.Results)
+        }
     }) {
         ScreenTitle("Optimize", "最適化") { ScanChip(graph.scan.scannedLabel(), graph.scan.phase != ScanPhase.IDLE) { if (graph.scan.phase != ScanPhase.IDLE) graph.nav.go(Screen.Capture) else graph.nav.go(Screen.ScanData) } }
         CrashCard(graph)
@@ -117,13 +114,14 @@ fun OptimizeScreen(graph: AppGraph) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 private fun NoBox(graph: AppGraph) {
     Card {
         Text("No heroes yet", style = dela(17.sp))
         VSpace(4.dp)
         Text("Scan the game once to load your heroes and gear, or import a Fribbels gear.txt.", style = zen(13.sp, FontWeight.Medium, C.muted))
         VSpace(10.dp)
-        PinkButton("Scan the game", Modifier.fillMaxWidth()) { graph.nav.go(if (graph.settings.consent) Screen.ScanData else Screen.ScanIntro) }
+        CardAction(Action("Scan the game") { graph.nav.go(if (graph.settings.consent) Screen.ScanData else Screen.ScanIntro) })
         VSpace(8.dp)
         LinkText("Restore a backup or import a gear.txt") { graph.nav.go(Screen.ScanData) }
     }
@@ -145,6 +143,7 @@ fun heroSubtitle(graph: AppGraph, h: OwnedHero): String {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 private fun SingleSetup(graph: AppGraph, h: OwnedHero) {
     val req = graph.heroes.request(h.id)
     Card(padding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
@@ -171,6 +170,7 @@ private fun SingleSetup(graph: AppGraph, h: OwnedHero) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 internal fun PresetCard(graph: AppGraph, h: OwnedHero, req: Request) {
     val loading = graph.heroes.presetLoading[h.code] == true
     val shape = RoundedCornerShape(14.dp)
@@ -262,6 +262,7 @@ fun ratingText(r: Rating, v: Double) = when (r) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 fun ResultsScreen(graph: AppGraph) {
     graph.scan.rev
     val s = graph.optimize.search ?: run { OptimizeScreen(graph); return }
@@ -271,9 +272,7 @@ fun ResultsScreen(graph: AppGraph) {
     LaunchedEffect(s.running) { while (s.running) { now = System.currentTimeMillis(); delay(100) } }
     val r = graph.settings.showRating
     val byMatch = req.goal == Goal.TARGETS && graph.optimize.showMatch
-    Frame(graph, Screen.Optimize, actions = if (s.builds.isEmpty()) null else ({
-        PinkButton("Compare #1", Modifier.weight(1f)) { graph.nav.go(Screen.Compare(0)) }
-    })) {
+    Frame(graph, Screen.Optimize, primary = if (s.builds.isEmpty()) null else Action("Compare #1") { graph.nav.go(Screen.Compare(0)) }) {
         BackToPrevious()
         if (s.historyAt != 0L) HistoryNote(s.historyAt)
         ScreenTitle("Best 50") { ScanChip(graph.scan.scannedLabel(), graph.scan.phase != ScanPhase.IDLE) { if (graph.scan.phase != ScanPhase.IDLE) graph.nav.go(Screen.Capture) else graph.nav.go(Screen.ScanData) } }
@@ -350,6 +349,7 @@ fun ResultsScreen(graph: AppGraph) {
 
 /** A box scanned more than a day ago gives stale results; say so where results are made. */
 @Composable
+@OptIn(LinkStyle::class)
 fun StaleBox(graph: AppGraph) {
     val age = if (graph.scan.lastScan > 0) (System.currentTimeMillis() - graph.scan.lastScan) / 3_600_000 else return
     if (age < 24) return
@@ -363,6 +363,7 @@ fun StaleBox(graph: AppGraph) {
 
 /** Says whether substat mods were part of this search, so a list without 改 is not a mystery. */
 @Composable
+@OptIn(LinkStyle::class)
 private fun ModsLine(graph: AppGraph, s: e7.gearscan.features.optimize.SearchState, req: Request) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("改", style = dela(12.sp, if (req.mods) C.deepPink else C.muted))
@@ -471,6 +472,7 @@ private fun SkeletonCard(i: Int) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 fun CompareScreen(graph: AppGraph, index: Int, poolHero: Long?, review: Boolean = false) {
     graph.scan.rev
     val s = graph.optimize.search
@@ -483,24 +485,24 @@ fun CompareScreen(graph: AppGraph, index: Int, poolHero: Long?, review: Boolean 
     val queue = if (review) graph.pool.reviewQueue() else emptyList()
     val at = queue.indexOf(heroId)
     val readOnly = graph.pool.state?.fromHistory == true && poolHero != null || graph.optimize.search?.historyAt?.let { it != 0L } == true && poolHero == null
-    Frame(null, null, actions = if (review) ({
-        // always laid out (dimmed on the first hero) so Next keeps its place
-        val prev = queue.getOrNull(at - 1)
-        OutlineButton("‹ Previous", Modifier.width(118.dp), enabled = prev != null) { prev?.let { graph.nav.replace(Screen.PoolReview(it)) } }
-        val next = queue.drop(at + 1).firstOrNull { it !in graph.pool.state!!.reviewed }
-        PinkButton(next?.let { "Next · ${graph.heroes.hero(it)?.let(graph.heroes::heroName)} ›" } ?: "Done", Modifier.weight(1f), short = next?.let { "Next ›" }) {
-            graph.pool.markReviewed(heroId)
-            if (next != null) graph.nav.replace(Screen.PoolReview(next)) else graph.nav.back()
-        }
-    }) else ({
-        val at = graph.pool.state?.startedAt?.takeIf { poolHero != null } ?: graph.optimize.search?.startedAt ?: 0
-        PinkButton("Show over game", Modifier.weight(1f)) {
+    val prev = queue.getOrNull(at - 1)
+    val next = queue.drop(at + 1).firstOrNull { it !in (graph.pool.state?.reviewed ?: emptySet()) }
+    val startedAt = graph.pool.state?.startedAt?.takeIf { poolHero != null } ?: graph.optimize.search?.startedAt ?: 0
+    Frame(null, null,
+        primary = if (review) {
+            Action(next?.let { "Next · ${graph.heroes.hero(it)?.let(graph.heroes::heroName)} ›" } ?: "Done", short = next?.let { "Next ›" }) {
+                graph.pool.markReviewed(heroId)
+                if (next != null) graph.nav.replace(Screen.PoolReview(next)) else graph.nav.back()
+            }
+        } else Action("Show over game") {
             if (!graph.overGame.show(heroId, b, if (teamHero != null) heroName else "$heroName #${index + 1}",
-                    if (readOnly) graph.history.flag(at) else null)) graph.nav.go(Screen.OverlayIntro)
-        }
-        // a past run's pieces may have moved; the checklist checks each one in the game, equipping blind here doesn't
-        if (!readOnly) OutlineButton("Equip in app") { graph.heroes.recordBuild(heroId, b) }
-    })) {
+                    if (readOnly) graph.history.flag(startedAt) else null)) graph.nav.go(Screen.OverlayIntro)
+        },
+        secondary = if (review) {
+            Secondary("‹ Previous", Span.Fixed(118.dp), enabled = prev != null, before = true) { prev?.let { graph.nav.replace(Screen.PoolReview(it)) } }
+        } else if (!readOnly) {
+            Secondary("Equip in app") { graph.heroes.recordBuild(heroId, b) }
+        } else null) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             BackToPrevious(Modifier.weight(1f))
             if (review) {
@@ -634,10 +636,7 @@ fun GhostBuildScreen(graph: AppGraph) {
     val gp = g.ghost ?: return
     val req = graph.heroes.request(s.heroId)
     val r = graph.settings.showRating.let { if (it == Rating.SPD) Rating.DMG else it }
-    Frame(null, null, actions = {
-        PinkButton("Back to results", Modifier.weight(1f)) { graph.nav.back() }
-        OutlineButton("Equip", dashed = true, enabled = false) {}
-    }) {
+    Frame(null, null, primary = Action("Back to results") { graph.nav.back() }, secondary = Secondary("Equip", dashed = true, enabled = false) {}) {
         BackToPrevious()
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             GhostTag(); Text("Ghost build", style = TitleStyle)

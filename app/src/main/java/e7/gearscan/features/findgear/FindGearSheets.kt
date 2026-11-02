@@ -45,6 +45,7 @@ internal fun PotentialTargetsSheet(graph: AppGraph) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 internal fun PotentialSlotsSheet(graph: AppGraph) {
     val q = graph.findGear.query
     SheetBody("Equipment slots", trailing = { LinkText("All") { graph.findGear.edit(q.copy(slots = Slot.entries.toSet())) } }, button = "Done", onButton = { graph.nav.sheet = null }) {
@@ -60,6 +61,7 @@ internal fun PotentialSlotsSheet(graph: AppGraph) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 internal fun PotentialSetsSheet(graph: AppGraph) {
     val q = graph.findGear.query
     var query by remember { mutableStateOf("") }
@@ -77,6 +79,7 @@ internal fun PotentialSetsSheet(graph: AppGraph) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 internal fun PotentialMainsSheet(graph: AppGraph) {
     val q = graph.findGear.query
     SheetBody("Main stats", trailing = { LinkText("Any main") { graph.findGear.edit(q.copy(mains = emptySet())) } }, button = "Done", onButton = { graph.nav.sheet = null }) {
@@ -86,6 +89,7 @@ internal fun PotentialMainsSheet(graph: AppGraph) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 internal fun PotentialOptionsSheet(graph: AppGraph) {
     val q = graph.findGear.query
     SheetBody("Finishing options", button = "Done", onButton = { graph.nav.sheet = null }) {
@@ -108,7 +112,7 @@ internal fun PotentialOptionsSheet(graph: AppGraph) {
             Text("Include rare-roll possibilities", style = zen(12.sp), modifier = Modifier.weight(1f))
             Toggle(q.rareOnly) { graph.findGear.edit(q.copy(rareOnly = it)) }
         }
-        LinkText("Reset to Speed 20, no boots") { graph.messages.askReset("Reset the search?", "Targets and filters go back to Speed 20, no boots.") { graph.findGear.edit(PotentialQuery()) } }
+        LinkText("Reset to Speed 20, no boots") { graph.messages.askReset("Reset the search?", "Targets and filters go back to Speed 20, no boots.", graph.findGear::resetSearch) }
     }
 }
 
@@ -128,6 +132,7 @@ internal fun PotentialHelpSheet(graph: AppGraph) {
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 internal fun PotentialPieceSheet(graph: AppGraph, id: Long) {
     val result = graph.findGear.result ?: return
     val match = result.matches.firstOrNull { it.item.id == id } ?: return

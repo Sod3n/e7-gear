@@ -21,6 +21,7 @@ import e7.gearscan.state.Feature
 import e7.gearscan.state.Weight
 import e7.gearscan.state.WorkScope
 import e7.gearscan.state.blocking
+import e7.gearscan.ui.Confirmed
 import kotlin.concurrent.thread
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
@@ -286,6 +287,11 @@ class PoolFeature(g: AppGraph) : Feature(g, "pool") {
 
     /** Heroes of the shown pool run whose gear changes, in walk order. */
     fun reviewQueue(): List<Long> = state?.let { p -> p.ids.filter { p.builds[it] != null } }.orEmpty()
+
+    fun clearReviewed(ids: List<Long>, confirmed: Confirmed) {
+        ids.forEach { g.heroes.request(it).reviewed = false }
+        g.scan.touch()
+    }
 
     fun markReviewed(id: Long) {
         val p = state ?: return

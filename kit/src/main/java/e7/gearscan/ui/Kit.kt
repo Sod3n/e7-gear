@@ -165,7 +165,7 @@ fun FitText(text: String, style: TextStyle, modifier: Modifier = Modifier, textA
 }
 
 @Composable
-fun PinkButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, short: String? = null, onClick: () -> Unit) {
+internal fun PinkButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, short: String? = null, onClick: () -> Unit) {
     val shape = RoundedCornerShape(999.dp)
     Box(
         modifier.height(52.dp)
@@ -285,6 +285,7 @@ fun BackLink(text: String, modifier: Modifier = Modifier, tag: String = BACK_TAG
     }
 }
 
+@LinkStyle
 @Composable
 fun LinkText(text: String, size: Int = 12, color: Color = C.blue, onClick: () -> Unit) {
     Text(text, style = zen(size.sp, color = color).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),

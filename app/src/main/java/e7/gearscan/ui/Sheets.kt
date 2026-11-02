@@ -249,6 +249,7 @@ private fun PresetSkeleton() {
 }
 
 @Composable
+@OptIn(KeyboardInput::class)
 private fun NumBox(value: Double, pink: Boolean, modifier: Modifier = Modifier, onChange: (Double) -> Unit) {
     var text by remember(value) { mutableStateOf(if (value.isNaN()) "" else fmtNum(value)) }
     val shape = RoundedCornerShape(8.dp)
@@ -264,6 +265,7 @@ private fun NumBox(value: Double, pink: Boolean, modifier: Modifier = Modifier, 
 }
 
 @Composable
+@OptIn(LinkStyle::class)
 private fun TargetsSheet(graph: AppGraph, heroId: Long) {
     graph.scan.rev
     val req = graph.heroes.request(heroId)
@@ -280,11 +282,8 @@ private fun TargetsSheet(graph: AppGraph, heroId: Long) {
     val rows = first + sorted.filter { it !in first }
     SheetBody("Stat targets", trailing = {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            graph.heroes.presetReset(heroId)?.let { reset -> LinkText("Reset to preset") { graph.messages.askReset("Reset to the preset?", "Your target changes for this hero are replaced by the preset's.") { reset(); open = null } } }
-            LinkText("Clear") {
-                req.targets.fill(Double.NaN); req.mins.fill(Double.NaN); req.maxs.fill(Double.NaN); req.weights.fill(0); req.fromPreset.fill(false)
-                graph.scan.touch(); graph.store.saveNow()
-            }
+            graph.heroes.presetReset(heroId)?.let { reset -> LinkText("Reset to preset") { graph.messages.askReset("Reset to the preset?", "Your target changes for this hero are replaced by the preset's.") { reset(it); open = null } } }
+            LinkText("Clear") { graph.messages.askReset("Clear the targets?", "Every stat target, minimum, maximum and weight for this hero is removed.") { graph.heroes.clearTargets(heroId, it) } }
         }
     }, button = open?.let { "Done with ${it.label}" } ?: "Done", onButton = {
         // with a stat open the button finishes that stat; the sheet closes only from the list
@@ -376,6 +375,7 @@ private fun TargetEditor(graph: AppGraph, req: Request, st: Stat, now: Double?, 
 
 /** − value + box; empty shows "—", the first + starts from the current stat. */
 @Composable
+@OptIn(KeyboardInput::class)
 private fun Stepper(label: String, value: Double, step: Double, start: Double, modifier: Modifier, onChange: (Double) -> Unit) {
     val focus = LocalFocusManager.current
     var text by remember(value) { mutableStateOf(if (value.isNaN()) "" else fmtNum(value)) }
@@ -520,6 +520,7 @@ private fun ToggleRow(title: String, sub: String?, on: Boolean, onChange: (Boole
 }
 
 @Composable
+@OptIn(LinkStyle::class, KeyboardInput::class)
 private fun BonusSheet(graph: AppGraph, heroId: Long) {
     graph.scan.rev
     val h = graph.heroes.hero(heroId) ?: return
@@ -627,7 +628,7 @@ private fun ArtifactSheet(graph: AppGraph, sheet: Sheet) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, LinkStyle::class)
 @Composable
 private fun SetsSheet(graph: AppGraph, heroId: Long) {
     graph.scan.rev
@@ -701,7 +702,7 @@ fun SetChoiceSummary(graph: AppGraph, c: SetChoice, size: androidx.compose.ui.un
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, LinkStyle::class)
 @Composable
 private fun MainsSheet(graph: AppGraph, heroId: Long) {
     graph.scan.rev

@@ -61,17 +61,18 @@ fun HeroUpgradesScreen(graph: AppGraph, heroId: Long?) {
         tab == 1 -> view?.let { piecesOf(graph, it).map { p -> p.first } }.orEmpty()
         else -> view?.flatMap { h -> h.rows.map { it.pick.piece } }?.distinct().orEmpty()
     }.filter { it !in graph.marks.cleared }
-    Frame(null, null, actions = {
-        when {
-            running -> OutlineButton("Stop", Modifier.weight(1f)) { graph.improveHeroes.stop() }
-            result == null -> PinkButton(if (graph.improveHeroes.resumable) "Continue the check" else "Check my gear", Modifier.weight(1f),
+    Frame(null, null,
+        primary = when {
+            running -> null
+            result == null -> Action(if (graph.improveHeroes.resumable) "Continue the check" else "Check my gear",
                 enabled = graph.pool.state?.running != true) { graph.improveHeroes.start() }
-            else -> {
-                OutlineButton(if (graph.improveHeroes.resumable) "Continue" else "Check again", Modifier.weight(1f)) { graph.improveHeroes.start() }
-                PinkButton("Track all ${listed.size}", Modifier.weight(1f), enabled = listed.isNotEmpty(), short = "Track ${listed.size}") { graph.messages.show(graph.improveHeroes.trackAll(listed)) }
-            }
-        }
-    }) {
+            else -> Action("Track all ${listed.size}", enabled = listed.isNotEmpty(), short = "Track ${listed.size}") { graph.messages.show(graph.improveHeroes.trackAll(listed)) }
+        },
+        secondary = when {
+            running -> Secondary("Stop", Span.Fill) { graph.improveHeroes.stop() }
+            result == null -> null
+            else -> Secondary(if (graph.improveHeroes.resumable) "Continue" else "Check again", Span.Fill, before = true) { graph.improveHeroes.start() }
+        }) {
         BackToPrevious()
         // a hero's long name leaves no room for the kana beside it
         if (heroId == null) ScreenTitle("Improve heroes", "キョウカ")

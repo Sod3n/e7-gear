@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -49,7 +52,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun Frame(
     scroll: Boolean = true,
-    actions: (@Composable RowScope.() -> Unit)? = null,
+    primary: Action? = null,
+    secondary: Secondary? = null,
     tabBar: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -73,13 +77,61 @@ fun Frame(
                 }
             }
         }
-        if (actions != null) {
+        if (primary != null || secondary != null) {
             Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 12.dp)
                 .then(if (tabBar == null) Modifier.navigationBarsPadding() else Modifier),
-                horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
+                horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (secondary != null && secondary.before) SecondaryButton(secondary)
+                if (primary != null) PrimaryButton(primary, Modifier.weight(1f))
+                if (secondary != null && !secondary.before) SecondaryButton(secondary)
+            }
         }
         tabBar?.invoke()
     }
+}
+
+/** A screen's one main action: the pink button [Frame] draws. [detail] makes it a two-line button. */
+class Action(val label: String, val enabled: Boolean = true, val short: String? = null, val detail: String? = null, val onClick: () -> Unit)
+
+sealed interface Span {
+    data object Wrap : Span
+    data object Fill : Span
+    data class Fixed(val width: Dp) : Span
+}
+
+/** The outlined button beside the primary, before or after it. */
+class Secondary(val label: String, val span: Span = Span.Wrap, val enabled: Boolean = true, val dashed: Boolean = false,
+                val before: Boolean = false, val onClick: () -> Unit)
+
+@Composable
+private fun PrimaryButton(a: Action, modifier: Modifier) {
+    if (a.detail == null) PinkButton(a.label, modifier, enabled = a.enabled, short = a.short, onClick = a.onClick)
+    else {
+        val shape = RoundedCornerShape(999.dp)
+        Column(modifier.height(56.dp).then(if (a.enabled) Modifier.hardShadow(C.shadow, 3.dp, 4.dp, 28.dp) else Modifier).clip(shape)
+            .background(if (a.enabled) C.pink else C.line).border(2.5.dp, C.edge, shape)
+            .tap(if (a.enabled) a.onClick else null),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            FitText(a.label, dela(16.sp, if (a.enabled) C.onAccent else C.ink))
+            FitText(a.detail, zen(10.sp, FontWeight.Medium))
+        }
+    }
+}
+
+@Composable
+private fun RowScope.SecondaryButton(s: Secondary) {
+    val modifier = when (val span = s.span) {
+        Span.Wrap -> Modifier
+        Span.Fill -> Modifier.weight(1f)
+        is Span.Fixed -> Modifier.width(span.width)
+    }
+    OutlineButton(s.label, modifier, dashed = s.dashed, enabled = s.enabled, onClick = s.onClick)
+}
+
+/** The primary of an empty-state card, for a screen whose [Frame] has none at that moment. */
+@Composable
+fun CardAction(action: Action) {
+    PinkButton(action.label, Modifier.fillMaxWidth(), enabled = action.enabled, short = action.short, onClick = action.onClick)
 }
 
 const val PINNED_BACK_TAG = "back-link-pinned"
