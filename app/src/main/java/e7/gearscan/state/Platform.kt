@@ -62,6 +62,8 @@ interface Platform {
     fun cleanUpdates(installed: String)
 
     fun notifyPoolDone(heroes: Int)
+
+    fun notifyHeroUpgradesDone(heroes: Int)
 }
 
 object NoPlatform : Platform {
@@ -123,4 +125,6 @@ object NoPlatform : Platform {
     override fun cleanUpdates(installed: String) {}
 
     override fun notifyPoolDone(heroes: Int) {}
+
+    override fun notifyHeroUpgradesDone(heroes: Int) {}
 }

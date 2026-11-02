@@ -5,6 +5,7 @@ import e7.gearscan.AppGraph
 import e7.gearscan.calc.Calc
 import e7.gearscan.data.Box
 import e7.gearscan.data.GameHero
+import e7.gearscan.data.Goal
 import e7.gearscan.data.HeroConfig
 import e7.gearscan.data.Item
 import e7.gearscan.data.Match
@@ -18,9 +19,11 @@ import e7.gearscan.data.Request
 import e7.gearscan.data.Role
 import e7.gearscan.data.SavedBuild
 import e7.gearscan.data.Stat
+import e7.gearscan.data.fmtNum
 import e7.gearscan.data.UpgradeRecord
 import e7.gearscan.opt.Build
 import e7.gearscan.opt.Ghost
+import e7.gearscan.opt.HeroUpgrades
 import e7.gearscan.opt.Mods
 import e7.gearscan.opt.Objectives
 import e7.gearscan.opt.Setup
@@ -72,6 +75,8 @@ class HeroesFeature(g: AppGraph) : Feature(g, "heroes") {
     fun gameHero(h: OwnedHero): GameHero? = content.heroes[h.code]
 
     fun heroName(h: OwnedHero) = h.name.ifEmpty { content.heroes[h.code]?.name ?: h.code }
+
+    fun heroName(id: Long): String? = hero(id)?.let(::heroName)
 
     fun face(h: OwnedHero) = content.face(h.code)
 
@@ -161,6 +166,63 @@ class HeroesFeature(g: AppGraph) : Feature(g, "heroes") {
         val s = setup(id) ?: return null
         val r = Objectives.rollSize(s.hb)
         return { r[it.ordinal] }
+    }
+
+    private fun worn(id: Long): Set<Long> = box?.gearOf(id)?.values.orEmpty().map { it.id }.toSet()
+
+    /** Pieces worn by heroes of the pool run stay where they are; everything else is spare. */
+    fun inUse(b: Box): Set<Long> {
+        val members = g.pool.members().map { it.id }.toSet()
+        return b.items.filter { it.equippedOn in members }.map { it.id }.toSet()
+    }
+
+    /** Every hero with a setup, each free to use its own gear and the spares. */
+    fun gearSetups(b: Box, inUse: Set<Long>): List<Setup> =
+        b.heroes.mapNotNull { h ->
+            val game = gameHero(h) ?: return@mapNotNull null
+            val cfg = configs[h.id] ?: return@mapNotNull null
+            val req = cfg.request?.copy() ?: return@mapNotNull null
+            if (req.goal == Goal.TARGETS && req.targets.all { it.isNaN() }) return@mapNotNull null
+            req.lowerPriorityOnly = false
+            req.keepCurrent = false
+            req.maxChanges = 6
+            req.mods = false
+            Setup(h, game, cfg, req, b, content, { true }, inUse - worn(h.id))
+        }
+
+    /** Where each piece of [items] comes from for [heroId]: this piece, stays, from the bag, or from another hero. */
+    fun buildFrom(heroId: Long, items: List<Item>, pieceId: Long): List<String> {
+        val worn = box?.gearOf(heroId).orEmpty()
+        return items.map {
+            when {
+                it.id == pieceId || it.id < 0 -> "This piece, upgraded"
+                worn[it.slot]?.id == it.id -> "Stays"
+                it.equippedOn == null -> "From the bag"
+                else -> "From ${heroName(it.equippedOn!!) ?: "a hero not in the scan"}"
+            }
+        }
+    }
+
+    /** A build value over [base] as the player reads it: match points on targets, else the goal's own unit. */
+    fun gainLabel(id: Long, base: HeroUpgrades.Base, value: Double): String {
+        val v0 = base.value ?: return "makes a build"
+        val req = configs[id]?.request ?: return ""
+        val d = value - v0
+
+        fun one(x: Double) = fmtNum(Math.round(x * 10) / 10.0)
+        return when (req.goal) {
+            Goal.TARGETS ->
+                mainsOnly(id, req)?.let { floor ->
+                    rolls(id)?.let { roll ->
+                        Match.start(floor, req.targets, req.weights, roll).takeIf { it > 0 }?.let { "+${one(100 * d / it)} match" }
+                    }
+                } ?: "+${one(d / base.unit)} rolls"
+            Goal.SPEED -> "+${one(d)} speed"
+            Goal.GEAR_SCORE -> "+${one(d)} score"
+            Goal.DAMAGE -> "+${one(100 * d / kotlin.math.abs(v0))}% damage"
+            Goal.EHP -> "+${one(100 * d / kotlin.math.abs(v0))}% EHP"
+            Goal.CP -> "+${one(100 * d / kotlin.math.abs(v0))}% CP"
+        }
     }
 
     fun matchFor(id: Long): Match.Result? {

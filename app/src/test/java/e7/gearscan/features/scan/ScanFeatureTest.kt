@@ -124,13 +124,9 @@ class ScanFeatureTest {
         val g = graph(this)
         g.scan.import(text)
         g.pool.run.start { CompletableDeferred<Unit>().await() }
-        var restored = 0
-        g.scan.host = object : ScanFeature.Host {
-            override fun restored() { restored++ }
-        }
         assertTrue(g.scan.restore(backupV1()))
         assertTrue(g.work.active.isEmpty())
-        assertEquals(1, restored)
+        assertEquals("sig", g.tracker.signature)
         assertNotNull(g.scan.box)
         assertTrue(JSONObject(backupV1()).getJSONObject("box").similar(JSONObject(g.scan.boxFile.read()!!)))
         assertEquals(1_761_000_000_000L, g.scan.lastScan)
@@ -167,14 +163,11 @@ class ScanFeatureTest {
         g.marks.markReviewed(box.items.first().id, keep = false)
         g.pool.run.start { CompletableDeferred<Unit>().await() }
         g.nav.go(Screen.Heroes)
-        var erased = 0
-        g.scan.host = object : ScanFeature.Host {
-            override fun erased() { erased++ }
-        }
+        g.tracker.restore(JSONObject().put("signature", "sig"), save = false)
         g.scan.erase()
         g.disk.flush()
         assertTrue(g.work.active.isEmpty())
-        assertEquals(1, erased)
+        assertEquals("", g.tracker.signature)
         assertNull(g.scan.box)
         assertEquals(0L, g.scan.lastScan)
         assertTrue(g.marks.cleared.isEmpty())

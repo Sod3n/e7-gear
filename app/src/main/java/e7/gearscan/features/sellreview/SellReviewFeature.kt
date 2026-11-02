@@ -27,27 +27,12 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-interface SellHost {
-    val contentVersion: String
-
-    fun touch()
-}
-
-object NoSellHost : SellHost {
-    override val contentVersion = ""
-
-    override fun touch() {}
-}
-
 class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
     var query by saved("query", SellQuery(), Codecs.obj({ it.toJson() }, { SellQuery.of(it) }))
         private set
     val progress = savedFile("sell_progress.jsonl", backup = false, path = "sell_progress.jsonl")
     val run = work<Unit>("Sell review", Weight.Heavy, notice = "Checking sell filters")
     val curve = work<Unit>("Keep curve")
-
-    // the tracker still lives in AppModel; this goes when its feature owns it
-    var host: SellHost = NoSellHost
 
     var result: SellSearch.Result? by mutableStateOf(null)
         private set
@@ -99,7 +84,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
         curve.cancel()
         stop()
         query = if (!q.scoreFilter && q.sort in listOf(SellSort.SCORE, SellSort.CHANCE)) q.copy(sort = SellSort.QUALITY) else q
-        host.touch()
+        g.scan.touch()
     }
 
     fun stop() = run.cancel()
@@ -115,7 +100,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
         val removed = g.marks.reviewed
         val members = g.pool.members().map { it.id }.toSet()
         val names = b.allHeroes.associate { it.id to g.heroes.heroName(it) }
-        val version = host.contentVersion
+        val version = g.content.content.version
         val key = freshnessKey()
         return run.start {
             val scope = this
@@ -182,7 +167,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
                     g.pool.members().map { it.id }.toSet(),
                     b.allHeroes.associate { it.id to g.heroes.heroName(it) },
                     q,
-                    host.contentVersion,
+                    g.content.content.version,
                 )
             contextKey = key
         }

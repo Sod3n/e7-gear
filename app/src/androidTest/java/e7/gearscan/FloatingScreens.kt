@@ -71,7 +71,7 @@ class FloatingScreens {
         rule.waitForIdle()
         check(model.graph.overlay.floatingPanel) { "the Panel chip didn't bring the tracker back" }
         ui { model.graph.tracker.hide() }
-        val hero = model.heroUpgradeHeroes().first { model.box!!.gearOf(it.id).size == 6 }
+        val hero = model.graph.improveHeroes.heroes().first { model.box!!.gearOf(it.id).size == 6 }
         ui { model.loadBuildChecklist(hero.id, model.graph.heroes.currentBuild(hero.id)!!, "Floating check"); model.graph.overlay.expanded = true }
         shoot("3-checklist")
         ui { model.graph.overGame.closeFloatingPanel() }

@@ -618,14 +618,14 @@ class ScreenAudit {
         steps.add("improve-heroes" to { ui { overlay = false; model.graph.tracker.hide(); model.sheet = null; model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) } })
         // the states a player decides in need a finished check (~3 min on the emulator), run once when first asked for
         fun heroUpgradesDone(): e7.gearscan.opt.HeroUpgrades.Result {
-            if (model.heroUpgrades?.result == null || model.heroUpgrades?.running == true) {
-                ui { model.startHeroUpgrades() }
-                rule.waitUntil(20 * 60_000) { model.heroUpgrades?.running == false && model.heroUpgrades?.result != null }
+            if (model.graph.improveHeroes.heroUpgrades?.result == null || model.graph.improveHeroes.heroUpgrades?.running == true) {
+                ui { model.graph.improveHeroes.start() }
+                rule.waitUntil(20 * 60_000) { model.graph.improveHeroes.heroUpgrades?.running == false && model.graph.improveHeroes.heroUpgrades?.result != null }
             }
-            return model.heroUpgrades!!.result!!
+            return model.graph.improveHeroes.heroUpgrades!!.result!!
         }
         // the audit's own fixed setups can leave every hero with nothing to gain; HeroUpgradeScreens covers real setups
-        fun upgradeHero() = model.heroUpgradeView(heroUpgradesDone()).firstOrNull { it.rows.isNotEmpty() }
+        fun upgradeHero() = model.graph.improveHeroes.view(heroUpgradesDone()).firstOrNull { it.rows.isNotEmpty() }
             ?: run { warn("Improve heroes found no hero with gains on the audit's setups, so its hero page and piece sheet go unchecked", "improve-heroes"); null }
         steps.add("improve-heroes-by-hero" to { heroUpgradesDone(); ui { overlay = false; model.graph.tracker.hide(); model.sheet = null; model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) } })
         steps.add("improve-heroes-by-piece" to { heroUpgradesDone(); ui { model.sheet = null; model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) }; clickText("By piece") })

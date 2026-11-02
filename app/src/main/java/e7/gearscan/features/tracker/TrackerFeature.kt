@@ -4,7 +4,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import e7.gearscan.AppGraph
-import e7.gearscan.PIECE_SIMS
 import e7.gearscan.Screen
 import e7.gearscan.data.Box
 import e7.gearscan.data.GearStat
@@ -35,43 +34,10 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** Simulated finishes the tracker checks a piece with: the chance it ends up an upgrade, and its weakest helping finishes. */
+const val PIECE_SIMS = 120
+
 class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
-    interface Host {
-        fun setups(box: Box): List<Setup>
-
-        fun heroName(id: Long): String?
-
-        fun buildFrom(
-            heroId: Long,
-            items: List<Item>,
-            pieceId: Long,
-        ): List<String>
-
-        fun gainLabel(
-            heroId: Long,
-            base: HeroUpgrades.Base,
-            value: Double,
-        ): String
-    }
-
-    object NoHost : Host {
-        override fun setups(box: Box) = emptyList<Setup>()
-
-        override fun heroName(id: Long): String? = null
-
-        override fun buildFrom(
-            heroId: Long,
-            items: List<Item>,
-            pieceId: Long,
-        ) = emptyList<String>()
-
-        override fun gainLabel(
-            heroId: Long,
-            base: HeroUpgrades.Base,
-            value: Double,
-        ) = ""
-    }
-
     data class QueueEntry(
         val id: Long,
         val goal: GearPotential.Goal?,
@@ -90,8 +56,6 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
     }
 
     private class EquipUndo(val itemId: Long, val before: JSONObject, val owner: Long?, val displaced: Item?, val heroId: Long)
-
-    var host: Host = NoHost
 
     val upgrades = savedFile("upgrades.json", backup = true, path = "upgrades.json")
     val check = work<Unit>("Upgrade check", Weight.Yielding, foreground = true, notice = "Checking this upgrade")
@@ -487,7 +451,7 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
         next.itemsById[r.item.id]?.let { next.setEquipped(it, heroId) }
         displaced?.let { d -> next.itemsById[d.id]?.let { next.setEquipped(it, null) } }
         persistBox(next)
-        equippedOn = host.heroName(heroId) ?: "the hero"
+        equippedOn = g.heroes.heroName(heroId) ?: "the hero"
         equipUndo = EquipUndo(r.item.id, before, owner, displaced, heroId)
     }
 
@@ -701,7 +665,7 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
         val observed = records.values.filter { it.scan == scan }.associate { it.item.id to it.item }
         val b = Box(JSONObject(b0.toText()).put("items", JSONArray(b0.items.map { item -> UpgradeRecord.itemJson(observed[item.id] ?: item) })))
         val setups =
-            host.setups(b).map { s ->
+            g.heroes.gearSetups(b, g.heroes.inUse(b) + g.marks.cleared).map { s ->
                 val cfg = HeroConfig.fromJson(s.cfg.toJson())
                 Setup(s.hero, s.game, cfg, s.req.copy(), b, content, s.canTakeFrom, s.excluded - r.item.id)
             }
@@ -724,7 +688,7 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
             busy = false
             return
         }
-        val pieces = PieceCheck(g, host)
+        val pieces = PieceCheck(g)
         val out =
             check.start {
                 val scope = this

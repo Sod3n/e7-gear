@@ -78,7 +78,7 @@ class ReforgeStepScreens {
 
         // a hero whose worn build counts a finished, not yet reforged level 85 piece as reforged
         val box = model.box!!
-        val hero = model.heroUpgradeHeroes().first { h -> model.graph.heroes.request(h.id).reforged && box.gearOf(h.id).size == 6 &&
+        val hero = model.graph.improveHeroes.heroes().first { h -> model.graph.heroes.request(h.id).reforged && box.gearOf(h.id).size == 6 &&
             box.gearOf(h.id).values.any { it.reforgeable && box.canReforge(it.id) } }
         val build = model.graph.heroes.currentBuild(hero.id)!!
         val toReforge = build.items.filter { it.reforgeable && box.canReforge(it.id) }.map { it.id }.toSet()
@@ -142,7 +142,7 @@ class ReforgeStepScreens {
 
         // a worn +15 piece turned into crit damage (or another stat it lacks), the way a search with mods would
         val box = model.box!!
-        val hero = model.heroUpgradeHeroes().first { h -> box.gearOf(h.id).size == 6 && model.graph.heroes.currentBuild(h.id) != null }
+        val hero = model.graph.improveHeroes.heroes().first { h -> box.gearOf(h.id).size == 6 && model.graph.heroes.currentBuild(h.id) != null }
         val cur = model.graph.heroes.currentBuild(hero.id)!!
         val modded = cur.items.firstNotNullOfOrNull { it ->
             val want = listOf(GearStat.CD, GearStat.CR, GearStat.SPD, GearStat.ATK_P, GearStat.HP_P).filter { t -> it.subs.none { s -> s.type == t } }.toSet()

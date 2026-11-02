@@ -158,4 +158,20 @@ class AndroidPlatform(private val app: Application) : Platform {
                 .setContentIntent(open).setAutoCancel(true).build(),
         )
     }
+
+    override fun notifyHeroUpgradesDone(heroes: Int) {
+        val nm = app.getSystemService(android.app.NotificationManager::class.java)
+        nm.createNotificationChannel(android.app.NotificationChannel("pool", "Pool optimize", android.app.NotificationManager.IMPORTANCE_DEFAULT))
+        val open =
+            android.app.PendingIntent.getActivity(
+                app, 11, Intent(app, MainActivity::class.java).setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                android.app.PendingIntent.FLAG_IMMUTABLE,
+            )
+        nm.notify(
+            11,
+            android.app.Notification.Builder(app, "pool").setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setContentTitle("Hero upgrade check done").setContentText("$heroes heroes can get better · open to see the pieces")
+                .setContentIntent(open).setAutoCancel(true).build(),
+        )
+    }
 }

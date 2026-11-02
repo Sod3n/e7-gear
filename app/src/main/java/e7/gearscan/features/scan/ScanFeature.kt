@@ -26,19 +26,6 @@ enum class ScanError { NOTHING, SERVER, VPN, NOT_INSTALLED }
 enum class ScanPhase { IDLE, CAPTURING, IMPORTING }
 
 class ScanFeature(g: AppGraph) : Feature(g, "scan") {
-    interface Host {
-        fun adopted(box: Box?) {}
-
-        fun restored() {}
-
-        fun erased() {}
-    }
-
-    private object NoHost : Host
-
-    // what the tracker and Improve heroes still keep in AppModel
-    var host: Host = NoHost
-
     val capture = CaptureSession()
 
     var lastScan by saved("lastScan", 0L, Codecs.long)
@@ -108,7 +95,8 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
         g.sellReview.reset()
         g.findGear.reset()
         g.boxChanged(old, b)
-        host.adopted(b)
+        g.tracker.syncMarks()
+        g.improveHeroes.reload(b)
     }
 
     fun import(text: String) {
@@ -140,14 +128,15 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
             stopAll()
             g.store.restore(j)
             adopt()
-            host.restored()
+            g.tracker.reload()
+            g.tracker.syncMarks()
             true
         }.getOrDefault(false)
 
     fun erase() {
         stopAll()
         g.store.erase()
-        host.erased()
+        g.tracker.reset()
         adopt()
         g.nav.setScreens(listOf(Screen.ScanIntro))
     }

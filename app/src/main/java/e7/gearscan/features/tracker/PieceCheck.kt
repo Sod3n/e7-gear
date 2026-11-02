@@ -7,8 +7,8 @@ import e7.gearscan.opt.HeroUpgrades
 import e7.gearscan.opt.Setup
 import e7.gearscan.opt.UpgradeCheck
 
-/** What the tracker's check says about one piece, worked out from the hero setups the host supplies. */
-internal class PieceCheck(private val g: e7.gearscan.AppGraph, private val host: TrackerFeature.Host) {
+/** What the tracker's check says about one piece, worked out from the hero setups. */
+internal class PieceCheck(private val g: e7.gearscan.AppGraph) {
     private val content get() = g.content.content
 
     fun compareSlot(
@@ -52,7 +52,7 @@ internal class PieceCheck(private val g: e7.gearscan.AppGraph, private val host:
                 val where = if (p.piece == current.id) " (this one)" else ""
                 p.piece to
                     "$name$where · ${v.size * 100 / res.sims}%" +
-                    (v.getOrNull(v.size / 2)?.let { " · usually ${host.gainLabel(s.hero.id, refBase, it)}" } ?: "")
+                    (v.getOrNull(v.size / 2)?.let { " · usually ${g.heroes.gainLabel(s.hero.id, refBase, it)}" } ?: "")
             }
         return lines to ranked.filter { it.first.piece != current.id && it.third > mine }.map { it.first.piece }
     }
@@ -69,12 +69,12 @@ internal class PieceCheck(private val g: e7.gearscan.AppGraph, private val host:
         val lines =
             build?.let { b ->
                 // the check's own ids for the piece are negative
-                val from = host.buildFrom(pr.hero, b, Long.MIN_VALUE)
+                val from = g.heroes.buildFrom(pr.hero, b, Long.MIN_VALUE)
                 b.mapIndexed { i, q -> "${q.slot.label}: ${content.set(q.set)?.name ?: q.set.removeSuffix("Set")} ${q.mainType.short} · ${from[i]}" } +
                     "Sets: ${HeroUpgrades.setsLabel(b, content)}"
             }.orEmpty()
         return UpgradeCheck.HeroResult(
-            pr.hero, host.heroName(pr.hero).orEmpty(), hits.keys.sorted(), now, false, pr.unknown,
+            pr.hero, g.heroes.heroName(pr.hero).orEmpty(), hits.keys.sorted(), now, false, pr.unknown,
             pr.provisional,
             if (now && nowValue != null) {
                 (if (rebuilds) pr.without else pr.worn ?: pr.without).let { b -> b.value?.let { (nowValue - it) / b.unit } } ?: 1.0
@@ -84,7 +84,7 @@ internal class PieceCheck(private val g: e7.gearscan.AppGraph, private val host:
             if (rebuilds) pr.changes else pr.swapChanges, pr.total,
             (if (rebuilds) pr.minimal else pr.swapMinimal).map { q -> q.subs.joinToString(" · ") { "${it.type.short} ${it.type.format(it.value)}" } },
             values.getOrNull(values.size / 2)?.let { v ->
-                host.gainLabel(
+                g.heroes.gainLabel(
                     pr.hero,
                     if (rebuilds) {
                         pr.bar
@@ -94,7 +94,7 @@ internal class PieceCheck(private val g: e7.gearscan.AppGraph, private val host:
                     v,
                 )
             }.orEmpty(),
-            if (now && nowValue != null) host.gainLabel(pr.hero, if (rebuilds) pr.without else pr.worn ?: pr.without, nowValue) else "",
+            if (now && nowValue != null) g.heroes.gainLabel(pr.hero, if (rebuilds) pr.without else pr.worn ?: pr.without, nowValue) else "",
             pr.swapNow, lines,
         )
     }

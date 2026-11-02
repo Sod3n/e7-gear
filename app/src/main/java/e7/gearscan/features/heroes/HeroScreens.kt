@@ -248,9 +248,9 @@ fun HeroDetailScreen(model: AppModel, id: Long) {
                 }
             }
         } else Text("No game data for this hero yet.", style = zen(12.sp, color = C.red))
-        if (model.heroUpgradeHeroes().any { it.id == id }) {
-            val st = model.heroUpgrades
-            val rows = remember(st?.result, model.heroUpgradeMinGain, model.rev) { st?.result?.let { r -> model.heroUpgradeView(r).firstOrNull { it.hero.id == id }?.rows } }
+        if (model.graph.improveHeroes.heroes().any { it.id == id }) {
+            val st = model.graph.improveHeroes.heroUpgrades
+            val rows = remember(st?.result, model.graph.improveHeroes.minGain, model.rev) { st?.result?.let { r -> model.graph.improveHeroes.view(r).firstOrNull { it.hero.id == id }?.rows } }
             RowCard("Upgrades", { model.go(Screen.HeroUpgrades(id)) }) {
                 Text(when {
                     st?.running == true -> "Checking your gear"

@@ -32,8 +32,8 @@ fun GearScreen(model: AppModel) {
             listOfNotNull(sell?.let { "$it to review" }, model.graph.marks.kept.size.takeIf { it > 0 }?.let { "$it kept" }).joinToString(" · ").ifEmpty { "Not checked yet" }) {
             model.go(Screen.SellFilters)
         }
-        val heroes = model.heroUpgrades?.takeIf { !it.running && it.result != null && !model.heroUpgradesStale }?.result
-            ?.let { r -> model.heroUpgradeView(r).count { it.rows.isNotEmpty() } }
+        val heroes = model.graph.improveHeroes.heroUpgrades?.takeIf { !it.running && it.result != null && !model.graph.improveHeroes.stale }?.result
+            ?.let { r -> model.graph.improveHeroes.view(r).count { it.rows.isNotEmpty() } }
         ModeCard("Improve heroes", "Unfinished pieces that would make a hero you've set up better once enhanced.",
             heroes?.let { "$it heroes can get better" } ?: "Not checked yet") { model.go(Screen.HeroUpgrades()) }
         val found = model.graph.findGear.result?.matches?.size
