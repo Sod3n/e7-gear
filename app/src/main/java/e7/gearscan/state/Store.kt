@@ -37,6 +37,11 @@ class Disk(val dir: File) {
         return file(name).isFile
     }
 
+    fun modified(name: String): Long? {
+        awaitPending(name)
+        return file(name).takeIf { it.isFile }?.lastModified()
+    }
+
     fun write(name: String, text: String) = queue(name) {
         val target = file(name)
         target.parentFile?.mkdirs()
@@ -81,7 +86,7 @@ class Disk(val dir: File) {
 
     private fun awaitPending(name: String) {
         if (Thread.currentThread() === writerThread) return
-        if (synchronized(pending) { name in pending }) writer.submit {}.get()
+        if (synchronized(pending) { pending.keys.any { it == name || name.startsWith("$it/") } }) writer.submit {}.get()
     }
 }
 
@@ -119,7 +124,16 @@ class SavedFile internal constructor(val name: String, val backup: Boolean, val 
 
 class SavedDir internal constructor(val name: String, val keepOnErase: Boolean, private val disk: Disk) {
     val dir: File get() = disk.file(name)
+
     fun delete() = disk.deleteTree(name)
+
+    fun read(file: String): String? = disk.read("$name/$file")
+
+    fun modified(file: String): Long? = disk.modified("$name/$file")
+
+    fun write(file: String, text: String) = disk.write("$name/$file", text)
+
+    fun deleteFile(file: String) = disk.delete("$name/$file")
 }
 
 class Store(

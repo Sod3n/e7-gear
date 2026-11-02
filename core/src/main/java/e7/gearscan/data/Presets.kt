@@ -38,6 +38,39 @@ class PresetTabs(
         }
 }
 
+interface PresetCache {
+    fun read(name: String): String?
+
+    fun modified(name: String): Long?
+
+    fun write(
+        name: String,
+        text: String,
+    )
+
+    fun delete(name: String)
+}
+
+class DirCache(
+    private val dir: File,
+) : PresetCache {
+    override fun read(name: String) = File(dir, name).takeIf { it.isFile }?.readText()
+
+    override fun modified(name: String) = File(dir, name).takeIf { it.isFile }?.lastModified()
+
+    override fun write(
+        name: String,
+        text: String,
+    ) {
+        dir.mkdirs()
+        File(dir, name).writeText(text)
+    }
+
+    override fun delete(name: String) {
+        File(dir, name).delete()
+    }
+}
+
 object Presets {
     private const val DAY_MS = 24 * 3600 * 1000L
 
@@ -48,19 +81,24 @@ object Presets {
         code: String,
         name: String,
         allowNetwork: Boolean,
+    ): PresetTabs? = load(DirCache(dir), content, code, name, allowNetwork)
+
+    fun load(
+        cache: PresetCache,
+        content: Content,
+        code: String,
+        name: String,
+        allowNetwork: Boolean,
     ): PresetTabs? {
-        val f = File(dir, "$code.json")
-        val fresh = f.exists() && System.currentTimeMillis() - f.lastModified() < DAY_MS
+        val f = "$code.json"
+        val fresh = cache.modified(f)?.let { System.currentTimeMillis() - it < DAY_MS } == true
         if (!fresh && allowNetwork) {
             runCatching { fetch(content.buildsUrl, name) }.getOrNull()?.let { body ->
-                if (JSONObject(body).has("data")) {
-                    dir.mkdirs()
-                    f.writeText(body)
-                }
+                if (JSONObject(body).has("data")) cache.write(f, body)
             }
         }
-        val rta = loadRta(dir, content, code, allowNetwork)
-        val tabs = if (f.exists()) runCatching { parse(JSONObject(f.readText()), content) }.getOrNull() else null
+        val rta = loadRta(cache, content, code, allowNetwork)
+        val tabs = cache.read(f)?.let { text -> runCatching { parse(JSONObject(text), content) }.getOrNull() }
         return when {
             tabs != null -> PresetTabs(tabs.mostUsed, tabs.topRanked, tabs.fastest, tabs.total, tabs.date, rta)
             rta.isNotEmpty() -> PresetTabs(emptyList(), emptyList(), emptyList(), 0, null, rta)
@@ -70,17 +108,15 @@ object Presets {
 
     /** The RTA helper's 8 community samples for a hero (the same file its site shows), cached for a day; empty if it has none. */
     private fun loadRta(
-        dir: File,
+        cache: PresetCache,
         content: Content,
         code: String,
         allowNetwork: Boolean,
     ): List<Preset> {
         val url = content.rtaBuildsUrl ?: return emptyList()
-        val f = File(dir, "rta_$code.json")
-        val miss = File(dir, "rta_$code.none")
-        val fresh =
-            (f.exists() && System.currentTimeMillis() - f.lastModified() < DAY_MS) ||
-                (miss.exists() && System.currentTimeMillis() - miss.lastModified() < DAY_MS)
+        val f = "rta_$code.json"
+        val miss = "rta_$code.none"
+        val fresh = listOf(f, miss).any { n -> cache.modified(n)?.let { System.currentTimeMillis() - it < DAY_MS } == true }
         if (!fresh && allowNetwork) {
             runCatching {
                 val c = Http.open(url.replace("{code}", code)) as HttpURLConnection
@@ -88,19 +124,15 @@ object Presets {
                 c.readTimeout = 15000
                 when (c.responseCode) {
                     200 -> {
-                        dir.mkdirs()
-                        f.writeText(c.inputStream.bufferedReader().use { it.readText() })
-                        miss.delete()
+                        cache.write(f, c.inputStream.bufferedReader().use { it.readText() })
+                        cache.delete(miss)
                     }
-                    404 -> {
-                        dir.mkdirs()
-                        miss.writeText("")
-                    }
+                    404 -> cache.write(miss, "")
                 }
             }
         }
-        if (!f.exists()) return emptyList()
-        return runCatching { parseRta(JSONObject(f.readText()), content) }.getOrDefault(emptyList())
+        val text = cache.read(f) ?: return emptyList()
+        return runCatching { parseRta(JSONObject(text), content) }.getOrDefault(emptyList())
     }
 
     fun parseRta(
