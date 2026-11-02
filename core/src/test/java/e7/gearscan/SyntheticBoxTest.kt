@@ -127,4 +127,22 @@ class SyntheticBoxTest {
             }
         }
     }
+
+    @Test
+    fun theAuditedHeroSavedSetupIsMetByItsOwnGearAndOnlySpeedBlocks() {
+        val content = TestContent.content
+        val h = box.heroes.first { content.heroes.containsKey(it.code) && box.gearOf(it.id).size == 6 }
+        val gh = content.heroes.getValue(h.code)
+        val cfgJson = JSONObject(made.backupText).getJSONObject("state").getJSONObject("configs").getJSONObject(h.id.toString())
+        val cfg = HeroConfig.fromJson(cfgJson)
+        val tier = box.allHeroes.withIndex().associate { (i, x) -> x.id to 5 - i % 5 }
+
+        fun found(r: Request) =
+            SearchRun(Setup(h, gh, cfg, r, box, content, { tier.getValue(it) < tier.getValue(h.id) }), 1).anyBuild(2, 3_000)
+        val saved = cfg.request!!
+        assertEquals(true, found(saved.copy()))
+        assertEquals(false, found(saved.copy().also { it.mins[Stat.SPD.ordinal] = 999.0 }))
+        val others = saved.copy().also { it.mins[Stat.SPD.ordinal] = 999.0 }
+        assertEquals(true, found(others.copy().also { it.mins[Stat.SPD.ordinal] = Double.NaN }))
+    }
 }
