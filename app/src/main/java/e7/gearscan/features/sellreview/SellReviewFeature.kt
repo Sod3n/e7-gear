@@ -8,6 +8,7 @@ import e7.gearscan.AppGraph
 import e7.gearscan.calc.Reforge
 import e7.gearscan.data.Box
 import e7.gearscan.data.GearStat
+import e7.gearscan.data.Item
 import e7.gearscan.data.SellQuery
 import e7.gearscan.data.SellSort
 import e7.gearscan.data.Slot
@@ -16,6 +17,7 @@ import e7.gearscan.opt.KeepCurve
 import e7.gearscan.opt.SellSearch
 import e7.gearscan.state.Codecs
 import e7.gearscan.state.Feature
+import e7.gearscan.state.Plan
 import e7.gearscan.state.Weight
 import e7.gearscan.opt.GearScore
 import e7.gearscan.ui.Confirmed
@@ -145,16 +147,16 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
         }
     }
 
-    fun trackMatches(id: Long? = null, openOverlay: Boolean = true): Outcome {
-        val found = result ?: return Outcome.Done
-        if (!fresh) return Outcome.Failed("Update the matches before opening this list.")
-        val b = g.scan.box ?: return Outcome.Done
+    fun toTrack(id: Long? = null): Plan<Pair<List<Pair<Item, SellSearch.Row>>, SellQuery>> {
+        val found = result ?: return Plan.Stop(Outcome.Done)
+        if (!fresh) return Plan.Stop(Outcome.Failed("Update the matches before opening this list."))
+        val b = g.scan.box ?: return Plan.Stop(Outcome.Done)
         val reviewed = g.marks.reviewed
         val rows =
             found.matches.filter { id == null || it.item.id == id }
                 .mapNotNull { row -> b.itemsById[row.item.id]?.takeIf { it.id !in reviewed }?.let { it to row } }
-        if (rows.isEmpty()) return Outcome.Failed("No matching pieces remain. Update the search.")
-        return g.tracker.trackSellQueue(rows, found.query, openOverlay)
+        if (rows.isEmpty()) return Plan.Stop(Outcome.Failed("No matching pieces remain. Update the search."))
+        return Plan.Go(rows to found.query)
     }
 
     override fun onBoxReplacing() {

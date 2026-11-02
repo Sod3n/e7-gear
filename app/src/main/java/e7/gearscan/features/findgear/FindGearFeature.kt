@@ -9,6 +9,7 @@ import e7.gearscan.opt.GearPotential
 import e7.gearscan.features.tracker.TrackerFeature
 import e7.gearscan.state.Codecs
 import e7.gearscan.state.Feature
+import e7.gearscan.state.Plan
 import e7.gearscan.ui.Confirmed
 import e7.gearscan.ui.Outcome
 import kotlinx.coroutines.Dispatchers
@@ -95,28 +96,28 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
         }
     }
 
-    fun track(match: FindGearMatch, openOverlay: Boolean = false): Outcome {
-        val applied = result ?: return Outcome.Failed("Find gear first.")
+    fun toTrack(match: FindGearMatch): Plan<Pair<Item, GearPotential.Goal>> {
+        val applied = result ?: return Plan.Stop(Outcome.Failed("Find gear first."))
         val scan = g.scan.lastScan
         val original = g.scan.box?.itemsById?.get(match.item.id)
         val latest = g.records.records[match.item.id]?.takeIf { it.scan == scan }?.item ?: original
         if (latest == null || (!UpgradeRecord.supported(latest) && latest.enhance < 15) || latest.id in g.marks.cleared) {
-            return Outcome.Failed("This piece changed. Tap Find gear to refresh the list.")
+            return Plan.Stop(Outcome.Failed("This piece changed. Tap Find gear to refresh the list."))
         }
-        return g.tracker.track(original ?: latest, applied.query.goal(match.reforgeAllowed), openOverlay)
+        return Plan.Go((original ?: latest) to applied.query.goal(match.reforgeAllowed))
     }
 
-    fun trackAll(openOverlay: Boolean = true): Outcome {
-        val applied = result ?: return Outcome.Failed("Find gear first.")
-        val b = g.scan.box ?: return Outcome.Failed("Scan your gear first.")
-        if (busy || stale) return Outcome.Failed("Update the matches before starting a new list.")
+    fun toTrackAll(): Plan<List<Pair<Item, TrackerFeature.QueueEntry>>> {
+        val applied = result ?: return Plan.Stop(Outcome.Failed("Find gear first."))
+        val b = g.scan.box ?: return Plan.Stop(Outcome.Failed("Scan your gear first."))
+        if (busy || stale) return Plan.Stop(Outcome.Failed("Update the matches before starting a new list."))
         val cleared = g.marks.cleared
         val entries = applied.matches.mapNotNull { match ->
             val original = b.itemsById[match.item.id]?.takeIf { it.id !in cleared } ?: return@mapNotNull null
             val set = g.content.content.set(original.set)
             original to TrackerFeature.QueueEntry(original.id, applied.query.goal(b.canReforge(original.id)), set?.name ?: original.set.removeSuffix("Set"), set?.icon)
         }
-        if (entries.isEmpty()) return Outcome.Failed("No matching gear remains. Update the search.")
-        return g.tracker.trackQueue(entries, openOverlay)
+        if (entries.isEmpty()) return Plan.Stop(Outcome.Failed("No matching gear remains. Update the search."))
+        return Plan.Go(entries)
     }
 }

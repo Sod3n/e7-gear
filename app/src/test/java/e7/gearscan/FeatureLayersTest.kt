@@ -25,7 +25,6 @@ class FeatureLayersTest {
     private val notYetFixed = setOf(
         "settings->scan", "content->scan", "feedback->scan",
         "heroes->pool", "history->optimize", "history->pool",
-        "sellreview->tracker", "improveheroes->tracker", "findgear->tracker",
     )
 
     private fun wrongWay(): Map<String, List<String>> {

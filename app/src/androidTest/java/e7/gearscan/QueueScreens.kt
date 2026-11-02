@@ -1,5 +1,6 @@
 package e7.gearscan
 
+import e7.gearscan.ui.trackAllMatches
 import android.graphics.Bitmap
 import android.os.Build
 import androidx.compose.foundation.layout.*
@@ -55,7 +56,7 @@ class QueueScreens {
         assertTrue(matches.size > 20)
         rule.onNodeWithText("Track all ${matches.size} matches").assertExists()
         shot("30-track-all-matches-353-big")
-        ui { graph.messages.show(graph.findGear.trackAll(openOverlay = false)) }
+        ui { graph.messages.show(graph.trackAllMatches(openOverlay = false)) }
         val t = graph.tracker
         assertEquals(matches.map { it.item.id }, t.queue.map { it.id })
         assertEquals(matches.size, t.queue.size)

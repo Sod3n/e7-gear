@@ -1,5 +1,6 @@
 package e7.gearscan
 
+import e7.gearscan.features.sellreview.trackMatches
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.os.Build
@@ -104,13 +105,13 @@ class SellFiltersScreens {
         ui { graph.nav.sheet=null;graph.sellReview.edit(graph.sellReview.query.copy(keepStats=mapOf(GearStat.SPD to 20.0))) }
         assertEquals(20.0,graph.sellReview.query.keepStats.getValue(GearStat.SPD),0.0)
         tap("Matches");assertFalse(graph.sellReview.fresh);noPoints();shot("10-stale")
-        val old=graph.nav.screen;ui { graph.sellReview.trackMatches(openOverlay=false) };assertEquals(old,graph.nav.screen)
+        val old=graph.nav.screen;ui { graph.trackMatches(openOverlay=false) };assertEquals(old,graph.nav.screen)
         tap("Update matches");rule.waitUntil(90_000) { !graph.sellReview.busy };assertTrue(graph.sellReview.fresh)
         val result=graph.sellReview.result!!;assertTrue(result.matches.size>20);assertTrue(result.matches.none { it.protected })
         val protected=result.rows.count { it.protected };assertTrue(protected>0)
         tap("$protected kept by safeguards");noPoints();shot("11-stat-safeguards-applied");tap("$protected kept by safeguards")
         val n=result.matches.size
-        ui { graph.sellReview.trackMatches(openOverlay=false) }
+        ui { graph.trackMatches(openOverlay=false) }
         val t=graph.tracker
         assertEquals(n,t.queue.size);assertTrue(t.isRollReview);assertTrue(t.queue.all { it.scoreGoal==null&&it.goal==null });noPoints();shot("12-review-tracker")
         ui { graph.overlay.expanded=true;graph.overlay.usableHeightDp=240f;overlay=true }
@@ -159,7 +160,7 @@ class SellFiltersScreens {
         assertEquals(lastQuery,graph.sellReview.query);assertFalse(graph.sellReview.query.scoreFilter);noPoints()
         ui { graph.sellReview.find() };rule.waitUntil(90_000) { !graph.sellReview.busy }
         val only=graph.sellReview.result!!.matches.first().item.id
-        ui { graph.sellReview.trackMatches(only,openOverlay=false);graph.overlay.expanded=true;overlay=true }
+        ui { graph.trackMatches(only,openOverlay=false);graph.overlay.expanded=true;overlay=true }
         tap("Sold ›");assertTrue(t.sellQueueComplete);assertEquals(0,t.pendingQueue.size)
         assertTrue(only in graph.marks.cleared);shot("22-all-marked",true)
         ui { graph.tracker.markSold(only) };assertEquals(0,t.pendingQueue.size)

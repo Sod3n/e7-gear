@@ -249,10 +249,6 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
 
     fun stop() = run.cancel()
 
-    fun track(piece: Long): Outcome = g.tracker.trackPiece(piece)
-
-    fun trackAll(pieces: List<Long>): Outcome = g.tracker.trackPieces(pieces)
-
     /** The stats the hero's setup scores, now (worn) and with [items]. */
     private fun scoredStats(s: Setup, items: List<Item>): List<Triple<Stat, Double, Double>> {
         val now = s.build(s.current().values.toList()).final.stats

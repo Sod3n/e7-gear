@@ -23,6 +23,13 @@ import e7.gearscan.SheetKind
 import e7.gearscan.data.*
 import e7.gearscan.value.Count
 import e7.gearscan.features.findgear.FindGearMatch
+import e7.gearscan.state.then
+import e7.gearscan.ui.Outcome
+
+fun AppGraph.trackMatch(match: FindGearMatch, openOverlay: Boolean = false): Outcome =
+    findGear.toTrack(match).then { (item, goal) -> tracker.track(item, goal, openOverlay) }
+
+fun AppGraph.trackAllMatches(openOverlay: Boolean = true): Outcome = findGear.toTrackAll().then { tracker.trackQueue(it, openOverlay) }
 
 private fun targetPieces(q: PotentialQuery) = q.targets.entries.map { (t, v) ->
     "${if (t.percentOfBase) t.stat.short else t.short} ${v.ifEmpty { "?" }}${if (t.showsPercent) "%" else ""}+"
@@ -65,7 +72,7 @@ fun FindGearScreen(graph: AppGraph) {
             Action(if (graph.findGear.busy) "Searching" else "Find gear", enabled = !graph.findGear.busy) { graph.messages.show(graph.findGear.find()) }
         } else if (result != null && result.matches.isNotEmpty()) {
             Action(if (fresh) Count(result.matches.size).of("match", "matches").let { "Track all $it" } else "Update matches", enabled = !graph.findGear.busy) {
-                graph.messages.show(if (fresh) graph.findGear.trackAll() else graph.findGear.find())
+                graph.messages.show(if (fresh) graph.trackAllMatches() else graph.findGear.find())
             }
         } else null) {
             BackToPrevious()

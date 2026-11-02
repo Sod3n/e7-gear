@@ -1,6 +1,7 @@
 package e7.gearscan.features.sellreview
 
 import androidx.compose.runtime.saveable.rememberSaveable
+import e7.gearscan.state.then
 import e7.gearscan.ui.*
 
 import androidx.compose.foundation.background
@@ -20,7 +21,8 @@ import e7.gearscan.data.*
 import e7.gearscan.opt.*
 
 private fun AppGraph.findSell() = messages.show(sellReview.find())
-private fun AppGraph.trackSell(id:Long?=null) = messages.show(sellReview.trackMatches(id))
+fun AppGraph.trackMatches(id:Long?=null,openOverlay:Boolean=true):Outcome=sellReview.toTrack(id).then { (rows,query)->tracker.trackSellQueue(rows,query,openOverlay) }
+private fun AppGraph.trackSell(id:Long?=null) = messages.show(trackMatches(id))
 private fun AppGraph.markSell(id:Long,keep:Boolean) {
     val outcome=marks.markReviewed(id,keep)
     if(outcome is Outcome.Note)messages.showToast(outcome.text,"Undo") { marks.unmark(id) }

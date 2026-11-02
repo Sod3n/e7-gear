@@ -1,5 +1,6 @@
 package e7.gearscan
 
+import e7.gearscan.features.sellreview.trackMatches
 import e7.gearscan.features.optimize.SearchState
 import e7.gearscan.features.scan.CaptureSession
 import e7.gearscan.features.scan.ScanError
@@ -611,7 +612,7 @@ class ScreenAudit {
             if (graph.nav.screen != Screen.SellFilters || rule.onAllNodesWithText("Worth rolling").fetchSemanticsNodes().isEmpty()) add("back from Kept pieces doesn't return to the Sell review tab you left", "sell kept: ${graph.nav.screen}")
         })
         steps.add("sell-overlay" to {
-            ui { graph.nav.sheet = null; graph.sellReview.trackMatches(openOverlay = false); graph.tracker.show(); graph.overlay.expanded = true }
+            ui { graph.nav.sheet = null; graph.trackMatches(openOverlay = false); graph.tracker.show(); graph.overlay.expanded = true }
             overlay = true
         })
         steps.add("improve-heroes" to { ui { overlay = false; graph.tracker.hide(); graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) } })
