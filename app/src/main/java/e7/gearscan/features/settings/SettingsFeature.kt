@@ -1,11 +1,11 @@
 package e7.gearscan.features.settings
 
-import e7.gearscan.AppGraph
+import e7.gearscan.state.FeatureContext
 import e7.gearscan.calc.Rating
 import e7.gearscan.state.Codecs
 import e7.gearscan.state.Feature
 
-class SettingsFeature(g: AppGraph) : Feature(g, "settings") {
+class SettingsFeature(ctx: FeatureContext) : Feature(ctx, "settings") {
     var consent by saved("consent", false, Codecs.bool)
     var proxyOn by saved("proxyOn", false, Codecs.bool, keepOnErase = true)
     var proxy by saved("proxy", "", Codecs.string, keepOnErase = true)
@@ -16,7 +16,7 @@ class SettingsFeature(g: AppGraph) : Feature(g, "settings") {
 
     fun useOverGameNative(on: Boolean) {
         overGameNative = on
-        if (on) g.platform.stopOverlay()
-        g.rev.bump()
+        if (on) ctx.platform.stopOverlay()
+        ctx.rev.bump()
     }
 }

@@ -8,46 +8,39 @@ import java.io.File
 class FeatureLayersTest {
     private val features = File("src/main/java/e7/gearscan/features")
 
-    private val layer = mapOf(
-        "settings" to 1, "update" to 1, "content" to 2, "feedback" to 3, "scan" to 4, "marks" to 5, "records" to 5,
-        "heroes" to 6, "history" to 7, "optimize" to 8, "pool" to 9,
-        "sellreview" to 10, "improveheroes" to 10, "findgear" to 10, "tracker" to 11,
+    private val layerOf = mapOf(
+        "SettingsFeature" to 1, "AppUpdateFeature" to 1, "ContentFeature" to 2, "FeedbackFeature" to 3, "ScanFeature" to 4,
+        "MarksFeature" to 5, "RecordsFeature" to 5, "HeroesFeature" to 6, "HistoryFeature" to 7, "OptimizeFeature" to 8,
+        "PoolFeature" to 9, "SellReviewFeature" to 10, "ImproveHeroesFeature" to 10, "FindGearFeature" to 10,
+        "TrackerFeature" to 11, "ChecklistFeature" to 12,
     )
 
-    private val packageOf = mapOf(
-        "settings" to "settings", "appUpdate" to "update", "content" to "content", "feedback" to "feedback", "scan" to "scan",
-        "marks" to "marks", "records" to "records", "heroes" to "heroes", "history" to "history", "optimize" to "optimize",
-        "pool" to "pool", "sellReview" to "sellreview", "improveHeroes" to "improveheroes", "findGear" to "findgear",
-        "tracker" to "tracker", "checklist" to "tracker", "overGame" to "tracker",
-    )
+    private fun logicFiles() = features.walk().filter { it.extension == "kt" && "@Composable" !in it.readText() }.toList()
 
-    // Wrong-way connections not yet removed. Plan 2 empties this list; a fixed one must leave it.
-    private val notYetFixed = emptySet<String>()
-
-    private fun wrongWay(): Map<String, List<String>> {
-        val use = Regex("""\b(?:g|graph)\.(\w+)""")
-        val found = mutableMapOf<String, MutableList<String>>()
-        features.listFiles()!!.filter { it.isDirectory }.forEach { dir ->
-            val from = dir.name
-            val own = layer[from] ?: error("features/$from has no layer in FeatureLayersTest")
-            dir.walk().filter { it.extension == "kt" }.filter { "@Composable" !in it.readText() }.forEach { f ->
-                f.readLines().forEachIndexed { i, line ->
-                    use.findAll(line).forEach { m ->
-                        val to = packageOf[m.groupValues[1]] ?: return@forEach
-                        if (to != from && layer.getValue(to) >= own) found.getOrPut("$from->$to") { mutableListOf() } += "${f.name}:${i + 1}"
-                    }
-                }
-            }
-        }
-        return found
+    @Test
+    fun featureLogicDoesNotKnowTheGraph() {
+        val found = logicFiles().filter { Regex("""\bAppGraph\b""").containsMatchIn(it.readText()) }.map { it.name }
+        assertTrue("feature logic must take what it uses, not the graph: $found", found.isEmpty())
     }
 
     @Test
-    fun featureLogicUsesOnlyLowerLayers() {
-        val found = wrongWay()
-        val added = found.filterKeys { it !in notYetFixed }
-        assertTrue("new wrong-way connections:\n" + added.entries.joinToString("\n") { "${it.key}: ${it.value.joinToString()}" }, added.isEmpty())
-        val fixed = notYetFixed - found.keys
-        assertTrue("fixed, remove from notYetFixed: $fixed", fixed.isEmpty())
+    fun featuresTakeOnlyLowerLayers() {
+        val header = Regex("""(?:^|\n)class (\w+)\(((?:(?!\nclass )[^{])*?)\)\s*:\s*Feature\(""")
+        val seen = mutableSetOf<String>()
+        val wrong = mutableListOf<String>()
+        logicFiles().forEach { f ->
+            header.findAll(f.readText()).forEach { m ->
+                val name = m.groupValues[1]
+                val own = layerOf[name] ?: error("$name has no layer in FeatureLayersTest")
+                seen += name
+                Regex(""":\s*(\w+Feature)\b""").findAll(m.groupValues[2]).forEach { p ->
+                    val dep = p.groupValues[1]
+                    val layer = layerOf[dep] ?: error("$name takes $dep, which has no layer in FeatureLayersTest")
+                    if (layer >= own) wrong += "$name($own) -> $dep($layer)"
+                }
+            }
+        }
+        assertTrue("features not found: ${layerOf.keys - seen}", seen == layerOf.keys)
+        assertTrue("upward or sideways constructor parameters: $wrong", wrong.isEmpty())
     }
 }

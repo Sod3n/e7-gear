@@ -1,6 +1,10 @@
 package e7.gearscan.features.findgear
 
-import e7.gearscan.AppGraph
+import e7.gearscan.state.FeatureContext
+import e7.gearscan.features.content.ContentFeature
+import e7.gearscan.features.scan.ScanFeature
+import e7.gearscan.features.marks.MarksFeature
+import e7.gearscan.features.records.RecordsFeature
 import e7.gearscan.data.GearStat
 import e7.gearscan.data.Item
 import e7.gearscan.data.PotentialQuery
@@ -26,7 +30,7 @@ data class FindGearResult(
     val seconds: Double,
 )
 
-class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
+class FindGearFeature(ctx: FeatureContext, private val content: ContentFeature, private val scanFeature: ScanFeature, private val marks: MarksFeature, private val records: RecordsFeature) : Feature(ctx, "findGear") {
     data class Step(val id: Long, val count: Int, val enhance: Int, val main: Double, val subs: List<Pair<GearStat, Double>>)
 
     data class Inputs(val query: PotentialQuery, val scan: Long, val steps: List<Step>)
@@ -34,14 +38,14 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
     var query by saved("query", PotentialQuery(), Codecs.obj({ it.toJson() }, { PotentialQuery.of(it) }))
         private set
 
-    private val search = freshWork<Inputs, FindGearResult>("Find gear") { Inputs(query, g.scan.lastScan, recordedSteps()) }
+    private val search = freshWork<Inputs, FindGearResult>("Find gear") { Inputs(query, scanFeature.lastScan, recordedSteps()) }
 
     val result get() = search.result
     val busy get() = search.busy
     val stale get() = search.stale
 
     private fun recordedSteps(): List<Step> =
-        g.records.recordedSteps.values
+        records.recordedSteps.values
             .map { r -> r.item.let { Step(it.id, r.history.size, it.enhance, it.mainValue, it.subs.map { s -> s.type to s.value }) } }
             .sortedBy { it.id }
 
@@ -61,11 +65,11 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
     fun find(): Outcome {
         val q = query
         q.error()?.let { return Outcome.Failed(it) }
-        val b = g.scan.box ?: return Outcome.Failed("Scan your gear first.")
-        val scan = g.scan.lastScan
-        val cleared = g.marks.cleared
+        val b = scanFeature.box ?: return Outcome.Failed("Scan your gear first.")
+        val scan = scanFeature.lastScan
+        val cleared = marks.cleared
         val items = b.items.filter { it.id !in cleared }.map { original ->
-            val item = g.records.recordedSteps[original.id]?.item ?: original
+            val item = records.recordedSteps[original.id]?.item ?: original
             item to b.canReforge(item.id)
         }.filter { q.includes(it.first) }
         return search.start { key ->
@@ -90,7 +94,7 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                g.messages.showToast("The search could not finish. Your requirements are saved; tap Find gear to retry.")
+                ctx.messages.showToast("The search could not finish. Your requirements are saved; tap Find gear to retry.")
                 throw e
             }
         }
@@ -98,10 +102,10 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
 
     fun toTrack(match: FindGearMatch): Plan<Pair<Item, GearPotential.Goal>> {
         val applied = result ?: return Plan.Stop(Outcome.Failed("Find gear first."))
-        val scan = g.scan.lastScan
-        val original = g.scan.box?.itemsById?.get(match.item.id)
-        val latest = g.records.records[match.item.id]?.takeIf { it.scan == scan }?.item ?: original
-        if (latest == null || (!UpgradeRecord.supported(latest) && latest.enhance < 15) || latest.id in g.marks.cleared) {
+        val scan = scanFeature.lastScan
+        val original = scanFeature.box?.itemsById?.get(match.item.id)
+        val latest = records.records[match.item.id]?.takeIf { it.scan == scan }?.item ?: original
+        if (latest == null || (!UpgradeRecord.supported(latest) && latest.enhance < 15) || latest.id in marks.cleared) {
             return Plan.Stop(Outcome.Failed("This piece changed. Tap Find gear to refresh the list."))
         }
         return Plan.Go((original ?: latest) to applied.query.goal(match.reforgeAllowed))
@@ -109,12 +113,12 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
 
     fun toTrackAll(): Plan<List<Pair<Item, TrackerFeature.QueueEntry>>> {
         val applied = result ?: return Plan.Stop(Outcome.Failed("Find gear first."))
-        val b = g.scan.box ?: return Plan.Stop(Outcome.Failed("Scan your gear first."))
+        val b = scanFeature.box ?: return Plan.Stop(Outcome.Failed("Scan your gear first."))
         if (busy || stale) return Plan.Stop(Outcome.Failed("Update the matches before starting a new list."))
-        val cleared = g.marks.cleared
+        val cleared = marks.cleared
         val entries = applied.matches.mapNotNull { match ->
             val original = b.itemsById[match.item.id]?.takeIf { it.id !in cleared } ?: return@mapNotNull null
-            val set = g.content.content.set(original.set)
+            val set = content.content.set(original.set)
             original to TrackerFeature.QueueEntry(original.id, applied.query.goal(b.canReforge(original.id)), set?.name ?: original.set.removeSuffix("Set"), set?.icon)
         }
         if (entries.isEmpty()) return Plan.Stop(Outcome.Failed("No matching gear remains. Update the search."))

@@ -3,12 +3,14 @@ package e7.gearscan.features.tracker
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import e7.gearscan.AppGraph
+import e7.gearscan.features.heroes.HeroesFeature
+import e7.gearscan.features.scan.ScanFeature
+import e7.gearscan.state.FeatureContext
 import e7.gearscan.data.Box
 import e7.gearscan.data.Item
 import org.json.JSONObject
 
-class WornPiece(private val t: TrackerFeature, private val g: AppGraph) {
+class WornPiece(private val t: TrackerFeature, private val ctx: FeatureContext, private val scan: ScanFeature, private val heroes: HeroesFeature) {
     private class EquipUndo(val itemId: Long, val before: JSONObject, val owner: Long?, val displaced: Item?, val heroId: Long)
 
     private var equipUndo: EquipUndo? by mutableStateOf(null)
@@ -23,9 +25,9 @@ class WornPiece(private val t: TrackerFeature, private val g: AppGraph) {
 
     // the piece as recorded, now worn by the hero: its stats and owner go into the g.scan.box (a new g.scan.lastScan replaces them)
     fun equip(heroId: Long) {
-        val b = g.scan.box ?: return
+        val b = scan.box ?: return
         val r = t.record ?: return
-        if (r.scan != g.scan.lastScan || b.itemsById[r.item.id] == null) {
+        if (r.scan != scan.lastScan || b.itemsById[r.item.id] == null) {
             t.error = "Your g.scan.lastScan changed. Choose the piece again."
             return
         }
@@ -36,13 +38,13 @@ class WornPiece(private val t: TrackerFeature, private val g: AppGraph) {
         next.itemsById[r.item.id]?.let { next.setEquipped(it, heroId) }
         displaced?.let { d -> next.itemsById[d.id]?.let { next.setEquipped(it, null) } }
         persistBox(next)
-        equippedOn = g.heroes.heroName(heroId) ?: "the hero"
+        equippedOn = heroes.heroName(heroId) ?: "the hero"
         equipUndo = EquipUndo(r.item.id, before, owner, displaced, heroId)
     }
 
     fun undoEquip() {
         val u = equipUndo ?: return
-        g.scan.box?.let { cur ->
+        scan.box?.let { cur ->
             cur.restore(u.itemId, u.before)
             val back = Box(cur.json)
             back.itemsById[u.itemId]?.let { back.setEquipped(it, u.owner) }
@@ -54,9 +56,9 @@ class WornPiece(private val t: TrackerFeature, private val g: AppGraph) {
     }
 
     private fun persistBox(b: Box) {
-        g.scan.replaceBox(b)
-        g.rev.bump()
-        g.scan.saveBox()
-        g.store.saveNow()
+        scan.replaceBox(b)
+        ctx.rev.bump()
+        scan.saveBox()
+        ctx.store.saveNow()
     }
 }

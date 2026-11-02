@@ -1,6 +1,7 @@
 package e7.gearscan.features.marks
 
-import e7.gearscan.AppGraph
+import e7.gearscan.state.FeatureContext
+import e7.gearscan.features.scan.ScanFeature
 import e7.gearscan.data.Box
 import e7.gearscan.state.Codec
 import e7.gearscan.state.Codecs
@@ -9,7 +10,7 @@ import e7.gearscan.ui.Outcome
 import org.json.JSONArray
 import org.json.JSONObject
 
-class MarksFeature(g: AppGraph) : Feature(g, "marks") {
+class MarksFeature(ctx: FeatureContext, private val scanFeature: ScanFeature) : Feature(ctx, "marks") {
     data class Sale(val id: Long, val scan: Long, val kept: Boolean = false)
 
     var cleared by saved("cleared", emptySet(), Codecs.longSet)
@@ -55,7 +56,7 @@ class MarksFeature(g: AppGraph) : Feature(g, "marks") {
         val present = { id: Long -> new?.itemsById?.containsKey(id) == true }
         val keptNow = kept.filter(present).toSet()
         val clearedNow = cleared.filter(present).toSet()
-        val soldNow = sold.filter { it.id in clearedNow + keptNow && it.scan == g.scan.lastScan }.distinctBy { it.id }
+        val soldNow = sold.filter { it.id in clearedNow + keptNow && it.scan == scanFeature.lastScan }.distinctBy { it.id }
         if (keptNow == kept && clearedNow == cleared && soldNow == sold) return
         kept = keptNow
         cleared = clearedNow
@@ -64,7 +65,7 @@ class MarksFeature(g: AppGraph) : Feature(g, "marks") {
     }
 
     private fun changed() {
-        g.store.saveNow()
+        ctx.store.saveNow()
         onChange()
     }
 

@@ -3,7 +3,14 @@ package e7.gearscan.features.tracker
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import e7.gearscan.AppGraph
+import e7.gearscan.state.FeatureContext
+import e7.gearscan.features.scan.ScanFeature
+import e7.gearscan.features.records.RecordsFeature
+import e7.gearscan.features.heroes.HeroesFeature
+import e7.gearscan.features.pool.PoolFeature
+import e7.gearscan.features.marks.MarksFeature
+import e7.gearscan.features.improveheroes.ImproveHeroesFeature
+import e7.gearscan.features.content.ContentFeature
 import e7.gearscan.data.Box
 import e7.gearscan.data.HeroConfig
 import e7.gearscan.data.UpgradeRecord
@@ -22,7 +29,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-class UpgradeCheckRun(private val t: TrackerFeature, private val g: AppGraph, private val check: Work<Unit>) {
+class UpgradeCheckRun(private val t: TrackerFeature, private val ctx: FeatureContext, private val check: Work<Unit>, private val scan: ScanFeature, private val records: RecordsFeature, private val heroesFeature: HeroesFeature, private val pool: PoolFeature, private val marks: MarksFeature, private val improveHeroes: ImproveHeroesFeature, private val content: ContentFeature) {
     var results: List<UpgradeCheck.HeroResult> by mutableStateOf(emptyList())
         internal set
     var signature = ""
@@ -95,28 +102,28 @@ class UpgradeCheckRun(private val t: TrackerFeature, private val g: AppGraph, pr
             return
         }
         val r = t.record ?: return
-        val b0 = g.scan.box
-        if (r.scan != g.scan.lastScan || b0?.itemsById?.containsKey(r.item.id) != true) {
+        val b0 = scan.box
+        if (r.scan != scan.lastScan || b0?.itemsById?.containsKey(r.item.id) != true) {
             t.error = "Your g.scan.lastScan changed. Choose the piece again in Track upgrades."
             return
         }
-        val observed = g.records.records.values.filter { it.scan == g.scan.lastScan }.associate { it.item.id to it.item }
+        val observed = records.records.values.filter { it.scan == scan.lastScan }.associate { it.item.id to it.item }
         val b = Box(JSONObject(b0.toText()).put("items", JSONArray(b0.items.map { item -> UpgradeRecord.itemJson(observed[item.id] ?: item) })))
         val setups =
-            g.heroes.gearSetups(b, g.pool.inUse(b) + g.marks.cleared).map { s ->
+            heroesFeature.gearSetups(b, pool.inUse(b) + marks.cleared).map { s ->
                 val cfg = HeroConfig.fromJson(s.cfg.toJson())
-                Setup(s.hero, s.game, cfg, s.req.copy(), b, g.content.content, s.canTakeFrom, s.excluded - r.item.id)
+                Setup(s.hero, s.game, cfg, s.req.copy(), b, content.content, s.canTakeFrom, s.excluded - r.item.id)
             }
-        val withRebuilds = g.improveHeroes.rebuilds
+        val withRebuilds = improveHeroes.rebuilds
         val raw =
-            "upgrade-v3-piece|$withRebuilds|" + b.toText() + g.content.content.version + r.toJson().toString() +
+            "upgrade-v3-piece|$withRebuilds|" + b.toText() + content.content.version + r.toJson().toString() +
                 setups.joinToString { s -> s.hero.id.toString() + s.cfg.toJson() + s.req.toJson() + s.excluded.sorted() }
         val sig = sha256(raw)
         // each hero's best build without the piece holds for every step recorded on it
         val withoutKey =
             sha256(
                 "without-v1|${r.item.id}|" + JSONArray(b.items.filter { it.id != r.item.id }.map { UpgradeRecord.itemJson(it) }) +
-                    g.content.content.version + setups.joinToString { s -> s.hero.id.toString() + s.cfg.toJson() + s.req.toJson() + s.excluded.sorted() },
+                    content.content.version + setups.joinToString { s -> s.hero.id.toString() + s.cfg.toJson() + s.req.toJson() + s.excluded.sorted() },
             )
         if (pieceWithout?.first != withoutKey) pieceWithout = withoutKey to ConcurrentHashMap()
         val without = pieceWithout!!.second
@@ -126,7 +133,7 @@ class UpgradeCheckRun(private val t: TrackerFeature, private val g: AppGraph, pr
             busy = false
             return
         }
-        val pieces = PieceCheck(g)
+        val pieces = PieceCheck(content, marks, heroesFeature)
         val out =
             check.start {
                 val scope = this
@@ -143,7 +150,7 @@ class UpgradeCheckRun(private val t: TrackerFeature, private val g: AppGraph, pr
                         ) { pr ->
                             done += pieces.advice(pr, withRebuilds)
                             val now = synchronized(done) { done.toList() }
-                            g.scope.launch {
+                            ctx.scope.launch {
                                 if (alive()) {
                                     checkpoint(now)
                                     scope.progress(now.size, setups.size, "${now.size}/${setups.size} heroes")
