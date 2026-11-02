@@ -3,7 +3,6 @@ package e7.gearscan.features.update
 import e7.gearscan.AppGraph
 import e7.gearscan.data.AppUpdate
 import e7.gearscan.data.Http
-import e7.gearscan.data.Mirror
 import e7.gearscan.state.Disk
 import e7.gearscan.state.NoPlatform
 import e7.gearscan.state.Platform
@@ -18,7 +17,6 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -27,7 +25,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppUpdateFeatureTest {
-    @After fun resetMirror() { Mirror.active = false }
 
     private class Phone(
         val dir: File,

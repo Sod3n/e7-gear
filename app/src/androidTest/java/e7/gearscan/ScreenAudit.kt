@@ -94,7 +94,7 @@ class ScreenAudit {
         var setup by mutableStateOf(setups[0])
         var overlay by mutableStateOf(false)
         rule.runOnUiThread { graph = startedGraph(ctx) }
-        installImageLoader(ctx, graph.http)
+        installImageLoader(ctx, graph.http, graph.content.mirrorSwitch)
         // never call Fribbels from a test: builds only from the fixture cache, fixed targets otherwise
         rule.runOnUiThread { graph.heroes.presetNetwork = false }
         rule.waitUntil(20_000) { graph.ready }

@@ -19,6 +19,14 @@ import kotlinx.coroutines.withContext
 class ContentFeature(g: AppGraph) : Feature(g, "content") {
     var checkedAt by saved("checkedAt", 0L, Codecs.long, keepOnErase = true)
     var mirror by saved("mirror", false, Codecs.bool, keepOnErase = true)
+    val mirrorSwitch =
+        object : Mirror.Switch {
+            override var active: Boolean
+                get() = mirror
+                set(value) {
+                    if (mirror != value) mirror = value
+                }
+        }
     val file = savedFile("content.json", backup = false, keepOnErase = true, path = "content.json")
 
     // the APK carries no game data: the last download, or nothing until the first one arrives
@@ -54,7 +62,7 @@ class ContentFeature(g: AppGraph) : Feature(g, "content") {
         val out =
             withContext(Dispatchers.IO) {
                 runCatching {
-                    ContentUpdate.check(current) { site -> Mirror.fetch(site, siteFirst = true) { url -> fetch(url) } }
+                    ContentUpdate.check(current) { site -> Mirror.fetch(site, mirrorSwitch, siteFirst = true) { url -> fetch(url) } }
                         // whole-file replace, so a write cut short never leaves half a content file
                         .also { o -> o.bytes?.let { b -> file.write(String(b, Charsets.UTF_8)) } }
                 }

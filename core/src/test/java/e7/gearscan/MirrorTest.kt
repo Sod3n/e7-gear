@@ -1,7 +1,6 @@
 package e7.gearscan
 
 import e7.gearscan.data.Mirror
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -22,32 +21,33 @@ class MirrorTest {
             u
         }
 
-    @After fun reset() {
-        Mirror.active = false
-    }
+    private val mirror =
+        object : Mirror.Switch {
+            override var active = false
+        }
 
     @Test
     fun blockedSiteFallsBackAndRemembers() {
-        assertEquals(copy, Mirror.fetch(img, get = host(blocked = true)))
-        assertTrue(Mirror.active)
+        assertEquals(copy, Mirror.fetch(img, mirror, get = host(blocked = true)))
+        assertTrue(mirror.active)
         asked.clear()
-        assertEquals(copy, Mirror.fetch(img, get = host(blocked = true)))
+        assertEquals(copy, Mirror.fetch(img, mirror, get = host(blocked = true)))
         assertEquals("the copy goes first once it is the one that answers", listOf(copy), asked)
-        assertEquals(copy, Mirror.url(img))
+        assertEquals(copy, Mirror.url(img, mirror.active))
     }
 
     @Test
     fun contentCheckNoticesTheSiteIsBack() {
-        Mirror.active = true
-        assertEquals(img, Mirror.fetch(img, siteFirst = true, get = host(blocked = false)))
-        assertFalse(Mirror.active)
+        mirror.active = true
+        assertEquals(img, Mirror.fetch(img, mirror, siteFirst = true, get = host(blocked = false)))
+        assertFalse(mirror.active)
     }
 
     @Test
     fun httpErrorsDontSwitchHosts() {
         var thrown = false
         try {
-            Mirror.fetch(img) { u ->
+            Mirror.fetch(img, mirror) { u ->
                 asked += u
                 throw IOException("HTTP 404 for $u")
             }
@@ -56,13 +56,13 @@ class MirrorTest {
         }
         assertTrue(thrown)
         assertEquals(listOf(img), asked)
-        assertFalse(Mirror.active)
+        assertFalse(mirror.active)
     }
 
     @Test
     fun otherHostsAreLeftAlone() {
         val other = "https://example.com/x.png"
-        assertEquals(other, Mirror.fetch(other, get = host(blocked = true)))
-        assertEquals(other, Mirror.url(other))
+        assertEquals(other, Mirror.fetch(other, mirror, get = host(blocked = true)))
+        assertEquals(other, Mirror.url(other, mirror.active))
     }
 }

@@ -5,7 +5,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import e7.gearscan.data.Box
 import e7.gearscan.data.Http
-import e7.gearscan.data.Mirror
 import e7.gearscan.features.content.ContentFeature
 import e7.gearscan.features.feedback.FeedbackFeature
 import e7.gearscan.features.findgear.FindGearFeature
@@ -71,11 +70,6 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
 
     var ready by mutableStateOf(false)
         private set
-
-    init {
-        store.beforeSave = { if (content.mirror != Mirror.active) content.mirror = Mirror.active }
-        store.afterLoad = { Mirror.active = content.mirror }
-    }
 
     fun boxReplacing() = features.forEach { it.onBoxReplacing() }
 

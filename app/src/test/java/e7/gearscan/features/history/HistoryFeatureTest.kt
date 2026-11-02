@@ -3,7 +3,6 @@ package e7.gearscan.features.history
 import e7.gearscan.AppGraph
 import e7.gearscan.TestContent
 import e7.gearscan.data.HistoryEntry
-import e7.gearscan.data.Mirror
 import e7.gearscan.features.pool.PoolState
 import e7.gearscan.state.Disk
 import e7.gearscan.testing.SyntheticBox
@@ -13,14 +12,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HistoryFeatureTest {
-    @After fun resetMirror() { Mirror.active = false }
 
     private fun graph(scope: CoroutineScope, dir: File): AppGraph {
         File(dir, "content.json").writeText(TestContent.text)

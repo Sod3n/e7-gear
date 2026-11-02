@@ -15,7 +15,6 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.json.JSONArray
 import org.json.JSONObject
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -23,7 +22,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ContentFeatureTest {
-    @After fun resetMirror() { Mirror.active = false }
 
     private fun graph(scope: CoroutineScope, dir: File = createTempDirectory("content").toFile()) = AppGraph(Disk(dir), scope)
 

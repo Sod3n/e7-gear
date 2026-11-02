@@ -6,7 +6,6 @@ import e7.gearscan.data.GearStat
 import e7.gearscan.data.Slot
 import e7.gearscan.data.Substat
 import e7.gearscan.data.Item
-import e7.gearscan.data.Mirror
 import e7.gearscan.data.SellQuery
 import e7.gearscan.data.UpgradeRecord
 import e7.gearscan.state.Disk
@@ -16,7 +15,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -25,7 +23,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackerFeatureTest {
-    @After fun resetMirror() { Mirror.active = false }
 
     private val text = SyntheticBox.generate(1).gearText
     private val box = Box.parse(text)
