@@ -35,7 +35,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
+import e7.gearscan.data.PotentialQuery
 import e7.gearscan.data.Problems
+import e7.gearscan.data.Slot
 import e7.gearscan.data.Stat
 import e7.gearscan.overlay.OverlayState
 import e7.gearscan.overlay.OverlayUi
@@ -630,6 +632,33 @@ class ScreenAudit {
             ui { model.stack = listOf(Screen.Gear, Screen.HeroUpgrades(), Screen.HeroUpgrades(h.hero.id)); model.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, h.rows.first().pick.piece) } })
         steps.add("improve-heroes-help" to { ui { model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()); model.sheet = Sheet(SheetKind.HERO_UPGRADE_HELP, 0) } })
         screen("find-gear", Screen.Gear, Screen.GearPotential)
+        val findGear = model.graph.findGear
+        val findGearQuery = findGear.query
+        fun findGearSearch(q: PotentialQuery): Boolean {
+            ui { model.sheet = null; findGear.edit(q); model.graph.messages.show(findGear.find()) }
+            return runCatching { rule.waitUntil(120_000) { !findGear.busy && findGear.result != null && !findGear.stale } }.isSuccess
+        }
+        steps.add("find-gear-setup" to { ui { model.sheet = null; model.stack = listOf(Screen.Gear, Screen.GearPotential) }; clickText("Set up") })
+        steps.add("find-gear-piece" to {
+            if (!findGearSearch(findGearQuery)) add("the Find gear search never finishes on the fixture", "find-gear")
+            val first = findGear.result?.matches?.firstOrNull()
+            if (first == null) add("Find gear finds nothing on the fixture, so its results and piece sheet go unchecked", "find-gear")
+            else ui { model.stack = listOf(Screen.Gear, Screen.GearPotential); model.sheet = Sheet(SheetKind.POTENTIAL_PIECE, first.item.id) }
+        })
+        steps.add("find-gear-stale" to {
+            ui { model.sheet = null; findGear.edit(findGearQuery.copy(slots = setOf(Slot.HELMET, Slot.NECKLACE))); model.stack = listOf(Screen.Gear, Screen.GearPotential) }
+            if (findGear.result == null) add("no Find gear result to go stale", "find-gear")
+            else if (!findGear.stale) add("changing a Find gear filter does not mark the list stale", "find-gear")
+        })
+        steps.add("find-gear-none" to {
+            if (!findGearSearch(findGearQuery.copy(sets = setOf("NoSuchSet")))) add("the empty Find gear search never finishes", "find-gear")
+            else if (findGear.result?.matches?.isNotEmpty() != false) add("a search for a set nobody has still finds pieces", "find-gear")
+            ui { model.stack = listOf(Screen.Gear, Screen.GearPotential) }
+        })
+        steps.add("find-gear-restored" to {
+            if (!findGearSearch(findGearQuery)) add("the Find gear search cannot be restored", "find-gear")
+            ui { model.stack = listOf(Screen.Gear, Screen.GearPotential) }
+        })
         steps.add("scan-restart-sheet" to { ui { resetCapture(model); model.sheet = null; model.stack = listOf(Screen.Optimize, Screen.ScanData); model.sheet = Sheet(SheetKind.SCAN_RESTART, 0) } })
         steps.add("scan-restart-scan-now" to {
             // "not running" hands the scan to the screen under the sheet; with no game installed it lands on that error
