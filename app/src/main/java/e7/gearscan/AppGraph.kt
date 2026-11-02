@@ -14,6 +14,7 @@ import e7.gearscan.features.scan.ScanFeature
 import e7.gearscan.features.sellreview.SellReviewFeature
 import e7.gearscan.features.settings.SettingsFeature
 import e7.gearscan.features.tracker.TrackerFeature
+import e7.gearscan.features.update.AppUpdateFeature
 import e7.gearscan.state.Disk
 import e7.gearscan.state.ForegroundHost
 import e7.gearscan.state.Migrations
@@ -34,6 +35,7 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
     val messages = Messages()
     val nav = Nav(Screen.Optimize, messages::dismissConfirm)
     val content = ContentFeature(this)
+    val appUpdate = AppUpdateFeature(this)
     val scan = ScanFeature(this)
     val heroes = HeroesFeature(this)
     val marks = MarksFeature(this)
@@ -45,7 +47,7 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
     val tracker = TrackerFeature(this)
     val settings = SettingsFeature(this)
     val feedback = FeedbackFeature(this)
-    val features = listOf(content, scan, heroes, marks, pool, history, sellReview, improveHeroes, findGear, tracker, settings, feedback)
+    val features = listOf(content, appUpdate, scan, heroes, marks, pool, history, sellReview, improveHeroes, findGear, tracker, settings, feedback)
     private var loaded = false
 
     init {

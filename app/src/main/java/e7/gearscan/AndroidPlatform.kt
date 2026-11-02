@@ -103,4 +103,35 @@ class AndroidPlatform(private val app: Application) : Platform {
         runCatching {
             app.contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() }
         }.getOrNull()
+
+    override val appVersion: String
+        get() = app.packageManager.getPackageInfo(app.packageName, 0).versionName ?: "0"
+
+    override fun openPage(url: String) {
+        app.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    override fun updateFile(version: String) = AppInstall.file(app, version)
+
+    override fun download(
+        url: String,
+        to: java.io.File,
+        size: Long,
+        progress: (Float) -> Unit,
+    ) = AppInstall.download(url, to, size, progress)
+
+    override fun refusal(apk: java.io.File) = AppInstall.refusal(app, apk)
+
+    override val canInstall get() = app.packageManager.canRequestPackageInstalls()
+
+    override fun install(apk: java.io.File) = AppInstall.install(app, apk)
+
+    override fun allowInstalls() {
+        app.startActivity(
+            Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${app.packageName}"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
+
+    override fun cleanUpdates(installed: String) = AppInstall.clean(app, installed)
 }

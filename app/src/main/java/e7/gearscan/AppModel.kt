@@ -248,76 +248,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun back(): Boolean = graph.nav.back()
 
-    /** A newer app version on GitHub Releases, found by the daily check. */
-    var appUpdate: e7.gearscan.data.AppUpdate.Release? by mutableStateOf(null)
-        internal set
-
-    val appVersion: String get() = getApplication<Application>().let { it.packageManager.getPackageInfo(it.packageName, 0).versionName ?: "0" }
-
-    /** Sideloaded installs hear about new versions only from here; quiet on any failure. */
-    private fun checkAppUpdate() {
-        viewModelScope.launch {
-            appUpdate = withContext(Dispatchers.IO) {
-                runCatching {
-                    val c = e7.gearscan.data.Http.open(e7.gearscan.data.AppUpdate.LATEST) as java.net.HttpURLConnection
-                    c.connectTimeout = 8000; c.readTimeout = 15000; c.setRequestProperty("Accept", "application/vnd.github+json")
-                    if (c.responseCode != 200) null else e7.gearscan.data.AppUpdate.newer(appVersion, c.inputStream.bufferedReader().use { it.readText() })
-                }.getOrNull()
-            }
-        }
-    }
-
-    /** The self-update's download, 0..1; null when none is running. */
-    var updateProgress: Float? by mutableStateOf(null)
-        private set
-    var updateProblem: String? by mutableStateOf(null)
-        private set
-    /** Downloaded and checked, waiting for the player to allow installs from this app. */
-    private var installWhenAllowed: File? = null
-
-    /** Downloads [appUpdate], checks it is this app signed with this key and newer, then opens Android's installer. */
-    fun updateApp() {
-        val u = appUpdate ?: return
-        val app = getApplication<Application>()
-        if (u.apk == null) {
-            app.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(u.page)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-            return
-        }
-        if (updateProgress != null) return
-        updateProblem = null
-        updateProgress = 0f
-        viewModelScope.launch {
-            val apk = AppInstall.file(app, u.version)
-            val problem = withContext(Dispatchers.IO) {
-                runCatching {
-                    if (!apk.exists()) AppInstall.download(u.apk!!, apk, u.size) { p -> if ((p * 100).toInt() != ((updateProgress ?: 0f) * 100).toInt()) updateProgress = p }
-                    AppInstall.refusal(app, apk)
-                }.getOrElse { if (it is java.io.IOException) "" else "the download failed (${it.message})" }
-            }
-            updateProgress = null
-            when {
-                problem != null -> { apk.delete(); updateProblem = if (problem.isEmpty()) "Download stopped. Tap to try again." else "Not installed: $problem." }
-                app.packageManager.canRequestPackageInstalls() -> AppInstall.install(app, apk)
-                else -> {
-                    installWhenAllowed = apk
-                    updateProblem = "Allow installs from E7 Gear, then come back."
-                    app.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                        android.net.Uri.parse("package:${app.packageName}")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-                }
-            }
-        }
-    }
-
-    /** Back from the "Install unknown apps" switch: installs the waiting update once it's allowed. */
-    fun resumed() {
-        val apk = installWhenAllowed ?: return
-        val app = getApplication<Application>()
-        if (!app.packageManager.canRequestPackageInstalls()) return
-        installWhenAllowed = null
-        updateProblem = null
-        AppInstall.install(app, apk)
-    }
-
     // every change is saved shortly after: Android may close the app while the player is in the game
     fun touch() = graph.scan.touch()
 
@@ -1828,7 +1758,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     // last in the class: startup work started here reads fields declared above, which must exist before it runs
     init {
-        e7.gearscan.data.Http.agent = "E7Gear/$appVersion"
+        e7.gearscan.data.Http.agent = "E7Gear/${graph.appUpdate.version}"
         graph.scan.detectGame()
         graph.scan.host = object : ScanFeature.Host {
             override fun imported(box: Box) {
@@ -1869,8 +1799,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             team.firstOrNull()?.let { ensurePresets(it) }
             if (content.heroes.isEmpty()) graph.content.checkNow()
             else if (System.currentTimeMillis() - graph.content.checkedAt > 24 * 3600 * 1000L) graph.content.checkNow(quiet = true)
-            checkAppUpdate()
-            withContext(Dispatchers.IO) { AppInstall.clean(getApplication(), appVersion) }
+            graph.appUpdate.checkNow()
+            graph.appUpdate.cleanOld()
             withContext(Dispatchers.IO) { Reports.flush(reportsDir, content.feedbackUrl) }
         }
         viewModelScope.launch { graph.scan.watch() }

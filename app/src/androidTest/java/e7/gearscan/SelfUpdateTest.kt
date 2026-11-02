@@ -24,11 +24,11 @@ class SelfUpdateTest {
         val model = ViewModelProvider(rule.activity)[AppModel::class.java]
         rule.waitUntil(20_000) { model.ready }
         rule.runOnUiThread {
-            model.appUpdate = AppUpdate.Release("1.0.2", "https://example.invalid", apk.toURI().toString(), apk.length())
-            model.updateApp()
+            model.graph.appUpdate.release = AppUpdate.Release("1.0.2", "https://example.invalid", apk.toURI().toString(), apk.length())
+            model.graph.appUpdate.update()
         }
-        rule.waitUntil(60_000) { model.updateProgress == null }
-        assertNull(model.updateProblem?.takeUnless { it.startsWith("Allow installs") })
+        rule.waitUntil(60_000) { model.graph.appUpdate.progress == null }
+        assertNull(model.graph.appUpdate.problem?.takeUnless { it.startsWith("Allow installs") })
         // keeps the test clock drawing frames while the installer is up; the new version ends this process
         runCatching { rule.waitUntil(180_000) { false } }
     }

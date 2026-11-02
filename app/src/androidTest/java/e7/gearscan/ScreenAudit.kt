@@ -552,19 +552,19 @@ class ScreenAudit {
         steps.add("pool-trades-reset" to { ui { model.poolKeep = emptyMap(); model.poolGive = emptyMap(); model.sheet = null } })
         steps.add("app-update" to {
             ui { model.sheet = null; model.poolMode = false; model.stack = listOf(Screen.Optimize)
-                model.appUpdate = e7.gearscan.data.AppUpdate.Release("9.9.9", "https://example.invalid", "https://example.invalid/E7-Gear-9.9.9.apk", 1) }
+                model.graph.appUpdate.release = e7.gearscan.data.AppUpdate.Release("9.9.9", "https://example.invalid", "https://example.invalid/E7-Gear-9.9.9.apk", 1) }
             // the installed APK is this app with this key, so only its version may stop it
             val own = e7.gearscan.AppInstall.refusal(ctx, java.io.File(ctx.applicationInfo.sourceDir))
             if (own != "it isn't newer than this version") add("the update check misreads an APK", "app update: $own")
             val agent = e7.gearscan.data.Http.open("https://example.invalid").getRequestProperty("User-Agent")
-            if (agent != "E7Gear/${model.appVersion}") add("requests don't name the app and version", "user agent: $agent")
+            if (agent != "E7Gear/${model.graph.appUpdate.version}") add("requests don't name the app and version", "user agent: $agent")
         })
         steps.add("app-update-failed" to {
-            ui { model.updateApp() }
-            rule.waitUntil(30_000) { model.updateProgress == null && model.updateProblem != null }
-            if (model.updateProblem?.startsWith("Download stopped") != true) add("a failed update download isn't shown", "app update: ${model.updateProblem}")
+            ui { model.graph.appUpdate.update() }
+            rule.waitUntil(30_000) { model.graph.appUpdate.progress == null && model.graph.appUpdate.problem != null }
+            if (model.graph.appUpdate.problem?.startsWith("Download stopped") != true) add("a failed update download isn't shown", "app update: ${model.graph.appUpdate.problem}")
         })
-        steps.add("pool-off" to { ui { model.appUpdate = null; model.sheet = null; model.pool = poolDone; model.poolMode = false; model.stack = listOf(Screen.Optimize) } })
+        steps.add("pool-off" to { ui { model.graph.appUpdate.release = null; model.sheet = null; model.pool = poolDone; model.poolMode = false; model.stack = listOf(Screen.Optimize) } })
         screen("heroes", Screen.Heroes)
         steps.add("heroes-tier-editor" to { ui { model.sheet = null; model.stack = listOf(Screen.Heroes) }; clickText(model.heroName(model.hero(hero)!!)) })
         steps.add("heroes-unranked" to { ui { model.sheet = null; model.stack = listOf(Screen.Heroes) }; clickText("Show") })
@@ -583,10 +583,10 @@ class ScreenAudit {
             if (!model.consent) add("first start loses the scan consent", "continue")
         })
         steps.add("app-update-page-only" to {
-            ui { model.sheet = null; model.poolMode = false; model.appUpdate = e7.gearscan.data.AppUpdate.Release("9.9.9", "https://github.com/Sod3n/e7-gear/releases"); model.stack = listOf(Screen.Optimize) }
+            ui { model.sheet = null; model.poolMode = false; model.graph.appUpdate.release = e7.gearscan.data.AppUpdate.Release("9.9.9", "https://github.com/Sod3n/e7-gear/releases"); model.stack = listOf(Screen.Optimize) }
             if (rule.onAllNodesWithText("E7 Gear 9.9.9 is out", useUnmergedTree = true).fetchSemanticsNodes().isEmpty()) add("a newer release shows no card", "app update")
         })
-        steps.add("app-update-reset" to { ui { model.appUpdate = null } })
+        steps.add("app-update-reset" to { ui { model.graph.appUpdate.release = null } })
         screen("scan-data", Screen.Optimize, Screen.ScanData)
         screen("capture-ready", Screen.ScanData, Screen.Capture)
         steps.add("capture-running" to { capture(model, 20_000) })

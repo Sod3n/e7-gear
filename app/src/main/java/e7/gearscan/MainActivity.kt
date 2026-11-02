@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         e7.gearscan.overlay.OverlayState.appInFront = true
         updateFloating()
-        model.resumed()
+        model.graph.appUpdate.resumed()
     }
 
     override fun onPause() {

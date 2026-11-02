@@ -77,17 +77,17 @@ fun OptimizeScreen(model: AppModel) {
     }) {
         ScreenTitle("Optimize", "最適化") { ScanChip(model.graph.scan.scannedLabel(), model.graph.scan.phase != ScanPhase.IDLE) { if (model.graph.scan.phase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
         CrashCard(model)
-        model.appUpdate?.let { u ->
-            val p = model.updateProgress
+        model.graph.appUpdate.release?.let { u ->
+            val p = model.graph.appUpdate.progress
             Card(shadow = C.pink, padding = PaddingValues(0.dp)) {
-                ListRow({ model.updateApp() }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp), trailing = {
+                ListRow({ model.graph.appUpdate.update() }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp), trailing = {
                     Box(Modifier.widthIn(min = 56.dp), contentAlignment = Alignment.CenterEnd) {
                         Text(if (p != null) "${(p * 100).toInt()}%" else if (u.apk != null) "Update" else "Download", style = zen(12.sp, color = C.deepPink))
                     }
                 }) {
                     Text("E7 Gear ${u.version} is out", style = zen(13.sp))
-                    Text(model.updateProblem ?: "You have ${model.appVersion}. Your heroes and builds stay.",
-                        style = zen(11.sp, FontWeight.Medium, if (model.updateProblem != null) C.deepPink else C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(model.graph.appUpdate.problem ?: "You have ${model.graph.appUpdate.version}. Your heroes and builds stay.",
+                        style = zen(11.sp, FontWeight.Medium, if (model.graph.appUpdate.problem != null) C.deepPink else C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
