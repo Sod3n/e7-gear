@@ -1,5 +1,6 @@
 package e7.gearscan
 
+import e7.gearscan.features.sellreview.trackMatches
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import androidx.compose.foundation.layout.*
@@ -105,7 +106,7 @@ class GalleryScreens {
             ui { m.messages.askReset("Reset the safeguards?", "Spd 20, Cr 25%, Cd 35% and 40% for every % stat; flat stats off.") {} }; shot("sell-09-confirm"); ui { m.messages.dialog = null }
             if (theme == only.split(",").first()) ui { m.nav.sheet = null; m.sellReview.result?.matches?.take(6)?.forEach { m.marks.markReviewed(it.item.id, keep = true) } }
             ui { m.nav.sheet = null; m.nav.go(Screen.SellKept) }; shot("sell-06-kept"); ui { m.nav.go(Screen.SellFilters) }
-            ui { m.sellReview.trackMatches(openOverlay = false) }
+            ui { m.trackMatches(openOverlay = false) }
             ui { m.overlay.expanded = true; m.overlay.usableHeightDp = 260f; overlay = true }; rule.mainClock.advanceTimeBy(2000); Thread.sleep(2000); rule.mainClock.advanceTimeBy(500); shot("sell-07-overlay")
             rule.onNodeWithContentDescription("More").performClick(); rule.mainClock.advanceTimeBy(500); shot("sell-08-overlay-more")
             rule.onNodeWithContentDescription("More").performClick()

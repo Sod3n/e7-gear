@@ -57,9 +57,9 @@ fun UpgradeScreen(graph: AppGraph) {
                     Text(goal.label(), style = dela(18.sp))
                     VSpace(6.dp)
                 }
-                Text(t.title, style = zen(13.sp, color = C.blue))
+                Text(t.readout.title, style = zen(13.sp, color = C.blue))
                 VSpace(6.dp)
-                if (!t.hasTarget && !t.busy) t.results.filter { it.current || it.hits.isNotEmpty() }.sortedByDescending { it.hits.size }.take(4).forEach { h ->
+                if (!t.hasTarget && !t.checkRun.busy) t.checkRun.results.filter { it.current || it.hits.isNotEmpty() }.sortedByDescending { it.hits.size }.take(4).forEach { h ->
                     Text(h.name + listOfNotNull(if (h.current) "an upgrade now ${h.nowGain}".trim() else null,
                         if (h.hits.isNotEmpty()) "${h.hits.size * 100 / h.total}% of finishes do better, usually ${h.typical}" else null).joinToString(" · ", " · "),
                         style = zen(12.sp))
@@ -69,8 +69,8 @@ fun UpgradeScreen(graph: AppGraph) {
                 }
                 if (!t.hasTarget && selected.item.enhance == 15) {
                     if (selected.item.level == 85 && t.canReforge(selected.item.id)) LinkText("Record the reforge") { t.reforge() }
-                    if (t.equippedOn == null) t.equipHeroes.forEach { h -> LinkText("Record equipped on ${h.name}") { t.equip(h.id) } }
-                    else LinkText("Undo: equipped on ${t.equippedOn}") { t.undoEquip() }
+                    if (t.worn.equippedOn == null) t.checkRun.equipHeroes.forEach { h -> LinkText("Record equipped on ${h.name}") { t.worn.equip(h.id) } }
+                    else LinkText("Undo: equipped on ${t.worn.equippedOn}") { t.worn.undoEquip() }
                     VSpace(6.dp)
                 }
                 Text(if(t.isRollReview)"Record each upgrade to update its actual roll history." else if (t.hasTarget) "Record each upgrade to see your chance change." else "Checks how this piece could help your saved hero builds.", style = zen(12.sp, FontWeight.Medium, C.muted))
@@ -103,12 +103,12 @@ fun UpgradeScreen(graph: AppGraph) {
             CardGrid(listOf<Slot?>(null) + Slot.entries, columns = 3, gap = 6.dp) { s, m ->
                 Pill(s?.label ?: "All", selected = slot == s, modifier = m, onClick = { slot = s })
             }
-            val items = box.items.filter { it.id !in graph.marks.cleared && UpgradeRecord.supported(it) && (it.enhance < 15 || t.records[it.id]?.scan == graph.scan.lastScan) && (slot == null || it.slot == slot) }
+            val items = box.items.filter { it.id !in graph.marks.cleared && UpgradeRecord.supported(it) && (it.enhance < 15 || graph.records.records[it.id]?.scan == graph.scan.lastScan) && (slot == null || it.slot == slot) }
                 .filter { set == null || it.set == set }
-                .sortedWith(compareByDescending<Item> { t.records[it.id]?.scan == graph.scan.lastScan }.thenBy { it.slot.ordinal }.thenByDescending { it.enhance })
+                .sortedWith(compareByDescending<Item> { graph.records.records[it.id]?.scan == graph.scan.lastScan }.thenBy { it.slot.ordinal }.thenByDescending { it.enhance })
             SectionTitle("Your gear", trailing = "${items.size}")
             items.take(count).forEach { original ->
-                val item = t.records[original.id]?.takeIf { it.scan == graph.scan.lastScan }?.item ?: UpgradeRecord.fromScan(original)
+                val item = graph.records.records[original.id]?.takeIf { it.scan == graph.scan.lastScan }?.item ?: UpgradeRecord.fromScan(original)
                 Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp)) {
                     Column(Modifier.tap { t.selectPiece(original.id); choosing = false }) {
                         GearSearchIdentity(graph, item)

@@ -1,5 +1,6 @@
 package e7.gearscan
 
+import e7.gearscan.features.sellreview.trackMatches
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.os.Build
@@ -104,26 +105,26 @@ class SellFiltersScreens {
         ui { graph.nav.sheet=null;graph.sellReview.edit(graph.sellReview.query.copy(keepStats=mapOf(GearStat.SPD to 20.0))) }
         assertEquals(20.0,graph.sellReview.query.keepStats.getValue(GearStat.SPD),0.0)
         tap("Matches");assertFalse(graph.sellReview.fresh);noPoints();shot("10-stale")
-        val old=graph.nav.screen;ui { graph.sellReview.trackMatches(openOverlay=false) };assertEquals(old,graph.nav.screen)
+        val old=graph.nav.screen;ui { graph.trackMatches(openOverlay=false) };assertEquals(old,graph.nav.screen)
         tap("Update matches");rule.waitUntil(90_000) { !graph.sellReview.busy };assertTrue(graph.sellReview.fresh)
         val result=graph.sellReview.result!!;assertTrue(result.matches.size>20);assertTrue(result.matches.none { it.protected })
         val protected=result.rows.count { it.protected };assertTrue(protected>0)
         tap("$protected kept by safeguards");noPoints();shot("11-stat-safeguards-applied");tap("$protected kept by safeguards")
         val n=result.matches.size
-        ui { graph.sellReview.trackMatches(openOverlay=false) }
+        ui { graph.trackMatches(openOverlay=false) }
         val t=graph.tracker
         assertEquals(n,t.queue.size);assertTrue(t.isRollReview);assertTrue(t.queue.all { it.scoreGoal==null&&it.goal==null });noPoints();shot("12-review-tracker")
         ui { graph.overlay.expanded=true;graph.overlay.usableHeightDp=240f;overlay=true }
         noPoints();shot("13-overlay-review",true)
         rule.onNodeWithContentDescription("Next gear").performClick();rule.waitForIdle();assertEquals(1,t.queueIndex);shot("14-overlay-next",true)
-        val index=t.queue.indexOfFirst { e->t.records[e.id]!!.item.let { it.rank=="Epic"&&it.enhance<15 } }
+        val index=t.queue.indexOfFirst { e->graph.records.records[e.id]!!.item.let { it.rank=="Epic"&&it.enhance<15 } }
         assertTrue(index>=0);ui { t.selectInQueue(index) }
         rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Roll review");noPoints();shot("16-overlay-roll-evidence",true);tap("Back")
-        val before=t.record!!.item;val countBefore=t.reviewRolls!!.size;val statText=t.reviewStatText
+        val before=t.record!!.item;val countBefore=t.readout.reviewRolls!!.size;val statText=t.readout.reviewStatText
         val next=(before.enhance/3+1)*3
         tap("Record +$next");val sub=before.subs.first();choose("${sub.type.short}: ${fmtNum(sub.value)}")
         shot("17-overlay-record",true);tap("Apply total");tap("Save +$next")
-        assertEquals(next,t.record!!.item.enhance);assertEquals(n,t.queue.size);assertEquals(countBefore+1,t.reviewRolls!!.size);assertNotEquals(statText,t.reviewStatText)
+        assertEquals(next,t.record!!.item.enhance);assertEquals(n,t.queue.size);assertEquals(countBefore+1,t.readout.reviewRolls!!.size);assertNotEquals(statText,t.readout.reviewStatText)
         noPoints();shot("18-overlay-updated",true)
         // This acknowledges only a fixture sale; the audit never touches the game.
         rule.onNodeWithText("Sold ›").assertIsDisplayed()
@@ -153,13 +154,13 @@ class SellFiltersScreens {
         ui { graph.overlay.floating=true;graph.overlay.floatingPanel=true };rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Open E7 Gear");assertFalse(graph.overlay.floatingPanel);ui { graph.overlay.floating=false;graph.overlay.floatingPanel=true }
         val backup=graph.scan.backupText();val saved=JSONObject(backup)
         assertEquals(graph.sellReview.query,SellQuery.of(saved.getJSONObject("fields").getJSONObject("sellReview.query")))
-        val reopened=reopenTracker(graph,ctx.filesDir);assertTrue(reopened.isRollReview);assertEquals(t.reviewRolls,reopened.reviewRolls);assertEquals(t.queue,reopened.queue)
+        val reopened=reopenTracker(graph,ctx.filesDir);assertTrue(reopened.isRollReview);assertEquals(t.readout.reviewRolls,reopened.readout.reviewRolls);assertEquals(t.queue,reopened.queue)
         val lastQuery=graph.sellReview.query
         ui { overlay=false;assertTrue(graph.scan.restore(backup));graph.nav.go(Screen.SellFilters) }
         assertEquals(lastQuery,graph.sellReview.query);assertFalse(graph.sellReview.query.scoreFilter);noPoints()
         ui { graph.sellReview.find() };rule.waitUntil(90_000) { !graph.sellReview.busy }
         val only=graph.sellReview.result!!.matches.first().item.id
-        ui { graph.sellReview.trackMatches(only,openOverlay=false);graph.overlay.expanded=true;overlay=true }
+        ui { graph.trackMatches(only,openOverlay=false);graph.overlay.expanded=true;overlay=true }
         tap("Sold ›");assertTrue(t.sellQueueComplete);assertEquals(0,t.pendingQueue.size)
         assertTrue(only in graph.marks.cleared);shot("22-all-marked",true)
         ui { graph.tracker.markSold(only) };assertEquals(0,t.pendingQueue.size)

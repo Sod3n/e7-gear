@@ -126,11 +126,11 @@ class SellFiltersTest {
     @Test fun scoreQueueUpdatesAfterSavingProcsAndSurvivesRestore() {
         val p=item();val env=TrackerEnv(kotlin.io.path.createTempDirectory("score-queue").toFile());val t=env.t
         val q=SellQuery(reforge=false,maximumChance=100.0);val entry=TrackerFeature.QueueEntry(p.id,null,"Speed",null,goal(106.0))
-        t.startQueue(listOf(p to entry),99,q);val before=t.goalOutcome!!.chance
+        t.startQueue(listOf(p to entry),99,q);val before=t.readout.goalOutcome!!.chance
         assertTrue(before in 0.0..1.0);assertTrue(before<1)
-        assertTrue(t.commit(2700.0,listOf(17.0,5.0,4.0,8.0),null,false));assertEquals(1.0,t.goalOutcome!!.chance,0.0)
+        assertTrue(t.commit(2700.0,listOf(17.0,5.0,4.0,8.0),null,false));assertEquals(1.0,t.readout.goalOutcome!!.chance,0.0)
         val restored=env.reopen().t;assertEquals(q,restored.scoreQuery);assertEquals(t.scoreGoal,restored.scoreGoal);assertEquals(t.queue,restored.queue)
-        assertEquals("Comparison reached",restored.title);restored.undo();assertEquals(before,restored.goalOutcome!!.chance,1e-12)
+        assertEquals("Comparison reached",restored.readout.title);restored.undo();assertEquals(before,restored.readout.goalOutcome!!.chance,1e-12)
     }
     @Test fun realReviewPiecesMatchTheIndependentExactPythonReference() {
         val dir=System.getenv("E7_SELL_EVIDENCE");assumeTrue(dir!=null)

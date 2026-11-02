@@ -123,7 +123,7 @@ class ScanFeatureTest {
         g.pool.run.start { CompletableDeferred<Unit>().await() }
         assertTrue(g.scan.restore(backupV1()))
         assertTrue(g.work.active.isEmpty())
-        assertEquals("sig", g.tracker.signature)
+        assertEquals("sig", g.tracker.checkRun.signature)
         assertNotNull(g.scan.box)
         assertTrue(JSONObject(backupV1()).getJSONObject("box").similar(JSONObject(g.scan.boxFile.read()!!)))
         assertEquals(1_761_000_000_000L, g.scan.lastScan)
@@ -164,7 +164,7 @@ class ScanFeatureTest {
         g.scan.erase(e7.gearscan.userConfirmed())
         g.disk.flush()
         assertTrue(g.work.active.isEmpty())
-        assertEquals("", g.tracker.signature)
+        assertEquals("", g.tracker.checkRun.signature)
         assertNull(g.scan.box)
         assertEquals(0L, g.scan.lastScan)
         assertTrue(g.marks.cleared.isEmpty())

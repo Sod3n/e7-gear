@@ -45,15 +45,15 @@ class TrackerFeatureTest {
         val t = g.tracker
         val scan = g.scan.lastScan
         t.select(own(1), scan)
-        assertTrue(t.records.containsKey(1L))
-        assertTrue(t.recordedSteps.isEmpty())
+        assertTrue(g.records.records.containsKey(1L))
+        assertTrue(g.records.recordedSteps.isEmpty())
 
         t.select(own(2), scan)
         step(t)
-        assertEquals(setOf(2L), t.recordedSteps.keys)
+        assertEquals(setOf(2L), g.records.recordedSteps.keys)
 
         t.select(own(2), scan + 1)
-        assertTrue(t.recordedSteps.isEmpty())
+        assertTrue(g.records.recordedSteps.isEmpty())
     }
 
     @Test fun selectingStartingAQueueAndUndoingKeepEachPiecesOwnHistory() = runTest(UnconfinedTestDispatcher()) {
@@ -70,7 +70,7 @@ class TrackerFeatureTest {
         assertEquals(1, t.queueIndex)
         step(t)
         assertEquals(2, t.record!!.history.size)
-        assertEquals(1, t.records.getValue(1).history.size)
+        assertEquals(1, g.records.records.getValue(1).history.size)
 
         t.undo()
         assertEquals(1, t.record!!.history.size)

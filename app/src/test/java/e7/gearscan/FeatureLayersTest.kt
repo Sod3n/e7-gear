@@ -22,9 +22,7 @@ class FeatureLayersTest {
     )
 
     // Wrong-way connections not yet removed. Plan 2 empties this list; a fixed one must leave it.
-    private val notYetFixed = setOf(
-        "sellreview->tracker", "improveheroes->tracker", "findgear->tracker",
-    )
+    private val notYetFixed = emptySet<String>()
 
     private fun wrongWay(): Map<String, List<String>> {
         val use = Regex("""\b(?:g|graph)\.(\w+)""")
