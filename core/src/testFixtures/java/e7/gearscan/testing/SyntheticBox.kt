@@ -85,10 +85,40 @@ object SyntheticBox {
             JSONObject()
                 .put("app", "e7gear")
                 .put("version", 1)
-                .put("state", state(heroes, items, wearers, setKeys, rnd))
+                .put("state", state(heroes, items, wearers, setKeys, rnd, gear.toString()))
                 .put("box", JSONObject(gear.toString()))
                 .put("history", JSONArray(history(heroes, items, wearers, rnd).map { it.toJson() }))
         return Result(gear.toString(), backup.toString(), builds(gear.toString(), heroes))
+    }
+
+    private fun ownRequest(
+        box: Box,
+        content: e7.gearscan.data.Content,
+        index: Int,
+        artifact: String?,
+        r: Request,
+    ) {
+        val owned = box.allHeroes[index]
+        val setup =
+            Setup(
+                owned,
+                content.heroes.getValue(owned.code),
+                HeroConfig().also { it.artifact = artifact },
+                Request(),
+                box,
+                content,
+                { true },
+            )
+        val worn = box.gearOf(owned.id)
+        val final = setup.build(worn.values.toList()).final.stats
+        r.setAlts =
+            Calc.setCounts(worn.values, content).associate { (d, n) -> d.key to n }.let { if (it.isEmpty()) emptyList() else listOf(it) }
+        r.mains = listOf(Slot.NECKLACE, Slot.RING, Slot.BOOTS).associateWith { setOf(worn.getValue(it).mainType) }
+        r.capCrit = false
+        for (x in listOf(Stat.SPD, Stat.CR, Stat.CD)) r.targets[x.ordinal] = Math.floor(final[x.ordinal])
+        r.mins[Stat.SPD.ordinal] = Math.floor(final[Stat.SPD.ordinal]) - 5
+        r.mins[Stat.RES.ordinal] = maxOf(0.0, Math.floor(final[Stat.RES.ordinal]) - 5)
+        r.mins[Stat.CR.ordinal] = Double.NaN
     }
 
     private fun builds(
@@ -358,7 +388,10 @@ object SyntheticBox {
         wearers: Map<Long, Int>,
         setKeys: List<String>,
         rnd: Random,
+        gearText: String,
     ): JSONObject {
+        val content = TestContent.content
+        val box = Box.parse(gearText)
         val four =
             listOf("SpeedSet", "DestructionSet", "AttackSet", "LifestealSet", "CounterSet", "ImmunitySet", "RageSet").filter {
                 it in
@@ -386,6 +419,7 @@ object SyntheticBox {
             r.weights[Stat.CD.ordinal] = 2
             cfg.request = r
             val worn = items.filter { wearers[it.id] == i }
+            if (worn.size == Slot.entries.size) ownRequest(box, content, i, h.artifact, r)
             if (worn.size == Slot.entries.size) cfg.saved += SavedBuild("Current", worn.sortedBy { it.slot.ordinal }.map { it.id })
             configs.put(hid.toString(), cfg.toJson())
         }
