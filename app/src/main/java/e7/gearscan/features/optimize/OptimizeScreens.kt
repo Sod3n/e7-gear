@@ -60,9 +60,9 @@ import kotlinx.coroutines.delay
 fun OptimizeScreen(model: AppModel) {
     model.graph.scan.rev
     val box = model.graph.scan.box
-    val team = model.team.mapNotNull { model.hero(it) }
-    val pool = box != null && model.poolMode
-    val history = box != null && model.showHistory
+    val team = model.graph.heroes.team.mapNotNull { model.hero(it) }
+    val pool = box != null && model.graph.pool.mode
+    val history = box != null && model.graph.history.shown
     Frame(model, Screen.Optimize, actions = when {
         history -> null
         pool -> ({ PoolButton(model) })
@@ -70,7 +70,7 @@ fun OptimizeScreen(model: AppModel) {
         else -> ({
             PinkButton("Search", Modifier.weight(1f),
                 enabled = team.all { model.gameHero(it) != null }) {
-                model.startSearch()
+                model.graph.optimize.startSearch()
                 if (team.size == 1) model.go(Screen.Results)
             }
         })
@@ -91,15 +91,15 @@ fun OptimizeScreen(model: AppModel) {
                 }
             }
         }
-        if (box != null) Segmented(listOf("One hero", "Whole pool", "History"), if (model.showHistory) 2 else if (model.poolMode) 1 else 0) {
-            model.showHistory = it == 2
-            if (it < 2) model.poolMode = it == 1
+        if (box != null) Segmented(listOf("One hero", "Whole pool", "History"), if (model.graph.history.shown) 2 else if (model.graph.pool.mode) 1 else 0) {
+            model.graph.history.shown = it == 2
+            if (it < 2) model.graph.pool.mode = it == 1
         }
-        if (box != null && model.pool?.running == true) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(C.ink)
+        if (box != null && model.graph.pool.state?.running == true) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(C.ink)
             .tap { model.go(Screen.PoolRun) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PulseDot(8.dp)
-            Text("Pool running · ${model.pool!!.builds.size} of ${model.pool!!.ids.size}", style = zen(12.sp, color = C.card), modifier = Modifier.weight(1f))
+            Text("Pool running · ${model.graph.pool.state!!.builds.size} of ${model.graph.pool.state!!.ids.size}", style = zen(12.sp, color = C.card), modifier = Modifier.weight(1f))
             Text("Open ›", style = zen(12.sp, color = C.card))
         }
         when {
@@ -133,20 +133,20 @@ private fun NoBox(model: AppModel) {
 @Composable
 fun HeroSubtitle(model: AppModel, h: OwnedHero, text: String) {
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        ArtifactIcon(model, model.graph.content.content.artifact(model.config(h.id).artifact ?: model.request(h.id).artifact), 18.dp)
+        ArtifactIcon(model, model.graph.content.content.artifact(model.graph.heroes.config(h.id).artifact ?: model.graph.heroes.request(h.id).artifact), 18.dp)
         Text(text, style = zen(12.sp, FontWeight.Medium, C.muted), maxLines = 3, overflow = TextOverflow.Ellipsis)
     }
 }
 
 fun heroSubtitle(model: AppModel, h: OwnedHero): String {
-    val cfg = model.config(h.id)
-    val art = model.graph.content.content.artifact(cfg.artifact ?: model.request(h.id).artifact)
+    val cfg = model.graph.heroes.config(h.id)
+    val art = model.graph.content.content.artifact(cfg.artifact ?: model.graph.heroes.request(h.id).artifact)
     return (art?.let { "${it.name} +30" } ?: "Artifact +30") + " · full imprint, always"
 }
 
 @Composable
 private fun SingleSetup(model: AppModel, h: OwnedHero) {
-    val req = model.request(h.id)
+    val req = model.graph.heroes.request(h.id)
     Card(padding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Face(model.face(h), 50.dp)
@@ -172,7 +172,7 @@ private fun SingleSetup(model: AppModel, h: OwnedHero) {
 
 @Composable
 internal fun PresetCard(model: AppModel, h: OwnedHero, req: Request) {
-    val loading = model.presetLoading[h.code] == true
+    val loading = model.graph.heroes.presetLoading[h.code] == true
     val shape = RoundedCornerShape(14.dp)
     Row(Modifier.fillMaxWidth().hardShadow(C.pink, 3.dp, 3.dp, 14.dp).clip(shape).background(C.card).border(2.5.dp, C.edge, shape)
         .tap { model.sheet = Sheet(SheetKind.PRESET, h.id) }.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -189,7 +189,7 @@ internal fun PresetCard(model: AppModel, h: OwnedHero, req: Request) {
                     Text("Loading community builds…", style = zen(13.sp))
                     Skeleton(Modifier.padding(top = 4.dp).width(140.dp).height(8.dp))
                 }
-                model.presets.containsKey(h.code) && model.presets[h.code] == null -> {
+                model.graph.heroes.presets.containsKey(h.code) && model.graph.heroes.presets[h.code] == null -> {
                     Text("No preset", style = zen(13.sp))
                     Text("Community builds couldn't load; set targets yourself", style = zen(11.sp, FontWeight.Medium, C.muted))
                 }
@@ -218,7 +218,7 @@ fun StatGrid(req: Request, value: (Stat) -> Double) {
 @Composable
 internal fun LooksFor(model: AppModel, h: OwnedHero, req: Request) {
     RowCard("Artifact", { model.sheet = Sheet(SheetKind.ARTIFACT, h.id) }) {
-        val art = model.graph.content.content.artifact(model.config(h.id).artifact ?: req.artifact)
+        val art = model.graph.content.content.artifact(model.graph.heroes.config(h.id).artifact ?: req.artifact)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ArtifactIcon(model, art, 20.dp)
             Text(art?.name ?: "None chosen", style = zen(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -244,7 +244,7 @@ internal fun LooksFor(model: AppModel, h: OwnedHero, req: Request) {
         // every target in a fixed stat order (the row wraps), so a weight change never adds, drops or reorders one
         set.forEach { s -> StatValue(s, fmtK(req.targets[s.ordinal])) }
     }
-    val cur = model.currentBuild(h.id)
+    val cur = model.graph.heroes.currentBuild(h.id)
     if (cur != null) RowCard("Now", { model.sheet = Sheet(SheetKind.TARGETS, h.id) }) { StatGrid(req) { cur.final[it] } }
     RowCard("Advanced", { model.sheet = Sheet(SheetKind.ADVANCED, h.id) }) {
         Text("Rules · ghost gear ${if (req.ghost) "on" else "off"}", style = zen(12.sp))
@@ -264,9 +264,9 @@ fun ratingText(r: Rating, v: Double) = when (r) {
 @Composable
 fun ResultsScreen(model: AppModel) {
     model.graph.scan.rev
-    val s = model.search ?: run { OptimizeScreen(model); return }
+    val s = model.graph.optimize.search ?: run { OptimizeScreen(model); return }
     val h = model.hero(s.heroId) ?: return
-    val req = model.request(h.id)
+    val req = model.graph.heroes.request(h.id)
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(s.running) { while (s.running) { now = System.currentTimeMillis(); delay(100) } }
     val r = model.graph.settings.showRating
@@ -286,7 +286,7 @@ fun ResultsScreen(model: AppModel) {
             Card(shadow = null, radius = 14.dp, border = 2.5.dp) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Searching · ${"%.1f".format(java.util.Locale.US, (now - s.startedAt) / 1000.0)} s", style = zen(12.sp), modifier = Modifier.weight(1f))
-                    LinkText("Cancel", color = C.deepPink) { model.cancelSearch() }
+                    LinkText("Cancel", color = C.deepPink) { model.graph.optimize.cancelSearch() }
                 }
                 VSpace(6.dp)
                 val frac = ((now - s.startedAt).toFloat() / s.limitMs).coerceIn(0.02f, 1f)
@@ -327,12 +327,12 @@ fun ResultsScreen(model: AppModel) {
                     bl.isNullOrEmpty() -> "Loosening any single rule isn't enough. Loosen several: minimums, sets, mains or enhance level."
                     else -> "Loosen any one of these and builds appear: " + bl.joinToString(" · ")
                 }, style = zen(12.sp, FontWeight.Medium, C.muted), minLines = 2)
-                if (s.timedOut && !s.cancelled && s.limitMs < model.longLimitMs) {
+                if (s.timedOut && !s.cancelled && s.limitMs < model.graph.optimize.longLimitMs) {
                     VSpace(6.dp)
                     Text("It stopped before checking every combination, so a build may still exist. Mods make the search slower.",
                         style = zen(12.sp, FontWeight.Medium, C.muted))
                     VSpace(4.dp)
-                    LinkText("Search for ${model.longLimitMs / 1000} s") { model.startSearch(model.longLimitMs) }
+                    LinkText("Search for ${model.graph.optimize.longLimitMs / 1000} s") { model.graph.optimize.startSearch(model.graph.optimize.longLimitMs) }
                 }
             }
         }
@@ -363,7 +363,7 @@ fun StaleBox(model: AppModel) {
 
 /** Says whether substat mods were part of this search, so a list without 改 is not a mystery. */
 @Composable
-private fun ModsLine(model: AppModel, s: e7.gearscan.SearchState, req: Request) {
+private fun ModsLine(model: AppModel, s: e7.gearscan.features.optimize.SearchState, req: Request) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("改", style = dela(12.sp, if (req.mods) C.deepPink else C.muted))
         val top = s.builds.take(10)
@@ -373,12 +373,12 @@ private fun ModsLine(model: AppModel, s: e7.gearscan.SearchState, req: Request) 
             top.isEmpty() -> "Mods on"
             else -> top.count { b -> b.items.any { it.mod != null } }.let { n -> if (n == 0) "Mods on · no mod beats these builds" else "Mods on · $n of the top ${top.size} use a mod" }
         }, style = zen(12.sp, color = if (req.mods) C.deepPink else C.muted), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (!req.mods && !s.running) LinkText("Turn on") { req.mods = true; model.touch(); model.save(); model.startSearch() }
+        if (!req.mods && !s.running) LinkText("Turn on") { req.mods = true; model.touch(); model.save(); model.graph.optimize.startSearch() }
     }
 }
 
 @Composable
-private fun GhostBand(model: AppModel, s: e7.gearscan.SearchState, r: Rating, matchHero: Long? = null) {
+private fun GhostBand(model: AppModel, s: e7.gearscan.features.optimize.SearchState, r: Rating, matchHero: Long? = null) {
     val g = s.ghost
     val best = s.builds.firstOrNull()
     DashedBox(Modifier.fillMaxWidth().heightIn(min = 70.dp), color = C.blue, bg = C.ghostBg, radius = 14.dp, width = 2.5.dp,
@@ -401,7 +401,7 @@ private fun GhostBand(model: AppModel, s: e7.gearscan.SearchState, r: Rating, ma
         VSpace(5.dp)
         if (g != null && best != null) Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val spd = g.final[Stat.SPD] - best.final[Stat.SPD]
-            val gm = matchHero?.let { model.matchOf(it, g)?.pct }; val bm = matchHero?.let { model.matchOf(it, best)?.pct }
+            val gm = matchHero?.let { model.graph.heroes.matchOf(it, g)?.pct }; val bm = matchHero?.let { model.graph.heroes.matchOf(it, best)?.pct }
             if (gm != null && bm != null) {
                 Text((if (gm >= bm) "+" else "−") + "${Math.abs(gm - bm)}%", style = dela(18.sp, C.blue))
                 Text("match over #1" + if (Math.abs(spd) >= 1) ", ${fmtSigned(spd)} spd" else "", style = zen(12.sp, color = C.blue),
@@ -428,11 +428,11 @@ private fun ResultCard(model: AppModel, i: Int, b: Build, cur: Build?, r: Rating
         RankChip(i + 1)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val m = matchHero?.let { model.matchOf(it, b)?.pct }
+                val m = matchHero?.let { model.graph.heroes.matchOf(it, b)?.pct }
                 // fixed slots: switching Match/Damage (or a longer number) must not push "from others" sideways
                 val (main, delta, up) = if (m != null) {
                     // targets goal: the number people compare is how close the build gets, as on Heroes and hero detail
-                    val was = cur?.let { c -> model.matchOf(matchHero, c)?.pct }
+                    val was = cur?.let { c -> model.graph.heroes.matchOf(matchHero, c)?.pct }
                     Triple("$m%", was?.let { (if (m >= it) "+" else "−") + "${Math.abs(m - it)}%" }, was == null || m >= was)
                 } else {
                     val d = cur?.let { b.rating(r) - it.rating(r) }
@@ -473,42 +473,42 @@ private fun SkeletonCard(i: Int) {
 @Composable
 fun CompareScreen(model: AppModel, index: Int, poolHero: Long?, review: Boolean = false) {
     model.graph.scan.rev
-    val s = model.search
+    val s = model.graph.optimize.search
     val heroId = poolHero ?: s?.heroId ?: return
-    val b = (if (poolHero != null) model.pool?.builds?.get(poolHero) else s?.builds?.getOrNull(index)) ?: return
-    val cur = if (poolHero != null) model.currentBuild(heroId) else s?.current
+    val b = (if (poolHero != null) model.graph.pool.state?.builds?.get(poolHero) else s?.builds?.getOrNull(index)) ?: return
+    val cur = if (poolHero != null) model.graph.heroes.currentBuild(heroId) else s?.current
     val teamHero = poolHero
-    val req = model.request(heroId)
+    val req = model.graph.heroes.request(heroId)
     val heroName = model.hero(heroId)?.let(model::heroName) ?: "Build"
-    val queue = if (review) model.reviewQueue() else emptyList()
+    val queue = if (review) model.graph.pool.reviewQueue() else emptyList()
     val at = queue.indexOf(heroId)
-    val readOnly = model.pool?.fromHistory == true && poolHero != null || model.search?.historyAt?.let { it != 0L } == true && poolHero == null
+    val readOnly = model.graph.pool.state?.fromHistory == true && poolHero != null || model.graph.optimize.search?.historyAt?.let { it != 0L } == true && poolHero == null
     Frame(null, null, actions = if (review) ({
         // always laid out (dimmed on the first hero) so Next keeps its place
         val prev = queue.getOrNull(at - 1)
         OutlineButton("‹ Previous", Modifier.width(118.dp), enabled = prev != null) { prev?.let { model.replace(Screen.PoolReview(it)) } }
-        val next = queue.drop(at + 1).firstOrNull { it !in model.pool!!.reviewed }
+        val next = queue.drop(at + 1).firstOrNull { it !in model.graph.pool.state!!.reviewed }
         PinkButton(next?.let { "Next · ${model.hero(it)?.let(model::heroName)} ›" } ?: "Done", Modifier.weight(1f), short = next?.let { "Next ›" }) {
-            model.markReviewed(heroId)
+            model.graph.pool.markReviewed(heroId)
             if (next != null) model.replace(Screen.PoolReview(next)) else model.back()
         }
     }) else ({
-        val at = model.pool?.startedAt?.takeIf { poolHero != null } ?: model.search?.startedAt ?: 0
+        val at = model.graph.pool.state?.startedAt?.takeIf { poolHero != null } ?: model.graph.optimize.search?.startedAt ?: 0
         PinkButton("Show over game", Modifier.weight(1f)) {
             if (!model.showOverGame(heroId, b, if (teamHero != null) heroName else "$heroName #${index + 1}",
                     if (readOnly) model.historyFlag(at) else null)) model.go(Screen.OverlayIntro)
         }
         // a past run's pieces may have moved; the checklist checks each one in the game, equipping blind here doesn't
-        if (!readOnly) OutlineButton("Equip in app") { model.recordBuild(heroId, b) }
+        if (!readOnly) OutlineButton("Equip in app") { model.graph.heroes.recordBuild(heroId, b) }
     })) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             BackToPrevious(Modifier.weight(1f))
             if (review) {
-                if (heroId in model.pool!!.reviewed) { Stamp("済", "reviewed", C.blue); HSpace(8.dp) }
+                if (heroId in model.graph.pool.state!!.reviewed) { Stamp("済", "reviewed", C.blue); HSpace(8.dp) }
                 Text("${at + 1} of ${queue.size}", style = zen(12.sp, color = C.muted))
             } else Calc.setCounts(b.items, model.content).forEach { (sd, _) -> SetIcon(sd.icon, 22.dp) }
         }
-        if (readOnly) HistoryNote(model.pool?.startedAt?.takeIf { poolHero != null } ?: model.search?.startedAt ?: 0)
+        if (readOnly) HistoryNote(model.graph.pool.state?.startedAt?.takeIf { poolHero != null } ?: model.graph.optimize.search?.startedAt ?: 0)
         // reviewing a run: change what this hero aims for, then re-run from Pool done
         else if (poolHero != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             LinkText("Edit targets") { model.sheet = Sheet(SheetKind.TARGETS, heroId) }
@@ -525,7 +525,7 @@ fun CompareScreen(model: AppModel, index: Int, poolHero: Long?, review: Boolean 
                 CompareRow(st, st.label.replace("Crit dmg", "Crit damage"), fmtNum(Math.floor(n)), fmtNum(Math.floor(v)), Math.floor(v) - Math.floor(n))
             }
             run {
-                val was = cur?.let { model.matchOf(heroId, it)?.pct }; val now = model.matchOf(heroId, b)?.pct
+                val was = cur?.let { model.graph.heroes.matchOf(heroId, it)?.pct }; val now = model.graph.heroes.matchOf(heroId, b)?.pct
                 if (now != null) CompareRow(null, "Match", was?.let { "$it%" } ?: "—", "$now%", (now - (was ?: now)).toDouble())
             }
             val fr = focusRating(req.goal).let { if (it == Rating.SPD) Rating.DMG else it }
@@ -533,14 +533,14 @@ fun CompareScreen(model: AppModel, index: Int, poolHero: Long?, review: Boolean 
         }
         if (poolHero != null) TakenByOthers(model, poolHero)
         SectionTitle("Gear", trailing = if (b.fromOthers > 0) "${b.fromOthers} from others" else "all own")
-        GearGrid(model, b.items, heroId, req.reforged, openHolder = poolHero?.let { { who: Long -> model.openPoolHero(who) } })
+        GearGrid(model, b.items, heroId, req.reforged, openHolder = poolHero?.let { { who: Long -> model.graph.pool.open(who) } })
     }
 }
 
 /** Pieces the hero wears now that another hero of the pool run took: why its new build can be worse. */
 @Composable
 private fun TakenByOthers(model: AppModel, heroId: Long) {
-    val p = model.pool ?: return
+    val p = model.graph.pool.state ?: return
     val worn = model.graph.scan.box?.gearOf(heroId).orEmpty()
     val takenBy = p.builds.filterKeys { it != heroId }.flatMap { (who, b) -> b?.items.orEmpty().map { it.id to who } }.toMap()
     val lost = Slot.entries.mapNotNull { s -> worn[s]?.let { it to (takenBy[it.id] ?: return@mapNotNull null) } }
@@ -557,10 +557,10 @@ private fun TakenByOthers(model: AppModel, heroId: Long) {
                 Column(Modifier.weight(1f)) {
                     Text("${item.slot.label} · ${item.mainType.short} ${item.mainType.format(item.mainValue)}", style = zen(12.sp, FontWeight.Black),
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    SubGrid(item, model.request(heroId).reforged, 10)
+                    SubGrid(item, model.graph.heroes.request(heroId).reforged, 10)
                 }
                 model.hero(who)?.let { h ->
-                    Column(Modifier.width(72.dp).tap { model.openPoolHero(who) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.width(72.dp).tap { model.graph.pool.open(who) }, horizontalAlignment = Alignment.CenterHorizontally) {
                         Face(model.face(h), 30.dp, ringWidth = 2.dp)
                         Text("to ${model.heroName(h)}", style = zen(10.sp, color = C.deepPink).copy(lineHeight = 12.sp), maxLines = 2,
                             overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
@@ -613,7 +613,7 @@ private fun GearCard(model: AppModel, it: Item?, heroId: Long, reforged: Boolean
                     else -> model.hero(it.equippedOn!!)?.let(model::heroName) ?: "other"
                 }
                 val holder = it.equippedOn?.takeIf { h -> h != heroId && !it.ghost }
-                val link = holder?.takeIf { h -> openHolder != null && model.pool?.builds?.get(h) != null }
+                val link = holder?.takeIf { h -> openHolder != null && model.graph.pool.state?.builds?.get(h) != null }
                 Text(if (who == "own" || who == "free" || who == "ghost") who else "on $who", style = zen(10.sp, color = if (who == "own" || who == "free") C.muted else C.blue).copy(lineHeight = 12.sp,
                     textDecoration = if (link != null) androidx.compose.ui.text.style.TextDecoration.Underline else null),
                     maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.tap(link?.let { h -> { openHolder!!(h) } }))
@@ -627,12 +627,12 @@ private fun GearCard(model: AppModel, it: Item?, heroId: Long, reforged: Boolean
 
 @Composable
 fun GhostBuildScreen(model: AppModel) {
-    val s = model.search ?: return
+    val s = model.graph.optimize.search ?: return
     val g = s.ghost ?: return
     val best = s.builds.firstOrNull() ?: s.current ?: return
     val owned = s.builds.isNotEmpty()
     val gp = g.ghost ?: return
-    val req = model.request(s.heroId)
+    val req = model.graph.heroes.request(s.heroId)
     val r = model.graph.settings.showRating.let { if (it == Rating.SPD) Rating.DMG else it }
     Frame(null, null, actions = {
         PinkButton("Back to results", Modifier.weight(1f)) { model.back() }

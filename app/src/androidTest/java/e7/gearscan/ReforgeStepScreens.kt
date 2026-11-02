@@ -79,9 +79,9 @@ class ReforgeStepScreens {
 
         // a hero whose worn build counts a finished, not yet reforged level 85 piece as reforged
         val box = model.box!!
-        val hero = model.heroUpgradeHeroes().first { h -> model.request(h.id).reforged && box.gearOf(h.id).size == 6 &&
+        val hero = model.heroUpgradeHeroes().first { h -> model.graph.heroes.request(h.id).reforged && box.gearOf(h.id).size == 6 &&
             box.gearOf(h.id).values.any { it.reforgeable && box.canReforge(it.id) } }
-        val build = model.currentBuild(hero.id)!!
+        val build = model.graph.heroes.currentBuild(hero.id)!!
         val toReforge = build.items.filter { it.reforgeable && box.canReforge(it.id) }.map { it.id }.toSet()
         ui { model.loadBuildChecklist(hero.id, build, "Reforge check"); OverlayState.expanded = true; overlay = true }
         val steps = OverlayState.build!!.pieces
@@ -143,8 +143,8 @@ class ReforgeStepScreens {
 
         // a worn +15 piece turned into crit damage (or another stat it lacks), the way a search with mods would
         val box = model.box!!
-        val hero = model.heroUpgradeHeroes().first { h -> box.gearOf(h.id).size == 6 && model.currentBuild(h.id) != null }
-        val cur = model.currentBuild(hero.id)!!
+        val hero = model.heroUpgradeHeroes().first { h -> box.gearOf(h.id).size == 6 && model.graph.heroes.currentBuild(h.id) != null }
+        val cur = model.graph.heroes.currentBuild(hero.id)!!
         val modded = cur.items.firstNotNullOfOrNull { it ->
             val want = listOf(GearStat.CD, GearStat.CR, GearStat.SPD, GearStat.ATK_P, GearStat.HP_P).filter { t -> it.subs.none { s -> s.type == t } }.toSet()
             e7.gearscan.opt.Mods.variants(it, want, { true }, 6, true, 0.5, false).firstOrNull()
@@ -177,7 +177,7 @@ class ReforgeStepScreens {
         check(undone.type == original.type && undone.value == original.value) { "Undo left ${undone.type} ${undone.value}" }
 
         // Equip in app: no roll was asked, so the planned value goes in and the toast says so
-        ui { model.recordBuild(hero.id, build) }
+        ui { model.graph.heroes.recordBuild(hero.id, build) }
         val planned = model.box!!.itemsById.getValue(modded.id).subs[m.index]
         check(planned.type == m.to && planned.value == m.toValue) { "Equip in app wrote ${planned.type} ${planned.value}" }
         check(model.toast!!.text.contains("planned values")) { "toast: ${model.toast!!.text}" }

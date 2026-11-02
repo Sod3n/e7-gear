@@ -31,12 +31,7 @@ import kotlinx.coroutines.withContext
 
 interface SellHost {
     val records: Map<Long, UpgradeRecord>
-    val settingsKey: List<Any?>
     val contentVersion: String
-
-    fun poolMembers(): Set<Long>
-
-    fun heroNames(box: Box): Map<Long, String>
 
     fun startQueue(rows: List<Pair<Item, SellSearch.Row>>, query: SellQuery, openOverlay: Boolean)
 
@@ -47,12 +42,7 @@ interface SellHost {
 
 object NoSellHost : SellHost {
     override val records = emptyMap<Long, UpgradeRecord>()
-    override val settingsKey = emptyList<Any?>()
     override val contentVersion = ""
-
-    override fun poolMembers() = emptySet<Long>()
-
-    override fun heroNames(box: Box) = emptyMap<Long, String>()
 
     override fun startQueue(rows: List<Pair<Item, SellSearch.Row>>, query: SellQuery, openOverlay: Boolean) {}
 
@@ -68,7 +58,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
     val run = work<Unit>("Sell review", Weight.Heavy, notice = "Checking sell filters")
     val curve = work<Unit>("Keep curve")
 
-    // the tracker, pool members and hero names still live in AppModel; this goes when their features own them
+    // the tracker still lives in AppModel; this goes when its feature owns it
     var host: SellHost = NoSellHost
 
     var result: SellSearch.Result? by mutableStateOf(null)
@@ -97,12 +87,14 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
             override fun append(text: String) = progress.append(text)
         }
 
+    private fun settingsKey(): List<Any?> = listOf(g.pool.tiers, g.pool.extra, g.heroes.tiers, g.content.content.version, g.scan.rev)
+
     private fun freshnessKey(): List<Any?> =
         listOf(
             g.scan.box,
             g.scan.lastScan,
             host.records.filterValues { it.scan == g.scan.lastScan && it.history.size > 1 },
-            host.settingsKey,
+            settingsKey(),
             query.copy(rollOn = 0.0),
         )
 
@@ -134,8 +126,8 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
         val scan = g.scan.lastScan
         val records = host.records.filterValues { it.scan == scan && it.history.size > 1 }
         val removed = g.marks.reviewed
-        val members = host.poolMembers()
-        val names = host.heroNames(b)
+        val members = g.pool.members().map { it.id }.toSet()
+        val names = b.allHeroes.associate { it.id to g.heroes.heroName(it) }
         val version = host.contentVersion
         val key = freshnessKey()
         return run.start {
@@ -193,7 +185,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
 
     fun context(q: SellQuery): SellSearch.Context? {
         val b = g.scan.box ?: return null
-        val key = listOf(b, g.scan.lastScan, host.records, g.marks.reviewed, host.settingsKey, q)
+        val key = listOf(b, g.scan.lastScan, host.records, g.marks.reviewed, settingsKey(), q)
         if (key != contextKey) {
             cachedContext =
                 SellSearch.Context(
@@ -201,8 +193,8 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
                     host.records.filterValues { it.scan == g.scan.lastScan && it.history.size > 1 },
                     g.scan.lastScan,
                     g.marks.reviewed,
-                    host.poolMembers(),
-                    host.heroNames(b),
+                    g.pool.members().map { it.id }.toSet(),
+                    b.allHeroes.associate { it.id to g.heroes.heroName(it) },
                     q,
                     host.contentVersion,
                 )

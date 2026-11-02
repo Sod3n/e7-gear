@@ -53,14 +53,14 @@ class SearchSpeedTest {
             // what the app would show had it stopped at its limit
             var atLimit: List<Double>? = null
             val sampler = Thread {
-                try { Thread.sleep(model.limitMs); atLimit = r.builds().map { it.value } } catch (_: InterruptedException) {}
+                try { Thread.sleep(model.graph.optimize.limitMs); atLimit = r.builds().map { it.value } } catch (_: InterruptedException) {}
             }.apply { isDaemon = true; start() }
             r.run(threads, capMs)
             sampler.interrupt()
             val ms = (System.nanoTime() - t0) / 1_000_000
             val b = r.builds()
             Log.i("E7Speed", "%-48s %6d ms %s builds=%d nodes=%,d top1=%.6f top50=%.6f".format(java.util.Locale.US, label, ms,
-                if (r.engine.timedOut) "TIMEOUT" else if (ms > model.limitMs) "OVER15" else "ok", b.size, r.engine.nodes.get(),
+                if (r.engine.timedOut) "TIMEOUT" else if (ms > model.graph.optimize.limitMs) "OVER15" else "ok", b.size, r.engine.nodes.get(),
                 b.firstOrNull()?.value ?: Double.NaN, b.lastOrNull()?.value ?: Double.NaN) +
                 (atLimit?.let { " at15 top1=%.6f top50=%.6f".format(java.util.Locale.US, it.firstOrNull() ?: Double.NaN, it.lastOrNull() ?: Double.NaN) } ?: ""))
         }
@@ -73,20 +73,20 @@ class SearchSpeedTest {
         }
 
         val saved = box.heroes.filter { h ->
-            val q = model.config(h.id).request ?: return@filter false
+            val q = model.graph.heroes.config(h.id).request ?: return@filter false
             q.goal != Goal.TARGETS || q.targets.any { !it.isNaN() } || q.mins.any { !it.isNaN() }
-        }.sortedByDescending { model.tier(it.id) }
+        }.sortedByDescending { model.graph.heroes.tier(it.id) }
 
-        if (which == "saved") for (h in saved) time("T${model.tier(h.id)} ${model.heroName(h)}", model.setup(h.id)!!)
+        if (which == "saved") for (h in saved) time("T${model.graph.heroes.tier(h.id)} ${model.heroName(h)}", model.graph.heroes.setup(h.id)!!)
 
         // the one-new-piece search that follows every search with a build, as the app runs it (its own 10 s cap)
         if (which == "ghost") for (h in saved) {
-            val s = model.setup(h.id)!!
+            val s = model.graph.heroes.setup(h.id)!!
             val best = SearchRun(s, 1).also { it.run(threads, capMs) }.builds().firstOrNull() ?: continue
             val t0 = System.nanoTime()
             val g = SearchRun(s, 1, Ghost.candidates(s, best, s.req.reforged, best.value), maxGhost = 1, startThreshold = best.value)
             g.run(threads, 10_000)
-            Log.i("E7Speed", "%-48s %6d ms %s found=%b".format(java.util.Locale.US, "ghost T${model.tier(h.id)} ${model.heroName(h)}",
+            Log.i("E7Speed", "%-48s %6d ms %s found=%b".format(java.util.Locale.US, "ghost T${model.graph.heroes.tier(h.id)} ${model.heroName(h)}",
                 (System.nanoTime() - t0) / 1_000_000, if (g.engine.timedOut) "TIMEOUT" else "ok", g.builds().firstOrNull()?.ghost != null))
         }
 
@@ -94,10 +94,10 @@ class SearchSpeedTest {
             val picks = listOf("Frieren", "Rhianna and Luciella", "Commander Pavel", "Lionheart Cermia", "Briar Witch Iseria", "Aube")
             for (name in picks) {
                 val h = saved.firstOrNull { model.heroName(it) == name } ?: continue
-                val base = model.request(h.id)
+                val base = model.graph.heroes.request(h.id)
                 fun all(edit: Request.() -> Unit): Setup {
                     val q = base.copy().apply { lowerPriorityOnly = false }.apply(edit)
-                    return Setup(h, model.gameHero(h)!!, model.config(h.id), q, box, model.content, { true })
+                    return Setup(h, model.gameHero(h)!!, model.graph.heroes.config(h.id), q, box, model.content, { true })
                 }
                 time("$name · all gear", all {})
                 time("$name · all gear, no sets", all { setAlts = emptyList() })

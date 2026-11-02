@@ -56,6 +56,8 @@ interface Platform {
     fun allowInstalls()
 
     fun cleanUpdates(installed: String)
+
+    fun notifyPoolDone(heroes: Int)
 }
 
 object NoPlatform : Platform {
@@ -111,4 +113,6 @@ object NoPlatform : Platform {
     override fun allowInstalls() {}
 
     override fun cleanUpdates(installed: String) {}
+
+    override fun notifyPoolDone(heroes: Int) {}
 }

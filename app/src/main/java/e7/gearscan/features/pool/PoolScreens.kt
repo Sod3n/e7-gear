@@ -1,6 +1,9 @@
 package e7.gearscan.ui
 
-import e7.gearscan.POOL_RULES
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import e7.gearscan.features.pool.PoolState
+import e7.gearscan.features.pool.POOL_RULES
 import e7.gearscan.data.Request
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,30 +25,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import e7.gearscan.AppModel
-import e7.gearscan.PoolState
 import e7.gearscan.Screen
 import e7.gearscan.Sheet
 import e7.gearscan.SheetKind
 import e7.gearscan.data.OwnedHero
 import e7.gearscan.data.Role
 import e7.gearscan.data.fmtInt
-import e7.gearscan.overlay.OverlayService
-import e7.gearscan.overlay.OverlayState
 import kotlinx.coroutines.delay
 
 /** 4a: the Optimize screen's "Whole pool" mode. */
@@ -53,14 +50,14 @@ import kotlinx.coroutines.delay
 fun PoolSetup(model: AppModel) {
     // drawn inside Frame's content, which skips unless it reads the change counter itself
     model.rev
-    val heroes = model.poolHeroes()
-    LaunchedEffect(heroes.map { it.id }) { heroes.forEach { model.loadPresetsQuietly(it.id, network = true) } }
-    val now = heroes.associate { it.id to model.matchFor(it.id)?.pct }
+    val heroes = model.graph.pool.heroes()
+    LaunchedEffect(heroes.map { it.id }) { heroes.forEach { model.graph.heroes.loadPresetsQuietly(it.id, network = true) } }
+    val now = heroes.associate { it.id to model.graph.heroes.matchFor(it.id)?.pct }
     StaleBox(model)
     PendingCard(model)
-    PoolScoreCard("POOL SCORE · ${heroes.size} HEROES", null, model.poolScore(now), note = model.lastPool?.let { (at, _) -> "last run ${ago(at)}" }) {}
+    PoolScoreCard("POOL SCORE · ${heroes.size} HEROES", null, model.graph.pool.score(now), note = model.graph.pool.lastPool?.let { (at, _) -> "last run ${ago(at)}" }) {}
     RowCard("Rules", { model.sheet = Sheet(SheetKind.ADVANCED, POOL_RULES) }) {
-        val reqs = heroes.map { model.request(it.id) }
+        val reqs = heroes.map { model.graph.heroes.request(it.id) }
         fun <T> same(f: (Request) -> T) = reqs.map(f).distinct().singleOrNull()
         Text(listOf(
             same { it.minEnhance }?.let { "+$it gear" } ?: "mixed levels",
@@ -72,17 +69,17 @@ fun PoolSetup(model: AppModel) {
     Card(padding = PaddingValues(0.dp)) {
         val all = model.box?.heroes.orEmpty().filter { model.gameHero(it) != null }
         for (t in 5 downTo 1) {
-            val inTier = all.filter { model.tier(it.id) == t }
+            val inTier = all.filter { model.graph.heroes.tier(it.id) == t }
             if (inTier.isEmpty() && t < 5) continue
-            val on = t in model.poolTiers
-            Row(Modifier.fillMaxWidth().tap { model.poolTiers = if (on) model.poolTiers - t else model.poolTiers + t; model.save() }
+            val on = t in model.graph.pool.tiers
+            Row(Modifier.fillMaxWidth().tap { model.graph.pool.tiers = if (on) model.graph.pool.tiers - t else model.graph.pool.tiers + t; model.save() }
                 .padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Checkbox(on) { model.poolTiers = if (it) model.poolTiers + t else model.poolTiers - t; model.save() }
+                Checkbox(on) { model.graph.pool.tiers = if (it) model.graph.pool.tiers + t else model.graph.pool.tiers - t; model.save() }
                 Column(Modifier.weight(1f)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("$t", style = dela(13.sp, C.pink)); Text(e7.gearscan.ui.TIER_LABELS[t - 1], style = zen(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    val avg = inTier.mapNotNull { model.matchFor(it.id)?.pct }.takeIf { it.isNotEmpty() }?.average()?.toInt()
+                    val avg = inTier.mapNotNull { model.graph.heroes.matchFor(it.id)?.pct }.takeIf { it.isNotEmpty() }?.average()?.toInt()
                     Text("${inTier.size} heroes" + (avg?.let { " · now $it%" } ?: ""), style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 FaceStack(model, inTier)
@@ -90,16 +87,16 @@ fun PoolSetup(model: AppModel) {
             Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(1.5.dp).background(C.line))
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(if (model.poolExtra.isEmpty()) "Or pick heroes one by one" else "${model.poolExtra.size} picked one by one",
+            Text(if (model.graph.pool.extra.isEmpty()) "Or pick heroes one by one" else "${model.graph.pool.extra.size} picked one by one",
                 style = zen(12.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f))
             LinkText("Choose") { model.sheet = Sheet(SheetKind.POOL_PICK, 0) }
         }
     }
-    val pending = heroes.count { model.hasBuild(it.id) == null }
-    val noBuild = heroes.filter { model.hasBuild(it.id) == false }
-    val ready = heroes.count { model.hasBuild(it.id) == true }
+    val pending = heroes.count { model.graph.heroes.hasBuild(it.id) == null }
+    val noBuild = heroes.filter { model.graph.heroes.hasBuild(it.id) == false }
+    val ready = heroes.count { model.graph.heroes.hasBuild(it.id) == true }
     Card(padding = PaddingValues(0.dp)) {
-        val reviewed = heroes.count { model.hasBuild(it.id) == true && model.request(it.id).reviewed }
+        val reviewed = heroes.count { model.graph.heroes.hasBuild(it.id) == true && model.graph.heroes.request(it.id).reviewed }
         ListRow(if (ready > 0) ({ model.sheet = Sheet(SheetKind.POOL_LIST, 0) }) else null, Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
             leading = { Box(Modifier.size(8.dp).clip(CircleShape).background(C.blue)) }) {
             Text(if (pending > 0) "$ready ready · loading builds for $pending" else "$ready use their preset · $reviewed reviewed",
@@ -116,10 +113,10 @@ fun PoolSetup(model: AppModel) {
 /** The last run, until it's equipped or another run replaces it. */
 @Composable
 private fun PendingCard(model: AppModel) {
-    val at = model.pendingPool ?: return
-    val e = model.history.firstOrNull { it.at == at } ?: return
+    val at = model.graph.pool.pending ?: return
+    val e = model.graph.history.entries.firstOrNull { it.at == at } ?: return
     Card(shadow = C.pink, padding = PaddingValues(0.dp)) {
-        ListRow({ model.openPending() }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+        ListRow({ model.graph.pool.openPending() }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text("Pending run · ${historyStamp(at)}", style = zen(13.sp))
             Text("${fmtInt(e.before.toDouble())} → ${fmtInt(e.after.toDouble())} · ${e.builds.size} to equip · ${e.reviewed.size} reviewed. Stays until you equip it or run again.",
                 style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -131,15 +128,15 @@ private fun PendingCard(model: AppModel) {
 @Composable
 fun RowScope.PoolButton(model: AppModel) {
     model.rev
-    val heroes = model.poolHeroes()
-    val ready = heroes.count { model.hasBuild(it.id) == true }
-    val skipped = heroes.count { model.hasBuild(it.id) == false }
-    val seconds = ready * model.poolSecondsPerHero
+    val heroes = model.graph.pool.heroes()
+    val ready = heroes.count { model.graph.heroes.hasBuild(it.id) == true }
+    val skipped = heroes.count { model.graph.heroes.hasBuild(it.id) == false }
+    val seconds = ready * model.graph.pool.secondsPerHero
     val time = if (seconds < 60) "about ${maxOf(5, Math.round(seconds / 5).toInt() * 5)} s" else "about ${Math.round(seconds / 60)} min"
     val shape = RoundedCornerShape(999.dp)
     Column(Modifier.weight(1f).height(56.dp).then(if (ready > 0) Modifier.hardShadow(C.shadow, 3.dp, 4.dp, 28.dp) else Modifier).clip(shape)
         .background(if (ready > 0) C.pink else C.line).border(2.5.dp, C.edge, shape)
-        .tap(if (ready > 0) ({ if (model.startPool()) model.go(Screen.PoolRun) }) else null),
+        .tap(if (ready > 0) ({ if (model.graph.pool.start()) model.go(Screen.PoolRun) }) else null),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         FitText("Optimize $ready heroes", dela(16.sp, if (ready > 0) C.onAccent else C.ink))
         FitText(time + if (skipped > 0) " · $skipped skipped unless set up" else "", zen(10.sp, FontWeight.Medium))
@@ -193,12 +190,12 @@ private fun ago(at: Long): String {
 /** 4c while running, 4d when done. */
 @Composable
 fun PoolRunScreen(model: AppModel) {
-    val p = model.pool ?: run { model.back(); return }
+    val p = model.graph.pool.state ?: run { model.back(); return }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(p.running) { while (p.running) { now = System.currentTimeMillis(); delay(500) } }
     val scores = p.ids.associateWith { p.after[it] ?: p.before[it] }
-    val start = model.poolScore(p.before)
-    val score = model.poolScore(scores)
+    val start = model.graph.pool.score(p.before)
+    val score = model.graph.pool.score(scores)
     val doneIds = p.builds.keys
     if (p.running) Frame(model, Screen.Optimize) {
         BackToPrevious()
@@ -209,7 +206,7 @@ fun PoolRunScreen(model: AppModel) {
             Text((if (p.round > 1) "Round ${p.round} · " else "") + "${doneIds.size} of ${p.ids.size} heroes" +
                 " · ${secs / 60}:${"%02d".format(java.util.Locale.US, secs % 60)}",
                 style = zen(12.sp), modifier = Modifier.weight(1f))
-            LinkText("Stop", color = C.deepPink) { model.stopPool() }
+            LinkText("Stop", color = C.deepPink) { model.graph.pool.stop() }
         }
         TierBars(model, p, running = true)
         p.current?.let { id -> model.hero(id)?.let { h ->
@@ -234,16 +231,16 @@ fun PoolRunScreen(model: AppModel) {
                 model.startLoadedOverGame()
             }
         }
-        if (!p.fromHistory) OutlineButton("Just record") { model.equipPool(); model.tab(Screen.Optimize) }
+        if (!p.fromHistory) OutlineButton("Just record") { model.graph.pool.equip(); model.tab(Screen.Optimize) }
     })) {
         BackToPrevious()
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FitText("Pool done", TitleStyle, Modifier.weight(1f, fill = false)); Stamp("済")
         }
         if (p.fromHistory) HistoryNote(p.startedAt)
-        val edited = if (p.fromHistory) emptyList() else model.editedSinceRun()
+        val edited = if (p.fromHistory) emptyList() else model.graph.pool.editedSinceRun()
         if (edited.isNotEmpty()) Card(Modifier.hatch(), padding = PaddingValues(0.dp)) {
-            ListRow({ model.startPool(keepCalls = true) }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp), trailing = { Text("Re-run", style = zen(12.sp, color = C.deepPink)) }) {
+            ListRow({ model.graph.pool.start(keepCalls = true) }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp), trailing = { Text("Re-run", style = zen(12.sp, color = C.deepPink)) }) {
                 Text("Setup changed for ${edited.size} " + (if (edited.size == 1) "hero" else "heroes") + " since this run", style = zen(13.sp))
                 // one name and a count: a list of names cut at the edge would cut a hero's name
                 Text((model.hero(edited.first())?.let(model::heroName) ?: "?") + if (edited.size > 1) " + ${edited.size - 1} more" else "",
@@ -261,7 +258,7 @@ fun PoolRunScreen(model: AppModel) {
         val worse = p.builds.keys.filter { (p.after[it] ?: 0) < (p.before[it] ?: 0) }
         val low = p.builds.keys.filter { (p.after[it] ?: 100) < 60 }
         val traders = p.trades.flatMap { listOf(it.taker, it.holder) }.distinct()
-        val queue = model.reviewQueue()
+        val queue = model.graph.pool.reviewQueue()
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             LinkText("Every hero · ${queue.count { it in p.reviewed }} of ${queue.size} reviewed") { model.sheet = Sheet(SheetKind.POOL_HEROES, 0) }
         }
@@ -294,7 +291,7 @@ private fun LookRow(model: AppModel, ids: List<Long>, title: String, sub: String
 @Composable
 private fun TierBars(model: AppModel, p: PoolState, running: Boolean) {
     Card(padding = PaddingValues(0.dp)) {
-        val byTier = p.ids.groupBy { model.tier(it) }.toSortedMap(compareByDescending { it })
+        val byTier = p.ids.groupBy { model.graph.heroes.tier(it) }.toSortedMap(compareByDescending { it })
         byTier.entries.forEachIndexed { k, (t, ids) ->
             if (k > 0) Box(Modifier.fillMaxWidth().height(1.5.dp).background(C.line))
             val done = ids.count { it in p.builds }
@@ -329,14 +326,14 @@ fun PoolHeroScreen(model: AppModel, heroId: Long, setup: Boolean) {
     val h = model.hero(heroId) ?: run { model.back(); return }
     // the queue is fixed on entry: a hero given a role stops counting as "no build" but must stay in the walk
     val queue = remember(setup) {
-        model.poolHeroes().filter { if (setup) model.hasBuild(it.id) == false else model.hasBuild(it.id) == true }.map { it.id }
+        model.graph.pool.heroes().filter { if (setup) model.graph.heroes.hasBuild(it.id) == false else model.graph.heroes.hasBuild(it.id) == true }.map { it.id }
             .let { if (heroId in it) it else listOf(heroId) + it }
     }
     val i = queue.indexOf(heroId)
     // Next walks to the next hero still to review, so an interrupted walk picks up where it stopped
-    val next = queue.drop(i + 1).firstOrNull { it !in model.poolSkip && !model.request(it).reviewed }?.let { model.hero(it) }
-    val req = model.request(heroId)
-    val noBuilds = model.presets[h.code]?.let { it.mostUsed.isEmpty() && it.rta.isEmpty() } ?: (model.presetLoading[h.code] != true)
+    val next = queue.drop(i + 1).firstOrNull { it !in model.graph.pool.skip && !model.graph.heroes.request(it).reviewed }?.let { model.hero(it) }
+    val req = model.graph.heroes.request(heroId)
+    val noBuilds = model.graph.heroes.presets[h.code]?.let { it.mostUsed.isEmpty() && it.rta.isEmpty() } ?: (model.graph.heroes.presetLoading[h.code] != true)
     fun goNext() { if (next != null) model.replace(Screen.PoolHero(next.id, setup)) else model.back() }
     Frame(null, null, actions = {
         // always laid out (dimmed on the first hero) so Next keeps its place
@@ -357,8 +354,8 @@ fun PoolHeroScreen(model: AppModel, heroId: Long, setup: Boolean) {
                     Text(model.heroName(h), style = dela(17.sp).copy(lineHeight = 21.sp), maxLines = 3, overflow = TextOverflow.Ellipsis)
                     HeroSubtitle(model, h, if (setup && req.targets.all { it.isNaN() }) "No build yet" else heroSubtitle(model, h))
                 }
-                LinkText(if (heroId in model.poolSkip) "Kept as is" else "Keep as is", color = C.deepPink) {
-                    model.poolSkip = if (heroId in model.poolSkip) model.poolSkip - heroId else model.poolSkip + heroId
+                LinkText(if (heroId in model.graph.pool.skip) "Kept as is" else "Keep as is", color = C.deepPink) {
+                    model.graph.pool.skip = if (heroId in model.graph.pool.skip) model.graph.pool.skip - heroId else model.graph.pool.skip + heroId
                     model.save()
                 }
             }
@@ -369,7 +366,7 @@ fun PoolHeroScreen(model: AppModel, heroId: Long, setup: Boolean) {
             CardGrid(Role.entries) { r, cell ->
                 val on = picked == r.label
                 Card(cell, shadow = if (on) C.pink else null, radius = 12.dp, border = 2.5.dp, halftone = on,
-                    padding = PaddingValues(10.dp), onClick = { model.applyRole(heroId, r) }) {
+                    padding = PaddingValues(10.dp), onClick = { model.graph.heroes.applyRole(heroId, r) }) {
                     Text(r.label, style = dela(14.sp))
                     Text(r.sub, style = zen(10.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
@@ -393,15 +390,15 @@ fun PoolPickSheet(model: AppModel) {
         Text("Heroes picked here join the run on top of the ticked tiers.", style = zen(12.sp, FontWeight.Medium, C.muted))
         HeroFilterBar(f)
         model.box?.heroes.orEmpty().filter { model.gameHero(it) != null && f.matches(model, it) }
-            .sortedWith(compareByDescending<OwnedHero> { model.tier(it.id) }.thenBy { model.heroName(it) }).forEach { h ->
-                val on = h.id in model.poolExtra || model.tier(h.id) in model.poolTiers
+            .sortedWith(compareByDescending<OwnedHero> { model.graph.heroes.tier(it.id) }.thenBy { model.heroName(it) }).forEach { h ->
+                val on = h.id in model.graph.pool.extra || model.graph.heroes.tier(h.id) in model.graph.pool.tiers
                 // a tick list, not a link list: no arrow, so the row is built by hand
-                Row(Modifier.fillMaxWidth().testTag(ROW_TAG).tap { model.poolExtra = if (h.id in model.poolExtra) model.poolExtra - h.id else model.poolExtra + h.id }
+                Row(Modifier.fillMaxWidth().testTag(ROW_TAG).tap { model.graph.pool.extra = if (h.id in model.graph.pool.extra) model.graph.pool.extra - h.id else model.graph.pool.extra + h.id }
                     .padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Checkbox(on) { model.poolExtra = if (it) model.poolExtra + h.id else model.poolExtra - h.id }
+                    Checkbox(on) { model.graph.pool.extra = if (it) model.graph.pool.extra + h.id else model.graph.pool.extra - h.id }
                     Face(model.face(h), 32.dp)
                     Text(model.heroName(h), style = zen(13.sp), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Slot(40.dp) { TierDots(model.tier(h.id), 6.dp) }
+                    Slot(40.dp) { TierDots(model.graph.heroes.tier(h.id), 6.dp) }
                 }
             }
     }
@@ -409,20 +406,20 @@ fun PoolPickSheet(model: AppModel) {
 
 @Composable
 fun PoolWorseSheet(model: AppModel) {
-    val p = model.pool ?: return
+    val p = model.graph.pool.state ?: return
     val worse = p.builds.keys.filter { (p.after[it] ?: 0) < (p.before[it] ?: 0) }
-    val kept = worse.filter { it in model.poolSkip }
+    val kept = worse.filter { it in model.graph.pool.skip }
     SheetBody("Got worse", button = if (kept.isEmpty()) "Done" else "Re-run without ${kept.size}", onButton = {
         model.sheet = null
-        if (kept.isNotEmpty()) model.startPool()
+        if (kept.isNotEmpty()) model.graph.pool.start()
     }) {
         Text("With Losses set to Small losses, a hero may give up a little for a bigger gain elsewhere. Tap one to see what it lost and to whom; keep one as is and the pool runs again without it.",
             style = zen(12.sp, FontWeight.Medium, C.muted))
         worse.forEach { id ->
             val h = model.hero(id) ?: return@forEach
-            val on = id in model.poolSkip
-            ListRow({ model.openPoolHero(id) }, Modifier.padding(vertical = 5.dp), leading = { Face(model.face(h), 34.dp) }, trailing = {
-                Slot(104.dp) { Pill(if (on) "Kept as is" else "Keep as is", selected = on, onClick = { model.poolSkip = if (on) model.poolSkip - id else model.poolSkip + id }) }
+            val on = id in model.graph.pool.skip
+            ListRow({ model.graph.pool.open(id) }, Modifier.padding(vertical = 5.dp), leading = { Face(model.face(h), 34.dp) }, trailing = {
+                Slot(104.dp) { Pill(if (on) "Kept as is" else "Keep as is", selected = on, onClick = { model.graph.pool.skip = if (on) model.graph.pool.skip - id else model.graph.pool.skip + id }) }
             }) {
                 Text(model.heroName(h), style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text("${p.before[id]}% → ${p.after[id]}%", style = zen(11.sp, color = C.deepPink))
@@ -436,31 +433,31 @@ fun PoolWorseSheet(model: AppModel) {
 @Composable
 fun PoolListSheet(model: AppModel) {
     model.rev
-    val heroes = model.poolMembers()
-    val reviewed = heroes.count { model.request(it.id).reviewed }
-    val next = heroes.firstOrNull { model.hasBuild(it.id) == true && it.id !in model.poolSkip && !model.request(it.id).reviewed }
+    val heroes = model.graph.pool.members()
+    val reviewed = heroes.count { model.graph.heroes.request(it.id).reviewed }
+    val next = heroes.firstOrNull { model.graph.heroes.hasBuild(it.id) == true && it.id !in model.graph.pool.skip && !model.graph.heroes.request(it.id).reviewed }
     SheetBody("Heroes in this run", trailing = {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("$reviewed of ${heroes.size} reviewed", style = zen(12.sp, color = C.muted))
             // dimmed rather than hidden at 0, so the header never moves
             Box(Modifier.alpha(if (reviewed > 0) 1f else 0.35f)) {
-                LinkText("Clear") { if (reviewed > 0) { heroes.forEach { model.request(it.id).reviewed = false }; model.touch() } }
+                LinkText("Clear") { if (reviewed > 0) { heroes.forEach { model.graph.heroes.request(it.id).reviewed = false }; model.touch() } }
             }
         }
     },
         button = next?.let { "Review next · ${model.heroName(it)}" } ?: "Done",
         onButton = { next?.let { model.go(Screen.PoolHero(it.id, setup = false)) } ?: run { model.sheet = null } }) {
         heroes.forEach { h ->
-            val req = model.request(h.id)
-            val has = model.hasBuild(h.id)
+            val req = model.graph.heroes.request(h.id)
+            val has = model.graph.heroes.hasBuild(h.id)
             ListRow({ model.go(Screen.PoolHero(h.id, setup = has == false)) }, Modifier.padding(vertical = 5.dp), leading = { Face(model.face(h), 34.dp) }, trailing = {
                 Slot(26.dp) { if (req.reviewed) Text("済", style = dela(14.sp, C.blue)) }
-                Slot(48.dp) { model.matchFor(h.id)?.let { MatchChip(it.pct) } }
+                Slot(48.dp) { model.graph.heroes.matchFor(h.id)?.let { MatchChip(it.pct) } }
             }) {
                 Text(model.heroName(h), style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    TierDots(model.tier(h.id), 7.dp)
-                    Text(when { has == null -> "Loading builds…"; has == false -> "No build yet"; h.id in model.poolSkip -> "Kept as is"
+                    TierDots(model.graph.heroes.tier(h.id), 7.dp)
+                    Text(when { has == null -> "Loading builds…"; has == false -> "No build yet"; h.id in model.graph.pool.skip -> "Kept as is"
                         else -> req.presetLabel?.substringAfter(" · ") ?: "Your targets" },
                         style = zen(11.sp, FontWeight.Medium, if (has == false) C.deepPink else C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
@@ -473,11 +470,11 @@ fun PoolListSheet(model: AppModel) {
 @Composable
 fun PoolTradesSheet(model: AppModel) {
     model.rev
-    val p = model.pool ?: return
-    val changes = p.trades.count { model.tradeMoves(it) != it.made }
+    val p = model.graph.pool.state ?: return
+    val changes = p.trades.count { model.graph.pool.tradeMoves(it) != it.made }
     SheetBody("Contested trades", button = if (changes == 0) "Done" else "Re-run with $changes " + if (changes == 1) "change" else "changes", onButton = {
         model.sheet = null
-        if (changes > 0) model.startPool(keepCalls = true)
+        if (changes > 0) model.graph.pool.start(keepCalls = true)
     }) {
         Text("Pieces one hero of the run wanted from another, where someone pays: a move that cost its wearer, or one not made because it would have. Pick where each goes and re-run; the rest of the pool is optimized around your picks, even if a hero ends worse.",
             style = zen(12.sp, FontWeight.Medium, C.muted))
@@ -499,13 +496,13 @@ fun PoolTradesSheet(model: AppModel) {
                     if (t.moves > 0) ", ${t.moves} more " + (if (t.moves == 1) "move" else "moves") else ""
             }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                ListRow({ model.openPoolHero(t.taker) }, Modifier.padding(top = 5.dp), leading = { Face(model.face(holder), 34.dp) },
+                ListRow({ model.graph.pool.open(t.taker) }, Modifier.padding(top = 5.dp), leading = { Face(model.face(holder), 34.dp) },
                     trailing = { Slot(30.dp) { Face(model.face(taker), 26.dp, ringWidth = 2.dp) } }) {
                     Text("${model.heroName(holder)} → ${model.heroName(taker)} · ${t.items.size} " + if (t.items.size == 1) "piece" else "pieces",
                         style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(effect, style = zen(11.sp, FontWeight.Medium, if (t.made) C.blue else C.muted), maxLines = 3, overflow = TextOverflow.Ellipsis)
                 }
-                Segmented(listOf("Stays", "Moves"), if (model.tradeMoves(t)) 1 else 0) { i -> model.callTrade(t, i == 1) }
+                Segmented(listOf("Stays", "Moves"), if (model.graph.pool.tradeMoves(t)) 1 else 0) { i -> model.graph.pool.callTrade(t, i == 1) }
             }
         }
     }
@@ -513,8 +510,8 @@ fun PoolTradesSheet(model: AppModel) {
 
 @Composable
 fun PoolHeroesSheet(model: AppModel) {
-    val p = model.pool ?: return
-    val queue = model.reviewQueue()
+    val p = model.graph.pool.state ?: return
+    val queue = model.graph.pool.reviewQueue()
     // like Heroes in this run before a run: marks, and the walk resumes at the first change not looked at yet
     val next = queue.firstOrNull { it !in p.reviewed }
     SheetBody("Every hero", trailing = { Text("${queue.count { it in p.reviewed }} of ${queue.size} reviewed", style = zen(12.sp, color = C.muted)) },
@@ -524,7 +521,7 @@ fun PoolHeroesSheet(model: AppModel) {
             val h = model.hero(id) ?: return@forEach
             val b = p.builds[id]
             // a change opens in the walk (Previous/Next from there); a hero keeping its gear opens its setup
-            ListRow({ if (b != null && !p.running) model.go(Screen.PoolReview(id)) else model.openPoolHero(id) }, Modifier.padding(vertical = 5.dp),
+            ListRow({ if (b != null && !p.running) model.go(Screen.PoolReview(id)) else model.graph.pool.open(id) }, Modifier.padding(vertical = 5.dp),
                 leading = { Face(model.face(h), 34.dp) }, trailing = {
                     Slot(26.dp) { if (id in p.reviewed) Text("済", style = dela(14.sp, C.blue)) }
                     Slot(48.dp) { p.after[id]?.let { MatchChip(it) } }
@@ -539,14 +536,14 @@ fun PoolHeroesSheet(model: AppModel) {
 
 @Composable
 fun PoolLowSheet(model: AppModel) {
-    val p = model.pool ?: return
+    val p = model.graph.pool.state ?: return
     val low = p.builds.keys.filter { (p.after[it] ?: 100) < 60 }
     SheetBody("Still below 60%", button = "Done", onButton = { model.sheet = null }) {
         Text("These heroes don't have the gear yet. Open one to see which single piece (a ghost) would help most.",
             style = zen(12.sp, FontWeight.Medium, C.muted))
         low.forEach { id ->
             val h = model.hero(id) ?: return@forEach
-            ListRow({ model.pickHero(id); model.team = listOf(id); model.startSearch(); model.go(Screen.Results) }, Modifier.padding(vertical = 5.dp),
+            ListRow({ model.graph.heroes.pickHero(id); model.graph.heroes.team = listOf(id); model.graph.optimize.startSearch(); model.go(Screen.Results) }, Modifier.padding(vertical = 5.dp),
                 leading = { Face(model.face(h), 34.dp) }, trailing = { Slot(48.dp) { p.after[id]?.let { MatchChip(it) } } }) {
                 Text(model.heroName(h), style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
             }

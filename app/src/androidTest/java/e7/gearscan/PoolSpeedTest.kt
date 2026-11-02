@@ -32,12 +32,12 @@ class PoolSpeedTest {
         var restored = false
         inst.runOnMainSync { restored = model.graph.scan.restore(backup!!) }
         assertTrue("backup didn't restore", restored)
-        val heroes = model.poolHeroes().count { model.hasBuild(it.id) == true }
+        val heroes = model.graph.pool.heroes().count { model.graph.heroes.hasBuild(it.id) == true }
         val t0 = System.nanoTime()
-        inst.runOnMainSync { model.startPool() }
-        waitFor(30 * 60_000L) { model.pool?.running == false }
-        val p = model.pool!!
+        inst.runOnMainSync { model.graph.pool.start() }
+        waitFor(30 * 60_000L) { model.graph.pool.state?.running == false }
+        val p = model.graph.pool.state!!
         Log.i("E7Speed", "%d heroes in %.1f s, score %d -> %d, %d moves".format(java.util.Locale.US, heroes, (System.nanoTime() - t0) / 1e9,
-            model.poolScore(p.before), model.poolScore(p.ids.associateWith { p.after[it] ?: p.before[it] }), p.moves))
+            model.graph.pool.score(p.before), model.graph.pool.score(p.ids.associateWith { p.after[it] ?: p.before[it] }), p.moves))
     }
 }

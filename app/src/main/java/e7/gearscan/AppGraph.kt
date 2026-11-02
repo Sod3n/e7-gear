@@ -9,6 +9,7 @@ import e7.gearscan.features.heroes.HeroesFeature
 import e7.gearscan.features.history.HistoryFeature
 import e7.gearscan.features.improveheroes.ImproveHeroesFeature
 import e7.gearscan.features.marks.MarksFeature
+import e7.gearscan.features.optimize.OptimizeFeature
 import e7.gearscan.features.pool.PoolFeature
 import e7.gearscan.features.scan.ScanFeature
 import e7.gearscan.features.sellreview.SellReviewFeature
@@ -39,6 +40,7 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
     val scan = ScanFeature(this)
     val heroes = HeroesFeature(this)
     val marks = MarksFeature(this)
+    val optimize = OptimizeFeature(this)
     val pool = PoolFeature(this)
     val history = HistoryFeature(this)
     val sellReview = SellReviewFeature(this)
@@ -47,7 +49,7 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
     val tracker = TrackerFeature(this)
     val settings = SettingsFeature(this)
     val feedback = FeedbackFeature(this)
-    val features = listOf(content, appUpdate, scan, heroes, marks, pool, history, sellReview, improveHeroes, findGear, tracker, settings, feedback)
+    val features = listOf(content, appUpdate, scan, heroes, marks, optimize, pool, history, sellReview, improveHeroes, findGear, tracker, settings, feedback)
     private var loaded = false
 
     init {

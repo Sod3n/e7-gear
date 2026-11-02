@@ -35,13 +35,7 @@ class SellReviewFeatureTest {
 
     private class Host : SellHost {
         override var records: Map<Long, UpgradeRecord> = emptyMap()
-        var settings: List<Any?> = listOf(1)
-        override val settingsKey get() = settings
         override val contentVersion = "test"
-
-        override fun poolMembers() = emptySet<Long>()
-
-        override fun heroNames(box: Box) = emptyMap<Long, String>()
 
         override fun startQueue(rows: List<Pair<Item, SellSearch.Row>>, query: SellQuery, openOverlay: Boolean) {}
 
@@ -74,9 +68,9 @@ class SellReviewFeatureTest {
         g.scan.lastScan = 2
         assertTrue(g.sellReview.stale)
         g.scan.lastScan = 1
-        host.settings = listOf(2)
+        g.pool.tiers = setOf(2)
         assertTrue(g.sellReview.stale)
-        host.settings = listOf(1)
+        g.pool.tiers = setOf(5, 4, 3)
         host.records = mapOf(5L to UpgradeRecord(1, listOf(UpgradeRecord.fromScan(tiny.items.first()), UpgradeRecord.fromScan(tiny.items.first()))))
         assertTrue(g.sellReview.stale)
         host.records = mapOf(5L to UpgradeRecord(9, listOf(UpgradeRecord.fromScan(tiny.items.first()), UpgradeRecord.fromScan(tiny.items.first()))))

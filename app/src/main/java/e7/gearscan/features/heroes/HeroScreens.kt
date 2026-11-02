@@ -73,13 +73,13 @@ fun HeroesScreen(model: AppModel) {
             Segmented(listOf("A–Z", "Lowest match"), if (byMatch) 1 else 0, height = 32.dp) { byMatch = it == 1 }
         }
         val shown = box.heroes.filter { f.matches(model, it) }
-        fun group(h: OwnedHero) = if (h.id == open) openGroup else model.tier(h.id)
+        fun group(h: OwnedHero) = if (h.id == open) openGroup else model.graph.heroes.tier(h.id)
         val tiers = if (f.active || showLow) (5 downTo 1) else (5 downTo 3)
         Card(padding = PaddingValues(0.dp)) {
             var first = true
             for (t in tiers) {
                 val hs = shown.filter { group(it) == t }.let { g ->
-                    if (byMatch) g.sortedWith(compareBy<OwnedHero> { model.matchFor(it.id)?.pct ?: 101 }.thenBy { model.heroName(it) }) else g.sortedBy { model.heroName(it) }
+                    if (byMatch) g.sortedWith(compareBy<OwnedHero> { model.graph.heroes.matchFor(it.id)?.pct ?: 101 }.thenBy { model.heroName(it) }) else g.sortedBy { model.heroName(it) }
                 }
                 if (hs.isEmpty()) continue
                 if (!first) Box(Modifier.fillMaxWidth().height(1.5.dp).background(C.line))
@@ -91,7 +91,7 @@ fun HeroesScreen(model: AppModel) {
                 }
                 hs.forEachIndexed { i, h ->
                     if (h.id == open) TierEditor(model, h) { open = null }
-                    else HeroRow(model, h, last = i == hs.lastIndex) { open = h.id; openGroup = model.tier(h.id) }
+                    else HeroRow(model, h, last = i == hs.lastIndex) { open = h.id; openGroup = model.graph.heroes.tier(h.id) }
                 }
             }
             if (!f.active) {
@@ -109,12 +109,12 @@ fun HeroesScreen(model: AppModel) {
 @Composable
 private fun HeroRow(model: AppModel, h: OwnedHero, last: Boolean, onTap: () -> Unit) {
     val gear = model.box?.gearOf(h.id)?.values ?: emptyList()
-    val t = model.tier(h.id)
+    val t = model.graph.heroes.tier(h.id)
     Row(Modifier.fillMaxWidth().tap(onTap).padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Face(model.face(h), 36.dp, ring = if (t >= 3) C.pink else C.faint)
-        val match = model.matchFor(h.id)
-        LaunchedEffect(h.id) { if (match == null) model.loadPresetsQuietly(h.id, network = t >= 3) }
+        val match = model.graph.heroes.matchFor(h.id)
+        LaunchedEffect(h.id) { if (match == null) model.graph.heroes.loadPresetsQuietly(h.id, network = t >= 3) }
         // the name gets the row's width; sets and match sit under it
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(model.heroName(h), style = zen(14.sp).copy(lineHeight = 17.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -133,7 +133,7 @@ private fun HeroRow(model: AppModel, h: OwnedHero, last: Boolean, onTap: () -> U
 
 @Composable
 private fun TierEditor(model: AppModel, h: OwnedHero, onClose: () -> Unit) {
-    val t = model.tier(h.id)
+    val t = model.graph.heroes.tier(h.id)
     Column(Modifier.fillMaxWidth().hatch().border(2.5.dp, C.edge).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth().tap(onClose), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Face(model.face(h), 36.dp)
@@ -143,7 +143,7 @@ private fun TierEditor(model: AppModel, h: OwnedHero, onClose: () -> Unit) {
                 Text(tierLabel(t), style = zen(12.sp, color = C.deepPink), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        TierBar(t) { model.setTier(h.id, it) }
+        TierBar(t) { model.graph.heroes.setTier(h.id, it) }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(TIER_LABELS[0], style = zen(10.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f))
             LinkText("Hero details", size = 11) { model.go(Screen.HeroDetail(h.id)) }
@@ -201,13 +201,13 @@ private fun MatchCard(model: AppModel, id: Long, m: Match.Result) {
 fun HeroDetailScreen(model: AppModel, id: Long) {
     model.rev
     val h = model.hero(id) ?: return
-    val cur = model.currentBuild(id)
+    val cur = model.graph.heroes.currentBuild(id)
     val gear = model.box?.gearOf(id) ?: emptyMap()
-    val cfg = model.config(id)
-    val tier = model.tier(id)
+    val cfg = model.graph.heroes.config(id)
+    val tier = model.graph.heroes.tier(id)
     Frame(model, Screen.Heroes, actions = {
         PinkButton("Optimize ${model.heroName(h)}", Modifier.weight(1f), enabled = model.gameHero(h) != null, short = "Optimize") {
-            model.pickHero(id); model.team = listOf(id); model.tab(Screen.Optimize)
+            model.graph.heroes.pickHero(id); model.graph.heroes.team = listOf(id); model.tab(Screen.Optimize)
         }
         OutlineButton("Bonus stats") { model.sheet = Sheet(SheetKind.BONUS, id) }
     }) {
@@ -222,7 +222,7 @@ fun HeroDetailScreen(model: AppModel, id: Long) {
                 val g = model.gameHero(h)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     g?.element?.let { AsyncImage(gameImage("icons/elements/element-$it.png"), null, Modifier.width(14.dp).height(14.dp)) }
-                    val art = model.content.artifact(cfg.artifact ?: model.request(id).artifact)
+                    val art = model.content.artifact(cfg.artifact ?: model.graph.heroes.request(id).artifact)
                     ArtifactIcon(model, art, 18.dp)
                     Text(art?.name ?: "No artifact chosen",
                         style = zen(12.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -230,8 +230,8 @@ fun HeroDetailScreen(model: AppModel, id: Long) {
                 Text("Artifact +30 · full imprint, always", style = zen(11.sp, FontWeight.Medium, C.muted))
             }
         }
-        LaunchedEffect(id) { model.loadPresetsQuietly(id, network = true) }
-        val match = model.matchFor(id)
+        LaunchedEffect(id) { model.graph.heroes.loadPresetsQuietly(id, network = true) }
+        val match = model.graph.heroes.matchFor(id)
         if (match != null) MatchCard(model, id, match)
         else if (cur != null) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -266,7 +266,7 @@ fun HeroDetailScreen(model: AppModel, id: Long) {
                 Text(tierLabel(tier), style = zen(12.sp, color = C.deepPink))
             }
             VSpace(8.dp)
-            TierBar(tier) { model.setTier(id, it) }
+            TierBar(tier) { model.graph.heroes.setTier(id, it) }
             VSpace(4.dp)
             Text(if (tier == 1) "Takes only gear no one wears." else "Can take gear from tiers 1–${tier - 1}.",
                 style = zen(11.sp, FontWeight.Medium, C.muted))
@@ -277,9 +277,9 @@ fun HeroDetailScreen(model: AppModel, id: Long) {
         }
         SectionTitle("Saved builds")
         if (cfg.saved.isEmpty()) Text("No saved builds yet. Save one from a search result.", style = zen(12.sp, FontWeight.Medium, C.muted))
-        val setup = model.setup(id)
+        val setup = model.graph.heroes.setup(id)
         cfg.saved.forEachIndexed { i, sb ->
-            val items = model.savedItems(sb)
+            val items = model.graph.heroes.savedItems(sb)
             val equipped = items.isNotEmpty() && items.all { it.equippedOn == id } && items.size == gear.size
             val b = setup?.build(items)
             Card(shadow = if (equipped) C.pink else null, radius = 14.dp, border = 2.5.dp) {
@@ -294,7 +294,7 @@ fun HeroDetailScreen(model: AppModel, id: Long) {
                             style = zen(11.sp, FontWeight.Medium, C.muted))
                     }
                     Calc.setCounts(items, model.content).forEach { (s, _) -> SetIcon(s.icon, 22.dp) }
-                    if (!equipped && b != null) Pill("Equip", onClick = { model.equip(id, b) })
+                    if (!equipped && b != null) Pill("Equip", onClick = { model.graph.heroes.equip(id, b) })
                     Text("×", style = zen(16.sp, color = C.muted), modifier = Modifier.tap { cfg.saved.removeAt(i); model.touch(); model.save() }.padding(4.dp))
                 }
             }

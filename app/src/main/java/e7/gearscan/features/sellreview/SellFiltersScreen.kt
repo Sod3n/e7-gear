@@ -429,7 +429,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 var name by remember { mutableStateOf("") };NameFilter(name,"Name") { name=it }
                 Text("Use the weakest equipped piece per slot among these heroes.",style=zen(11.sp,color=C.muted))
                 Row(horizontalArrangement=Arrangement.spacedBy(20.dp)) {
-                    LinkText("Use pool selection") { update(q.copy(reference=SellReference.SELECTED,referenceHeroes=model.poolMembers().map { it.id }.toSet())) }
+                    LinkText("Use pool selection") { update(q.copy(reference=SellReference.SELECTED,referenceHeroes=model.graph.pool.members().map { it.id }.toSet())) }
                     LinkText("Clear") { update(q.copy(referenceHeroes=emptySet())) }
                 }
                 model.graph.scan.box?.allHeroes.orEmpty().filter { nameMatches(model.heroName(it),name) }.sortedBy(model::heroName).forEach { h->

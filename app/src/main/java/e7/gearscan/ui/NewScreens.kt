@@ -144,7 +144,7 @@ fun FeedbackScreen(model: AppModel, error: String?) {
                 val r = JSONObject().put("id", id).put("created", System.currentTimeMillis())
                     .put("topic", listOf("bug", "idea", "other")[topic]).put("message", text.trim())
                 if (email.isNotBlank()) r.put("email", email.trim())
-                if (withContext) model.searchContext()?.let { r.put("context", it) }
+                if (withContext) model.graph.optimize.searchContext()?.let { r.put("context", it) }
                 if (withDevice) {
                     r.put("device", model.graph.feedback.deviceInfo())
                     e7.gearscan.data.Problems.peek().takeIf { it.isNotEmpty() }?.let { r.put("problems", org.json.JSONArray(it)) }

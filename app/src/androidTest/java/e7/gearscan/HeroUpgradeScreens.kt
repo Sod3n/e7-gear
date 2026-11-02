@@ -160,7 +160,7 @@ class HeroUpgradeScreens {
             "${r.unknownSteps} open steps, ${(System.currentTimeMillis() - t0) / 1000} s"
         Log.i("HeroUpgradeScreens", line)
         File(shots, "result.txt").writeText(line + "\n" + view.joinToString("\n") { h ->
-            "${model.heroName(h.hero)} t${model.tier(h.hero.id)} now=${h.bestNow} rows=${h.rows.size} " +
+            "${model.heroName(h.hero)} t${model.graph.heroes.tier(h.hero.id)} now=${h.bestNow} rows=${h.rows.size} " +
                 h.rows.take(3).joinToString { "${it.pick.piece} ${it.chance}% ${it.typical}/${it.best}" } })
         check(!model.heroUpgradesResumable) { "a finished check still offers to continue" }
         check(!model.heroUpgradesStale) { "a fresh result reads as stale" }
