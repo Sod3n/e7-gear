@@ -354,7 +354,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             val apk = AppInstall.file(app, u.version)
             val problem = withContext(Dispatchers.IO) {
                 runCatching {
-                    if (!apk.exists()) AppInstall.download(u.apk, apk, u.size) { p -> if ((p * 100).toInt() != ((updateProgress ?: 0f) * 100).toInt()) updateProgress = p }
+                    if (!apk.exists()) AppInstall.download(u.apk!!, apk, u.size) { p -> if ((p * 100).toInt() != ((updateProgress ?: 0f) * 100).toInt()) updateProgress = p }
                     AppInstall.refusal(app, apk)
                 }.getOrElse { if (it is java.io.IOException) "" else "the download failed (${it.message})" }
             }

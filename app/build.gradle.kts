@@ -113,6 +113,7 @@ composeCompiler {
 }
 
 dependencies {
+    implementation(project(":core"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)
@@ -131,6 +132,7 @@ dependencies {
     androidTestImplementation(libs.espresso.core)
     debugImplementation(libs.compose.ui.test.manifest)
     testImplementation(libs.json)
+    testImplementation(testFixtures(project(":core")))
 }
 
 // lint errors (e.g. an API used without its permission) block release APKs

@@ -708,7 +708,7 @@ fun SetChoiceSummary(model: AppModel, c: SetChoice, size: androidx.compose.ui.un
             Text(n, style = zen(12.sp))
         }
         when {
-            c.mix != null && c.four.isEmpty() -> anyOf(c.two.keys, "· ${c.mix.firstOrNull()?.values?.sum()?.div(2) ?: 0} pairs, any mix")
+            c.mix != null && c.four.isEmpty() -> anyOf(c.two.keys, "· ${c.mix!!.firstOrNull()?.values?.sum()?.div(2) ?: 0} pairs, any mix")
             c.four.isNotEmpty() -> {
                 anyOf(c.four, "4")
                 if (c.two.isNotEmpty()) { Text("+", style = zen(12.sp, color = C.muted)); anyOf(c.two.keys, "2") }

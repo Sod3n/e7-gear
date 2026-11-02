@@ -10,6 +10,7 @@ import java.io.File
 /** Whole-app rules that single screens can't show: locale-proof formatting and every referenced icon on disk. */
 class SourceRulesTest {
     private val src = File("src/main/java")
+    private fun sources() = sequenceOf(src, File("../core/src/main/java")).flatMap { it.walk() }
     private val assets = File("src/main/assets")
 
     @Test
@@ -22,10 +23,10 @@ class SourceRulesTest {
     @Test
     fun keyboardInputIsLimitedToLegacyStatControls() {
         val forbidden = Regex("""\b(?:BasicTextField|TextField|OutlinedTextField|EditText|AutoCompleteTextView)\b""")
-        val hits = src.walk().filter { it.extension == "kt" && it.name != "LegacyStatInput.kt" }.flatMap { f ->
+        val hits = sources().filter { it.extension == "kt" && it.name != "LegacyStatInput.kt" }.flatMap { f ->
             f.readLines().withIndex().filter { forbidden.containsMatchIn(it.value) }.map { "${f.name}:${it.index + 1}" }
         }.toList()
-        val callers = src.walk().filter { it.extension == "kt" && it.name !in setOf("LegacyStatInput.kt", "Sheets.kt", "SellParts.kt") }.filter { Regex("""LegacyStatField(Value)?\(""").containsMatchIn(it.readText()) }.toList()
+        val callers = sources().filter { it.extension == "kt" && it.name !in setOf("LegacyStatInput.kt", "Sheets.kt", "SellParts.kt") }.filter { Regex("""LegacyStatField(Value)?\(""").containsMatchIn(it.readText()) }.toList()
         assertTrue("Legacy stat keyboard reused elsewhere: $callers", callers.isEmpty())
         assertTrue("Keyboard input is allowed only in the existing optimizer stat controls: " + hits.joinToString(), hits.isEmpty())
     }
@@ -34,7 +35,7 @@ class SourceRulesTest {
     fun numberFormattingIgnoresPhoneLanguage() {
         // "%,d" on a Russian phone gives "2 466"; "%.1f" gives "4,4"
         val bad = Regex(""""[^"\n]*%[^"\n]*"\.format\((?!java\.util\.Locale|Locale)|String\.format\((?!java\.util\.Locale|Locale)|SimpleDateFormat\("[^"]*"\)""")
-        val hits = src.walk().filter { it.extension == "kt" }.flatMap { f ->
+        val hits = sources().filter { it.extension == "kt" }.flatMap { f ->
             f.readLines().withIndex().filter { bad.containsMatchIn(it.value) }.map { "${f.name}:${it.index + 1}: ${it.value.trim()}" }
         }.toList()
         assertTrue("locale-dependent formatting:\n" + hits.joinToString("\n"), hits.isEmpty())
@@ -43,7 +44,7 @@ class SourceRulesTest {
     @Test
     fun oneLineTextsSayTheyAreCut() {
         // a maxLines = 1 Text with no overflow cuts long names silently; use overflow = Ellipsis, or FitText for numbers
-        val hits = File(src, "e7/gearscan").walk().filter { it.extension == "kt" }.flatMap { f ->
+        val hits = sources().filter { it.extension == "kt" }.flatMap { f ->
             f.readLines().withIndex().filter { "maxLines = 1" in it.value && "overflow" !in it.value && "softWrap = false" !in it.value && "fun FitText" !in it.value }
                 .map { "${f.name}:${it.index + 1}: ${it.value.trim()}" }
         }.toList()
@@ -53,7 +54,7 @@ class SourceRulesTest {
     @Test
     fun requestsNameTheApp() {
         // Http.open adds "User-Agent: E7Gear/<version>"; a bare openConnection goes out as Android's default agent
-        val hits = src.walk().filter { it.extension == "kt" && it.name != "Http.kt" }.flatMap { f ->
+        val hits = sources().filter { it.extension == "kt" && it.name != "Http.kt" }.flatMap { f ->
             f.readLines().withIndex().filter { "openConnection(" in it.value }.map { "${f.name}:${it.index + 1}: ${it.value.trim()}" }
         }.toList()
         assertTrue("requests without the app's User-Agent (use Http.open):\n" + hits.joinToString("\n"), hits.isEmpty())
@@ -62,7 +63,7 @@ class SourceRulesTest {
     @Test
     fun checklistsRecordWhatTheyFinish() {
         // gear moved in the game is invisible to the app; a checklist without a finish action leaves the box stale
-        val hits = File(src, "e7/gearscan").walk().filter { it.extension == "kt" && it.name != "OverlayService.kt" }.flatMap { f ->
+        val hits = sources().filter { it.extension == "kt" && it.name != "OverlayService.kt" }.flatMap { f ->
             f.readLines().withIndex().filter { "OverlayState.load(" in it.value && !Regex("""\) \{ .+ }\s*$""").containsMatchIn(it.value) }
                 .map { "${f.name}:${it.index + 1}: ${it.value.trim()}" }
         }.toList()
@@ -82,7 +83,7 @@ class SourceRulesTest {
     fun fontsCoverEveryCharacterUsed() {
         // the bundled fonts are subsets; a character outside them renders as a box
         val fonts = File("src/main/res/font").listFiles()!!.filter { it.extension == "ttf" }.map { cmap(it.readBytes()) }
-        val used = File(src, "e7/gearscan").walk().filter { it.extension == "kt" }
+        val used = sources().filter { it.extension == "kt" }
             .flatMap { f -> Regex("\"([^\"\\n]*)\"").findAll(f.readText()).map { it.groupValues[1] } }
             .flatMap { it.asSequence() }.filter { it.code > 0x7E && !it.isWhitespace() }.toSet()
         val missing = used.filter { c -> fonts.any { c.code !in it } }
@@ -135,8 +136,7 @@ class SourceRulesTest {
     }
     @Test fun resetButtonsAskFirst() {
         // user, 2026-11-01: every reset button asks for confirmation
-        val src = File("src/main/java")
-        val bad = src.walk().filter { it.extension == "kt" }.flatMap { f -> f.readLines().mapIndexedNotNull { i, l ->
+        val bad = sources().filter { it.extension == "kt" }.flatMap { f -> f.readLines().mapIndexedNotNull { i, l ->
             if (Regex("""(LinkText|OutlineButton|PinkButton|PanelAction)\("Reset""").containsMatchIn(l) && "askReset(" !in l && "c.run" !in l) "${f.name}:${i + 1}" else null } }.toList()
         assertTrue("Reset without confirmation: $bad", bad.isEmpty())
     }

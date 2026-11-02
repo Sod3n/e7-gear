@@ -19,7 +19,7 @@ import e7.gearscan.opt.*
 private fun openSell(m:AppModel,k:SheetKind,id:Long=0) { m.sheet=Sheet(k,id) }
 private fun scoreText(v:Double)=String.format(java.util.Locale.US,"%.4f",v).trimEnd('0').trimEnd('.')
 private fun rollLimitText(q:SellQuery)=when(q.maximumTotalQuality) {
-    null->"All overall roll values";0.0->"Only minimum rolls";25.0->"Average in bottom quarter";50.0->"Average at/below midrange";100.0->"Average up to usual maximum";else->"Average within lower ${fmtNum(q.maximumTotalQuality)}% of range"
+    null->"All overall roll values";0.0->"Only minimum rolls";25.0->"Average in bottom quarter";50.0->"Average at/below midrange";100.0->"Average up to usual maximum";else->"Average within lower ${fmtNum(q.maximumTotalQuality!!)}% of range"
 }
 private fun chanceText(r:SellSearch.Row)=if(!r.forecast.supported)"Unknown" else if(r.forecast.rareOnly)"Rare only" else GearPotential.percent(r.forecast.chance)
 
@@ -76,9 +76,9 @@ private fun BenchmarkCard(model:AppModel,slot:Slot) {
         when {
             custom!=null->Text("Your custom score",style=zen(12.sp,color=C.muted))
             auto?.item!=null->{
-                ComparisonOwner(model,auto.item)
+                ComparisonOwner(model,auto.item!!)
                 VSpace(5.dp)
-                val b=q.score.breakdown(auto.item)
+                val b=q.score.breakdown(auto.item!!)
                 Text("Main ${fmtNum(b.main)} + subs ${fmtNum(b.substats)}${if(b.discount>0)" − discount ${fmtNum(b.discount)}" else ""}",style=zen(11.sp,color=C.muted))
             }
             q.matchMain->Text("A separate comparison for each main stat. See the matching piece in results.",style=zen(11.sp,color=C.muted))
@@ -194,8 +194,8 @@ private fun StatFinish(line:RollReview.Line,reforge:Boolean,compact:Boolean=fals
     val s=line.stat
     val label="${s.short} ${s.format(line.current)}"
     if(line.maximum==null)Text("$label · finish not forecast",style=zen(11.sp,color=C.muted))
-    else Text(if(compact)"$label → up to ${s.format(line.maximum)}" else "$label now · ${s.format(line.minimum!!)}–${s.format(line.maximum)} at +15${if(reforge)" & eligible reforge" else ""}",style=zen(11.sp,color=C.blue))
-    if(!compact&&line.rare!=null&&line.maximum!=null&&line.rare>line.maximum)Text("Rare-roll limit ${s.format(line.rare)} · odds unknown",style=zen(10.sp,color=C.muted))
+    else Text(if(compact)"$label → up to ${s.format(line.maximum!!)}" else "$label now · ${s.format(line.minimum!!)}–${s.format(line.maximum!!)} at +15${if(reforge)" & eligible reforge" else ""}",style=zen(11.sp,color=C.blue))
+    if(!compact&&line.rare!=null&&line.maximum!=null&&line.rare!!>line.maximum!!)Text("Rare-roll limit ${s.format(line.rare!!)} · odds unknown",style=zen(10.sp,color=C.muted))
 }
 
 @Composable
@@ -461,7 +461,7 @@ fun SellSheet(model:AppModel,sheet:Sheet) {
                 Text(rollLimitText(q),style=zen(12.sp,color=C.blue))
                 Text("Low average: at or below the middle of each stat's range. For example, Speed +3 in 2–4 and HP% +6 in 4–8 are both midrange on Lv85 gear.",style=zen(11.sp,color=C.muted))
                 SellNumber("Minimum upgrades recorded",q.minimumProcs.toDouble(),0.0,5.0,0) { update(q.copy(minimumProcs=(it?:2.0).toInt())) }
-                if(q.maximumProcQuality!=null)Text("An additional upgrade-only limit is active: ${fmtNum(q.maximumProcQuality)}% of range.",style=zen(11.sp,color=C.blue))
+                if(q.maximumProcQuality!=null)Text("An additional upgrade-only limit is active: ${fmtNum(q.maximumProcQuality!!)}% of range.",style=zen(11.sp,color=C.blue))
                 var custom by remember { mutableStateOf(false) }
                 LinkText(if(custom)"Hide custom roll limits" else "Custom roll limits") { custom=!custom }
                 if(custom) {
