@@ -844,9 +844,11 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         cancelAllWork()
         if (e7.gearscan.overlay.OverlayState.upgrade != null) e7.gearscan.overlay.OverlayService.stop(getApplication())
         val nb = Box.parse(text)
-        lastDiff = ScanDiff.between(box, nb)
+        val old = box
+        lastDiff = ScanDiff.between(old, nb)
         box = nb
         lastScan = System.currentTimeMillis()
+        graph.boxChanged(old, nb)
         if (team.isEmpty() || team.any { nb.hero(it) == null }) team = listOfNotNull(defaultHero(nb))
         tiers = tiers.filterKeys { nb.hero(it) != null }
         graph.scan.boxFile.write(text)
@@ -1077,125 +1079,41 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun stopPool() = graph.pool.run.cancel()
 
-    // ---- editable sell filters (score evidence, never automatic sales) ----
-    var sellQuery get() = graph.sellReview.query
-        private set(v) { graph.sellReview.query = v }
-    var sellResult: e7.gearscan.opt.SellSearch.Result? by mutableStateOf(null); private set
-    val sellBusy get() = graph.sellReview.run.busy
-    /** Sell review tab (0 Set up, 1 Matches); lives here so a trip to Kept pieces and back keeps it. */
-    var sellTab by mutableIntStateOf(0)
-    /** Keep-rolling curve on the current review list, for the When to keep rolling tiles. */
-    var sellCurve: e7.gearscan.opt.KeepCurve.Result? by mutableStateOf(null); private set
-    val sellCurveBusy get() = graph.sellReview.curve.busy
-    private fun computeSellCurve(result:e7.gearscan.opt.SellSearch.Result) {
-        val b=box?:return;val ctx=sellContext(result.query)?:return
-        val items=result.matches.filter { it.item.enhance<15&&it.item.id !in reviewedIds }.map { it.item }
-        val bars=Slot.entries.mapNotNull { s->ctx.esBar(s)?.let { s to it } }.toMap();val ref=result.query.reforge
-        sellCurve=null
-        graph.sellReview.curve.start {
-            val c=withContext(Dispatchers.Default) { runCatching { e7.gearscan.opt.KeepCurve.run(items,bars,{ ref&&b.canReforge(it.id) }) }.getOrNull() }
-            if(sellResult===result) { sellCurve=c;android.util.Log.i("E7Sell","keep curve: ${c?.pieces} pieces in ${c?.millis} ms") }
+    // ---- Sell review host (the feature reads the box, scan and tracker through this) ----
+    private val sellHost = object : e7.gearscan.features.sellreview.SellHost {
+        override val box get() = this@AppModel.box
+        override val lastScan get() = this@AppModel.lastScan
+        override val records get() = upgrades.records
+        override val settingsKey get() = listOf(poolTiers, poolExtra, tiers, content.version, rev)
+        override val contentVersion get() = content.version
+        override fun poolMembers() = this@AppModel.poolMembers().map { it.id }.toSet()
+        override fun heroNames(box: Box) = box.allHeroes.associate { it.id to heroName(it) }
+        override fun startQueue(rows: List<Pair<Item, e7.gearscan.opt.SellSearch.Row>>, query: e7.gearscan.data.SellQuery, openOverlay: Boolean) {
+            val entries = rows.map { (original, row) ->
+                val set = content.set(original.set)
+                original to e7.gearscan.overlay.UpgradeTracker.QueueEntry(original.id, null, set?.name ?: original.set.removeSuffix("Set"), set?.icon,
+                    row.goal.takeIf { query.scoreFilter }, row.rolls, upgrades.records[original.id]?.takeIf { it.scan == lastScan }?.history?.size ?: 1,
+                    row.goal.reforgeAllowed, row.goal.supported)
+            }
+            upgrades.startQueue(entries, lastScan, query)
+            configureUpgrade(); go(Screen.Upgrade)
+            if (openOverlay) openUpgradeOverlay()
         }
+        override fun rollOnChanged(rollOn: Double) { upgrades.rollOn = rollOn }
+        override fun touch() { this@AppModel.touch() }
     }
-    var sellDone by mutableIntStateOf(0); private set
-    var sellTotal by mutableIntStateOf(0); private set
-    var sellError: String? by mutableStateOf(null); private set
-    private val sellLog = object : e7.gearscan.opt.SellSearch.Log {
-        private val file = graph.sellReview.progress
-        override fun lines() = file.read()?.let { java.io.StringReader(it).readLines() }
-        override fun replace(text: String) = file.write(text)
-        override fun append(text: String) = file.append(text)
-    }
-    private val sellMutex = kotlinx.coroutines.sync.Mutex()
-    private var appliedSellKey: List<Any?>? = null
-    private fun sellKey(): List<Any?> = listOf(box,lastScan,upgrades.records.filterValues { it.scan==lastScan&&it.history.size>1 },poolTiers,poolExtra,tiers,content.version,rev,sellQuery.copy(rollOn=0.0))
-    val sellFresh get() = sellResult!=null && appliedSellKey==sellKey() && !sellBusy
-    private var sellContextKey:List<Any?>?=null
-    private var cachedSellContext:e7.gearscan.opt.SellSearch.Context?=null
-    private fun sellContext(q:e7.gearscan.data.SellQuery):e7.gearscan.opt.SellSearch.Context? {
-        val b=box?:return null
-        val key=listOf(b,lastScan,upgrades.records,reviewedIds,poolTiers,poolExtra,tiers,content.version,rev,q)
-        if(key!=sellContextKey) {
-            cachedSellContext=e7.gearscan.opt.SellSearch.Context(b,upgrades.records.filterValues { it.scan==lastScan&&it.history.size>1 },lastScan,reviewedIds,
-                poolMembers().map { it.id }.toSet(),b.allHeroes.associate { it.id to heroName(it) },q,content.version)
-            sellContextKey=key
-        }
-        return cachedSellContext
-    }
-    val sellScoreLimit:Double get() {
-        val m=sellQuery.score
-        val main=GearStat.entries.maxOf { t->
-            val observed=box?.items.orEmpty().filter { it.mainType==t }.maxOfOrNull { it.main15.takeIf(Double::isFinite)?:it.mainValue }?:0.0
-            val maximum=maxOf(observed,e7.gearscan.calc.Reforge.main(t,0.0))
-            maximum*m.weight(t)*m.mainPercent/100
-        }
-        val subs=GearStat.entries.sumOf { e7.gearscan.opt.GearBounds.target(it,true,true).maximum*m.weight(it) }
-        return maxOf(100.0,kotlin.math.ceil((main+subs)*2),sellQuery.floors.values.maxOrNull()?:0.0,sellQuery.maximumCurrentScore?:0.0)
-    }
-    fun sellAutoEsBars():Map<Slot,Int> = sellContext(sellQuery)?.autoEsBars.orEmpty()
-    fun sellFloorPreview(slot:Slot):e7.gearscan.opt.SellSearch.Floor? {
-        if(sellQuery.matchMain)return null
-        val context=sellContext(sellQuery.copy(floorPercent=100.0,floors=emptyMap()))?:return null
-        val item=context.items.firstOrNull { it.slot==slot }?:return null
-        return context.floor(item)
-    }
-    fun updateSellQuery(q:e7.gearscan.data.SellQuery) {
-        // the keep-rolling chance only relabels rows; it must not stale the list or restart a search
-        if(q.copy(rollOn=0.0)==sellQuery.copy(rollOn=0.0)) { sellQuery=q;upgrades.rollOn=q.rollOn;graph.store.saveSoon();return }
-        // any other change alters the list the keep-rolling numbers describe
-        sellCurve=null;graph.sellReview.curve.cancel()
-        stopSellSearch();sellQuery=if(!q.scoreFilter&&q.sort in listOf(e7.gearscan.data.SellSort.SCORE,e7.gearscan.data.SellSort.CHANCE))q.copy(sort=e7.gearscan.data.SellSort.QUALITY) else q;sellError=null;touch() }
-    fun stopSellSearch() = graph.sellReview.run.cancel()
-    fun findSellGear() {
-        stopSellSearch()
-        val q=sellQuery;sellError=q.error();if(sellError!=null)return
-        val b=box?:return
-        val text=b.toText();val scan=lastScan;val records=upgrades.records.filterValues { it.scan==scan&&it.history.size>1 }
-        val removed=reviewedIds;val members=poolMembers().map { it.id }.toSet();val names=b.allHeroes.associate { it.id to heroName(it) }
-        val key=sellKey()
-        begin(graph.sellReview.run.start {
-            val scope=this
-            sellDone=0;sellTotal=0;sellError=null
-            try {
-                val result=sellMutex.withLock {
-                    withContext(Dispatchers.Default) {
-                        val context=e7.gearscan.opt.SellSearch.Context(Box.parse(text),records,scan,removed,members,names,q,content.version)
-                        e7.gearscan.opt.SellSearch.run(context,sellLog,cancelled={ !scope.isActive }) { done,total->
-                            if(done%20==0||done==total)kotlinx.coroutines.runBlocking(Dispatchers.Main) {
-                                if(scope.isActive) { sellDone=done;sellTotal=total;scope.progress(done,total,"$done/$total pieces")
-                                    android.util.Log.i("E7Sell","checkpoint $done/$total pieces") }
-                            }
-                        }
-                    }
-                }
-                sellResult=result;appliedSellKey=key;computeSellCurve(result);android.util.Log.i("E7Sell","${result.rows.size} checked, ${result.matches.size} matches, ${result.unknown} unknown, ${result.seconds}s")
-            }catch(e:CancellationException) { throw e }
-            catch(e:Exception) { sellError="The check stopped. Completed pieces are saved; tap Find matches to continue." }
-        })
-    }
-    fun trackSellMatches(id:Long?=null,openOverlay:Boolean=true) {
-        val result=sellResult?:return
-        if(!sellFresh) { showToast("Update the matches before opening this list.");return }
-        val b=box?:return
-        val selected=result.matches.filter { id==null||it.item.id==id }
-        val entries=selected.mapNotNull { row->b.itemsById[row.item.id]?.takeIf { it.id !in reviewedIds }?.let { original->
-            val set=content.set(original.set)
-            original to e7.gearscan.overlay.UpgradeTracker.QueueEntry(original.id,null,set?.name?:original.set.removeSuffix("Set"),set?.icon,row.goal.takeIf { result.query.scoreFilter },row.rolls,upgrades.records[original.id]?.takeIf { it.scan==lastScan }?.history?.size?:1,row.goal.reforgeAllowed,row.goal.supported)
-        } }
-        if(entries.isEmpty()) { showToast("No matching pieces remain. Update the search.");return }
-        upgrades.startQueue(entries,lastScan,result.query)
-        configureUpgrade();go(Screen.Upgrade)
-        if(openOverlay)openUpgradeOverlay()
-    }
+    init { graph.sellReview.host = sellHost }
+
     private fun refreshScoreGoal() {
         val q=upgrades.scoreQuery?.takeIf { it.scoreFilter }?:return
-        val context=sellContext(q)?:return
+        val context=graph.sellReview.context(q)?:return
         val ids=upgrades.queue.map { it.id }.toSet()+listOfNotNull(upgrades.selected)
         upgrades.refreshScoreGoals(context.items.filter { it.id in ids }.associate { it.id to context.goal(it) })
     }
 
     // ---- upgrade observations (separate from the scan) ----
     val upgrades = e7.gearscan.overlay.UpgradeTracker(graph.tracker.upgrades.file) { graph.tracker.upgrades.write(it) }
+    init { graph.marks.onChange = { upgrades.cleared = reviewedIds } }
 
     init {
         graph.findGear.source = object : e7.gearscan.features.findgear.FindGearFeature.Source {
@@ -1244,12 +1162,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
     private fun configureUpgrade() {
         syncClearedUpgradeQueue()
-        upgrades.canUndoSold=overlaySales.any { it.scan==lastScan&&it.id in reviewedIds&&upgrades.queue.any { e->e.id==it.id } }
+        upgrades.canUndoSold=graph.marks.lastSale(lastScan,upgrades.queue.map { it.id }.toSet())!=null
         upgrades.markSold=if(upgrades.scoreQuery!=null)({ id->markOverlaySold(id) }) else null
         upgrades.markKept=if(upgrades.scoreQuery!=null)({ id->markOverlaySold(id,keep=true) }) else null
-        upgrades.rollOn=sellQuery.rollOn
+        upgrades.rollOn=graph.sellReview.query.rollOn
         upgrades.esFor=upgrades.scoreQuery?.let { q->{ item:Item->
-            val b=box;val ctx=sellContext(q)
+            val b=box;val ctx=graph.sellReview.context(q)
             if(b==null||ctx==null)null else e7.gearscan.opt.EsForecast.of(item,e7.gearscan.data.InventoryOrder.score(item,if(item.enhance==b.itemsById[item.id]?.enhance)ctx.raw[item.id] else null),
                 ctx.esBar(item.slot),q.reforge,b.canReforge(item.id),ctx.coverage(item),q.forecastMs)
         } }
@@ -1287,8 +1205,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             t.error="Your scan changed. Refresh the matches before marking this piece.";return
         }
         val index=t.queueIndex.coerceAtLeast(0)
-        overlaySales=overlaySales.filterNot { it.id==expectedId&&it.scan==lastScan }+MarksFeature.Sale(expectedId,lastScan,keep)
-        if(keep)sellKept=sellKept+expectedId else clearedIds=clearedIds+expectedId;t.cleared=reviewedIds
+        graph.marks.recordSold(expectedId,lastScan,keep)
         t.invalidate();save()
         val next=t.pendingQueue.getOrNull(index)?:t.pendingQueue.lastOrNull()
         next?.let { e->box?.itemsById?.get(e.id)?.let { t.select(it,lastScan,keepQueue=true) } }
@@ -1297,9 +1214,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun undoOverlaySold() {
         val t=upgrades
         if(t.editing)return
-        val mark=overlaySales.lastOrNull { it.scan==lastScan&&it.id in reviewedIds&&t.queue.any { e->e.id==it.id } }?:return
+        val mark=graph.marks.lastSale(lastScan,t.queue.map { it.id }.toSet())?:return
         if(box?.itemsById?.containsKey(mark.id)!=true) { t.error="That piece is no longer in your scan.";return }
-        overlaySales=overlaySales-mark;if(mark.kept)sellKept=sellKept-mark.id else clearedIds=clearedIds-mark.id;t.cleared=reviewedIds
+        graph.marks.undoSale(mark)
         t.invalidate();save()
         t.select(box!!.itemsById.getValue(mark.id),lastScan,keepQueue=true);configureUpgrade()
     }
@@ -1478,27 +1395,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- marks ----
-    /** Pieces the player marked as fed or sold. */
-    var clearedIds get() = graph.marks.cleared
-        set(v) { graph.marks.cleared = v }
-    /** Pieces the player chose to keep in Sell review; they stay out of it until unlocked. */
-    var sellKept get() = graph.marks.kept
-        private set(v) { graph.marks.kept = v }
-    val reviewedIds get() = clearedIds + sellKept
-    /** Sell review: mark one piece sold (after selling it in the game) or kept, with Undo. */
-    fun markSellReview(id: Long, keep: Boolean) {
-        if (id in reviewedIds) return
-        if (keep) sellKept = sellKept + id else clearedIds = clearedIds + id
-        upgrades.cleared = reviewedIds; save()
-        showToast(if (keep) "Kept · won't come back until you unlock it" else "Marked sold", "Undo") { unmarkSellReview(id) }
-    }
-    fun unmarkSellReview(id: Long) {
-        sellKept = sellKept - id; clearedIds = clearedIds - id; overlaySales = overlaySales.filterNot { it.id == id }
-        upgrades.cleared = reviewedIds; save()
-    }
-    
-    private var overlaySales get() = graph.marks.sold
-        set(v) { graph.marks.sold = v }
+    val clearedIds get() = graph.marks.cleared
+    val reviewedIds get() = graph.marks.reviewed
+
     /** Pieces worn by heroes of the pool run stay where they are; everything else is spare. */
     private fun inUse(b: Box): Set<Long> {
         val members = poolMembers().map { it.id }.toSet()
@@ -2179,6 +2078,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     private fun readBox(): Box? = graph.scan.boxFile.takeIf { it.exists }?.let { f -> runCatching { Box.parse(f.read()!!) }.getOrNull() }
 
     private fun adopt(b: Box? = readBox()) {
+        val old = box
         box = b
         graph.heroes.adoptConfigs()
         // early RTA presets saved single pieces of 2-piece sets as requirements; keep only complete sets
@@ -2186,11 +2086,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             r.setAlts = r.setAlts.map { alt -> alt.mapNotNull { (k, n) -> content.set(k)?.takeIf { n >= it.pieces }?.let { k to (n / it.pieces) * it.pieces } }.toMap() }
                 .filter { it.isNotEmpty() }
         } }
-        stopSellSearch();sellResult=null;sellCurve=null;appliedSellKey=null
+        graph.sellReview.reset()
         graph.findGear.reset()
-        clearedIds = clearedIds.filter { id -> b?.itemsById?.containsKey(id) == true }.toSet()
-        sellKept = sellKept.filter { id -> b?.itemsById?.containsKey(id) == true }.toSet()
-        overlaySales = overlaySales.filter { it.id in reviewedIds&&it.scan==lastScan }.distinctBy { it.id }
+        graph.boxChanged(old, b)
         syncTrackerMarks()
         // results saved before the swap fields existed can't answer "this piece only": they are dropped
         heroUpgrades = runCatching { JSONObject(graph.improveHeroes.result.read().orEmpty()) }.getOrNull()?.takeIf { it.optInt("format") == HERO_UPGRADES_FORMAT }?.let { o -> b?.let { bx -> runCatching {
@@ -2204,7 +2102,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     private fun syncTrackerMarks() {
         syncClearedUpgradeQueue()
-        upgrades.canUndoSold=overlaySales.any { mark->upgrades.queue.any { it.id==mark.id } }
+        upgrades.canUndoSold=graph.marks.sold.any { mark->upgrades.queue.any { it.id==mark.id } }
     }
 
     fun save() { graph.store.saveNow() }

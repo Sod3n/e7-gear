@@ -27,9 +27,9 @@ fun GearScreen(model: AppModel) {
             }
             return@Frame
         }
-        val sell = model.sellResult?.let { r -> r.matches.count { it.item.id !in model.reviewedIds } }
+        val sell = model.graph.sellReview.result?.let { r -> r.matches.count { it.item.id !in model.reviewedIds } }
         ModeCard("Sell review", "Worst rolls first. Sell or keep each piece, with its ES now and at +15.",
-            listOfNotNull(sell?.let { "$it to review" }, model.sellKept.size.takeIf { it > 0 }?.let { "$it kept" }).joinToString(" · ").ifEmpty { "Not checked yet" }) {
+            listOfNotNull(sell?.let { "$it to review" }, model.graph.marks.kept.size.takeIf { it > 0 }?.let { "$it kept" }).joinToString(" · ").ifEmpty { "Not checked yet" }) {
             model.go(Screen.SellFilters)
         }
         val heroes = model.heroUpgrades?.takeIf { !it.running && it.result != null && !model.heroUpgradesStale }?.result
@@ -41,8 +41,8 @@ fun GearScreen(model: AppModel) {
             found?.let { "${e7.gearscan.value.Count(it).of("piece")} found last time" } ?: "Choose a target") { model.go(Screen.GearPotential) }
         if (model.upgrades.queue.isNotEmpty() || model.upgrades.record != null)
             RowCard("Over the game", { model.go(Screen.Upgrade) }) { Text("Continue tracking", style = zen(12.sp)) }
-        if (model.sellKept.isNotEmpty())
-            RowCard("Kept pieces", { model.go(Screen.SellKept) }) { Text("${model.sellKept.size} kept", style = zen(12.sp)) }
+        if (model.graph.marks.kept.isNotEmpty())
+            RowCard("Kept pieces", { model.go(Screen.SellKept) }) { Text("${model.graph.marks.kept.size} kept", style = zen(12.sp)) }
     }
 }
 

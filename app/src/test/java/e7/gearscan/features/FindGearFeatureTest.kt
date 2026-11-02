@@ -130,7 +130,7 @@ class FindGearFeatureTest {
         val g = graph(this, FakeSource(synthetic))
         found(g)
         val gone = g.findGear.result!!.matches.first().item.id
-        g.marks.cleared = setOf(gone)
+        g.marks.markReviewed(gone, keep = false)
         found(g)
         assertTrue(g.findGear.result!!.matches.none { it.item.id == gone })
         assertEquals(GearStat.SPD, g.findGear.query.targets.keys.first())
