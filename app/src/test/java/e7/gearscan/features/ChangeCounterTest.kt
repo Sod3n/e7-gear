@@ -46,9 +46,9 @@ class ChangeCounterTest {
     @Test fun touchCountsOneChangeAndSavesTheStateSoon() = runTest(UnconfinedTestDispatcher()) {
         val g = graph(this)
         assertFalse(g.disk.exists("state.json"))
-        val rev = g.scan.rev
-        g.scan.touch()
-        assertEquals(rev + 1, g.scan.rev)
+        val rev = g.rev.value
+        g.rev.bump()
+        assertEquals(rev + 1, g.rev.value)
         assertFalse(g.disk.exists("state.json"))
         advanceUntilIdle()
         g.disk.flush()
@@ -57,29 +57,29 @@ class ChangeCounterTest {
 
     @Test fun switchingTheOverGameChoiceCountsOneChange() = runTest(UnconfinedTestDispatcher()) {
         val g = graph(this)
-        val rev = g.scan.rev
+        val rev = g.rev.value
         g.settings.useOverGameNative(true)
-        assertEquals(rev + 1, g.scan.rev)
+        assertEquals(rev + 1, g.rev.value)
         g.settings.useOverGameNative(false)
-        assertEquals(rev + 2, g.scan.rev)
+        assertEquals(rev + 2, g.rev.value)
     }
 
     @Test fun anUpdatedContentFileCountsOneChange() = runTest(UnconfinedTestDispatcher()) {
         val g = graph(this)
         g.content.fetch = site("2")
-        val rev = g.scan.rev
+        val rev = g.rev.value
         assertEquals(Outcome.Note("Updated to 2"), g.content.check())
-        assertEquals(rev + 1, g.scan.rev)
+        assertEquals(rev + 1, g.rev.value)
     }
 
     @Test fun contentThatIsCurrentOrFailedCountsNoChange() = runTest(UnconfinedTestDispatcher()) {
         val g = graph(this)
-        val rev = g.scan.rev
+        val rev = g.rev.value
         g.content.fetch = { throw IOException("offline") }
         assertTrue(g.content.check() is Outcome.Failed)
-        assertEquals(rev, g.scan.rev)
+        assertEquals(rev, g.rev.value)
         g.content.fetch = site(g.content.content.version)
         g.content.check()
-        assertEquals(rev, g.scan.rev)
+        assertEquals(rev, g.rev.value)
     }
 }
