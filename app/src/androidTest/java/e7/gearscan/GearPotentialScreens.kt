@@ -47,17 +47,17 @@ class GearPotentialScreens {
         lateinit var model: AppModel
         ui { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        ui { assertTrue(model.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.consent = true
+        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.graph.settings.consent = true
             e7.gearscan.ui.Themes.set(ctx, false); model.graph.findGear.edit(PotentialQuery()) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
-        if (images.isDirectory) e7.gearscan.ui.GameImages.base = images.toURI().toString()
+        if (images.isDirectory) model.graph.content.imageBase = images.toURI().toString()
         var width by mutableStateOf(411)
         var font by mutableStateOf(1f)
         var overlay by mutableStateOf(false)
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, font)) {
-                Box(Modifier.testTag("frame").width(width.dp).fillMaxHeight()) { if (overlay) OverlayUi({ _, _ -> }, {}, {}) else App(model) {} }
+                Box(Modifier.testTag("frame").width(width.dp).fillMaxHeight()) { if (overlay) androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides model.graph.content.imageBase) { OverlayUi({ _, _ -> }, {}, {}) } else App(model) {} }
             }
         }
         fun snap(name: String) {
@@ -178,16 +178,16 @@ class GearPotentialScreens {
         lateinit var model: AppModel
         ui { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        ui { assertTrue(model.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.go(Screen.GearPotential) }
+        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.go(Screen.GearPotential) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
-        if (images.isDirectory) e7.gearscan.ui.GameImages.base = images.toURI().toString()
+        if (images.isDirectory) model.graph.content.imageBase = images.toURI().toString()
         var width by mutableStateOf(411)
         var font by mutableStateOf(1f)
         var overlay by mutableStateOf(false)
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, font)) {
-                Box(Modifier.width(width.dp).fillMaxHeight()) { if (overlay) OverlayUi({ _, _ -> }, {}, {}) else App(model) {} }
+                Box(Modifier.width(width.dp).fillMaxHeight()) { if (overlay) androidx.compose.runtime.CompositionLocalProvider(e7.gearscan.ui.LocalImageBase provides model.graph.content.imageBase) { OverlayUi({ _, _ -> }, {}, {}) } else App(model) {} }
             }
         }
         shot("01-filters-411")
@@ -291,7 +291,7 @@ class GearPotentialScreens {
         assertEquals(model.upgrades.goal, restored.goal)
         assertEquals(15, restored.record!!.item.enhance)
         shot("10-missed-target-353-big")
-        val backup = JSONObject(model.backupText())
+        val backup = JSONObject(model.graph.scan.backupText())
         assertEquals(model.graph.findGear.query, PotentialQuery.of(backup.getJSONObject("fields").getJSONObject("findGear.query")))
         ui { OverlayState.upgrade = null }
     }

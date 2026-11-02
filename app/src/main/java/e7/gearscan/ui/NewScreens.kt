@@ -1,5 +1,7 @@
 package e7.gearscan.ui
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -22,11 +24,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,14 +51,14 @@ fun OverlayIntroScreen(model: AppModel) {
     // that switch locked until "Allow restricted settings" is turned on in its App info
     var blocked by remember { mutableStateOf(false) }
     fun go() {
-        if (model.overGameNative) { model.nativeSeen = true; OverlayService.stop(ctx) } else OverlayService.start(ctx)
-        model.overlaySeen = true
+        if (model.graph.settings.overGameNative) { model.graph.settings.nativeSeen = true; OverlayService.stop(ctx) } else OverlayService.start(ctx)
+        model.graph.settings.overlaySeen = true
         model.save()
         model.back()
         if (OverlayState.upgrade != null) model.checkUpgrade()
-        model.openGame()
+        model.graph.scan.openGame()
     }
-    val native = model.overGameNative
+    val native = model.graph.settings.overGameNative
     LifecycleResumeEffect(waiting) {
         if (waiting && OverlayState.canDraw(ctx)) { waiting = false; blocked = false; go() }
         else if (waiting) blocked = true
@@ -77,7 +77,7 @@ fun OverlayIntroScreen(model: AppModel) {
         Text(if (upgrade) "Track upgrades over the game" else "Show this build over the game", style = TitleStyle.copy(fontSize = 24.sp, lineHeight = 28.sp))
         Text(if (upgrade) "Record each +3 in a small floating panel and check whether the piece could improve a hero build." else "A small panel floats on top of Epic Seven, so you can equip each piece without switching apps.",
             style = zen(13.sp, FontWeight.Medium, C.muted))
-        Segmented(listOf("E7 Gear's panel", "Phone's floating window"), if (native) 1 else 0) { model.useOverGameNative(it == 1) }
+        Segmented(listOf("E7 Gear's panel", "Phone's floating window"), if (native) 1 else 0) { model.graph.settings.useOverGameNative(it == 1) }
         if (native) Card(padding = PaddingValues(12.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 IntroStep(1, "Open the game", "Tap the pink button. E7 Gear keeps the ${if (upgrade) "tracker" else "checklist"} ready.")
@@ -132,7 +132,7 @@ fun FeedbackScreen(model: AppModel, error: String?) {
     var email by remember { mutableStateOf("") }
     var outcome by remember { mutableStateOf<Pair<Reports.Outcome, String>?>(null) }
     var sending by remember { mutableStateOf(false) }
-    androidx.compose.runtime.LaunchedEffect(Unit) { model.refreshKnownIssues() }
+    androidx.compose.runtime.LaunchedEffect(Unit) { model.graph.feedback.refreshKnownIssues() }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         shot = uri?.let { u -> runCatching { jpegBase64(ctx.contentResolver.openInputStream(u)!!.use { it.readBytes() }) }.getOrNull() }
     }
@@ -146,13 +146,13 @@ fun FeedbackScreen(model: AppModel, error: String?) {
                 if (email.isNotBlank()) r.put("email", email.trim())
                 if (withContext) model.searchContext()?.let { r.put("context", it) }
                 if (withDevice) {
-                    r.put("device", model.deviceInfo())
+                    r.put("device", model.graph.feedback.deviceInfo())
                     e7.gearscan.data.Problems.peek().takeIf { it.isNotEmpty() }?.let { r.put("problems", org.json.JSONArray(it)) }
                 }
-                if (withLog) r.put("scanLog", model.scanLog())
+                if (withLog) r.put("scanLog", model.graph.feedback.scanLog())
                 if (error != null) r.put("error", error)
                 shot?.let { r.put("screenshot", it) }
-                model.sendReport(r) { o -> sending = false; outcome = o to id }
+                model.graph.feedback.send(r) { o -> sending = false; outcome = o to id }
             }
             else -> PinkButton("Done", Modifier.weight(1f)) { model.back() }
         }
@@ -166,12 +166,12 @@ fun FeedbackScreen(model: AppModel, error: String?) {
             Reports.Outcome.NO_ENDPOINT -> StateCard("Saved on the phone",
                 "Report #${outcome!!.second} is kept on the phone. Reports can't be sent from this version yet; it goes out by itself once they can.")
             null -> {
-                if (model.knownIssues.isNotEmpty()) KnownIssuesCard(model.knownIssues)
+                if (model.graph.feedback.knownIssues.isNotEmpty()) KnownIssuesCard(model.graph.feedback.knownIssues)
                 Segmented(listOf("Bug", "Idea", "Other"), topic) { topic = it }
                 Text("What happened?", style = zen(13.sp))
                 PasteField(text, if (topic == 0) "Paste what happened and what went wrong" else "Paste your message", 2000, multiline = true) { text = it }
                 CheckRow("Include what I was doing", "Hero, preset, targets and rules of the last search", withContext) { withContext = it }
-                CheckRow("Include device info", model.deviceInfo(), withDevice) { withDevice = it }
+                CheckRow("Include device info", model.graph.feedback.deviceInfo(), withDevice) { withDevice = it }
                 CheckRow("Include the last scan log", "Connection log only. No login data.", withLog) { withLog = it }
                 CheckRow("Add a screenshot", if (shot != null) "Screenshot attached · tap to remove" else "Pick one from the gallery", shot != null) {
                     if (shot != null) shot = null else pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -259,12 +259,12 @@ private fun jpegBase64(bytes: ByteArray): String {
 /** First start: the APK carries no game data, so heroes, artifacts and sets come from the content site once. */
 @Composable
 fun GameDataScreen(model: e7.gearscan.AppModel) {
-    val failed = model.contentStatus?.startsWith("Couldn't") == true
-    Frame(null, null, actions = if (failed) ({ PinkButton("Try again", Modifier.weight(1f)) { model.checkContent() } }) else null) {
+    val failed = model.graph.content.status?.startsWith("Couldn't") == true
+    Frame(null, null, actions = if (failed) ({ PinkButton("Try again", Modifier.weight(1f)) { model.graph.content.checkNow() } }) else null) {
         ScreenTitle("Game data")
         Text(if (failed) "Couldn't get the game data" else "Getting game data…", style = dela(16.sp))
         Text("Heroes, artifacts and sets come from the app's content site, so new heroes arrive without an app update. " +
             "This happens once; after that the app checks for newer data at most once a day.", style = zen(13.sp, FontWeight.Medium, C.muted))
-        if (failed) Text((model.contentStatus ?: "") + ". Check the connection and try again.", style = zen(12.sp, color = C.deepPink))
+        if (failed) Text((model.graph.content.status ?: "") + ". Check the connection and try again.", style = zen(12.sp, color = C.deepPink))
     }
 }

@@ -30,8 +30,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 interface SellHost {
-    val box: Box?
-    val lastScan: Long
     val records: Map<Long, UpgradeRecord>
     val settingsKey: List<Any?>
     val contentVersion: String
@@ -48,8 +46,6 @@ interface SellHost {
 }
 
 object NoSellHost : SellHost {
-    override val box: Box? = null
-    override val lastScan = 0L
     override val records = emptyMap<Long, UpgradeRecord>()
     override val settingsKey = emptyList<Any?>()
     override val contentVersion = ""
@@ -72,7 +68,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
     val run = work<Unit>("Sell review", Weight.Heavy, notice = "Checking sell filters")
     val curve = work<Unit>("Keep curve")
 
-    // the box, scan and tracker still live in AppModel; this goes when ScanFeature and TrackerFeature own them
+    // the tracker, pool members and hero names still live in AppModel; this goes when their features own them
     var host: SellHost = NoSellHost
 
     var result: SellSearch.Result? by mutableStateOf(null)
@@ -103,9 +99,9 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
 
     private fun freshnessKey(): List<Any?> =
         listOf(
-            host.box,
-            host.lastScan,
-            host.records.filterValues { it.scan == host.lastScan && it.history.size > 1 },
+            g.scan.box,
+            g.scan.lastScan,
+            host.records.filterValues { it.scan == g.scan.lastScan && it.history.size > 1 },
             host.settingsKey,
             query.copy(rollOn = 0.0),
         )
@@ -133,9 +129,9 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
         stop()
         val q = query
         q.error()?.let { return Outcome.Failed(it) }
-        val b = host.box ?: return Outcome.Done
+        val b = g.scan.box ?: return Outcome.Done
         val text = b.toText()
-        val scan = host.lastScan
+        val scan = g.scan.lastScan
         val records = host.records.filterValues { it.scan == scan && it.history.size > 1 }
         val removed = g.marks.reviewed
         val members = host.poolMembers()
@@ -178,7 +174,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
     fun trackMatches(id: Long? = null, openOverlay: Boolean = true): Outcome {
         val found = result ?: return Outcome.Done
         if (!fresh) return Outcome.Failed("Update the matches before opening this list.")
-        val b = host.box ?: return Outcome.Done
+        val b = g.scan.box ?: return Outcome.Done
         val reviewed = g.marks.reviewed
         val rows =
             found.matches.filter { id == null || it.item.id == id }
@@ -196,14 +192,14 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
     }
 
     fun context(q: SellQuery): SellSearch.Context? {
-        val b = host.box ?: return null
-        val key = listOf(b, host.lastScan, host.records, g.marks.reviewed, host.settingsKey, q)
+        val b = g.scan.box ?: return null
+        val key = listOf(b, g.scan.lastScan, host.records, g.marks.reviewed, host.settingsKey, q)
         if (key != contextKey) {
             cachedContext =
                 SellSearch.Context(
                     b,
-                    host.records.filterValues { it.scan == host.lastScan && it.history.size > 1 },
-                    host.lastScan,
+                    host.records.filterValues { it.scan == g.scan.lastScan && it.history.size > 1 },
+                    g.scan.lastScan,
                     g.marks.reviewed,
                     host.poolMembers(),
                     host.heroNames(b),
@@ -221,7 +217,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
             val main =
                 GearStat.entries.maxOf { t ->
                     val observed =
-                        host.box?.items.orEmpty().filter { it.mainType == t }
+                        g.scan.box?.items.orEmpty().filter { it.mainType == t }
                             .maxOfOrNull { it.main15.takeIf(Double::isFinite) ?: it.mainValue } ?: 0.0
                     maxOf(observed, Reforge.main(t, 0.0)) * m.weight(t) * m.mainPercent / 100
                 }
@@ -239,7 +235,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
     }
 
     private fun computeCurve(found: SellSearch.Result) {
-        val b = host.box ?: return
+        val b = g.scan.box ?: return
         val ctx = context(found.query) ?: return
         val reviewed = g.marks.reviewed
         val items = found.matches.filter { it.item.enhance < 15 && it.item.id !in reviewed }.map { it.item }

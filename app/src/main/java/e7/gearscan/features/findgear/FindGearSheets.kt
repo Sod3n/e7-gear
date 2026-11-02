@@ -66,7 +66,7 @@ internal fun PotentialSetsSheet(model: AppModel) {
     SheetBody("Sets", trailing = { LinkText("Any set") { model.f.edit(q.copy(sets = emptySet())) } }, button = "Done", onButton = { model.sheet = null }) {
         NameFilter(query, "Name") { query = it }
         Text(if (q.sets.isEmpty()) "Any set" else "${q.sets.size} selected · any one", style = zen(11.sp, color = C.muted))
-        CardGrid(model.content.sets.filter { nameMatches(it.name, query) }, columns = 4, gap = 7.dp) { s, m ->
+        CardGrid(model.graph.content.content.sets.filter { nameMatches(it.name, query) }, columns = 4, gap = 7.dp) { s, m ->
             val on = s.key in q.sets
             Column(m.clip(RoundedCornerShape(12.dp)).background(if (on) C.lightPink else C.card).border(2.dp, if (on) C.edge else C.line, RoundedCornerShape(12.dp))
                 .tap { model.f.edit(q.copy(sets = if (on) q.sets - s.key else q.sets + s.key)) }.padding(horizontal = 4.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {

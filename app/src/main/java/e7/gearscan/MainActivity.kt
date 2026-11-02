@@ -15,6 +15,7 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.lifecycleScope
+import e7.gearscan.features.feedback.CRASH_FILE
 import e7.gearscan.ui.App
 import e7.gearscan.ui.C
 import e7.gearscan.ui.Themes
@@ -54,7 +55,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         e7.gearscan.overlay.OverlayState.appInFront = true
         updateFloating()
-        model.resumed()
+        model.graph.appUpdate.resumed()
     }
 
     override fun onPause() {
@@ -64,7 +65,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.getBooleanExtra(EXTRA_CAPTURE, false)) model.showCapture()
+        if (intent.getBooleanExtra(EXTRA_CAPTURE, false)) model.graph.scan.showCapture()
     }
 
     private fun applySystemBars(dark: Boolean) {

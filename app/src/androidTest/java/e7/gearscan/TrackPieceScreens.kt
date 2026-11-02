@@ -84,7 +84,7 @@ class TrackPieceScreens {
         rule.runOnUiThread { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
         var restored = false
-        ui { restored = model.restore(backup); model.upgrades.clear() }
+        ui { restored = model.graph.scan.restore(backup); model.upgrades.clear() }
         check(restored) { "restore failed" }
         var overlay by mutableStateOf(false)
         rule.setContent {
@@ -127,7 +127,7 @@ class TrackPieceScreens {
         rule.runOnUiThread { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
         var restored = false
-        ui { restored = model.restore(backup); model.upgrades.clear() }
+        ui { restored = model.graph.scan.restore(backup); model.upgrades.clear() }
         check(restored) { "restore failed" }
         var width by mutableStateOf(353)
         var font by mutableStateOf(1.3f)

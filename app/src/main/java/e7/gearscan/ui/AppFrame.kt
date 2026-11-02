@@ -51,13 +51,13 @@ fun TabBar(model: AppModel, current: Screen) {
 
 @Composable
 fun ArtifactIcon(model: AppModel, art: e7.gearscan.data.Artifact?, size: androidx.compose.ui.unit.Dp) {
-    ArtifactIcon(art, size) { model.content.artifactIcon(it) }
+    ArtifactIcon(art, size) { model.graph.content.content.artifactIcon(it) }
 }
 
 /** Shown after the app crashed: what happened, with a one-tap report. */
 @Composable
 fun CrashCard(model: e7.gearscan.AppModel) {
-    val crash = model.lastCrash ?: return
+    val crash = model.graph.feedback.lastCrash ?: return
     Card(shadow = null, radius = 14.dp, border = 2.dp) {
         Text("E7 Gear closed unexpectedly last time", style = dela(14.sp))
         VSpace(4.dp)
@@ -65,8 +65,8 @@ fun CrashCard(model: e7.gearscan.AppModel) {
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         VSpace(6.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            LinkText("Report this") { model.go(e7.gearscan.Screen.Feedback(crash)); model.dismissCrash() }
-            LinkText("Dismiss", color = C.muted) { model.dismissCrash() }
+            LinkText("Report this") { model.go(e7.gearscan.Screen.Feedback(crash)); model.graph.feedback.dismissCrash() }
+            LinkText("Dismiss", color = C.muted) { model.graph.feedback.dismissCrash() }
         }
     }
 }

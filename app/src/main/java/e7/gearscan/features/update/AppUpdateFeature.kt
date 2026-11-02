@@ -1,0 +1,103 @@
+package e7.gearscan.features.update
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import e7.gearscan.AppGraph
+import e7.gearscan.data.AppUpdate
+import e7.gearscan.data.Http
+import e7.gearscan.state.Feature
+import java.io.File
+import java.io.IOException
+import java.net.HttpURLConnection
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+class AppUpdateFeature(g: AppGraph) : Feature(g, "appUpdate") {
+    /** A newer app version on GitHub Releases, found by the daily check. */
+    var release: AppUpdate.Release? by mutableStateOf(null)
+        internal set
+
+    /** The self-update's download, 0..1; null when none is running. */
+    var progress: Float? by mutableStateOf(null)
+        private set
+
+    var problem: String? by mutableStateOf(null)
+        private set
+
+    // downloaded and checked, waiting for the player to allow installs from this app
+    private var installWhenAllowed: File? = null
+
+    val version: String get() = g.platform.appVersion
+
+    /** Sideloaded installs hear about new versions only from here; quiet on any failure. */
+    suspend fun check() {
+        val installed = version
+        release =
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val c = Http.open(AppUpdate.LATEST) as HttpURLConnection
+                    c.connectTimeout = 8000
+                    c.readTimeout = 15000
+                    c.setRequestProperty("Accept", "application/vnd.github+json")
+                    if (c.responseCode != 200) null else AppUpdate.newer(installed, c.inputStream.bufferedReader().use { it.readText() })
+                }.getOrNull()
+            }
+    }
+
+    fun checkNow() {
+        g.scope.launch { check() }
+    }
+
+    suspend fun cleanOld() {
+        val installed = version
+        withContext(Dispatchers.IO) { g.platform.cleanUpdates(installed) }
+    }
+
+    /** Downloads [release], checks it is this app signed with this key and newer, then opens Android's installer. */
+    fun update() {
+        val u = release ?: return
+        if (u.apk == null) {
+            g.platform.openPage(u.page)
+            return
+        }
+        if (progress != null) return
+        problem = null
+        progress = 0f
+        g.scope.launch {
+            val apk = g.platform.updateFile(u.version)
+            val failed =
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        if (!apk.exists()) {
+                            g.platform.download(u.apk!!, apk, u.size) { p -> if ((p * 100).toInt() != ((progress ?: 0f) * 100).toInt()) progress = p }
+                        }
+                        g.platform.refusal(apk)
+                    }.getOrElse { if (it is IOException) "" else "the download failed (${it.message})" }
+                }
+            progress = null
+            when {
+                failed != null -> {
+                    apk.delete()
+                    problem = if (failed.isEmpty()) "Download stopped. Tap to try again." else "Not installed: $failed."
+                }
+                g.platform.canInstall -> g.platform.install(apk)
+                else -> {
+                    installWhenAllowed = apk
+                    problem = "Allow installs from E7 Gear, then come back."
+                    g.platform.allowInstalls()
+                }
+            }
+        }
+    }
+
+    /** Back from the "Install unknown apps" switch: installs the waiting update once it's allowed. */
+    fun resumed() {
+        val apk = installWhenAllowed ?: return
+        if (!g.platform.canInstall) return
+        installWhenAllowed = null
+        problem = null
+        g.platform.install(apk)
+    }
+}

@@ -30,7 +30,7 @@ class PoolSpeedTest {
         waitFor(20_000) { model.ready }
         waitFor(60_000) { model.content.heroes.isNotEmpty() }
         var restored = false
-        inst.runOnMainSync { restored = model.restore(backup!!) }
+        inst.runOnMainSync { restored = model.graph.scan.restore(backup!!) }
         assertTrue("backup didn't restore", restored)
         val heroes = model.poolHeroes().count { model.hasBuild(it.id) == true }
         val t0 = System.nanoTime()

@@ -1,25 +1,16 @@
 package e7.gearscan
 
+import androidx.compose.runtime.setValue
 import android.app.Application
-import android.content.ContentValues
 import android.content.Intent
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import android.net.Uri
-import android.os.Environment
-import android.provider.MediaStore
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import e7.gearscan.calc.Rating
-import e7.gearscan.features.marks.MarksFeature
+import e7.gearscan.features.scan.ScanFeature
 import e7.gearscan.data.Box
-import e7.gearscan.data.Content
-import e7.gearscan.data.GearStat
 import e7.gearscan.data.GameHero
 import e7.gearscan.data.Goal
 import e7.gearscan.data.HeroConfig
@@ -31,12 +22,8 @@ import e7.gearscan.data.Request
 import e7.gearscan.data.SavedBuild
 import e7.gearscan.data.Stat
 import e7.gearscan.data.fmtNum
-import e7.gearscan.data.ScanDiff
-import e7.gearscan.data.Reports
 import e7.gearscan.data.Slot
 import e7.gearscan.opt.Build
-import e7.gearscan.opt.PoolEffort
-import e7.gearscan.opt.PoolLosses
 import e7.gearscan.opt.Ghost
 import e7.gearscan.opt.SearchRun
 import e7.gearscan.opt.Setup
@@ -48,17 +35,13 @@ import e7.gearscan.ui.Outcome
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import e7.gearscan.ui.Confirm
 import e7.gearscan.ui.Toast
-import java.io.File
-import java.io.IOException
 import kotlin.concurrent.thread
 
 sealed class Screen {
@@ -94,10 +77,6 @@ enum class SheetKind { PRESET, TARGETS, ADVANCED, BONUS, SETS, MAINS, GOALS, SHO
 /** [back] is the sheet to return to when this one finishes; null closes. */
 data class Sheet(val kind: SheetKind, val heroId: Long, val back: SheetKind? = null)
 
-enum class ScanError { NOTHING, SERVER, VPN, NOT_INSTALLED }
-
-enum class ScanPhase { IDLE, CAPTURING, IMPORTING }
-
 data class SearchState(
     val heroId: Long,
     val running: Boolean = true,
@@ -119,8 +98,6 @@ data class SearchState(
     val checkingBlockers: Boolean = false,
     val limitMs: Long = 15_000L,
 )
-
-const val CRASH_FILE = "crash.txt"
 
 /** Builds a one-hero search keeps in history: the top of the list, not all fifty. */
 const val HISTORY_BUILDS = 10
@@ -187,37 +164,16 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     val limitMs = 15_000L
     val longLimitMs = 60_000L
 
-    var content: Content by mutableStateOf(loadContent())
-        private set
-    // not a mutableStateOf: snapshot records keep replaced values, and each old box holds a whole JSON tree of the gear
-    @Volatile private var boxRef: Box? = null
-    private var boxVersion by mutableIntStateOf(0)
-    var box: Box?
-        get() { boxVersion; return boxRef }
-        private set(v) { boxRef = v; boxVersion++ }
-    /** Bumped on every in-place change to the box or configs, so readers recompose. */
-    var rev by mutableIntStateOf(0)
-        private set
+    val content get() = graph.content.content
+    val box get() = graph.scan.box
+    val rev get() = graph.scan.rev
     private val configs get() = graph.heroes.configs
     /** Gear tier per hero, 1 (just geared) to 5 (best of account); unset means 1. */
     var tiers get() = graph.heroes.tiers
         set(v) { graph.heroes.tiers = v }
     var team get() = graph.heroes.team
         set(v) { graph.heroes.team = v }
-    var consent get() = graph.settings.consent
-        set(v) { graph.settings.consent = v }
-    var proxyOn get() = graph.settings.proxyOn
-        set(v) { graph.settings.proxyOn = v }
-    var proxy get() = graph.settings.proxy
-        set(v) { graph.settings.proxy = v }
-    var lastScan get() = graph.scan.lastScan
-        set(v) { graph.scan.lastScan = v }
-    var lastDiff get() = graph.scan.lastDiff
-        set(v) { graph.scan.lastDiff = v }
-    var decodeSec get() = graph.scan.decodeSec
-        set(v) { graph.scan.decodeSec = v }
-    var showRating get() = graph.settings.showRating
-        set(v) { graph.settings.showRating = v }
+    val lastScan get() = graph.scan.lastScan
     /** With the "closest to targets" goal, results show match % unless another rating is picked. */
     var showMatch by mutableStateOf(true)
 
@@ -233,24 +189,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     var search: SearchState? by mutableStateOf(null)
         internal set
-
-    var scanPhase by mutableStateOf(ScanPhase.IDLE)
-    internal var captureStarted = 0L
-    var scanError: ScanError? by mutableStateOf(null)
-    var captureConns by mutableIntStateOf(0)
-    var captureBytes by mutableStateOf(0L)
-    var returnedEarly by mutableStateOf(false)
-    /** Ticks every second while capturing, so "no login seen" appears even when nothing new arrives. */
-    var captureElapsed by mutableStateOf(0L)
-    val scanStep get() = e7.gearscan.data.ScanStatus.of(captureConns, captureBytes, captureElapsed)
-
-    var lastError: String? by mutableStateOf(null)
-    var overlaySeen get() = graph.settings.overlaySeen
-        set(v) { graph.settings.overlaySeen = v }
-    private val reportsDir = File(files, "reports")
-
-    val game: String? = app.packageManager.getInstalledApplications(0).map { it.packageName }
-        .firstOrNull { it.lowercase().let { p -> "epic7" in p || "epicseven" in p } }
 
     var ready by mutableStateOf(false)
         private set
@@ -291,126 +229,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun back(): Boolean = graph.nav.back()
 
-    // ---- content ----
-    private fun loadContent(): Content {
-        // the APK carries no game data: the last download, or nothing until the first one arrives
-        val downloaded = runCatching { Content.parse(File(getApplication<Application>().filesDir, "content.json").readText()) }.getOrNull()
-        return (downloaded?.takeIf { it.schema <= e7.gearscan.data.ContentUpdate.SCHEMA } ?: Content.EMPTY)
-            .also { e7.gearscan.ui.GameImages.base = it.imageBase }
-    }
-
-    /** A newer app version on GitHub Releases, found by the daily check. */
-    var appUpdate: e7.gearscan.data.AppUpdate.Release? by mutableStateOf(null)
-        internal set
-
-    val appVersion: String get() = getApplication<Application>().let { it.packageManager.getPackageInfo(it.packageName, 0).versionName ?: "0" }
-
-    /** Sideloaded installs hear about new versions only from here; quiet on any failure. */
-    private fun checkAppUpdate() {
-        viewModelScope.launch {
-            appUpdate = withContext(Dispatchers.IO) {
-                runCatching {
-                    val c = e7.gearscan.data.Http.open(e7.gearscan.data.AppUpdate.LATEST) as java.net.HttpURLConnection
-                    c.connectTimeout = 8000; c.readTimeout = 15000; c.setRequestProperty("Accept", "application/vnd.github+json")
-                    if (c.responseCode != 200) null else e7.gearscan.data.AppUpdate.newer(appVersion, c.inputStream.bufferedReader().use { it.readText() })
-                }.getOrNull()
-            }
-        }
-    }
-
-    /** The self-update's download, 0..1; null when none is running. */
-    var updateProgress: Float? by mutableStateOf(null)
-        private set
-    var updateProblem: String? by mutableStateOf(null)
-        private set
-    /** Downloaded and checked, waiting for the player to allow installs from this app. */
-    private var installWhenAllowed: File? = null
-
-    /** Downloads [appUpdate], checks it is this app signed with this key and newer, then opens Android's installer. */
-    fun updateApp() {
-        val u = appUpdate ?: return
-        val app = getApplication<Application>()
-        if (u.apk == null) {
-            app.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(u.page)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-            return
-        }
-        if (updateProgress != null) return
-        updateProblem = null
-        updateProgress = 0f
-        viewModelScope.launch {
-            val apk = AppInstall.file(app, u.version)
-            val problem = withContext(Dispatchers.IO) {
-                runCatching {
-                    if (!apk.exists()) AppInstall.download(u.apk!!, apk, u.size) { p -> if ((p * 100).toInt() != ((updateProgress ?: 0f) * 100).toInt()) updateProgress = p }
-                    AppInstall.refusal(app, apk)
-                }.getOrElse { if (it is java.io.IOException) "" else "the download failed (${it.message})" }
-            }
-            updateProgress = null
-            when {
-                problem != null -> { apk.delete(); updateProblem = if (problem.isEmpty()) "Download stopped. Tap to try again." else "Not installed: $problem." }
-                app.packageManager.canRequestPackageInstalls() -> AppInstall.install(app, apk)
-                else -> {
-                    installWhenAllowed = apk
-                    updateProblem = "Allow installs from E7 Gear, then come back."
-                    app.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                        android.net.Uri.parse("package:${app.packageName}")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-                }
-            }
-        }
-    }
-
-    /** Back from the "Install unknown apps" switch: installs the waiting update once it's allowed. */
-    fun resumed() {
-        val apk = installWhenAllowed ?: return
-        val app = getApplication<Application>()
-        if (!app.packageManager.canRequestPackageInstalls()) return
-        installWhenAllowed = null
-        updateProblem = null
-        AppInstall.install(app, apk)
-    }
-
-    /** Last content check and what it found, for Scan & data. */
-    var contentCheckedAt get() = graph.content.checkedAt
-        set(v) { graph.content.checkedAt = v }
-    var contentStatus: String? by mutableStateOf(null)
-        private set
-
-    /** Fetches newer content from the content site; [quiet] for the daily check, which shows nothing unless it updates. */
-    fun checkContent(quiet: Boolean = false) {
-        val current = content
-        contentStatus = if (quiet) contentStatus else "Checking…"
-        viewModelScope.launch {
-            val out = withContext(Dispatchers.IO) {
-                runCatching {
-                    e7.gearscan.data.ContentUpdate.check(current) { site ->
-                        e7.gearscan.data.Mirror.fetch(site, siteFirst = true) { url ->
-                            val c = e7.gearscan.data.Http.open(url) as java.net.HttpURLConnection
-                            c.connectTimeout = 8000; c.readTimeout = 20000; c.useCaches = false
-                            if (c.responseCode != 200) throw IOException("HTTP ${c.responseCode} for $url")
-                            c.inputStream.use { it.readBytes() }
-                        }
-                    }.also { o ->
-                        // whole-file replace, so a write cut short never leaves half a content file
-                        o.bytes?.let { b -> File(files, "content.json.tmp").apply { writeBytes(b); renameTo(File(files, "content.json")) } }
-                    }
-                }
-            }
-            contentCheckedAt = System.currentTimeMillis()
-            out.onSuccess { o ->
-                contentStatus = when (o.result) {
-                    e7.gearscan.data.ContentUpdate.Result.UPDATED -> {
-                        content = o.content!!; e7.gearscan.ui.GameImages.base = content.imageBase; touch(); "Updated to ${o.version}"
-                    }
-                    e7.gearscan.data.ContentUpdate.Result.NEEDS_APP -> "Content ${o.version} needs a newer app"
-                    e7.gearscan.data.ContentUpdate.Result.CURRENT -> if (quiet) contentStatus else "Up to date"
-                }
-            }.onFailure { if (!quiet) contentStatus = "Couldn't check: ${it.message?.take(80)}" }
-            save()
-        }
-    }
-
     // every change is saved shortly after: Android may close the app while the player is in the game
-    fun touch() { rev++; graph.store.saveSoon() }
+    fun touch() = graph.scan.touch()
 
     // ---- heroes ----
     fun hero(id: Long): OwnedHero? = box?.hero(id)
@@ -553,7 +373,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     private fun failed(label: String, e: Throwable) {
         android.util.Log.e("E7Work", "$label failed", e)
-        lastError = "$label: ${e.javaClass.simpleName}: ${e.message.orEmpty()}".take(160)
+        graph.feedback.lastError = "$label: ${e.javaClass.simpleName}: ${e.message.orEmpty()}".take(160)
     }
 
     fun startSearch(limit: Long = limitMs) {
@@ -561,9 +381,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val id = team.firstOrNull() ?: return
         val setup = setup(id) ?: return
         val cur = setup.build(setup.current().values.toList())
-        showRating = when (setup.req.goal) {
+        graph.settings.showRating = when (setup.req.goal) {
             Goal.EHP -> Rating.EHP; Goal.SPEED -> Rating.SPD; Goal.CP -> Rating.CP; Goal.GEAR_SCORE -> Rating.GS
-            else -> if (showRating in listOf(Rating.EHP, Rating.SPD, Rating.CP, Rating.GS)) Rating.DMG else showRating
+            else -> if (graph.settings.showRating in listOf(Rating.EHP, Rating.SPD, Rating.CP, Rating.GS)) Rating.DMG else graph.settings.showRating
         }
         val r = SearchRun(setup, 50)
         search = SearchState(id, current = cur, limitMs = limit)
@@ -740,121 +560,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun savedItems(s: SavedBuild): List<Item> = s.items.mapNotNull { box?.itemsById?.get(it) }
-
-    // ---- scan ----
-    fun otherVpnActive(): Boolean {
-        val cm = getApplication<Application>().getSystemService(ConnectivityManager::class.java)
-        return cm.allNetworks.any { cm.getNetworkCapabilities(it)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true } &&
-            scanPhase != ScanPhase.CAPTURING
-    }
-
-    fun onVpnGranted() {
-        val g = game ?: run { scanError = ScanError.NOT_INSTALLED; return }
-        val app = getApplication<Application>()
-        Capture.clear()
-        Capture.clearLog()
-        scanError = null
-        returnedEarly = false
-        app.startForegroundService(Intent(app, TProxyService::class.java)
-            .setAction(TProxyService.ACTION_CONNECT)
-            .putExtra(TProxyService.EXTRA_GAME, g)
-            .putExtra(TProxyService.EXTRA_UPSTREAM, if (proxyOn) proxy.trim() else ""))
-        scanPhase = ScanPhase.CAPTURING
-        captureStarted = System.currentTimeMillis()
-        if (screen != Screen.Capture) go(Screen.Capture)
-        viewModelScope.launch {
-            delay(800)
-            app.packageManager.getLaunchIntentForPackage(g)?.let { app.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-        }
-    }
-
-    /** Set while the player is on the game's system page to stop it; the scan starts when they come back. */
-    var scanAfterRestart = false
-    /** "Not running · scan now" from the restart sheet: the screen under it starts the scan. */
-    var scanNow by mutableStateOf(false)
-
-    fun openGameSettings() {
-        val app = getApplication<Application>()
-        game?.let { g -> app.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", g, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-    }
-
-    /** Mid-scan restart: the capture keeps running; the player force-stops the game and opens it again. */
-    fun restartGameDuringScan() {
-        val app = getApplication<Application>()
-        captureStarted = System.currentTimeMillis()
-        captureElapsed = 0L
-        app.startService(Intent(app, TProxyService::class.java).setAction(TProxyService.ACTION_RESET_CLOCK))
-        openGameSettings()
-    }
-
-    val pillAllowed get() = android.provider.Settings.canDrawOverlays(getApplication())
-
-    fun allowPill() {
-        val app = getApplication<Application>()
-        app.startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + app.packageName))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }
-
-    fun openGame() {
-        val app = getApplication<Application>()
-        game?.let { g -> app.packageManager.getLaunchIntentForPackage(g)?.let { app.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
-    }
-
-    /** Heuristic only: the lobby's login reply carries the whole box, well over 100 KB. */
-    val lobbyLikely get() = captureBytes > TProxyService.LOBBY_KB * 1024
-
-    fun stopAndImport() {
-        val app = getApplication<Application>()
-        if (scanPhase == ScanPhase.CAPTURING)
-            app.startService(Intent(app, TProxyService::class.java).setAction(TProxyService.ACTION_DISCONNECT))
-        scanPhase = ScanPhase.IMPORTING
-        scanError = null
-        val t0 = System.currentTimeMillis()
-        thread(name = "import") {
-            var cause: String? = null
-            fun describe(e: Throwable) = "${e.javaClass.simpleName}: ${e.message.orEmpty()}".take(160)
-            val result = runCatching {
-                val segments = Capture.hexSegments()
-                if (segments.isEmpty()) return@runCatching ScanError.NOTHING to null
-                val resp = try { Fribbels.getItems(segments) } catch (e: IOException) { cause = describe(e); return@runCatching ScanError.SERVER to null }
-                val r = Fribbels.convert(resp)
-                if (r.items.length() == 0) return@runCatching ScanError.NOTHING to null
-                null to JSONObject().put("items", r.items).put("heroes", r.heroes).toString()
-            }.getOrElse { cause = describe(it); ScanError.NOTHING to null }
-            viewModelScope.launch {
-                scanPhase = ScanPhase.IDLE
-                val (err, text) = result
-                if (err != null || text == null) {
-                    scanError = err ?: ScanError.NOTHING
-                    // the reason goes into bug reports ("last error"), so a failed import can be told apart later
-                    lastError = "scan: ${scanError!!.name.lowercase()}" + (cause?.let { " · $it" } ?: "")
-                    saveScanLog()
-                    return@launch
-                }
-                saveScanLog()
-                Capture.clear()
-                decodeSec = ((System.currentTimeMillis() - t0) / 1000).toInt().coerceAtLeast(1)
-                importBox(text)
-                replace(Screen.ScanResult)
-            }
-        }
-    }
-
-    fun importBox(text: String) {
-        cancelAllWork()
-        if (e7.gearscan.overlay.OverlayState.upgrade != null) e7.gearscan.overlay.OverlayService.stop(getApplication())
-        val nb = Box.parse(text)
-        val old = box
-        lastDiff = ScanDiff.between(old, nb)
-        box = nb
-        lastScan = System.currentTimeMillis()
-        graph.boxChanged(old, nb)
-        if (team.isEmpty() || team.any { nb.hero(it) == null }) team = listOfNotNull(defaultHero(nb))
-        tiers = tiers.filterKeys { nb.hero(it) != null }
-        graph.scan.boxFile.write(text)
-        touch(); save()
-        team.firstOrNull()?.let { ensurePresets(it) }
-    }
 
     private fun defaultHero(b: Box): Long? =
         b.heroes.maxWithOrNull(compareBy({ tier(it.id) }, { h -> b.items.filter { it.equippedOn == h.id }.sumOf { it.score } }))?.id
@@ -1081,8 +786,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Sell review host (the feature reads the box, scan and tracker through this) ----
     private val sellHost = object : e7.gearscan.features.sellreview.SellHost {
-        override val box get() = this@AppModel.box
-        override val lastScan get() = this@AppModel.lastScan
         override val records get() = upgrades.records
         override val settingsKey get() = listOf(poolTiers, poolExtra, tiers, content.version, rev)
         override val contentVersion get() = content.version
@@ -1117,7 +820,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     init {
         graph.findGear.source = object : e7.gearscan.features.findgear.FindGearFeature.Source {
-            override val box get() = this@AppModel.box
             override val records get() = upgrades.records
             override fun setLabel(key: String) = content.set(key).let { (it?.name ?: key.removeSuffix("Set")) to it?.icon }
             override fun track(item: Item, goal: e7.gearscan.opt.GearPotential.Goal, openOverlay: Boolean) {
@@ -1146,9 +848,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         configureUpgrade()
         e7.gearscan.overlay.OverlayState.upgrade = upgrades
         e7.gearscan.overlay.OverlayState.expanded = false
-        if (overGameNative) { nativeOverGame(); checkUpgrade(); return }
+        if (graph.settings.overGameNative) { nativeOverGame(); checkUpgrade(); return }
         if (e7.gearscan.overlay.OverlayState.canDraw(getApplication())) {
-            e7.gearscan.overlay.OverlayService.start(getApplication()); checkUpgrade(); openGame()
+            e7.gearscan.overlay.OverlayService.start(getApplication()); checkUpgrade(); graph.scan.openGame()
         } else go(Screen.OverlayIntro)
     }
 
@@ -1379,7 +1081,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val next = Box(b.json)
         next.itemsById[r.item.id]?.let { next.setEquipped(it, heroId) }
         displaced?.let { d -> next.itemsById[d.id]?.let { next.setEquipped(it, null) } }
-        box = next; touch(); saveBox(); save()
+        graph.scan.replaceBox(next); touch(); saveBox(); save()
         val name = hero(heroId)?.let(::heroName) ?: "the hero"
         upgrades.equippedOn = name
         upgrades.undoEquip = {
@@ -1388,7 +1090,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 val back = Box(cur.json)
                 back.itemsById[r.item.id]?.let { back.setEquipped(it, owner) }
                 displaced?.let { d -> back.itemsById[d.id]?.let { back.setEquipped(it, heroId) } }
-                box = back; touch(); saveBox(); save()
+                graph.scan.replaceBox(back); touch(); saveBox(); save()
             }
             upgrades.undoEquip = null; upgrades.equippedOn = null
         }
@@ -1741,7 +1443,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             val reforged = e7.gearscan.data.UpgradeRecord(lastScan, listOf(e7.gearscan.data.UpgradeRecord.fromScan(it))).reforged().item
             b.writeStats(reforged)?.let { j -> id to j }
         }
-        if (before.isNotEmpty()) { box = Box(b.json); touch(); saveBox(); save() }
+        if (before.isNotEmpty()) { graph.scan.replaceBox(Box(b.json)); touch(); saveBox(); save() }
         return before
     }
 
@@ -1752,7 +1454,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun recordMods(mods: List<Pair<Long, e7.gearscan.data.Mod>>): List<Pair<Long, JSONObject>> {
         val b = box ?: return emptyList()
         val before = mods.mapNotNull { (id, m) -> b.itemsById[id]?.let { b.writeSubs(e7.gearscan.opt.Mods.apply(it, m)) }?.let { id to it } }
-        if (before.isNotEmpty()) { box = Box(b.json); touch(); saveBox(); save() }
+        if (before.isNotEmpty()) { graph.scan.replaceBox(Box(b.json)); touch(); saveBox(); save() }
         return before
     }
 
@@ -1761,7 +1463,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val b = box ?: return
         if (before.isEmpty()) return
         before.asReversed().forEach { (id, j) -> b.restore(id, j) }
-        box = Box(b.json); touch(); saveBox(); save()
+        graph.scan.replaceBox(Box(b.json)); touch(); saveBox(); save()
     }
 
     private fun reforgedNote(before: List<Pair<Long, JSONObject>>) = if (before.isEmpty()) "" else " · ${before.size} reforged"
@@ -1912,12 +1614,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     /** True when the overlay started; false when the permission screen must come first. */
     /** Over the game: false = E7 Gear's own overlay (any phone), true = the phone's floating window showing the app's panel. */
-    var overGameNative get() = graph.settings.overGameNative
-        set(v) { graph.settings.overGameNative = v }
-    fun useOverGameNative(on: Boolean) { overGameNative = on; if (on) e7.gearscan.overlay.OverlayService.stop(getApplication()); touch() }
-    /** The steps for the phone's floating window were shown once. */
-    var nativeSeen get() = graph.settings.nativeSeen
-        set(v) { graph.settings.nativeSeen = v }
     /** The app runs in the phone's floating (or split) window. */
     var floating by mutableStateOf(false)
     /** In that window with a tracker or checklist loaded: the panel (true) or the whole app. */
@@ -1928,15 +1624,15 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         e7.gearscan.overlay.OverlayService.stop(getApplication())
         e7.gearscan.overlay.OverlayState.expanded = true
         floatingPanel = true
-        if (!nativeSeen) { go(Screen.OverlayIntro); return }
-        openGame()
+        if (!graph.settings.nativeSeen) { go(Screen.OverlayIntro); return }
+        graph.scan.openGame()
     }
 
     /** Opens the loaded checklist over the game the way the player chose, or the intro when the overlay needs its permission. */
     fun startLoadedOverGame() {
         val app = getApplication<Application>()
-        if (overGameNative) { nativeOverGame(); return }
-        if (e7.gearscan.overlay.OverlayState.canDraw(app)) { e7.gearscan.overlay.OverlayService.start(app); openGame() } else go(Screen.OverlayIntro)
+        if (graph.settings.overGameNative) { nativeOverGame(); return }
+        if (e7.gearscan.overlay.OverlayState.canDraw(app)) { e7.gearscan.overlay.OverlayService.start(app); graph.scan.openGame() } else go(Screen.OverlayIntro)
     }
 
     /** Closing the panel in the floating window: the tracker or checklist stays saved, the window shows the app. */
@@ -1948,28 +1644,13 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun showOverGame(heroId: Long, b: Build, title: String, flag: String? = null): Boolean {
         val app = getApplication<Application>()
         loadBuildChecklist(heroId, b, title, flag)
-        if (overGameNative) { nativeOverGame(); return true }
+        if (graph.settings.overGameNative) { nativeOverGame(); return true }
         if (!e7.gearscan.overlay.OverlayState.canDraw(app)) return false
         e7.gearscan.overlay.OverlayService.stop(app)
         e7.gearscan.overlay.OverlayService.start(app)
-        overlaySeen = true; save()
-        openGame()
+        graph.settings.overlaySeen = true; save()
+        graph.scan.openGame()
         return true
-    }
-
-    // ---- reports ----
-    private fun saveScanLog() {
-        val t = Capture.logText()
-        graph.scan.logFile.write(t)
-    }
-
-    fun scanLog(): String = Capture.logText().ifEmpty { graph.scan.logFile.file.takeIf { it.exists() }?.readText().orEmpty() }
-
-    fun deviceInfo(): String {
-        val app = getApplication<Application>()
-        val v = runCatching { app.packageManager.getPackageInfo(app.packageName, 0).versionName }.getOrNull() ?: "?"
-        return "App $v · Android ${android.os.Build.VERSION.RELEASE} · ${android.os.Build.MODEL}" +
-            (lastError?.let { " · last error: $it" } ?: "")
     }
 
     fun searchContext(): JSONObject? {
@@ -1980,115 +1661,17 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             .put("ghost", s.ghost != null).put("team", s.team.size)
     }
 
-    var knownIssues by mutableStateOf(e7.gearscan.data.KnownIssues.cached(files))
-        private set
-
-    fun refreshKnownIssues() {
-        val url = e7.gearscan.data.KnownIssues.url(content.feedbackUrl) ?: return
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { e7.gearscan.data.KnownIssues.fetch(url, files) }?.let { knownIssues = it }
-        }
-    }
-
-    fun sendReport(report: JSONObject, done: (Reports.Outcome) -> Unit) {
-        viewModelScope.launch {
-            val r = withContext(Dispatchers.IO) {
-                Reports.enqueue(reportsDir, report)
-                Reports.flush(reportsDir, content.feedbackUrl, report.getString("id"))
-            }
-            done(r)
-        }
-    }
-
-    // ---- files ----
-    /** Saves [text] to Downloads/E7GearScan; returns where, and the name it got. */
-    fun export(name: String, text: String): Pair<Uri, String> {
-        val app = getApplication<Application>()
-        val dir = Environment.DIRECTORY_DOWNLOADS + "/E7GearScan"
-        val coll = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-        app.contentResolver.delete(coll, "${MediaStore.MediaColumns.RELATIVE_PATH}=? AND ${MediaStore.MediaColumns.DISPLAY_NAME}=?",
-            arrayOf("$dir/", name))
-        fun insert(n: String) = app.contentResolver.insert(coll, ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, n)
-            put(MediaStore.MediaColumns.MIME_TYPE, if (name.endsWith(".json")) "application/json" else "text/plain")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, dir)
-        })!!
-        // copies left by an earlier install aren't ours to replace, and Android numbers a name only up to 31 times
-        var saved = name
-        val uri = runCatching { insert(name) }.getOrElse {
-            val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(java.util.Date())
-            saved = name.substringBeforeLast('.') + "-$stamp." + name.substringAfterLast('.')
-            insert(saved)
-        }
-        app.contentResolver.openOutputStream(uri)!!.use { it.write(text.toByteArray()) }
-        return uri to saved
-    }
-
-    fun exportGear(): Pair<Uri, String>? = box?.let { export("gear.txt", it.toText()) }
-
-    fun backupText(): String {
-        box?.let { graph.scan.boxFile.write(it.toText()) }
-        if (history.isNotEmpty() || graph.history.file.exists) graph.history.file.write(e7.gearscan.data.History.encode(history))
-        graph.disk.flush()
-        return graph.store.backup().toString()
-    }
-
-    fun restore(text: String): Boolean = runCatching {
-        val j = JSONObject(text)
-        if (j.optString("app") != "e7gear") return false
-        if (!j.has("state") && !j.has("fields")) return false
-        stopAllWork()
-        graph.store.restore(j)
-        adopt()
-        upgrades.restore(runCatching { JSONObject(graph.tracker.upgrades.read().orEmpty()) }.getOrDefault(JSONObject()))
-        syncTrackerMarks()
-        true
-    }.getOrDefault(false)
-
     private fun cancelAllWork() {
         graph.work.cancelAll()
     }
 
-    private fun stopAllWork() {
-        cancelAllWork()
-        e7.gearscan.overlay.OverlayService.stop(getApplication())
-    }
-
-    fun eraseAll() {
-        stopAllWork()
-        graph.store.erase()
-        e7.gearscan.overlay.OverlayState.upgrade = null
-        upgrades.restore(JSONObject(), write = false)
-        presets.clear(); search = null; pool = null
-        adopt()
-        stack = listOf(Screen.ScanIntro)
-    }
-
-    fun readUri(uri: Uri): String? = runCatching {
-        getApplication<Application>().contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() }
-    }.getOrNull()
-
     // ---- persistence ----
-    private val crashFile = File(files, CRASH_FILE)
-    var lastCrash: String? by mutableStateOf(null)
-        private set
-
-    fun dismissCrash() { lastCrash = null; crashFile.delete() }
-
-    private fun readBox(): Box? = graph.scan.boxFile.takeIf { it.exists }?.let { f -> runCatching { Box.parse(f.read()!!) }.getOrNull() }
-
-    private fun adopt(b: Box? = readBox()) {
-        val old = box
-        box = b
-        graph.heroes.adoptConfigs()
+    private fun adopted(b: Box?) {
         // early RTA presets saved single pieces of 2-piece sets as requirements; keep only complete sets
         configs.values.forEach { cfg -> cfg.request?.let { r ->
             r.setAlts = r.setAlts.map { alt -> alt.mapNotNull { (k, n) -> content.set(k)?.takeIf { n >= it.pieces }?.let { k to (n / it.pieces) * it.pieces } }.toMap() }
                 .filter { it.isNotEmpty() }
         } }
-        graph.sellReview.reset()
-        graph.findGear.reset()
-        graph.boxChanged(old, b)
         syncTrackerMarks()
         // results saved before the swap fields existed can't answer "this piece only": they are dropped
         heroUpgrades = runCatching { JSONObject(graph.improveHeroes.result.read().orEmpty()) }.getOrNull()?.takeIf { it.optInt("format") == HERO_UPGRADES_FORMAT }?.let { o -> b?.let { bx -> runCatching {
@@ -2107,35 +1690,33 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun save() { graph.store.saveNow() }
 
-    private fun saveBox() {
-        graph.scan.boxFile.write(box?.toText() ?: return)
-    }
-
-    fun showCapture() {
-        if (scanPhase != ScanPhase.IDLE && screen != Screen.Capture) go(Screen.Capture)
-    }
-
-    /** "just now", "5 h ago", "3 d ago". */
-    fun scannedLabelOf(at: Long): String {
-        val h = (System.currentTimeMillis() - at) / 3_600_000
-        return when { h < 1 -> "just now"; h < 24 -> "$h h ago"; else -> "${h / 24} d ago" }
-    }
-
-    fun scannedLabel(): String {
-        if (scanPhase == ScanPhase.CAPTURING) return "Scanning · ${captureBytes / 1024} KB"
-        if (scanPhase == ScanPhase.IMPORTING) return "Importing…"
-        if (lastScan == 0L) return if (box == null) "Not scanned" else "Imported"
-        val h = (System.currentTimeMillis() - lastScan) / 3_600_000
-        return when {
-            h < 1 -> "Scanned just now"
-            h < 24 -> "Scanned $h h ago"
-            else -> "Scanned ${h / 24} d ago"
-        }
-    }
+    private fun saveBox() = graph.scan.saveBox()
 
     // last in the class: startup work started here reads fields declared above, which must exist before it runs
     init {
-        e7.gearscan.data.Http.agent = "E7Gear/$appVersion"
+        e7.gearscan.data.Http.agent = "E7Gear/${graph.appUpdate.version}"
+        graph.scan.detectGame()
+        graph.scan.host = object : ScanFeature.Host {
+            override fun imported(box: Box) {
+                if (team.isEmpty() || team.any { box.hero(it) == null }) team = listOfNotNull(defaultHero(box))
+                tiers = tiers.filterKeys { box.hero(it) != null }
+                save()
+                team.firstOrNull()?.let { ensurePresets(it) }
+            }
+            override fun adopted(box: Box?) = this@AppModel.adopted(box)
+            override fun beforeBackup() {
+                if (history.isNotEmpty() || graph.history.file.exists) graph.history.file.write(e7.gearscan.data.History.encode(history))
+            }
+            override fun restored() {
+                upgrades.restore(runCatching { JSONObject(graph.tracker.upgrades.read().orEmpty()) }.getOrDefault(JSONObject()))
+                syncTrackerMarks()
+            }
+            override fun erased() {
+                e7.gearscan.overlay.OverlayState.upgrade = null
+                upgrades.restore(JSONObject(), write = false)
+                presets.clear(); search = null; pool = null
+            }
+        }
         e7.gearscan.overlay.OverlayState.progressFile = graph.tracker.checklist.file
         upgrades.cancelCheck = { graph.tracker.check.cancel() }
         upgrades.requestCheck = ::checkUpgrade
@@ -2145,31 +1726,19 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         upgrades.rebuilds = heroUpgradeRebuilds
         upgrades.setRebuilds = { on -> useHeroUpgradeRebuilds(on); upgrades.rebuilds = on; checkUpgrade() }
         viewModelScope.launch {
-            val b = withContext(Dispatchers.IO) { graph.loadOnce(); readBox() }
-            lastCrash = withContext(Dispatchers.IO) { crashFile.takeIf { it.exists() }?.readText() }
-            adopt(b)
+            val b = withContext(Dispatchers.IO) { graph.loadOnce(); graph.scan.readBox() }
+            graph.feedback.loadCrash()
+            graph.scan.adopt(b)
             box?.let { b -> if (team.isEmpty() || team.any { b.hero(it) == null }) team = listOfNotNull(defaultHero(b)) }
-            stack = listOf(if (!consent && box == null) Screen.ScanIntro else Screen.Optimize)
+            stack = listOf(if (!graph.settings.consent && box == null) Screen.ScanIntro else Screen.Optimize)
             ready = true
             team.firstOrNull()?.let { ensurePresets(it) }
-            if (content.heroes.isEmpty()) checkContent()
-            else if (System.currentTimeMillis() - contentCheckedAt > 24 * 3600 * 1000L) checkContent(quiet = true)
-            checkAppUpdate()
-            withContext(Dispatchers.IO) { AppInstall.clean(getApplication(), appVersion) }
-            withContext(Dispatchers.IO) { Reports.flush(reportsDir, content.feedbackUrl) }
+            if (content.heroes.isEmpty()) graph.content.checkNow()
+            else if (System.currentTimeMillis() - graph.content.checkedAt > 24 * 3600 * 1000L) graph.content.checkNow(quiet = true)
+            graph.appUpdate.checkNow()
+            graph.appUpdate.cleanOld()
+            graph.feedback.flushQueued()
         }
-        viewModelScope.launch {
-            while (true) {
-                captureConns = Capture.count()
-                captureBytes = Capture.totalBytes()
-                captureElapsed = if (scanPhase == ScanPhase.CAPTURING) System.currentTimeMillis() - captureStarted else 0L
-                // the VPN can end without us (revoked by another VPN, service killed)
-                if (scanPhase == ScanPhase.CAPTURING && !Capture.vpnRunning && System.currentTimeMillis() - captureStarted > 5000) {
-                    scanPhase = ScanPhase.IDLE
-                    if (captureBytes == 0L) scanError = ScanError.NOTHING
-                }
-                delay(1000)
-            }
-        }
+        viewModelScope.launch { graph.scan.watch() }
     }
 }

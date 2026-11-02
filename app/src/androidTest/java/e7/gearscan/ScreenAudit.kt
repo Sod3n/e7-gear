@@ -1,5 +1,8 @@
 package e7.gearscan
 
+import e7.gearscan.features.scan.CaptureSession
+import e7.gearscan.features.scan.ScanError
+import e7.gearscan.features.scan.ScanPhase
 import android.app.Application
 import android.graphics.Bitmap
 import android.os.Build
@@ -98,7 +101,7 @@ class ScreenAudit {
         rule.waitUntil(20_000) { model.ready }
         // the APK carries no game data: the first start downloads it from the content site
         rule.waitUntil(60_000) { model.content.heroes.isNotEmpty() }
-        rule.runOnUiThread { model.importBox(gear); model.consent = true }
+        rule.runOnUiThread { model.graph.scan.import(gear); model.graph.settings.consent = true }
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, setup.fontScale)) {
@@ -549,19 +552,19 @@ class ScreenAudit {
         steps.add("pool-trades-reset" to { ui { model.poolKeep = emptyMap(); model.poolGive = emptyMap(); model.sheet = null } })
         steps.add("app-update" to {
             ui { model.sheet = null; model.poolMode = false; model.stack = listOf(Screen.Optimize)
-                model.appUpdate = e7.gearscan.data.AppUpdate.Release("9.9.9", "https://example.invalid", "https://example.invalid/E7-Gear-9.9.9.apk", 1) }
+                model.graph.appUpdate.release = e7.gearscan.data.AppUpdate.Release("9.9.9", "https://example.invalid", "https://example.invalid/E7-Gear-9.9.9.apk", 1) }
             // the installed APK is this app with this key, so only its version may stop it
             val own = e7.gearscan.AppInstall.refusal(ctx, java.io.File(ctx.applicationInfo.sourceDir))
             if (own != "it isn't newer than this version") add("the update check misreads an APK", "app update: $own")
             val agent = e7.gearscan.data.Http.open("https://example.invalid").getRequestProperty("User-Agent")
-            if (agent != "E7Gear/${model.appVersion}") add("requests don't name the app and version", "user agent: $agent")
+            if (agent != "E7Gear/${model.graph.appUpdate.version}") add("requests don't name the app and version", "user agent: $agent")
         })
         steps.add("app-update-failed" to {
-            ui { model.updateApp() }
-            rule.waitUntil(30_000) { model.updateProgress == null && model.updateProblem != null }
-            if (model.updateProblem?.startsWith("Download stopped") != true) add("a failed update download isn't shown", "app update: ${model.updateProblem}")
+            ui { model.graph.appUpdate.update() }
+            rule.waitUntil(30_000) { model.graph.appUpdate.progress == null && model.graph.appUpdate.problem != null }
+            if (model.graph.appUpdate.problem?.startsWith("Download stopped") != true) add("a failed update download isn't shown", "app update: ${model.graph.appUpdate.problem}")
         })
-        steps.add("pool-off" to { ui { model.appUpdate = null; model.sheet = null; model.pool = poolDone; model.poolMode = false; model.stack = listOf(Screen.Optimize) } })
+        steps.add("pool-off" to { ui { model.graph.appUpdate.release = null; model.sheet = null; model.pool = poolDone; model.poolMode = false; model.stack = listOf(Screen.Optimize) } })
         screen("heroes", Screen.Heroes)
         steps.add("heroes-tier-editor" to { ui { model.sheet = null; model.stack = listOf(Screen.Heroes) }; clickText(model.heroName(model.hero(hero)!!)) })
         steps.add("heroes-unranked" to { ui { model.sheet = null; model.stack = listOf(Screen.Heroes) }; clickText("Show") })
@@ -569,29 +572,29 @@ class ScreenAudit {
         screen("scan-intro", Screen.ScanIntro)
         // first start: Scan & data must be reachable without agreeing to scan, and both ways in leave Optimize under it
         steps.add("first-start-restore-link" to {
-            ui { model.sheet = null; model.consent = false; model.stack = listOf(Screen.ScanIntro) }
+            ui { model.sheet = null; model.graph.settings.consent = false; model.stack = listOf(Screen.ScanIntro) }
             clickText("Restore a backup or import a gear.txt instead"); rule.waitForIdle()
             if (model.stack != listOf(Screen.Optimize, Screen.ScanData)) add("first start traps you on Scan & data", "restore link: ${model.stack}")
         })
         steps.add("first-start-continue" to {
-            ui { model.sheet = null; model.consent = false; model.stack = listOf(Screen.ScanIntro) }
+            ui { model.sheet = null; model.graph.settings.consent = false; model.stack = listOf(Screen.ScanIntro) }
             clickText("I understand what is sent and agree to scan"); clickText("Continue"); rule.waitForIdle()
             if (model.stack != listOf(Screen.Optimize, Screen.ScanData)) add("first start traps you on Scan & data", "continue: ${model.stack}")
-            if (!model.consent) add("first start loses the scan consent", "continue")
+            if (!model.graph.settings.consent) add("first start loses the scan consent", "continue")
         })
         steps.add("app-update-page-only" to {
-            ui { model.sheet = null; model.poolMode = false; model.appUpdate = e7.gearscan.data.AppUpdate.Release("9.9.9", "https://github.com/Sod3n/e7-gear/releases"); model.stack = listOf(Screen.Optimize) }
+            ui { model.sheet = null; model.poolMode = false; model.graph.appUpdate.release = e7.gearscan.data.AppUpdate.Release("9.9.9", "https://github.com/Sod3n/e7-gear/releases"); model.stack = listOf(Screen.Optimize) }
             if (rule.onAllNodesWithText("E7 Gear 9.9.9 is out", useUnmergedTree = true).fetchSemanticsNodes().isEmpty()) add("a newer release shows no card", "app update")
         })
-        steps.add("app-update-reset" to { ui { model.appUpdate = null } })
+        steps.add("app-update-reset" to { ui { model.graph.appUpdate.release = null } })
         screen("scan-data", Screen.Optimize, Screen.ScanData)
         screen("capture-ready", Screen.ScanData, Screen.Capture)
         steps.add("capture-running" to { capture(model, 20_000) })
         steps.add("capture-lobby" to { capture(model, 300_000) })
-        ScanError.entries.forEach { e -> steps.add("capture-error-${e.name.lowercase()}" to { ui { resetCapture(model); model.scanError = e } }) }
+        ScanError.entries.forEach { e -> steps.add("capture-error-${e.name.lowercase()}" to { ui { resetCapture(model); model.graph.scan.error = e } }) }
         // import a box missing a few items first, so the result has real "new items" to show
         val older = org.json.JSONObject(gear).apply { val a = getJSONArray("items"); repeat(5) { a.remove(0) } }.toString()
-        steps.add("scan-result" to { ui { resetCapture(model); model.importBox(older); model.importBox(gear); model.stack = listOf(Screen.Optimize, Screen.ScanData, Screen.ScanResult) } })
+        steps.add("scan-result" to { ui { resetCapture(model); model.graph.scan.import(older); model.graph.scan.import(gear); model.stack = listOf(Screen.Optimize, Screen.ScanData, Screen.ScanResult) } })
         (0..2).forEach { screen("diff-$it", Screen.ScanResult, Screen.DiffItems(it)) }
         // the Gear tab and its three modes
         screen("gear-home", Screen.Gear)
@@ -914,10 +917,10 @@ class ScreenAudit {
         // ~650 screens in one process leave little heap: a second JSON tree of the backup ran out of memory and lost the report
         try {
             val runs = model.history.size
-            val text = model.backupText()
+            val text = model.graph.scan.backupText()
             if (historyLength(text) != runs) add("a backup doesn't carry the history", "backup")
             var ok = false
-            ui { ok = model.restore(text) }
+            ui { ok = model.graph.scan.restore(text) }
             if (!ok || model.history.size != runs || runs == 0) add("restoring a backup loses the history", "backup: $runs runs before, ${model.history.size} after, ${text.length / 1024} KB, heap ${heapMb()}")
         } catch (e: OutOfMemoryError) {
             add("the backup step ran out of memory", "heap ${heapMb()}")
@@ -976,16 +979,16 @@ class ScreenAudit {
             .groupBy({ text(it) }, { it.boundsInRoot }).filterKeys { it.isNotBlank() }
 
     private fun capture(model: AppModel, bytes: Int) = ui {
-        Capture.clear(); Capture.open().write(Capture.DIR_S2C, ByteArray(bytes), bytes)
-        model.captureStarted = Long.MAX_VALUE / 2
-        model.captureConns = 1; model.captureBytes = bytes.toLong()
-        model.scanError = null
-        model.scanPhase = ScanPhase.CAPTURING
+        model.graph.scan.capture.clear(); model.graph.scan.capture.open().write(CaptureSession.DIR_S2C, ByteArray(bytes), bytes)
+        model.graph.scan.captureStarted = Long.MAX_VALUE / 2
+        model.graph.scan.conns = 1; model.graph.scan.bytes = bytes.toLong()
+        model.graph.scan.error = null
+        model.graph.scan.phase = ScanPhase.CAPTURING
         model.stack = listOf(Screen.ScanData, Screen.Capture)
     }
 
     private fun resetCapture(model: AppModel) {
-        Capture.clear(); model.scanPhase = ScanPhase.IDLE; model.scanError = null; model.captureStarted = 0
+        model.graph.scan.capture.clear(); model.graph.scan.phase = ScanPhase.IDLE; model.graph.scan.error = null; model.graph.scan.captureStarted = 0
         model.stack = listOf(Screen.ScanData, Screen.Capture)
     }
 

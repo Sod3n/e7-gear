@@ -75,9 +75,9 @@ class SellFiltersScreens {
         lateinit var model:AppModel
         ui { model=AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        ui { assertTrue(model.restore(assets.open("backup.json").bufferedReader().use { it.readText() }));model.go(Screen.SellFilters) }
+        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() }));model.go(Screen.SellFilters) }
         val images=File(ctx.getExternalFilesDir(null),"audit-images")
-        if(images.isDirectory)e7.gearscan.ui.GameImages.base=images.toURI().toString()
+        if(images.isDirectory)model.graph.content.imageBase = images.toURI().toString()
         var width by mutableIntStateOf(411);var font by mutableFloatStateOf(1f);var overlay by mutableStateOf(false)
         rule.setContent {
             val d=LocalDensity.current;val c=Configuration(LocalConfiguration.current).apply { screenWidthDp=width;screenHeightDp=if(overlay)240 else 850 }
@@ -132,31 +132,31 @@ class SellFiltersScreens {
         tap("Sold ›")
         assertTrue(soldId in model.clearedIds);assertEquals(n-1,t.pendingQueue.size);assertNotEquals(soldId,t.selected)
         shot("19-sold-next",true)
-        val afterSale=model.backupText()
+        val afterSale=model.graph.scan.backupText()
         val interrupted=withTracker(afterSale) { it.put("selected",soldId) }
-        ui { assertTrue(model.restore(interrupted)) }
+        ui { assertTrue(model.graph.scan.restore(interrupted)) }
         assertNotEquals(soldId,t.selected);assertTrue(t.queueIndex>=0)
         val stale=withTracker(afterSale) { it.put("queueScan",model.lastScan-1) }
         val remaining=t.selected!!
-        ui { assertTrue(model.restore(stale));model.markOverlaySold(remaining) }
+        ui { assertTrue(model.graph.scan.restore(stale));model.markOverlaySold(remaining) }
         assertFalse(remaining in model.clearedIds);assertNotNull(t.error)
-        ui { assertTrue(model.restore(afterSale)) }
+        ui { assertTrue(model.graph.scan.restore(afterSale)) }
         // Repeated events from the old button cannot mark the new piece.
         ui { model.markOverlaySold(soldId) };assertEquals(n-1,t.pendingQueue.size)
         rule.onNodeWithContentDescription("Undo last mark").performClick();rule.waitForIdle()
         assertFalse(soldId in model.clearedIds);assertEquals(n,t.pendingQueue.size);assertEquals(soldId,t.selected)
         assertEquals(history,t.record!!.history.size);shot("20-undo-sold-mark",true)
-        ui { overlay=false;assertTrue(model.restore(afterSale));model.go(Screen.Upgrade) }
+        ui { overlay=false;assertTrue(model.graph.scan.restore(afterSale));model.go(Screen.Upgrade) }
         assertTrue(soldId in model.clearedIds);assertEquals(n-1,t.pendingQueue.size);assertTrue(t.canUndoSold)
         ui { model.undoOverlaySold() };assertEquals(soldId,t.selected);assertFalse(soldId in model.clearedIds)
         ui { OverlayState.expanded=true;overlay=true }
         shot("21-sold-mark-restored",true)
         var returned=0;ui { t.returnToApp={returned++} };rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Open E7 Gear");assertEquals(1,returned)
-        val backup=model.backupText();val saved=JSONObject(backup)
+        val backup=model.graph.scan.backupText();val saved=JSONObject(backup)
         assertEquals(model.graph.sellReview.query,SellQuery.of(saved.getJSONObject("fields").getJSONObject("sellReview.query")))
         val reopened=UpgradeTracker(File(ctx.filesDir,"upgrades.json"));assertTrue(reopened.isRollReview);assertEquals(t.reviewRolls,reopened.reviewRolls);assertEquals(t.queue,reopened.queue)
         val lastQuery=model.graph.sellReview.query
-        ui { overlay=false;assertTrue(model.restore(backup));model.go(Screen.SellFilters) }
+        ui { overlay=false;assertTrue(model.graph.scan.restore(backup));model.go(Screen.SellFilters) }
         assertEquals(lastQuery,model.graph.sellReview.query);assertFalse(model.graph.sellReview.query.scoreFilter);noPoints()
         ui { model.graph.sellReview.find() };rule.waitUntil(90_000) { !model.graph.sellReview.busy }
         val only=model.graph.sellReview.result!!.matches.first().item.id

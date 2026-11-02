@@ -39,7 +39,7 @@ class UpgradeScreens {
         lateinit var model: AppModel
         ui { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        ui { assertTrue(model.restore(assets.open("backup.json").bufferedReader().use { it.readText() })) }
+        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })) }
         val piece = model.box!!.items.first { UpgradeRecord.supported(it) && it.rank == "Epic" && it.enhance == 9 && it.id !in model.clearedIds }
         var width by mutableStateOf(411)
         var font by mutableStateOf(1f)

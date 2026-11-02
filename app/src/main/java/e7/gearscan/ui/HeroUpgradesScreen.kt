@@ -1,28 +1,25 @@
 package e7.gearscan.ui
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import e7.gearscan.data.Stat
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -178,7 +175,7 @@ private fun Summary(model: AppModel, view: List<AppModel.HeroUpgradeHero>, st: e
             Text("${better.size}", style = dela(32.sp).pinkShadow())
             Text(if (better.size == 1) "hero can get better" else "heroes can get better", style = zen(13.sp), modifier = Modifier.padding(bottom = 6.dp))
         }
-        Text("${better.flatMap { h -> h.rows.map { it.pick.piece } }.distinct().size} pieces · checked ${model.scannedLabelOf(st.finishedAt)}",
+        Text("${better.flatMap { h -> h.rows.map { it.pick.piece } }.distinct().size} pieces · checked ${model.graph.scan.scannedLabelOf(st.finishedAt)}",
             style = zen(11.sp, FontWeight.Medium, C.muted))
         if (r.unknownSteps > 0 && !st.running) Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("${r.unknownSteps} ${if (r.unknownSteps == 1) "check" else "checks"} not finished", style = zen(11.sp, FontWeight.Medium, C.deepPink), modifier = Modifier.weight(1f))

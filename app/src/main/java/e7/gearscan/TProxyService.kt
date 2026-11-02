@@ -27,6 +27,7 @@ import java.io.IOException
 class TProxyService : VpnService() {
     private var tunFd: ParcelFileDescriptor? = null
     private var proxy: CaptureProxy? = null
+    private val capture get() = (application as E7GearApp).graph.scan.capture
     private val handler = Handler(Looper.getMainLooper())
     private var alerted = false
     private var started = 0L
@@ -34,11 +35,11 @@ class TProxyService : VpnService() {
     private val tick = object : Runnable {
         override fun run() {
             if (tunFd == null) return
-            val kb = Capture.totalBytes() / 1024
+            val kb = capture.totalBytes() / 1024
             val lobby = kb >= LOBBY_KB
             getSystemService(NotificationManager::class.java).notify(1, progressNotification(kb, lobby))
             if (lobby && !alerted) { alerted = true; alertLobby() }
-            pill?.show(e7.gearscan.data.ScanStatus.of(Capture.count(), Capture.totalBytes(), System.currentTimeMillis() - started))
+            pill?.show(e7.gearscan.data.ScanStatus.of(capture.count(), capture.totalBytes(), System.currentTimeMillis() - started))
             handler.postDelayed(this, 1000)
         }
     }
@@ -59,7 +60,7 @@ class TProxyService : VpnService() {
     private fun startCapture(game: String, upstream: String) {
         if (tunFd != null) return
         val proxy = try {
-            CaptureProxy(upstream).also { it.start() }
+            CaptureProxy(upstream, capture).also { it.start() }
         } catch (e: IOException) {
             stopSelf()
             return
@@ -114,7 +115,7 @@ class TProxyService : VpnService() {
         // fake-IP DNS (mapdns): names reach CaptureProxy as SOCKS domain requests, so no UDP is needed
         TProxyStartService(conf.absolutePath, fd.fd)
         alerted = false
-        Capture.vpnRunning = true
+        capture.vpnRunning = true
         started = System.currentTimeMillis()
         pill = e7.gearscan.overlay.ScanPill(this, openApp())
         startForegroundNotification()
@@ -125,7 +126,7 @@ class TProxyService : VpnService() {
         handler.removeCallbacks(tick)
         pill?.hide()
         pill = null
-        Capture.vpnRunning = false
+        capture.vpnRunning = false
         getSystemService(NotificationManager::class.java).cancel(2)
         tunFd?.let {
             stopForeground(STOP_FOREGROUND_REMOVE)

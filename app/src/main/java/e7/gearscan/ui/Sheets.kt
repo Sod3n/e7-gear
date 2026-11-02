@@ -40,7 +40,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -57,9 +56,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -75,7 +72,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import e7.gearscan.AppModel
 import e7.gearscan.Sheet
 import e7.gearscan.SheetKind
@@ -770,7 +766,7 @@ private fun ShowSheet(model: AppModel) {
         Text("The number on each result card. Results stay ranked by the goal.", style = zen(12.sp, FontWeight.Medium, C.muted))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Rating.entries.forEach { r ->
-                Pill(r.label, selected = model.showRating == r, onClick = { model.showRating = r; model.save(); model.sheet = null })
+                Pill(r.label, selected = model.graph.settings.showRating == r, onClick = { model.graph.settings.showRating = r; model.save(); model.sheet = null })
             }
         }
     }

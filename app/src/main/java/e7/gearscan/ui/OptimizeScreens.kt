@@ -1,5 +1,8 @@
 package e7.gearscan.ui
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import e7.gearscan.features.scan.ScanPhase
 import androidx.compose.foundation.background
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -22,11 +25,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import e7.gearscan.AppModel
 import e7.gearscan.Screen
-import e7.gearscan.ScanPhase
 import e7.gearscan.Sheet
 import e7.gearscan.SheetKind
 import e7.gearscan.calc.Calc
@@ -59,8 +58,8 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun OptimizeScreen(model: AppModel) {
-    model.rev
-    val box = model.box
+    model.graph.scan.rev
+    val box = model.graph.scan.box
     val team = model.team.mapNotNull { model.hero(it) }
     val pool = box != null && model.poolMode
     val history = box != null && model.showHistory
@@ -76,19 +75,19 @@ fun OptimizeScreen(model: AppModel) {
             }
         })
     }) {
-        ScreenTitle("Optimize", "最適化") { ScanChip(model.scannedLabel(), model.scanPhase != ScanPhase.IDLE) { if (model.scanPhase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
+        ScreenTitle("Optimize", "最適化") { ScanChip(model.graph.scan.scannedLabel(), model.graph.scan.phase != ScanPhase.IDLE) { if (model.graph.scan.phase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
         CrashCard(model)
-        model.appUpdate?.let { u ->
-            val p = model.updateProgress
+        model.graph.appUpdate.release?.let { u ->
+            val p = model.graph.appUpdate.progress
             Card(shadow = C.pink, padding = PaddingValues(0.dp)) {
-                ListRow({ model.updateApp() }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp), trailing = {
+                ListRow({ model.graph.appUpdate.update() }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp), trailing = {
                     Box(Modifier.widthIn(min = 56.dp), contentAlignment = Alignment.CenterEnd) {
                         Text(if (p != null) "${(p * 100).toInt()}%" else if (u.apk != null) "Update" else "Download", style = zen(12.sp, color = C.deepPink))
                     }
                 }) {
                     Text("E7 Gear ${u.version} is out", style = zen(13.sp))
-                    Text(model.updateProblem ?: "You have ${model.appVersion}. Your heroes and builds stay.",
-                        style = zen(11.sp, FontWeight.Medium, if (model.updateProblem != null) C.deepPink else C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(model.graph.appUpdate.problem ?: "You have ${model.graph.appUpdate.version}. Your heroes and builds stay.",
+                        style = zen(11.sp, FontWeight.Medium, if (model.graph.appUpdate.problem != null) C.deepPink else C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -124,7 +123,7 @@ private fun NoBox(model: AppModel) {
         VSpace(4.dp)
         Text("Scan the game once to load your heroes and gear, or import a Fribbels gear.txt.", style = zen(13.sp, FontWeight.Medium, C.muted))
         VSpace(10.dp)
-        PinkButton("Scan the game", Modifier.fillMaxWidth()) { model.go(if (model.consent) Screen.ScanData else Screen.ScanIntro) }
+        PinkButton("Scan the game", Modifier.fillMaxWidth()) { model.go(if (model.graph.settings.consent) Screen.ScanData else Screen.ScanIntro) }
         VSpace(8.dp)
         LinkText("Restore a backup or import a gear.txt") { model.go(Screen.ScanData) }
     }
@@ -134,14 +133,14 @@ private fun NoBox(model: AppModel) {
 @Composable
 fun HeroSubtitle(model: AppModel, h: OwnedHero, text: String) {
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        ArtifactIcon(model, model.content.artifact(model.config(h.id).artifact ?: model.request(h.id).artifact), 18.dp)
+        ArtifactIcon(model, model.graph.content.content.artifact(model.config(h.id).artifact ?: model.request(h.id).artifact), 18.dp)
         Text(text, style = zen(12.sp, FontWeight.Medium, C.muted), maxLines = 3, overflow = TextOverflow.Ellipsis)
     }
 }
 
 fun heroSubtitle(model: AppModel, h: OwnedHero): String {
     val cfg = model.config(h.id)
-    val art = model.content.artifact(cfg.artifact ?: model.request(h.id).artifact)
+    val art = model.graph.content.content.artifact(cfg.artifact ?: model.request(h.id).artifact)
     return (art?.let { "${it.name} +30" } ?: "Artifact +30") + " · full imprint, always"
 }
 
@@ -219,7 +218,7 @@ fun StatGrid(req: Request, value: (Stat) -> Double) {
 @Composable
 internal fun LooksFor(model: AppModel, h: OwnedHero, req: Request) {
     RowCard("Artifact", { model.sheet = Sheet(SheetKind.ARTIFACT, h.id) }) {
-        val art = model.content.artifact(model.config(h.id).artifact ?: req.artifact)
+        val art = model.graph.content.content.artifact(model.config(h.id).artifact ?: req.artifact)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ArtifactIcon(model, art, 20.dp)
             Text(art?.name ?: "None chosen", style = zen(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -264,20 +263,20 @@ fun ratingText(r: Rating, v: Double) = when (r) {
 
 @Composable
 fun ResultsScreen(model: AppModel) {
-    model.rev
+    model.graph.scan.rev
     val s = model.search ?: run { OptimizeScreen(model); return }
     val h = model.hero(s.heroId) ?: return
     val req = model.request(h.id)
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(s.running) { while (s.running) { now = System.currentTimeMillis(); delay(100) } }
-    val r = model.showRating
+    val r = model.graph.settings.showRating
     val byMatch = req.goal == Goal.TARGETS && model.showMatch
     Frame(model, Screen.Optimize, actions = if (s.builds.isEmpty()) null else ({
         PinkButton("Compare #1", Modifier.weight(1f)) { model.go(Screen.Compare(0)) }
     })) {
         BackToPrevious()
         if (s.historyAt != 0L) HistoryNote(s.historyAt)
-        ScreenTitle("Best 50") { ScanChip(model.scannedLabel(), model.scanPhase != ScanPhase.IDLE) { if (model.scanPhase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
+        ScreenTitle("Best 50") { ScanChip(model.graph.scan.scannedLabel(), model.graph.scan.phase != ScanPhase.IDLE) { if (model.graph.scan.phase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Face(model.face(h), 26.dp, ringWidth = 2.dp)
             Text("${model.heroName(h)} · ${req.goal.label}", style = zen(13.sp).copy(lineHeight = 16.sp), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -304,7 +303,7 @@ fun ResultsScreen(model: AppModel) {
                 val main = if (targets) listOf(Rating.DMG, Rating.SPD, Rating.EHP) else listOf(Rating.DMG, Rating.SPD, Rating.CP, Rating.EHP)
                 if (targets) Pill("Match", selected = byMatch, onClick = { model.showMatch = true })
                 main.forEach { x -> Pill(when (x) { Rating.DMG -> "Damage"; Rating.SPD -> "Speed"; else -> x.short }, selected = !byMatch && r == x,
-                    onClick = { model.showRating = x; model.showMatch = false; model.save() }) }
+                    onClick = { model.graph.settings.showRating = x; model.showMatch = false; model.save() }) }
                 Pill(if (byMatch || r in main) "+${Rating.entries.size - main.size}" else r.short, selected = !byMatch && r !in main,
                     onClick = { model.showMatch = false; model.sheet = Sheet(SheetKind.SHOW, h.id) })
             }
@@ -352,7 +351,7 @@ fun ResultsScreen(model: AppModel) {
 /** A box scanned more than a day ago gives stale results; say so where results are made. */
 @Composable
 fun StaleBox(model: AppModel) {
-    val age = if (model.lastScan > 0) (System.currentTimeMillis() - model.lastScan) / 3_600_000 else return
+    val age = if (model.graph.scan.lastScan > 0) (System.currentTimeMillis() - model.graph.scan.lastScan) / 3_600_000 else return
     if (age < 24) return
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).hatch().border(2.dp, C.edge, RoundedCornerShape(10.dp))
         .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -473,7 +472,7 @@ private fun SkeletonCard(i: Int) {
 
 @Composable
 fun CompareScreen(model: AppModel, index: Int, poolHero: Long?, review: Boolean = false) {
-    model.rev
+    model.graph.scan.rev
     val s = model.search
     val heroId = poolHero ?: s?.heroId ?: return
     val b = (if (poolHero != null) model.pool?.builds?.get(poolHero) else s?.builds?.getOrNull(index)) ?: return
@@ -542,7 +541,7 @@ fun CompareScreen(model: AppModel, index: Int, poolHero: Long?, review: Boolean 
 @Composable
 private fun TakenByOthers(model: AppModel, heroId: Long) {
     val p = model.pool ?: return
-    val worn = model.box?.gearOf(heroId).orEmpty()
+    val worn = model.graph.scan.box?.gearOf(heroId).orEmpty()
     val takenBy = p.builds.filterKeys { it != heroId }.flatMap { (who, b) -> b?.items.orEmpty().map { it.id to who } }.toMap()
     val lost = Slot.entries.mapNotNull { s -> worn[s]?.let { it to (takenBy[it.id] ?: return@mapNotNull null) } }
     if (lost.isEmpty()) return
@@ -554,7 +553,7 @@ private fun TakenByOthers(model: AppModel, heroId: Long) {
             val shape = RoundedCornerShape(10.dp)
             Row(Modifier.fillMaxWidth().clip(shape).background(C.card).border(2.dp, C.edge, shape).padding(7.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GearTile(item, 40.dp, setIcon = model.content.set(item.set)?.icon)
+                GearTile(item, 40.dp, setIcon = model.graph.content.content.set(item.set)?.icon)
                 Column(Modifier.weight(1f)) {
                     Text("${item.slot.label} · ${item.mainType.short} ${item.mainType.format(item.mainValue)}", style = zen(12.sp, FontWeight.Black),
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -600,7 +599,7 @@ private fun GearCard(model: AppModel, it: Item?, heroId: Long, reforged: Boolean
     Row(modifier.clip(shape).background(if (it?.ghost == true) C.ghostBg else C.card)
         .then(if (it?.ghost == true) Modifier.dashedBorder(C.blue, 2.dp, 10.dp) else Modifier.border(2.dp, C.edge, shape))
         .padding(7.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GearTile(it, 40.dp, setIcon = it?.let { i -> model.content.set(i.set)?.icon })
+        GearTile(it, 40.dp, setIcon = it?.let { i -> model.graph.content.content.set(i.set)?.icon })
         Column(Modifier.weight(1f)) {
             if (it == null) { Text("Empty", style = zen(12.sp, color = C.muted)); return@Column }
             val ref = reforged && it.reforgeable
@@ -634,7 +633,7 @@ fun GhostBuildScreen(model: AppModel) {
     val owned = s.builds.isNotEmpty()
     val gp = g.ghost ?: return
     val req = model.request(s.heroId)
-    val r = model.showRating.let { if (it == Rating.SPD) Rating.DMG else it }
+    val r = model.graph.settings.showRating.let { if (it == Rating.SPD) Rating.DMG else it }
     Frame(null, null, actions = {
         PinkButton("Back to results", Modifier.weight(1f)) { model.back() }
         OutlineButton("Equip", dashed = true, enabled = false) {}
@@ -662,7 +661,7 @@ fun GhostBuildScreen(model: AppModel) {
             Slot.entries.forEach { sl ->
                 val it = g.items.firstOrNull { x -> x.slot == sl }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    GearTile(it, 46.dp, setIcon = it?.let { i -> model.content.set(i.set)?.icon })
+                    GearTile(it, 46.dp, setIcon = it?.let { i -> model.graph.content.content.set(i.set)?.icon })
                     Text(when {
                         it == null -> "—"; it.ghost -> "ghost"; it.equippedOn == s.heroId -> "own"; it.equippedOn == null -> "free"
                         else -> model.hero(it.equippedOn!!)?.let(model::heroName)?.take(7) ?: "other"
@@ -674,7 +673,7 @@ fun GhostBuildScreen(model: AppModel) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GearTile(gp, 40.dp)
                 Column(Modifier.weight(1f)) {
-                    val set = model.content.set(gp.set)
+                    val set = model.graph.content.content.set(gp.set)
                     Text("${set?.name ?: gp.set.removeSuffix("Set")} ${gp.slot.label.lowercase()}", style = dela(15.sp))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         SetIcon(set?.icon, 16.dp)
@@ -712,4 +711,4 @@ fun GhostBuildScreen(model: AppModel) {
     }
 }
 
-private fun set(model: AppModel, it: Item) = model.content.set(it.set)?.name ?: it.set
+private fun set(model: AppModel, it: Item) = model.graph.content.content.set(it.set)?.name ?: it.set
