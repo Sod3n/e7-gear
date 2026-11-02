@@ -65,7 +65,7 @@ private fun mains(q: PotentialQuery) = if (q.mains.isEmpty()) "Any main" else q.
 
 /** Filters left at something other than the default, so a summary shows everything that narrows the list. */
 private fun changedFilters(q: PotentialQuery) = listOfNotNull(
-    chanceStop(q).takeIf { it >= 2 }?.let(::chanceStopLabel),
+    chanceStop(q).takeIf { it >= 2 }?.let { "Chance " + chanceStopLabel(it) },
     PIECES[q.show].takeIf { q.show != 0 },
     "No reforge".takeIf { !q.reforge },
 )
@@ -244,5 +244,5 @@ private fun MatchCard(graph: AppGraph, match: FindGearMatch, q: PotentialQuery) 
 @Composable
 internal fun ChanceText(match: FindGearMatch, size: Int) {
     val rare = match.outcome.rareOnly
-    FitText(if (rare) "Rare" else Chance(match.outcome.chance).text, dela(size.sp, if (rare) C.deepPink else C.blue))
+    FitText(when { match.outcome.matchesNow -> "Ready"; rare -> "Rare"; else -> Chance(match.outcome.chance).text }, dela(size.sp, if (rare) C.deepPink else C.blue))
 }

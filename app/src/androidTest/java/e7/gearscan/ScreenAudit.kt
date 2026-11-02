@@ -797,7 +797,7 @@ class ScreenAudit {
             ui { graph.messages.show(graph.trackMatch(m)) }
             if (graph.nav.backLabel() == "Track upgrades") add("Track upgrades stacked on itself: back names the screen it is on", "track-upgrades")
         })
-        steps.add("track-upgrades-choose" to { ui { graph.nav.sheet = null }; runCatching { clickText("Change") }.onFailure { add("can't open Track upgrades' piece chooser", it.message?.take(60) ?: "") } })
+        steps.add("track-upgrades-choose" to { ui { graph.nav.sheet = null }; runCatching { clickText("Other piece") }.onFailure { add("can't open Track upgrades' piece chooser", it.message?.take(60) ?: "") } })
 
         // state flips that must not move anything else: (name, open the screen, change the state)
         val sheetOn = { k: SheetKind -> ui { overlay = false; graph.optimize.search = single; graph.nav.stack = listOf(Screen.Optimize); graph.nav.sheet = Sheet(k, hero) } }

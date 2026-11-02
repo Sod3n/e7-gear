@@ -164,7 +164,7 @@ internal fun PotentialPieceSheet(graph: AppGraph, id: Long) {
     val view = if (item.enhance < 15) UpgradeRecord.fromScan(item) else item
     val o = match.outcome
     val reforgeOnly = reforgeOnly(match, q)
-    SheetBody("Worth enhancing?", button = when { o.matchesNow -> null; item.enhance < 15 -> "Enhance over the game"; else -> "Track the reforge" }, onButton = {
+    SheetBody("Worth enhancing?", button = when { o.matchesNow -> null; item.enhance < 15 -> "Enhance over the game"; else -> "Reforge over the game" }, onButton = {
         graph.nav.sheet = null
         graph.messages.show(graph.trackMatch(match, openOverlay = true))
     }) {

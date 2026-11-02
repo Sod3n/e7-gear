@@ -385,12 +385,12 @@ fun StatValue(stat: Stat, text: String, color: Color = C.ink, size: Int = 12) {
 @Composable
 fun StatStack(item: Item, modifier: Modifier = Modifier, reforged: Boolean = false, main: Boolean = true,
               highlight: Set<e7.gearscan.data.GearStat> = emptySet(), size: Int = 11) {
-    val minWidth = with(LocalDensity.current) { (size * 3.1f).sp.toDp() } + size.dp + 4.dp
+    val minWidth = with(LocalDensity.current) { (size * 4.1f).sp.toDp() } + size.dp + 4.dp
     Column(modifier.widthIn(min = minWidth), verticalArrangement = Arrangement.spacedBy(1.dp)) {
         if (main) {
             val ref = reforged && item.reforgeable
             StackLine(item.mainType.stat, item.mainType.format(if (ref) e7.gearscan.calc.Reforge.main(item.mainType, item.mainValue) else item.mainValue),
-                C.ink, size, FontWeight.Black)
+                C.ink, size + 1, FontWeight.Black)
         }
         item.subs.forEachIndexed { i, s ->
             val tint = when { item.mod?.index == i -> C.deepPink; s.modified -> C.blue; s.type in highlight -> C.blue; else -> C.muted }

@@ -104,7 +104,8 @@ class GearPotentialScreens {
         each("03b-results-low-odds") { go(Screen.Gear, Screen.GearPotential); tap("Show 20 more"); scrollTo("Show 20 more") }
         if (r.rareOnly.isNotEmpty()) {
             each("03c-results-end") { go(Screen.Gear, Screen.GearPotential); scrollTo("need a rare roll") }
-            each("03e-rare-open") { go(Screen.Gear, Screen.GearPotential); rule.onAllNodesWithText("need a rare roll", substring = true, useUnmergedTree = true).onFirst().performScrollTo().performClick(); rule.waitForIdle(); scrollTo("need a rare roll") }
+            each("03e-rare-open") { go(Screen.Gear, Screen.GearPotential); rule.onAllNodesWithText("need a rare roll", substring = true, useUnmergedTree = true).onFirst().performScrollTo().performClick(); rule.waitForIdle()
+                rule.onAllNodesWithText("Rare", useUnmergedTree = true).onFirst().performScrollTo() }
         }
         ui { graph.findGear.edit(PotentialQuery(targets = mapOf(GearStat.SPD to "24"))) }
         search()
@@ -164,7 +165,7 @@ class GearPotentialScreens {
         File(out, "result.txt").appendText("track one: stale=${graph.findGear.stale} (a start-only record must not mark the list stale)\n")
         File(out, "result.txt").appendText("back link after tracking one from Track upgrades: ${graph.nav.backLabel()}\n")
         each("10c-track-one") { ui { graph.nav.sheet = null } }
-        each("10f-track-choose") { go(Screen.Gear, Screen.GearPotential, Screen.Upgrade); tap("Change") }
+        each("10f-track-choose") { go(Screen.Gear, Screen.GearPotential, Screen.Upgrade); tap("Other piece") }
         ui { graph.nav.stack = graph.nav.stack.dropLast(1) + Screen.Upgrade }
         ui {
             val rec = graph.tracker.record!!.item
@@ -277,7 +278,7 @@ class GearPotentialScreens {
         assertEquals(Screen.Upgrade, graph.nav.screen)
         assertEquals(mapOf(GearStat.SPD to 20.0, GearStat.HP_P to 5.0), graph.tracker.goal!!.minimums)
         shot("08-track-selected-353-big")
-        tap("Change")
+        tap("Other piece")
         shot("08-picker-353-big")
         tap("TRACKING")
         assertEquals(best.item.id, graph.tracker.record!!.item.id)

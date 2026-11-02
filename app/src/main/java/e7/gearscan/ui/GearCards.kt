@@ -61,12 +61,15 @@ internal fun GearPositionLabel(graph: AppGraph, item: Item, explicitGameScore: B
 internal fun GoalLines(item: Item, minimums: Map<GearStat, Double>, size: Int = 11, note: String? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         minimums.forEach { (t, want) ->
-            val now = item.subs.firstOrNull { it.type == t }?.value ?: 0.0
-            val met = now + 1e-9 >= want
+            val sub = item.subs.firstOrNull { it.type == t }
+            val now = sub?.value ?: 0.0
+            val met = sub != null && now + 1e-9 >= want
             val color = if (met) C.blue else C.ink
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 StatIcon(t.stat, size.dp, color)
-                Text("${t.format(now)} → ${t.format(want)}", style = zen(size.sp, FontWeight.Bold, color), softWrap = false)
+                // past the target, "22 → 20" would read as going down; a missing line is a dash, not a zero
+                Text(when { met -> "${t.format(now)} · met"; sub == null -> "— → ${t.format(want)}"; else -> "${t.format(now)} → ${t.format(want)}" },
+                    style = zen(size.sp, FontWeight.Bold, color), softWrap = false)
                 Box(Modifier.weight(1f).height(5.dp).clip(RoundedCornerShape(3.dp)).background(C.line)) {
                     Box(Modifier.fillMaxWidth((now / want).coerceIn(0.0, 1.0).toFloat()).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(C.blue))
                 }

@@ -28,6 +28,7 @@ fun UpgradeScreen(graph: AppGraph) {
         choosing || item == null || t.sellQueueComplete -> null
         !t.hasTarget && !t.isSellQueue && t.scoreQuery == null && item.enhance == 15 -> null
         item.enhance < 15 -> "Enhance over the game"
+        t.hasTarget -> "Reforge over the game"
         else -> "Open over the game"
     }
     Frame(null, null, primary = overGame?.let { Action(it) { graph.messages.show(t.openOverlay()) } }) {
@@ -63,7 +64,7 @@ private fun Tracked(graph: AppGraph, t: TrackerFeature, selected: UpgradeRecord,
     val item = selected.item
     Card(shadow = null, padding = PaddingValues(12.dp)) {
         GearSearchIdentity(graph, item, t.goal?.minimums?.keys ?: emptySet(),
-            side = t.goal?.let { g -> { GoalLines(item, g.minimums) } }) { Pill("Change", onClick = change) }
+            side = t.goal?.let { g -> { GoalLines(item, g.minimums) } }) { Pill("Other piece", onClick = change) }
         t.notice?.let { VSpace(8.dp); Text(it, style = zen(11.sp, FontWeight.Medium, C.blue)) }
     }
     Card(shadow = null, padding = PaddingValues(14.dp)) {
@@ -74,7 +75,7 @@ private fun Tracked(graph: AppGraph, t: TrackerFeature, selected: UpgradeRecord,
         }
     }
     if (selected.history.size > 1) {
-        SectionTitle("Your rolls", trailing = e7.gearscan.value.Count(selected.history.size - 1).of("step"))
+        SectionTitle("Your rolls")
         Card(shadow = null, padding = PaddingValues(12.dp)) { RollTable(selected.history.takeLast(4)) }
     }
 }
@@ -95,13 +96,15 @@ private fun GoalVerdict(graph: AppGraph, t: TrackerFeature, item: Item) {
         Column(Modifier.weight(1f)) {
             t.scoreGoal?.let { g -> Text(g.label(), style = zen(13.sp)); Text(g.reference, style = zen(11.sp, FontWeight.Medium, C.muted)) }
             t.goal?.let { g ->
+                Text("reach " + g.minimums.entries.joinToString(" · ") { (s, v) -> "${targetLabel(s)} ${targetValue(s, fmtNum(v))}" }, style = zen(13.sp))
                 Text(when {
-                    out?.matchesNow == true -> "Every target reached"
-                    item.enhance == 15 && out?.chance == 1.0 -> "Reforge to meet the targets"
-                    out?.rareOnly == true -> "Only a rare roll gets there"
-                    out?.possible == false -> "The targets are out of reach"
-                    else -> "to meet the targets at +15"
-                }, style = zen(13.sp))
+                    out?.matchesNow == true -> "every target reached"
+                    item.enhance == 15 && out?.chance == 1.0 -> "after reforge"
+                    out?.rareOnly == true -> "only with a roll above the usual range"
+                    out?.possible == false -> "out of reach now"
+                    g.reforge && g.reforgeAllowed && item.level == 85 -> "at +15, reforged"
+                    else -> "at +15"
+                }, style = zen(11.sp, FontWeight.Medium, C.muted))
             }
         }
     }
