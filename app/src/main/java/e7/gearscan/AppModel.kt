@@ -1083,28 +1083,25 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var sellQuery get() = graph.sellReview.query
         private set(v) { graph.sellReview.query = v }
     var sellResult: e7.gearscan.opt.SellSearch.Result? by mutableStateOf(null); private set
-    var sellBusy by mutableStateOf(false); private set
+    val sellBusy get() = graph.sellReview.run.busy
     /** Sell review tab (0 Set up, 1 Matches); lives here so a trip to Kept pieces and back keeps it. */
     var sellTab by mutableIntStateOf(0)
     /** Keep-rolling curve on the current review list, for the When to keep rolling tiles. */
     var sellCurve: e7.gearscan.opt.KeepCurve.Result? by mutableStateOf(null); private set
-    var sellCurveBusy by mutableStateOf(false); private set
+    val sellCurveBusy get() = graph.sellReview.curve.busy
     private fun computeSellCurve(result:e7.gearscan.opt.SellSearch.Result) {
         val b=box?:return;val ctx=sellContext(result.query)?:return
         val items=result.matches.filter { it.item.enhance<15&&it.item.id !in reviewedIds }.map { it.item }
         val bars=Slot.entries.mapNotNull { s->ctx.esBar(s)?.let { s to it } }.toMap();val ref=result.query.reforge
-        sellCurve=null;sellCurveBusy=true
-        viewModelScope.launch {
+        sellCurve=null
+        graph.sellReview.curve.start {
             val c=withContext(Dispatchers.Default) { runCatching { e7.gearscan.opt.KeepCurve.run(items,bars,{ ref&&b.canReforge(it.id) }) }.getOrNull() }
             if(sellResult===result) { sellCurve=c;android.util.Log.i("E7Sell","keep curve: ${c?.pieces} pieces in ${c?.millis} ms") }
-            sellCurveBusy=false
         }
     }
     var sellDone by mutableIntStateOf(0); private set
     var sellTotal by mutableIntStateOf(0); private set
     var sellError: String? by mutableStateOf(null); private set
-    private var sellJob: kotlinx.coroutines.Job? = null
-    @Volatile private var sellGeneration = 0
     private val sellMutex = kotlinx.coroutines.sync.Mutex()
     private var appliedSellKey: List<Any?>? = null
     private fun sellKey(): List<Any?> = listOf(box,lastScan,upgrades.records.filterValues { it.scan==lastScan&&it.history.size>1 },poolTiers,poolExtra,tiers,content.version,rev,sellQuery.copy(rollOn=0.0))
@@ -1142,40 +1139,35 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         // the keep-rolling chance only relabels rows; it must not stale the list or restart a search
         if(q.copy(rollOn=0.0)==sellQuery.copy(rollOn=0.0)) { sellQuery=q;upgrades.rollOn=q.rollOn;graph.store.saveSoon();return }
         // any other change alters the list the keep-rolling numbers describe
-        sellCurve=null
+        sellCurve=null;graph.sellReview.curve.cancel()
         stopSellSearch();sellQuery=if(!q.scoreFilter&&q.sort in listOf(e7.gearscan.data.SellSort.SCORE,e7.gearscan.data.SellSort.CHANCE))q.copy(sort=e7.gearscan.data.SellSort.QUALITY) else q;sellError=null;touch() }
-    fun stopSellSearch() {
-        sellGeneration++;sellJob?.cancel();sellJob=null
-        if(sellBusy)PoolService.stop(getApplication())
-        sellBusy=false
-    }
+    fun stopSellSearch() = graph.sellReview.run.cancel()
     fun findSellGear() {
         stopSellSearch()
         val q=sellQuery;sellError=q.error();if(sellError!=null)return
-        if(pool?.running==true||upgrades.busy) { showToast("Finish or stop the current build check first.");return }
         val b=box?:return
         val text=b.toText();val scan=lastScan;val records=upgrades.records.filterValues { it.scan==scan&&it.history.size>1 }
         val removed=reviewedIds;val members=poolMembers().map { it.id }.toSet();val names=b.allHeroes.associate { it.id to heroName(it) }
-        val key=sellKey();val generation=++sellGeneration;sellBusy=true;sellDone=0;sellTotal=0;sellError=null
-        PoolService.start(getApplication(),"Checking sell filters") { viewModelScope.launch { stopSellSearch() } }
-        sellJob=viewModelScope.launch {
+        val key=sellKey()
+        begin(graph.sellReview.run.start {
+            val scope=this
+            sellDone=0;sellTotal=0;sellError=null
             try {
                 val result=sellMutex.withLock {
                     withContext(Dispatchers.Default) {
                         val context=e7.gearscan.opt.SellSearch.Context(Box.parse(text),records,scan,removed,members,names,q,content.version)
-                        e7.gearscan.opt.SellSearch.run(context,graph.sellReview.progress.file,cancelled={sellGeneration!=generation}) { done,total->
+                        e7.gearscan.opt.SellSearch.run(context,graph.sellReview.progress.file,cancelled={ !scope.isActive }) { done,total->
                             if(done%20==0||done==total)kotlinx.coroutines.runBlocking(Dispatchers.Main) {
-                                if(sellGeneration==generation) { sellDone=done;sellTotal=total;PoolService.progress(getApplication(),"$done/$total pieces",done,total)
+                                if(scope.isActive) { sellDone=done;sellTotal=total;scope.progress(done,total,"$done/$total pieces")
                                     android.util.Log.i("E7Sell","checkpoint $done/$total pieces") }
                             }
                         }
                     }
                 }
-                if(sellGeneration==generation) { sellResult=result;appliedSellKey=key;computeSellCurve(result);android.util.Log.i("E7Sell","${result.rows.size} checked, ${result.matches.size} matches, ${result.unknown} unknown, ${result.seconds}s") }
-            }catch(e:kotlinx.coroutines.CancellationException) { throw e }
-            catch(e:Exception) { if(sellGeneration==generation)sellError="The check stopped. Completed pieces are saved; tap Find matches to continue." }
-            finally { if(sellGeneration==generation) { sellBusy=false;PoolService.stop(getApplication()) } }
-        }
+                sellResult=result;appliedSellKey=key;computeSellCurve(result);android.util.Log.i("E7Sell","${result.rows.size} checked, ${result.matches.size} matches, ${result.unknown} unknown, ${result.seconds}s")
+            }catch(e:CancellationException) { throw e }
+            catch(e:Exception) { sellError="The check stopped. Completed pieces are saved; tap Find matches to continue." }
+        })
     }
     fun trackSellMatches(id:Long?=null,openOverlay:Boolean=true) {
         val result=sellResult?:return
@@ -2241,7 +2233,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     private fun cancelAllWork() {
         graph.work.cancelAll()
-        stopSellSearch()
         if (heroUpgrades?.running == true) stopHeroUpgrades()
         if (upgrades.busy) { upgrades.generation++; upgrades.busy = false; PoolService.stop(getApplication()) }
         potentialGeneration++; potentialJob?.cancel(); potentialBusy = false
