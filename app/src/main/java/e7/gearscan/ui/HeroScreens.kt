@@ -212,7 +212,7 @@ fun HeroDetailScreen(model: AppModel, id: Long) {
         OutlineButton("Bonus stats") { model.sheet = Sheet(SheetKind.BONUS, id) }
     }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            BackToPrevious(model, Modifier.weight(1f))
+            BackToPrevious(Modifier.weight(1f))
             Text("Tier $tier", style = zen(12.sp, color = C.muted))
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {

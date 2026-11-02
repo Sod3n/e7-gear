@@ -28,7 +28,7 @@ fun UpgradeScreen(model: AppModel) {
             if (choosing) choosing = false else model.openUpgradeOverlay()
         }
     }) {
-        BackToPrevious(model)
+        BackToPrevious()
         ScreenTitle("Track upgrades")
         if (t.queue.isNotEmpty()) RowCard("Gear list", { model.go(when { t.scoreQuery!=null -> Screen.SellFilters; t.queueSource == "heroes" -> Screen.HeroUpgrades(); else -> Screen.GearPotential }) }) {
             Text(if(t.sellQueueComplete)"List complete" else "${t.queueIndex + 1} of ${t.pendingQueue.size} ${if(t.isSellQueue)"remaining" else "matches"}", style = zen(12.sp))

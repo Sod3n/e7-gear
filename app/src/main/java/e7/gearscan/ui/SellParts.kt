@@ -92,18 +92,6 @@ internal fun OddsDots(n: Int) {
     }
 }
 
-/** A section that opens in place: a full-width row with a chevron, never a link. */
-@Composable
-internal fun Fold(title: String, open: Boolean, toggle: () -> Unit, content: @Composable () -> Unit) {
-    Card(shadowOffset = 3.dp, radius = 14.dp, border = 2.dp, padding = PaddingValues(0.dp)) {
-        Row(Modifier.fillMaxWidth().tap(toggle).padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = zen(13.sp), modifier = Modifier.weight(1f))
-            Text("›", style = zen(16.sp), modifier = Modifier.rotate(if (open) -90f else 90f))
-        }
-        if (open) Column(Modifier.fillMaxWidth().background(C.field).border(1.dp, C.line).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
-    }
-}
-
 /** Two short bars side by side: a share found (blue) and a share paid (pink). */
 @Composable
 internal fun SharePair(label: String, found: Float, cost: Float, best: Boolean) {

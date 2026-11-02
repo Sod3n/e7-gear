@@ -201,7 +201,7 @@ fun PoolRunScreen(model: AppModel) {
     val score = model.poolScore(scores)
     val doneIds = p.builds.keys
     if (p.running) Frame(model, Screen.Optimize) {
-        BackToPrevious(model)
+        BackToPrevious()
         ScreenTitle("Optimizing pool", "一括")
         PoolScoreCard("POOL SCORE · LIVE", start, score) { Text("+${fmtInt((score - start).toDouble())}", style = dela(18.sp, C.blue)) }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -236,7 +236,7 @@ fun PoolRunScreen(model: AppModel) {
         }
         if (!p.fromHistory) OutlineButton("Just record") { model.equipPool(); model.tab(Screen.Optimize) }
     })) {
-        BackToPrevious(model)
+        BackToPrevious()
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FitText("Pool done", TitleStyle, Modifier.weight(1f, fill = false)); Stamp("済")
         }
@@ -345,7 +345,7 @@ fun PoolHeroScreen(model: AppModel, heroId: Long, setup: Boolean) {
         PinkButton(if (next != null) "Next · ${model.heroName(next)} ›" else "Done", Modifier.weight(1f), short = "Next ›".takeIf { next != null }) { req.reviewed = true; model.save(); goNext() }
     }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            BackToPrevious(model, Modifier.weight(1f))
+            BackToPrevious(Modifier.weight(1f))
             // tapping the stamp takes the mark off, so this hero comes up again in the walk
             if (req.reviewed) { Box(Modifier.tap { req.reviewed = false; model.touch() }) { Stamp("済", "reviewed", C.blue) }; HSpace(8.dp) }
             Text("${i + 1} of ${queue.size}", style = zen(12.sp, color = C.muted))

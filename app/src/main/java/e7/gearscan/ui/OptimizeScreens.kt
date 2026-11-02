@@ -275,7 +275,7 @@ fun ResultsScreen(model: AppModel) {
     Frame(model, Screen.Optimize, actions = if (s.builds.isEmpty()) null else ({
         PinkButton("Compare #1", Modifier.weight(1f)) { model.go(Screen.Compare(0)) }
     })) {
-        BackToPrevious(model)
+        BackToPrevious()
         if (s.historyAt != 0L) HistoryNote(s.historyAt)
         ScreenTitle("Best 50") { ScanChip(model.scannedLabel(), model.scanPhase != ScanPhase.IDLE) { if (model.scanPhase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -503,7 +503,7 @@ fun CompareScreen(model: AppModel, index: Int, poolHero: Long?, review: Boolean 
         if (!readOnly) OutlineButton("Equip in app") { model.recordBuild(heroId, b) }
     })) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            BackToPrevious(model, Modifier.weight(1f))
+            BackToPrevious(Modifier.weight(1f))
             if (review) {
                 if (heroId in model.pool!!.reviewed) { Stamp("済", "reviewed", C.blue); HSpace(8.dp) }
                 Text("${at + 1} of ${queue.size}", style = zen(12.sp, color = C.muted))
@@ -639,7 +639,7 @@ fun GhostBuildScreen(model: AppModel) {
         PinkButton("Back to results", Modifier.weight(1f)) { model.back() }
         OutlineButton("Equip", dashed = true, enabled = false) {}
     }) {
-        BackToPrevious(model)
+        BackToPrevious()
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             GhostTag(); Text("Ghost build", style = TitleStyle)
         }

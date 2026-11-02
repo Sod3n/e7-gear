@@ -6,4 +6,4 @@ pluginManagement {
     }
 }
 
-include(":core", ":app")
+include(":core", ":kit", ":app")

@@ -54,7 +54,7 @@ fun GearPotentialScreen(model: AppModel) {
                 if (fresh) model.trackAllPotential() else model.findGearPotential()
             }
         }) else null) {
-            BackToPrevious(model)
+            BackToPrevious()
             ScreenTitle("Find gear")
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 LinkText("Help") { open(model, SheetKind.POTENTIAL_HELP) }

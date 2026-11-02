@@ -70,7 +70,7 @@ fun HeroUpgradesScreen(model: AppModel, heroId: Long?) {
             }
         }
     }) {
-        BackToPrevious(model)
+        BackToPrevious()
         // a hero's long name leaves no room for the kana beside it
         if (heroId == null) ScreenTitle("Improve heroes", "キョウカ")
         if (running) Card(padding = PaddingValues(12.dp)) {

@@ -91,23 +91,6 @@ fun installImageLoader(ctx: android.content.Context) {
     }).build())
 }
 
-/** Shown after the app crashed: what happened, with a one-tap report. */
-@Composable
-fun CrashCard(model: e7.gearscan.AppModel) {
-    val crash = model.lastCrash ?: return
-    Card(shadow = null, radius = 14.dp, border = 2.dp) {
-        Text("E7 Gear closed unexpectedly last time", style = dela(14.sp))
-        VSpace(4.dp)
-        Text(crash.lineSequence().first(), style = zen(12.sp, FontWeight.Medium, C.muted), maxLines = 2,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-        VSpace(6.dp)
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            LinkText("Report this") { model.go(e7.gearscan.Screen.Feedback(crash)); model.dismissCrash() }
-            LinkText("Dismiss", color = C.muted) { model.dismissCrash() }
-        }
-    }
-}
-
 /** Draws a solid copy of the shape offset behind the content, like CSS box-shadow with no blur. */
 fun Modifier.hardShadow(color: Color, dx: Dp, dy: Dp, radius: Dp): Modifier = drawBehind {
     drawRoundRect(color, topLeft = Offset(dx.toPx(), dy.toPx()), size = size,
@@ -273,16 +256,24 @@ fun PulseDot(size: Dp) {
 
 const val BACK_TAG = "back-link"
 
+interface BackLink {
+    val label: String?
+    fun go()
+}
+
+val LocalBack = androidx.compose.runtime.staticCompositionLocalOf<BackLink?> { null }
+
 /** "‹ <the screen back goes to>": screens open from several places (a hero from another hero), so it's never hard-coded. */
 @Composable
-fun BackToPrevious(model: e7.gearscan.AppModel, modifier: Modifier = Modifier) {
+fun BackToPrevious(modifier: Modifier = Modifier) {
+    val back = LocalBack.current ?: return
     val pinned = LocalPinnedBack.current
-    val label = model.backLabel()
+    val label = back.label ?: "Back"
     androidx.compose.runtime.DisposableEffect(pinned) { onDispose { pinned?.label = null; pinned?.linkBottom = Float.MAX_VALUE } }
     // where it is tells the frame when to pin a copy to the top
     BackLink(label, modifier.onGloballyPositioned { c ->
-        pinned?.let { p -> p.label = label; p.onClick = { model.back() }; p.linkBottom = c.boundsInWindow().bottom }
-    }) { model.back() }
+        pinned?.let { p -> p.label = label; p.onClick = { back.go() }; p.linkBottom = c.boundsInWindow().bottom }
+    }) { back.go() }
 }
 
 @Composable
@@ -570,12 +561,12 @@ fun Spinner(modifier: Modifier = Modifier) {
 
 /** Fixed-size slot, so a name never shifts while the icon loads or when there is no artifact. */
 @Composable
-fun ArtifactIcon(model: e7.gearscan.AppModel, art: e7.gearscan.data.Artifact?, size: Dp) {
+fun ArtifactIcon(art: e7.gearscan.data.Artifact?, size: Dp, backupUrl: (String) -> String) {
     // cut from the game's icon sheet onto the content site; the official site, which lacks the newest and 3★ ones, is the backup
     Box(Modifier.size(size)) {
         art?.let {
             var backup by androidx.compose.runtime.remember(it.code) { androidx.compose.runtime.mutableStateOf(false) }
-            AsyncImage(if (backup) model.content.artifactIcon(it.code) else gameImage("artifacts/${it.code}.webp"), null, Modifier.size(size),
+            AsyncImage(if (backup) backupUrl(it.code) else gameImage("artifacts/${it.code}.webp"), null, Modifier.size(size),
                 error = MissingImage, onError = { if (!backup) backup = true })
         }
     }

@@ -52,7 +52,7 @@ fun CleanupScreen(model: AppModel) {
             }
         }
     }) {
-        BackToPrevious(model)
+        BackToPrevious()
         ScreenTitle("Make room", "セイリ")
         LinkText("Sell filters") { model.go(Screen.SellFilters) }
         LinkText("Pieces that could improve your heroes") { model.go(Screen.HeroUpgrades()) }

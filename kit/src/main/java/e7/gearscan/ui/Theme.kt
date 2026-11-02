@@ -14,7 +14,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
-import e7.gearscan.R
+import e7.gearscan.kit.R
 
 /** Every colour the app paints; both palettes set every role (ThemeRulesTest keeps raw colours out of the screens). */
 @Immutable
