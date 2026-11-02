@@ -1,5 +1,6 @@
 package e7.gearscan
 
+import e7.gearscan.features.scan.CaptureSession
 import java.io.DataInputStream
 import java.io.IOException
 import java.net.InetAddress
@@ -10,11 +11,11 @@ import kotlin.concurrent.thread
 
 /**
  * Minimal SOCKS5 (CONNECT only) server for hev-socks5-tunnel. Game connections to the
- * login ports are copied into Capture as they pass through.
+ * login ports are copied into the capture session as they pass through.
  *
  * upstream: optional "host:port" of another SOCKS5 proxy (e.g. a VPN app in proxy mode).
  */
-class CaptureProxy(private val upstream: String) {
+class CaptureProxy(private val upstream: String, private val capture: CaptureSession) {
     private val server = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
     @Volatile private var running = true
 
@@ -66,18 +67,18 @@ class CaptureProxy(private val upstream: String) {
                 if (upstream.isEmpty()) Socket().apply { connect(InetSocketAddress(host, port), 15000) }
                 else connectUpstream(atyp, addr, port)
             } catch (e: IOException) {
-                Capture.log("port $port connect failed${if (upstream.isEmpty()) "" else " via proxy"}: ${e.message}")
+                capture.log("port $port connect failed${if (upstream.isEmpty()) "" else " via proxy"}: ${e.message}")
                 throw e
             }
             remote.tcpNoDelay = true
             out.write(byteArrayOf(5, 0, 0, 1, 0, 0, 0, 0, 0, 0))
 
-            val rec = if (port in CAPTURE_PORTS) Capture.open() else null
-            if (rec != null) Capture.log("port $port opened${if (upstream.isEmpty()) "" else " via proxy"}")
-            val up = thread(isDaemon = true, name = "socks-up") { pipe(client, remote, rec, Capture.DIR_C2S) }
-            pipe(remote, client, rec, Capture.DIR_S2C)
+            val rec = if (port in CAPTURE_PORTS) capture.open() else null
+            if (rec != null) capture.log("port $port opened${if (upstream.isEmpty()) "" else " via proxy"}")
+            val up = thread(isDaemon = true, name = "socks-up") { pipe(client, remote, rec, CaptureSession.DIR_C2S) }
+            pipe(remote, client, rec, CaptureSession.DIR_S2C)
             up.join()
-            if (rec != null) Capture.log("port $port closed, ${rec.bytes()} bytes recorded")
+            if (rec != null) capture.log("port $port closed, ${rec.bytes()} bytes recorded")
         } catch (e: IOException) {
         } finally {
             runCatching { client.close() }
@@ -103,7 +104,7 @@ class CaptureProxy(private val upstream: String) {
         return s
     }
 
-    private fun pipe(from: Socket, to: Socket, rec: Capture.Conn?, dir: Int) {
+    private fun pipe(from: Socket, to: Socket, rec: CaptureSession.Conn?, dir: Int) {
         val buf = ByteArray(65536)
         try {
             val input = from.getInputStream()

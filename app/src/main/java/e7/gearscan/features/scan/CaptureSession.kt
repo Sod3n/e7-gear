@@ -1,12 +1,9 @@
-package e7.gearscan
+package e7.gearscan.features.scan
 
 import java.io.ByteArrayOutputStream
 
 /** In-memory capture of the game's login connections, filled by CaptureProxy. */
-object Capture {
-    const val DIR_C2S = 0
-    const val DIR_S2C = 1
-
+class CaptureSession {
     private val conns = mutableListOf<Conn>()
     /** Set by TProxyService; kept here because touching that class loads its native library. */
     @Volatile var vpnRunning = false
@@ -53,14 +50,18 @@ object Capture {
         @Synchronized fun hexBursts(): List<String> = bursts.map { hex(it.toByteArray()) }
     }
 
-    private const val HEX = "0123456789abcdef"
+    companion object {
+        const val DIR_C2S = 0
+        const val DIR_S2C = 1
+        private const val HEX = "0123456789abcdef"
 
-    private fun hex(b: ByteArray): String {
-        val c = CharArray(b.size * 2)
-        b.forEachIndexed { i, v ->
-            c[2 * i] = HEX[(v.toInt() shr 4) and 0xF]
-            c[2 * i + 1] = HEX[v.toInt() and 0xF]
+        private fun hex(b: ByteArray): String {
+            val c = CharArray(b.size * 2)
+            b.forEachIndexed { i, v ->
+                c[2 * i] = HEX[(v.toInt() shr 4) and 0xF]
+                c[2 * i + 1] = HEX[v.toInt() and 0xF]
+            }
+            return String(c)
         }
-        return String(c)
     }
 }

@@ -6,7 +6,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import e7.gearscan.AppGraph
-import e7.gearscan.Capture
 import e7.gearscan.Fribbels
 import e7.gearscan.Screen
 import e7.gearscan.TProxyService
@@ -43,6 +42,8 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
 
     // what the hero, pool, history and tracker sections still keep in AppModel
     var host: Host = NoHost
+
+    val capture = CaptureSession()
 
     var lastScan by saved("lastScan", 0L, Codecs.long)
     var lastDiff by saved("lastDiff", null, DIFF)
@@ -129,8 +130,8 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
 
     fun onVpnGranted() {
         val game = game ?: run { error = ScanError.NOT_INSTALLED; return }
-        Capture.clear()
-        Capture.clearLog()
+        capture.clear()
+        capture.clearLog()
         error = null
         returnedEarly = false
         g.platform.startCapture(game, if (g.settings.proxyOn) g.settings.proxy.trim() else "")
@@ -175,7 +176,7 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
             fun describe(e: Throwable) = "${e.javaClass.simpleName}: ${e.message.orEmpty()}".take(160)
             val result =
                 runCatching {
-                    val segments = Capture.hexSegments()
+                    val segments = capture.hexSegments()
                     if (segments.isEmpty()) return@runCatching ScanError.NOTHING to null
                     val resp =
                         try {
@@ -198,11 +199,11 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
                     error = err ?: ScanError.NOTHING
                     // the reason goes into bug reports ("last error"), so a failed import can be told apart later
                     g.feedback.lastError = "scan: ${error!!.name.lowercase()}" + (cause?.let { " · $it" } ?: "")
-                    logFile.write(Capture.logText())
+                    logFile.write(capture.logText())
                     return@launch
                 }
-                logFile.write(Capture.logText())
-                Capture.clear()
+                logFile.write(capture.logText())
+                capture.clear()
                 decodeSec = ((System.currentTimeMillis() - t0) / 1000).toInt().coerceAtLeast(1)
                 import(text)
                 g.nav.replace(Screen.ScanResult)
@@ -212,11 +213,11 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
 
     suspend fun watch() {
         while (true) {
-            conns = Capture.count()
-            bytes = Capture.totalBytes()
+            conns = capture.count()
+            bytes = capture.totalBytes()
             elapsed = if (phase == ScanPhase.CAPTURING) System.currentTimeMillis() - captureStarted else 0L
             // the VPN can end without us (revoked by another VPN, service killed)
-            if (phase == ScanPhase.CAPTURING && !Capture.vpnRunning && System.currentTimeMillis() - captureStarted > 5000) {
+            if (phase == ScanPhase.CAPTURING && !capture.vpnRunning && System.currentTimeMillis() - captureStarted > 5000) {
                 phase = ScanPhase.IDLE
                 if (bytes == 0L) error = ScanError.NOTHING
             }

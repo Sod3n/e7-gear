@@ -94,4 +94,24 @@ class ScanFeatureTest {
         runCatching { g.scan.import("not json") }.let { assertTrue(it.isFailure) }
         assertTrue(before === g.scan.box)
     }
+
+    @Test fun theCaptureSessionBelongsToTheFeatureNotToTheProcess() = runTest(UnconfinedTestDispatcher()) {
+        val a = graph(this)
+        val b = graph(this)
+        assertFalse(a.scan.capture === b.scan.capture)
+        val conn = a.scan.capture.open()
+        conn.write(CaptureSession.DIR_C2S, byteArrayOf(1, 2), 2)
+        conn.write(CaptureSession.DIR_C2S, byteArrayOf(3), 1)
+        conn.write(CaptureSession.DIR_S2C, byteArrayOf(0x0a, 0xff.toByte()), 2)
+        a.scan.capture.log("port 5222 opened")
+        assertEquals(1, a.scan.capture.count())
+        assertEquals(5L, a.scan.capture.totalBytes())
+        assertEquals(listOf("010203", "0aff"), a.scan.capture.hexSegments())
+        assertTrue(a.scan.capture.logText().endsWith("port 5222 opened"))
+        assertEquals(0, b.scan.capture.count())
+        assertEquals("", b.scan.capture.logText())
+        a.scan.capture.clear()
+        assertEquals(0, a.scan.capture.count())
+        assertFalse(a.scan.capture.vpnRunning)
+    }
 }

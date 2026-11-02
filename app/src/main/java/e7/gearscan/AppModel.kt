@@ -1801,7 +1801,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- reports ----
-    fun scanLog(): String = Capture.logText().ifEmpty { graph.scan.logFile.file.takeIf { it.exists() }?.readText().orEmpty() }
+    fun scanLog(): String = graph.scan.capture.logText().ifEmpty { graph.scan.logFile.file.takeIf { it.exists() }?.readText().orEmpty() }
 
     fun deviceInfo(): String {
         val app = getApplication<Application>()

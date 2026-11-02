@@ -1,5 +1,6 @@
 package e7.gearscan
 
+import e7.gearscan.features.scan.CaptureSession
 import e7.gearscan.features.scan.ScanError
 import e7.gearscan.features.scan.ScanPhase
 import android.app.Application
@@ -971,7 +972,7 @@ class ScreenAudit {
             .groupBy({ text(it) }, { it.boundsInRoot }).filterKeys { it.isNotBlank() }
 
     private fun capture(model: AppModel, bytes: Int) = ui {
-        Capture.clear(); Capture.open().write(Capture.DIR_S2C, ByteArray(bytes), bytes)
+        model.graph.scan.capture.clear(); model.graph.scan.capture.open().write(CaptureSession.DIR_S2C, ByteArray(bytes), bytes)
         model.graph.scan.captureStarted = Long.MAX_VALUE / 2
         model.graph.scan.conns = 1; model.graph.scan.bytes = bytes.toLong()
         model.graph.scan.error = null
@@ -980,7 +981,7 @@ class ScreenAudit {
     }
 
     private fun resetCapture(model: AppModel) {
-        Capture.clear(); model.graph.scan.phase = ScanPhase.IDLE; model.graph.scan.error = null; model.graph.scan.captureStarted = 0
+        model.graph.scan.capture.clear(); model.graph.scan.phase = ScanPhase.IDLE; model.graph.scan.error = null; model.graph.scan.captureStarted = 0
         model.stack = listOf(Screen.ScanData, Screen.Capture)
     }
 
