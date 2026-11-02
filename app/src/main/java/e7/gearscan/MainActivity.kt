@@ -15,6 +15,7 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.lifecycleScope
+import e7.gearscan.features.feedback.CRASH_FILE
 import e7.gearscan.ui.App
 import e7.gearscan.ui.C
 import e7.gearscan.ui.Themes

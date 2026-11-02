@@ -49,7 +49,6 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
     var lastDiff by saved("lastDiff", null, DIFF)
     var decodeSec by saved("decodeSec", 0, Codecs.int)
     val boxFile = savedFile("box.json", backup = true, path = "box.json")
-    val logFile = savedFile("scan.log", backup = false, path = "scan.log")
 
     // not a mutableStateOf: snapshot records keep replaced values, and each old box holds a whole JSON tree of the gear
     @Volatile private var boxRef: Box? = null
@@ -231,10 +230,10 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
                     error = err ?: ScanError.NOTHING
                     // the reason goes into bug reports ("last error"), so a failed import can be told apart later
                     g.feedback.lastError = "scan: ${error!!.name.lowercase()}" + (cause?.let { " · $it" } ?: "")
-                    logFile.write(capture.logText())
+                    g.feedback.saveScanLog()
                     return@launch
                 }
-                logFile.write(capture.logText())
+                g.feedback.saveScanLog()
                 capture.clear()
                 decodeSec = ((System.currentTimeMillis() - t0) / 1000).toInt().coerceAtLeast(1)
                 import(text)

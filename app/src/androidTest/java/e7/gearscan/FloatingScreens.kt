@@ -58,7 +58,7 @@ class FloatingScreens {
         rule.setContent { Box(Modifier.width(353.dp).height(571.dp)) { App(model) {} } }
 
         val piece = model.box!!.items.first { it.rank == "Epic" && it.enhance == 9 && UpgradeRecord.supported(it) }
-        ui { model.useOverGameNative(true); model.selectUpgrade(piece.id); OverlayState.upgrade = model.upgrades; OverlayState.expanded = true
+        ui { model.graph.settings.useOverGameNative(true); model.selectUpgrade(piece.id); OverlayState.upgrade = model.upgrades; OverlayState.expanded = true
             model.floating = true; model.floatingPanel = true }
         rule.waitUntil(120_000) { !model.upgrades.busy }
         ui { model.checkUpgrade() }
@@ -78,6 +78,6 @@ class FloatingScreens {
         ui { model.closeFloatingPanel() }
         check(OverlayState.build == null && OverlayState.upgrade == null) { "close left a panel loaded" }
         shoot("4-closed")
-        ui { model.floating = false; model.useOverGameNative(false) }
+        ui { model.floating = false; model.graph.settings.useOverGameNative(false) }
     }
 }

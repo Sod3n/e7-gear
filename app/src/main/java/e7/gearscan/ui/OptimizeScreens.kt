@@ -123,7 +123,7 @@ private fun NoBox(model: AppModel) {
         VSpace(4.dp)
         Text("Scan the game once to load your heroes and gear, or import a Fribbels gear.txt.", style = zen(13.sp, FontWeight.Medium, C.muted))
         VSpace(10.dp)
-        PinkButton("Scan the game", Modifier.fillMaxWidth()) { model.go(if (model.consent) Screen.ScanData else Screen.ScanIntro) }
+        PinkButton("Scan the game", Modifier.fillMaxWidth()) { model.go(if (model.graph.settings.consent) Screen.ScanData else Screen.ScanIntro) }
         VSpace(8.dp)
         LinkText("Restore a backup or import a gear.txt") { model.go(Screen.ScanData) }
     }
@@ -269,7 +269,7 @@ fun ResultsScreen(model: AppModel) {
     val req = model.request(h.id)
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(s.running) { while (s.running) { now = System.currentTimeMillis(); delay(100) } }
-    val r = model.showRating
+    val r = model.graph.settings.showRating
     val byMatch = req.goal == Goal.TARGETS && model.showMatch
     Frame(model, Screen.Optimize, actions = if (s.builds.isEmpty()) null else ({
         PinkButton("Compare #1", Modifier.weight(1f)) { model.go(Screen.Compare(0)) }
@@ -303,7 +303,7 @@ fun ResultsScreen(model: AppModel) {
                 val main = if (targets) listOf(Rating.DMG, Rating.SPD, Rating.EHP) else listOf(Rating.DMG, Rating.SPD, Rating.CP, Rating.EHP)
                 if (targets) Pill("Match", selected = byMatch, onClick = { model.showMatch = true })
                 main.forEach { x -> Pill(when (x) { Rating.DMG -> "Damage"; Rating.SPD -> "Speed"; else -> x.short }, selected = !byMatch && r == x,
-                    onClick = { model.showRating = x; model.showMatch = false; model.save() }) }
+                    onClick = { model.graph.settings.showRating = x; model.showMatch = false; model.save() }) }
                 Pill(if (byMatch || r in main) "+${Rating.entries.size - main.size}" else r.short, selected = !byMatch && r !in main,
                     onClick = { model.showMatch = false; model.sheet = Sheet(SheetKind.SHOW, h.id) })
             }
@@ -633,7 +633,7 @@ fun GhostBuildScreen(model: AppModel) {
     val owned = s.builds.isNotEmpty()
     val gp = g.ghost ?: return
     val req = model.request(s.heroId)
-    val r = model.showRating.let { if (it == Rating.SPD) Rating.DMG else it }
+    val r = model.graph.settings.showRating.let { if (it == Rating.SPD) Rating.DMG else it }
     Frame(null, null, actions = {
         PinkButton("Back to results", Modifier.weight(1f)) { model.back() }
         OutlineButton("Equip", dashed = true, enabled = false) {}

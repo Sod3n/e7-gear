@@ -3,7 +3,6 @@ package e7.gearscan
 import androidx.compose.runtime.setValue
 import android.app.Application
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -12,7 +11,6 @@ import androidx.lifecycle.viewModelScope
 import e7.gearscan.calc.Rating
 import e7.gearscan.features.scan.ScanFeature
 import e7.gearscan.data.Box
-import e7.gearscan.data.Content
 import e7.gearscan.data.GameHero
 import e7.gearscan.data.Goal
 import e7.gearscan.data.HeroConfig
@@ -24,7 +22,6 @@ import e7.gearscan.data.Request
 import e7.gearscan.data.SavedBuild
 import e7.gearscan.data.Stat
 import e7.gearscan.data.fmtNum
-import e7.gearscan.data.Reports
 import e7.gearscan.data.Slot
 import e7.gearscan.opt.Build
 import e7.gearscan.opt.Ghost
@@ -45,8 +42,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import e7.gearscan.ui.Confirm
 import e7.gearscan.ui.Toast
-import java.io.File
-import java.io.IOException
 import kotlin.concurrent.thread
 
 sealed class Screen {
@@ -103,8 +98,6 @@ data class SearchState(
     val checkingBlockers: Boolean = false,
     val limitMs: Long = 15_000L,
 )
-
-const val CRASH_FILE = "crash.txt"
 
 /** Builds a one-hero search keeps in history: the top of the list, not all fifty. */
 const val HISTORY_BUILDS = 10
@@ -180,15 +173,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         set(v) { graph.heroes.tiers = v }
     var team get() = graph.heroes.team
         set(v) { graph.heroes.team = v }
-    var consent get() = graph.settings.consent
-        set(v) { graph.settings.consent = v }
-    var proxyOn get() = graph.settings.proxyOn
-        set(v) { graph.settings.proxyOn = v }
-    var proxy get() = graph.settings.proxy
-        set(v) { graph.settings.proxy = v }
     val lastScan get() = graph.scan.lastScan
-    var showRating get() = graph.settings.showRating
-        set(v) { graph.settings.showRating = v }
     /** With the "closest to targets" goal, results show match % unless another rating is picked. */
     var showMatch by mutableStateOf(true)
 
@@ -204,10 +189,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     var search: SearchState? by mutableStateOf(null)
         internal set
-
-    var overlaySeen get() = graph.settings.overlaySeen
-        set(v) { graph.settings.overlaySeen = v }
-    private val reportsDir = File(files, "reports")
 
     var ready by mutableStateOf(false)
         private set
@@ -400,9 +381,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val id = team.firstOrNull() ?: return
         val setup = setup(id) ?: return
         val cur = setup.build(setup.current().values.toList())
-        showRating = when (setup.req.goal) {
+        graph.settings.showRating = when (setup.req.goal) {
             Goal.EHP -> Rating.EHP; Goal.SPEED -> Rating.SPD; Goal.CP -> Rating.CP; Goal.GEAR_SCORE -> Rating.GS
-            else -> if (showRating in listOf(Rating.EHP, Rating.SPD, Rating.CP, Rating.GS)) Rating.DMG else showRating
+            else -> if (graph.settings.showRating in listOf(Rating.EHP, Rating.SPD, Rating.CP, Rating.GS)) Rating.DMG else graph.settings.showRating
         }
         val r = SearchRun(setup, 50)
         search = SearchState(id, current = cur, limitMs = limit)
@@ -870,7 +851,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         configureUpgrade()
         e7.gearscan.overlay.OverlayState.upgrade = upgrades
         e7.gearscan.overlay.OverlayState.expanded = false
-        if (overGameNative) { nativeOverGame(); checkUpgrade(); return }
+        if (graph.settings.overGameNative) { nativeOverGame(); checkUpgrade(); return }
         if (e7.gearscan.overlay.OverlayState.canDraw(getApplication())) {
             e7.gearscan.overlay.OverlayService.start(getApplication()); checkUpgrade(); graph.scan.openGame()
         } else go(Screen.OverlayIntro)
@@ -1636,12 +1617,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     /** True when the overlay started; false when the permission screen must come first. */
     /** Over the game: false = E7 Gear's own overlay (any phone), true = the phone's floating window showing the app's panel. */
-    var overGameNative get() = graph.settings.overGameNative
-        set(v) { graph.settings.overGameNative = v }
-    fun useOverGameNative(on: Boolean) { overGameNative = on; if (on) e7.gearscan.overlay.OverlayService.stop(getApplication()); touch() }
-    /** The steps for the phone's floating window were shown once. */
-    var nativeSeen get() = graph.settings.nativeSeen
-        set(v) { graph.settings.nativeSeen = v }
     /** The app runs in the phone's floating (or split) window. */
     var floating by mutableStateOf(false)
     /** In that window with a tracker or checklist loaded: the panel (true) or the whole app. */
@@ -1652,14 +1627,14 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         e7.gearscan.overlay.OverlayService.stop(getApplication())
         e7.gearscan.overlay.OverlayState.expanded = true
         floatingPanel = true
-        if (!nativeSeen) { go(Screen.OverlayIntro); return }
+        if (!graph.settings.nativeSeen) { go(Screen.OverlayIntro); return }
         graph.scan.openGame()
     }
 
     /** Opens the loaded checklist over the game the way the player chose, or the intro when the overlay needs its permission. */
     fun startLoadedOverGame() {
         val app = getApplication<Application>()
-        if (overGameNative) { nativeOverGame(); return }
+        if (graph.settings.overGameNative) { nativeOverGame(); return }
         if (e7.gearscan.overlay.OverlayState.canDraw(app)) { e7.gearscan.overlay.OverlayService.start(app); graph.scan.openGame() } else go(Screen.OverlayIntro)
     }
 
@@ -1672,23 +1647,13 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun showOverGame(heroId: Long, b: Build, title: String, flag: String? = null): Boolean {
         val app = getApplication<Application>()
         loadBuildChecklist(heroId, b, title, flag)
-        if (overGameNative) { nativeOverGame(); return true }
+        if (graph.settings.overGameNative) { nativeOverGame(); return true }
         if (!e7.gearscan.overlay.OverlayState.canDraw(app)) return false
         e7.gearscan.overlay.OverlayService.stop(app)
         e7.gearscan.overlay.OverlayService.start(app)
-        overlaySeen = true; save()
+        graph.settings.overlaySeen = true; save()
         graph.scan.openGame()
         return true
-    }
-
-    // ---- reports ----
-    fun scanLog(): String = graph.scan.capture.logText().ifEmpty { graph.scan.logFile.file.takeIf { it.exists() }?.readText().orEmpty() }
-
-    fun deviceInfo(): String {
-        val app = getApplication<Application>()
-        val v = runCatching { app.packageManager.getPackageInfo(app.packageName, 0).versionName }.getOrNull() ?: "?"
-        return "App $v · Android ${android.os.Build.VERSION.RELEASE} · ${android.os.Build.MODEL}" +
-            (graph.feedback.lastError?.let { " · last error: $it" } ?: "")
     }
 
     fun searchContext(): JSONObject? {
@@ -1699,37 +1664,11 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             .put("ghost", s.ghost != null).put("team", s.team.size)
     }
 
-    var knownIssues by mutableStateOf(e7.gearscan.data.KnownIssues.cached(files))
-        private set
-
-    fun refreshKnownIssues() {
-        val url = e7.gearscan.data.KnownIssues.url(content.feedbackUrl) ?: return
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { e7.gearscan.data.KnownIssues.fetch(url, files) }?.let { knownIssues = it }
-        }
-    }
-
-    fun sendReport(report: JSONObject, done: (Reports.Outcome) -> Unit) {
-        viewModelScope.launch {
-            val r = withContext(Dispatchers.IO) {
-                Reports.enqueue(reportsDir, report)
-                Reports.flush(reportsDir, content.feedbackUrl, report.getString("id"))
-            }
-            done(r)
-        }
-    }
-
     private fun cancelAllWork() {
         graph.work.cancelAll()
     }
 
     // ---- persistence ----
-    private val crashFile = File(files, CRASH_FILE)
-    var lastCrash: String? by mutableStateOf(null)
-        private set
-
-    fun dismissCrash() { lastCrash = null; crashFile.delete() }
-
     private fun adopted(b: Box?) {
         // early RTA presets saved single pieces of 2-piece sets as requirements; keep only complete sets
         configs.values.forEach { cfg -> cfg.request?.let { r ->
@@ -1791,17 +1730,17 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         upgrades.setRebuilds = { on -> useHeroUpgradeRebuilds(on); upgrades.rebuilds = on; checkUpgrade() }
         viewModelScope.launch {
             val b = withContext(Dispatchers.IO) { graph.loadOnce(); graph.scan.readBox() }
-            lastCrash = withContext(Dispatchers.IO) { crashFile.takeIf { it.exists() }?.readText() }
+            graph.feedback.loadCrash()
             graph.scan.adopt(b)
             box?.let { b -> if (team.isEmpty() || team.any { b.hero(it) == null }) team = listOfNotNull(defaultHero(b)) }
-            stack = listOf(if (!consent && box == null) Screen.ScanIntro else Screen.Optimize)
+            stack = listOf(if (!graph.settings.consent && box == null) Screen.ScanIntro else Screen.Optimize)
             ready = true
             team.firstOrNull()?.let { ensurePresets(it) }
             if (content.heroes.isEmpty()) graph.content.checkNow()
             else if (System.currentTimeMillis() - graph.content.checkedAt > 24 * 3600 * 1000L) graph.content.checkNow(quiet = true)
             graph.appUpdate.checkNow()
             graph.appUpdate.cleanOld()
-            withContext(Dispatchers.IO) { Reports.flush(reportsDir, content.feedbackUrl) }
+            graph.feedback.flushQueued()
         }
         viewModelScope.launch { graph.scan.watch() }
     }

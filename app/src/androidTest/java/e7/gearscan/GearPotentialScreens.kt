@@ -47,7 +47,7 @@ class GearPotentialScreens {
         lateinit var model: AppModel
         ui { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.consent = true
+        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.graph.settings.consent = true
             e7.gearscan.ui.Themes.set(ctx, false); model.graph.findGear.edit(PotentialQuery()) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
         if (images.isDirectory) model.graph.content.imageBase = images.toURI().toString()

@@ -101,7 +101,7 @@ class ScreenAudit {
         rule.waitUntil(20_000) { model.ready }
         // the APK carries no game data: the first start downloads it from the content site
         rule.waitUntil(60_000) { model.content.heroes.isNotEmpty() }
-        rule.runOnUiThread { model.graph.scan.import(gear); model.consent = true }
+        rule.runOnUiThread { model.graph.scan.import(gear); model.graph.settings.consent = true }
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, setup.fontScale)) {
@@ -572,15 +572,15 @@ class ScreenAudit {
         screen("scan-intro", Screen.ScanIntro)
         // first start: Scan & data must be reachable without agreeing to scan, and both ways in leave Optimize under it
         steps.add("first-start-restore-link" to {
-            ui { model.sheet = null; model.consent = false; model.stack = listOf(Screen.ScanIntro) }
+            ui { model.sheet = null; model.graph.settings.consent = false; model.stack = listOf(Screen.ScanIntro) }
             clickText("Restore a backup or import a gear.txt instead"); rule.waitForIdle()
             if (model.stack != listOf(Screen.Optimize, Screen.ScanData)) add("first start traps you on Scan & data", "restore link: ${model.stack}")
         })
         steps.add("first-start-continue" to {
-            ui { model.sheet = null; model.consent = false; model.stack = listOf(Screen.ScanIntro) }
+            ui { model.sheet = null; model.graph.settings.consent = false; model.stack = listOf(Screen.ScanIntro) }
             clickText("I understand what is sent and agree to scan"); clickText("Continue"); rule.waitForIdle()
             if (model.stack != listOf(Screen.Optimize, Screen.ScanData)) add("first start traps you on Scan & data", "continue: ${model.stack}")
-            if (!model.consent) add("first start loses the scan consent", "continue")
+            if (!model.graph.settings.consent) add("first start loses the scan consent", "continue")
         })
         steps.add("app-update-page-only" to {
             ui { model.sheet = null; model.poolMode = false; model.graph.appUpdate.release = e7.gearscan.data.AppUpdate.Release("9.9.9", "https://github.com/Sod3n/e7-gear/releases"); model.stack = listOf(Screen.Optimize) }

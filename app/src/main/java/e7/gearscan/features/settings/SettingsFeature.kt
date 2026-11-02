@@ -13,4 +13,10 @@ class SettingsFeature(g: AppGraph) : Feature(g, "settings") {
     var overlaySeen by saved("overlaySeen", false, Codecs.bool, keepOnErase = true)
     var overGameNative by saved("overGameNative", false, Codecs.bool, keepOnErase = true)
     var nativeSeen by saved("nativeSeen", false, Codecs.bool, keepOnErase = true)
+
+    fun useOverGameNative(on: Boolean) {
+        overGameNative = on
+        if (on) g.platform.stopOverlay()
+        g.scan.touch()
+    }
 }

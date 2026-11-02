@@ -69,7 +69,7 @@ fun rememberStartScan(model: AppModel): () -> Unit {
         onDispose { owner.lifecycle.removeObserver(watch) }
     }
     LaunchedEffect(model.graph.scan.scanNow) { if (model.graph.scan.scanNow) { model.graph.scan.scanNow = false; scan() } }
-    return { if (model.graph.scan.game == null || (model.graph.scan.otherVpnActive() && !model.proxyOn)) scan() else model.sheet = Sheet(SheetKind.SCAN_RESTART, 0) }
+    return { if (model.graph.scan.game == null || (model.graph.scan.otherVpnActive() && !model.graph.settings.proxyOn)) scan() else model.sheet = Sheet(SheetKind.SCAN_RESTART, 0) }
 }
 
 /** Fresh session for a scan: Android lets no app close another, so the player taps Force stop on the game's page. */
@@ -95,7 +95,7 @@ private fun rememberScanNow(model: AppModel): () -> Unit {
     return {
         when {
             model.graph.scan.game == null -> { model.graph.scan.error = ScanError.NOT_INSTALLED; if (model.screen != Screen.Capture) model.go(Screen.Capture) }
-            model.graph.scan.otherVpnActive() && !model.proxyOn -> { model.graph.scan.error = ScanError.VPN; if (model.screen != Screen.Capture) model.go(Screen.Capture) }
+            model.graph.scan.otherVpnActive() && !model.graph.settings.proxyOn -> { model.graph.scan.error = ScanError.VPN; if (model.screen != Screen.Capture) model.go(Screen.Capture) }
             else -> VpnService.prepare(ctx)?.let { vpn.launch(it) } ?: model.graph.scan.onVpnGranted()
         }
     }
@@ -103,12 +103,12 @@ private fun rememberScanNow(model: AppModel): () -> Unit {
 
 @Composable
 fun ScanIntroScreen(model: AppModel) {
-    var agree by remember { mutableStateOf(model.consent) }
+    var agree by remember { mutableStateOf(model.graph.settings.consent) }
     Frame(null, null, actions = {
         PinkButton("Continue", Modifier.weight(1f), enabled = agree) {
-            model.consent = true; model.save(); model.replace(Screen.ScanData)
+            model.graph.settings.consent = true; model.save(); model.replace(Screen.ScanData)
         }
-        OutlineButton("Not now") { model.consent = agree; model.save(); model.replace(Screen.Optimize) }
+        OutlineButton("Not now") { model.graph.settings.consent = agree; model.save(); model.replace(Screen.Optimize) }
     }) {
         CrashCard(model)
         VSpace(6.dp)
@@ -155,7 +155,7 @@ fun ScanIntroScreen(model: AppModel) {
             Checkbox(agree) { agree = it }
             Text("I understand what is sent and agree to scan", style = zen(13.sp))
         }
-        LinkText("Restore a backup or import a gear.txt instead") { model.consent = agree; model.save(); model.replace(Screen.ScanData) }
+        LinkText("Restore a backup or import a gear.txt instead") { model.graph.settings.consent = agree; model.save(); model.replace(Screen.ScanData) }
     }
 }
 
@@ -193,7 +193,7 @@ fun ScanDataScreen(model: AppModel) {
     val box = model.graph.scan.box
     model.graph.scan.rev
     Frame(null, null, actions = {
-        PinkButton("Scan now", Modifier.weight(1f)) { if (!model.consent) model.go(Screen.ScanIntro) else start() }
+        PinkButton("Scan now", Modifier.weight(1f)) { if (!model.graph.settings.consent) model.go(Screen.ScanIntro) else start() }
     }) {
         BackToPrevious()
         ScreenTitle("Scan & data", "読取")
@@ -217,11 +217,11 @@ fun ScanDataScreen(model: AppModel) {
                     Text("Use my VPN as a proxy", style = zen(13.sp))
                     Text("Only if you need your own VPN to play", style = zen(11.sp, FontWeight.Medium, C.muted))
                 }
-                Toggle(model.proxyOn) { model.proxyOn = it; model.save() }
+                Toggle(model.graph.settings.proxyOn) { model.graph.settings.proxyOn = it; model.save() }
             }
-            if (model.proxyOn) {
+            if (model.graph.settings.proxyOn) {
                 VSpace(8.dp)
-                PasteField(model.proxy, "SOCKS5 host:port", 240) { model.proxy = it.trim(); model.save() }
+                PasteField(model.graph.settings.proxy, "SOCKS5 host:port", 240) { model.graph.settings.proxy = it.trim(); model.save() }
                 VSpace(4.dp)
                 Text("Switch your VPN app to SOCKS5 proxy mode first; Android runs one VPN at a time.",
                     style = zen(11.sp, FontWeight.Medium, C.muted))
@@ -237,8 +237,8 @@ fun ScanDataScreen(model: AppModel) {
                 val (uri, name) = model.graph.scan.export("e7gear-backup.json", model.graph.scan.backupText())
                 model.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "application/json") }
             }
-            DataRow("Over the game", if (model.overGameNative) "Phone's floating window · tap to use E7 Gear's panel" else "E7 Gear's panel · tap to use the phone's floating window", true) {
-                model.useOverGameNative(!model.overGameNative)
+            DataRow("Over the game", if (model.graph.settings.overGameNative) "Phone's floating window · tap to use E7 Gear's panel" else "E7 Gear's panel · tap to use the phone's floating window", true) {
+                model.graph.settings.useOverGameNative(!model.graph.settings.overGameNative)
             }
             DataRow("Restore from a backup", null, true) { restore.launch(arrayOf("application/json", "text/plain", "*/*")) }
             DataRow("Import a gear.txt file", null, true) { importGear.launch(arrayOf("text/plain", "application/json", "*/*")) }

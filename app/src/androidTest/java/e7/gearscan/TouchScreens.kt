@@ -68,9 +68,9 @@ class TouchScreens {
         ui { model.sheet = Sheet(SheetKind.BONUS, hero.id) }
         assertTrue(rule.onAllNodes(hasSetTextAction(), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         shot("24-legacy-bonus-input-353-big", legacyStats = true)
-        ui { model.sheet = null; model.proxyOn = true; model.go(Screen.ScanData) }
+        ui { model.sheet = null; model.graph.settings.proxyOn = true; model.go(Screen.ScanData) }
         clipboard("127.0.0.1:10808"); tap("Paste")
-        assertEquals("127.0.0.1:10808", model.proxy)
+        assertEquals("127.0.0.1:10808", model.graph.settings.proxy)
         shot("25-proxy-paste-353-big")
         ui { model.go(Screen.Feedback()) }
         clipboard("Local screenshot audit, never sent.")
