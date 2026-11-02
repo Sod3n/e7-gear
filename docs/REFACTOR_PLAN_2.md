@@ -1,4 +1,21 @@
-# Refactor plan 2: explicit dependencies (proposed 2026-11-02, waits for the maintainer)
+# Refactor plan 2: explicit dependencies (done 2026-11-02)
+
+## Result
+
+| Check | Before (cb3a872) | After |
+|---|---|---|
+| Wrong-way connections between features | 14 | 0; `FeatureLayersTest` checks constructor types (lazy providers included) and that no feature logic names `AppGraph` |
+| Feature classes given the whole graph | 15 | 0; each takes `FeatureContext` and lower-layer features, built bottom-up |
+| `TrackerFeature.kt` | 803 lines | 439; `RecordsFeature`, `UpgradeCheckRun`, `UpgradeReadout`, `TrackStarts`, `WornPiece` |
+| Global objects holding a `var` | 4 (6 vars) | 2: `Ghost.nextId` (kept on purpose) and `Themes` (deferred, below) |
+| Unit tests | core 109, app 157 | core 109, app 184, 0 failed; lint and ktlint clean |
+| Device | audit: known Improve heroes rows; suites 14/14 | the same; the ghost step now warns instead of a false "no back link" |
+
+Deviations: `Themes` stays global: 743 colour reads in 30 files, many outside composition, so moving it is a visual
+change, not a move (its own step). The tracker and `OverGame` called each other inside one package; `OverGameLauncher`
+breaks the loop. A content host switch now schedules its save at once (same value). The tracker split had broken three
+messages ("Your g.scan.lastScan changed", "Equipped on $t.worn..."); they are restored and
+`SourceRulesTest.textsHoldNoCodeLeftByRenames` guards against that class of error.
 
 Written against `architecture` cb3a872 (audit and all 14 device suites green). Goal: a feature can be read and
 tested on its own. Today every feature gets the whole `AppGraph` (`class XFeature(g: AppGraph)`), so any feature can
