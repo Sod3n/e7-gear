@@ -36,6 +36,8 @@ class Messages {
         dialog = Confirm(title, body, action) { onConfirmed(Confirmed()) }
     }
 
+    fun askReset(title: String, body: String, run: () -> Unit) = confirm(title, body, "Reset") { run() }
+
     fun dismissConfirm(): Boolean {
         if (dialog == null) return false
         dialog = null

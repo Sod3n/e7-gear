@@ -32,8 +32,8 @@ import e7.gearscan.Screen
 fun App(model: AppModel, onExit: () -> Unit) {
     val back = remember(model) {
         object : BackLink {
-            override val label get() = model.backLabel()
-            override fun go() { model.back() }
+            override val label get() = model.graph.nav.backLabel()
+            override fun go() { model.graph.nav.back() }
         }
     }
     CompositionLocalProvider(LocalBack provides back, LocalImageBase provides model.graph.content.imageBase) { AppContent(model, onExit) }
@@ -41,7 +41,7 @@ fun App(model: AppModel, onExit: () -> Unit) {
 
 @Composable
 private fun AppContent(model: AppModel, onExit: () -> Unit) {
-    BackHandler { if (!model.back()) onExit() }
+    BackHandler { if (!model.graph.nav.back()) onExit() }
     if (!model.ready) { Box(Modifier.fillMaxSize().background(C.paper)); return }
     if (model.graph.content.content.heroes.isEmpty()) { GameDataScreen(model); return }
     // in the phone's floating window, a loaded tracker or checklist is all the window shows
@@ -55,11 +55,11 @@ private fun AppContent(model: AppModel, onExit: () -> Unit) {
     }
     Box(Modifier.fillMaxWidth().weight(1f)) {
         val nav = model.graph.nav
-        val entry = nav.stack.last()
+        val entry = nav.entries.last()
         val saveable = rememberSaveableStateHolder()
         val known = remember { HashSet<Long>() }
         SideEffect {
-            val live = nav.stack.map { it.id }.toSet()
+            val live = nav.entries.map { it.id }.toSet()
             (known - live).forEach { saveable.removeState(it) }
             known.clear(); known.addAll(live)
         }

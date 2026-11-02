@@ -75,7 +75,7 @@ class SellFiltersScreens {
         lateinit var model:AppModel
         ui { model=AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() }));model.go(Screen.SellFilters) }
+        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() }));model.graph.nav.go(Screen.SellFilters) }
         val images=File(ctx.getExternalFilesDir(null),"audit-images")
         if(images.isDirectory)model.graph.content.imageBase = images.toURI().toString()
         var width by mutableIntStateOf(411);var font by mutableFloatStateOf(1f);var overlay by mutableStateOf(false)
@@ -97,15 +97,15 @@ class SellFiltersScreens {
         val first=model.graph.sellReview.result!!.matches.first()
         assertTrue(model.graph.sellReview.result!!.matches.all { !it.scoreUsed })
         noPoints();shot("04-raw-results")
-        ui { model.sheet=Sheet(SheetKind.SELL_DETAILS,first.item.id) };noPoints();shot("05-roll-history")
-        ui { model.sheet=Sheet(SheetKind.SELL_EXTRA,0) };shot("08-more-filters")
+        ui { model.graph.nav.sheet=Sheet(SheetKind.SELL_DETAILS,first.item.id) };noPoints();shot("05-roll-history")
+        ui { model.graph.nav.sheet=Sheet(SheetKind.SELL_EXTRA,0) };shot("08-more-filters")
         tap("Also filter by combined score");assertTrue(model.graph.sellReview.query.scoreFilter)
         tap("Also filter by combined score");assertFalse(model.graph.sellReview.query.scoreFilter);tap("Done")
         // what the safeguard slider commits: Speed 20 alone
-        ui { model.sheet=null;model.graph.sellReview.edit(model.graph.sellReview.query.copy(keepStats=mapOf(GearStat.SPD to 20.0))) }
+        ui { model.graph.nav.sheet=null;model.graph.sellReview.edit(model.graph.sellReview.query.copy(keepStats=mapOf(GearStat.SPD to 20.0))) }
         assertEquals(20.0,model.graph.sellReview.query.keepStats.getValue(GearStat.SPD),0.0)
         tap("Matches");assertFalse(model.graph.sellReview.fresh);noPoints();shot("10-stale")
-        val old=model.screen;ui { model.graph.sellReview.trackMatches(openOverlay=false) };assertEquals(old,model.screen)
+        val old=model.graph.nav.screen;ui { model.graph.sellReview.trackMatches(openOverlay=false) };assertEquals(old,model.graph.nav.screen)
         tap("Update matches");rule.waitUntil(90_000) { !model.graph.sellReview.busy };assertTrue(model.graph.sellReview.fresh)
         val result=model.graph.sellReview.result!!;assertTrue(result.matches.size>20);assertTrue(result.matches.none { it.protected })
         val protected=result.rows.count { it.protected };assertTrue(protected>0)
@@ -130,25 +130,25 @@ class SellFiltersScreens {
         rule.onNodeWithText("Sold ›").assertIsDisplayed()
         val soldId=t.selected!!;val history=t.record!!.history.size
         tap("Sold ›")
-        assertTrue(soldId in model.clearedIds);assertEquals(n-1,t.pendingQueue.size);assertNotEquals(soldId,t.selected)
+        assertTrue(soldId in model.graph.marks.cleared);assertEquals(n-1,t.pendingQueue.size);assertNotEquals(soldId,t.selected)
         shot("19-sold-next",true)
         val afterSale=model.graph.scan.backupText()
         val interrupted=withTracker(afterSale) { it.put("selected",soldId) }
         ui { assertTrue(model.graph.scan.restore(interrupted)) }
         assertNotEquals(soldId,t.selected);assertTrue(t.queueIndex>=0)
-        val stale=withTracker(afterSale) { it.put("queueScan",model.lastScan-1) }
+        val stale=withTracker(afterSale) { it.put("queueScan",model.graph.scan.lastScan-1) }
         val remaining=t.selected!!
         ui { assertTrue(model.graph.scan.restore(stale));model.graph.tracker.markSold(remaining) }
-        assertFalse(remaining in model.clearedIds);assertNotNull(t.error)
+        assertFalse(remaining in model.graph.marks.cleared);assertNotNull(t.error)
         ui { assertTrue(model.graph.scan.restore(afterSale)) }
         // Repeated events from the old button cannot mark the new piece.
         ui { model.graph.tracker.markSold(soldId) };assertEquals(n-1,t.pendingQueue.size)
         rule.onNodeWithContentDescription("Undo last mark").performClick();rule.waitForIdle()
-        assertFalse(soldId in model.clearedIds);assertEquals(n,t.pendingQueue.size);assertEquals(soldId,t.selected)
+        assertFalse(soldId in model.graph.marks.cleared);assertEquals(n,t.pendingQueue.size);assertEquals(soldId,t.selected)
         assertEquals(history,t.record!!.history.size);shot("20-undo-sold-mark",true)
-        ui { overlay=false;assertTrue(model.graph.scan.restore(afterSale));model.go(Screen.Upgrade) }
-        assertTrue(soldId in model.clearedIds);assertEquals(n-1,t.pendingQueue.size);assertTrue(t.canUndoSold)
-        ui { model.graph.tracker.undoSold() };assertEquals(soldId,t.selected);assertFalse(soldId in model.clearedIds)
+        ui { overlay=false;assertTrue(model.graph.scan.restore(afterSale));model.graph.nav.go(Screen.Upgrade) }
+        assertTrue(soldId in model.graph.marks.cleared);assertEquals(n-1,t.pendingQueue.size);assertTrue(t.canUndoSold)
+        ui { model.graph.tracker.undoSold() };assertEquals(soldId,t.selected);assertFalse(soldId in model.graph.marks.cleared)
         ui { model.graph.overlay.expanded=true;overlay=true }
         shot("21-sold-mark-restored",true)
         ui { model.graph.overlay.floating=true;model.graph.overlay.floatingPanel=true };rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Open E7 Gear");assertFalse(model.graph.overlay.floatingPanel);ui { model.graph.overlay.floating=false;model.graph.overlay.floatingPanel=true }
@@ -156,16 +156,16 @@ class SellFiltersScreens {
         assertEquals(model.graph.sellReview.query,SellQuery.of(saved.getJSONObject("fields").getJSONObject("sellReview.query")))
         val reopened=reopenTracker(model.graph,ctx.filesDir);assertTrue(reopened.isRollReview);assertEquals(t.reviewRolls,reopened.reviewRolls);assertEquals(t.queue,reopened.queue)
         val lastQuery=model.graph.sellReview.query
-        ui { overlay=false;assertTrue(model.graph.scan.restore(backup));model.go(Screen.SellFilters) }
+        ui { overlay=false;assertTrue(model.graph.scan.restore(backup));model.graph.nav.go(Screen.SellFilters) }
         assertEquals(lastQuery,model.graph.sellReview.query);assertFalse(model.graph.sellReview.query.scoreFilter);noPoints()
         ui { model.graph.sellReview.find() };rule.waitUntil(90_000) { !model.graph.sellReview.busy }
         val only=model.graph.sellReview.result!!.matches.first().item.id
         ui { model.graph.sellReview.trackMatches(only,openOverlay=false);model.graph.overlay.expanded=true;overlay=true }
         tap("Sold ›");assertTrue(t.sellQueueComplete);assertEquals(0,t.pendingQueue.size)
-        assertTrue(only in model.clearedIds);shot("22-all-marked",true)
+        assertTrue(only in model.graph.marks.cleared);shot("22-all-marked",true)
         ui { model.graph.tracker.markSold(only) };assertEquals(0,t.pendingQueue.size)
         tap("Undo mark");assertFalse(t.sellQueueComplete);assertEquals(1,t.pendingQueue.size)
-        assertFalse(only in model.clearedIds);shot("23-final-mark-undone",true)
+        assertFalse(only in model.graph.marks.cleared);shot("23-final-mark-undone",true)
         ui { overlay=false }
         File(ctx.getExternalFilesDir(null),"sell-filters/receipt.txt").writeText("$n real-inventory review matches tracked; $protected left out by chosen Speed20 safeguard; default safeguards, point-free primary UI, combined score toggle, freshness, live procs/forecasts, Sold/Undo, pending positions, restored sale marks, last-item completion, queue and backup restore passed; query=${lastQuery.toJson()}\n")
         ui { model.graph.tracker.hide();model.graph.overlay.usableHeightDp=0f }

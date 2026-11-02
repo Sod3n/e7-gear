@@ -43,24 +43,24 @@ private val GAINS = listOf(HeroUpgrades.MIN_GAIN to "Any", 0.5 to "½ roll", 1.0
 
 /** The piece as the check saw it: a recorded upgrade of this scan wins over the scanned piece. */
 internal fun heroUpgradeItem(model: AppModel, id: Long): Item? =
-    model.graph.tracker.records[id]?.takeIf { it.scan == model.lastScan }?.item ?: model.box?.itemsById?.get(id)
+    model.graph.tracker.records[id]?.takeIf { it.scan == model.graph.scan.lastScan }?.item ?: model.graph.scan.box?.itemsById?.get(id)
 
 /** Improve heroes: pieces below +15 that could make a hero with a setup better once finished, by hero or by piece. */
 @Composable
 fun HeroUpgradesScreen(model: AppModel, heroId: Long?) {
-    model.box ?: return
+    model.graph.scan.box ?: return
     val st = model.graph.improveHeroes.heroUpgrades
     val result = st?.result
     val running = st?.running == true
     val minGain = model.graph.improveHeroes.minGain
-    val view = remember(result, minGain, model.graph.improveHeroes.rebuilds, model.rev, model.box, model.clearedIds) { result?.let { model.graph.improveHeroes.view(it, minGain) } }
+    val view = remember(result, minGain, model.graph.improveHeroes.rebuilds, model.graph.scan.rev, model.graph.scan.box, model.graph.marks.cleared) { result?.let { model.graph.improveHeroes.view(it, minGain) } }
     val one = heroId?.let { id -> view?.firstOrNull { it.hero.id == id } }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val listed = when {
         one != null -> one.rows.map { it.pick.piece }
         tab == 1 -> view?.let { piecesOf(model, it).map { p -> p.first } }.orEmpty()
         else -> view?.flatMap { h -> h.rows.map { it.pick.piece } }?.distinct().orEmpty()
-    }.filter { it !in model.clearedIds }
+    }.filter { it !in model.graph.marks.cleared }
     Frame(null, null, actions = {
         when {
             running -> OutlineButton("Stop", Modifier.weight(1f)) { model.graph.improveHeroes.stop() }
@@ -94,7 +94,7 @@ fun HeroUpgradesScreen(model: AppModel, heroId: Long?) {
             if (one == null) Text("This hero has no saved setup in this check.", style = zen(12.sp, FontWeight.Medium, C.muted))
             else HeroPage(model, one)
         } else {
-            RowCard("Showing", { model.sheet = Sheet(SheetKind.HERO_UPGRADE_SETTINGS, 0) }, labelWidth = 84.dp) {
+            RowCard("Showing", { model.graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_SETTINGS, 0) }, labelWidth = 84.dp) {
                 Text("${GAINS.firstOrNull { it.first == minGain }?.second ?: "Any"} or more · ${if (model.graph.improveHeroes.rebuilds) "rebuilds allowed" else "this piece only"}",
                     style = zen(12.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
@@ -108,7 +108,7 @@ fun HeroUpgradesScreen(model: AppModel, heroId: Long?) {
             Summary(model, view!!, st, result)
             if (tab == 0) ByHero(model, view) else ByPiece(model, view)
         }
-        ListRow({ model.sheet = Sheet(SheetKind.HERO_UPGRADE_HELP, 0) }, Modifier.padding(vertical = 6.dp)) {
+        ListRow({ model.graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_HELP, 0) }, Modifier.padding(vertical = 6.dp)) {
             Text("How the check works", style = zen(13.sp, color = C.muted))
         }
     }
@@ -123,7 +123,7 @@ private fun Intro(model: AppModel) {
         Text("Checks the ${heroes.size} ${if (heroes.size == 1) "hero" else "heroes"} with a saved setup:", style = zen(12.sp, FontWeight.Medium, C.muted))
         VSpace(6.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            heroes.take(7).forEach { Face(model.face(it), 30.dp, ringWidth = 2.dp) }
+            heroes.take(7).forEach { Face(model.graph.heroes.face(it), 30.dp, ringWidth = 2.dp) }
             if (heroes.size > 7) Text("+${heroes.size - 7}", style = zen(12.sp, FontWeight.Medium, C.muted))
         }
     }
@@ -139,7 +139,7 @@ private fun Notice(text: String) {
 /** Smallest gain and whether other pieces may move: what the lists count, edited in one place. */
 @Composable
 internal fun HeroUpgradeSettingsSheet(model: AppModel) {
-    SheetBody("Showing", button = "Done", onButton = { model.sheet = null }) {
+    SheetBody("Showing", button = "Done", onButton = { model.graph.nav.sheet = null }) {
         SectionTitle("Smallest gain")
         Segmented(GAINS.map { it.second }, GAINS.indexOfFirst { it.first == model.graph.improveHeroes.minGain }.coerceAtLeast(0)) { model.graph.improveHeroes.useMinGain(GAINS[it].first) }
         Text("One roll is an average substat roll toward the hero's targets, such as 4 speed.", style = zen(11.sp, FontWeight.Medium, C.muted))
@@ -203,13 +203,13 @@ private fun ByHero(model: AppModel, view: List<HeroUpgradeHero>) {
 private fun HeroRow(model: AppModel, h: HeroUpgradeHero) {
     // the piece with the most to gain (chance x size, the hero page's order): its chance on the right, what it gives below
     val top = h.rows.firstOrNull()
-    ListRow({ model.go(Screen.HeroUpgrades(h.hero.id)) }, leading = { Face(model.face(h.hero), 40.dp) }, trailing = {
+    ListRow({ model.graph.nav.go(Screen.HeroUpgrades(h.hero.id)) }, leading = { Face(model.graph.heroes.face(h.hero), 40.dp) }, trailing = {
         Slot(64.dp) { if (top != null && h.base.value != null) Column(horizontalAlignment = Alignment.End) {
             FitText("~${top.chance}%", dela(16.sp, C.blue))
             Text("best chance", style = zen(9.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
         } }
     }) {
-        Text(model.heroName(h.hero), style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(model.graph.heroes.heroName(h.hero), style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
         when {
             top == null -> Text(reason(h), style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
             h.base.value == null -> Text("${h.rows.size} ${if (h.rows.size == 1) "piece" else "pieces"} could make a build",
@@ -236,7 +236,7 @@ private fun ByPiece(model: AppModel, view: List<HeroUpgradeHero>) {
     shown.take(count).forEach { (id, heroes) ->
         val item = heroUpgradeItem(model, id) ?: return@forEach
         val r0 = heroes.first().second
-        Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp), onClick = { model.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, id) }) {
+        Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp), onClick = { model.graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, id) }) {
             GearSearchIdentity(model, item, owner = true) { Odds(r0) }
             VSpace(8.dp)
             heroes.take(3).forEach { (h, r) -> HeroLine(model, h, r) }
@@ -258,8 +258,8 @@ private fun LongShots(n: Int, open: Boolean, toggle: () -> Unit) {
 @Composable
 private fun HeroLine(model: AppModel, h: HeroUpgradeHero, r: HeroUpgradeRow) {
     Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Face(model.face(h.hero), 24.dp, ringWidth = 1.5.dp)
-        Text(model.heroName(h.hero), style = zen(12.sp, FontWeight.Bold), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Face(model.graph.heroes.face(h.hero), 24.dp, ringWidth = 1.5.dp)
+        Text(model.graph.heroes.heroName(h.hero), style = zen(12.sp, FontWeight.Bold), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         FitText("~${r.chance}%", zen(12.sp, color = C.blue))
     }
     StatChanges(model, h, r)
@@ -295,11 +295,11 @@ private fun StatChangeChip(stat: Stat, d: Double) {
 @Composable
 private fun HeroPage(model: AppModel, h: HeroUpgradeHero) {
     val rebuilds = model.graph.improveHeroes.rebuilds
-    Card(padding = PaddingValues(12.dp), onClick = { model.go(Screen.HeroDetail(h.hero.id)) }) {
+    Card(padding = PaddingValues(12.dp), onClick = { model.graph.nav.go(Screen.HeroDetail(h.hero.id)) }) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Face(model.face(h.hero), 52.dp)
+            Face(model.graph.heroes.face(h.hero), 52.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(model.heroName(h.hero), style = dela(17.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(model.graph.heroes.heroName(h.hero), style = dela(17.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(when {
                     rebuilds && h.base.value == null && !h.base.unresolved -> "No build meets the setup yet"
                     !rebuilds && h.base.worn == null -> "What it wears doesn't meet its setup"
@@ -314,7 +314,7 @@ private fun HeroPage(model: AppModel, h: HeroUpgradeHero) {
     // what it wears is behind its best build: optimizing comes before any upgrade
     val best = h.base.value; val worn = h.base.worn
     if (!rebuilds && best != null && worn != null && best > worn + HeroUpgrades.MIN_GAIN * h.base.unit)
-        Card(shadow = null, padding = PaddingValues(12.dp), onClick = { model.graph.heroes.pickHero(h.hero.id); model.graph.heroes.team = listOf(h.hero.id); model.tab(Screen.Optimize) }) {
+        Card(shadow = null, padding = PaddingValues(12.dp), onClick = { model.graph.heroes.pickHero(h.hero.id); model.graph.heroes.team = listOf(h.hero.id); model.graph.nav.tab(Screen.Optimize) }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Optimize first: a better build from gear you have is " +
@@ -327,7 +327,7 @@ private fun HeroPage(model: AppModel, h: HeroUpgradeHero) {
         Text(reason(h), style = zen(12.sp, FontWeight.Medium, C.muted))
         return
     }
-    val rows = h.rows.filter { it.pick.piece !in model.clearedIds }
+    val rows = h.rows.filter { it.pick.piece !in model.graph.marks.cleared }
     val (likely, long) = rows.partition { it.hits > LONG_SHOT }
     var count by rememberSavedFor(h, 20)
     var showLong by rememberSavedFor(h, false)
@@ -335,7 +335,7 @@ private fun HeroPage(model: AppModel, h: HeroUpgradeHero) {
     val shown = likely + if (showLong) long else emptyList()
     shown.take(count).forEach { r ->
         val item = heroUpgradeItem(model, r.pick.piece) ?: return@forEach
-        Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp), onClick = { model.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, r.pick.piece) }) {
+        Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp), onClick = { model.graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, r.pick.piece) }) {
             GearSearchIdentity(model, item, owner = true) { Odds(r) }
             if (h.base.value == null) Text("Makes a build possible", style = zen(12.sp, color = C.blue)) else StatChanges(model, h, r)
             RebuildLine(model, r)
@@ -350,22 +350,22 @@ private fun HeroPage(model: AppModel, h: HeroUpgradeHero) {
 internal fun HeroUpgradePieceSheet(model: AppModel, id: Long) {
     val result = model.graph.improveHeroes.heroUpgrades?.result ?: return
     val item = heroUpgradeItem(model, id) ?: return
-    val heroes = remember(result, model.graph.improveHeroes.minGain, model.rev) {
+    val heroes = remember(result, model.graph.improveHeroes.minGain, model.graph.scan.rev) {
         model.graph.improveHeroes.view(result).mapNotNull { h -> h.rows.firstOrNull { it.pick.piece == id }?.let { h to it } }
     }
-    SheetBody("Worth enhancing?", button = "Enhance over the game", onButton = { model.sheet = null; model.graph.messages.show(model.graph.improveHeroes.track(id)) }) {
+    SheetBody("Worth enhancing?", button = "Enhance over the game", onButton = { model.graph.nav.sheet = null; model.graph.messages.show(model.graph.improveHeroes.track(id)) }) {
         Card(shadow = null, padding = PaddingValues(12.dp)) { GearSearchIdentity(model, item, owner = true) }
         heroes.forEach { (h, r) ->
-            Card(shadow = null, padding = PaddingValues(12.dp), onClick = { model.sheet = null; model.go(Screen.HeroUpgrades(h.hero.id)) }) {
+            Card(shadow = null, padding = PaddingValues(12.dp), onClick = { model.graph.nav.sheet = null; model.graph.nav.go(Screen.HeroUpgrades(h.hero.id)) }) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Face(model.face(h.hero), 36.dp)
-                    Text(model.heroName(h.hero), style = zen(13.sp, FontWeight.Bold), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Face(model.graph.heroes.face(h.hero), 36.dp)
+                    Text(model.graph.heroes.heroName(h.hero), style = zen(13.sp, FontWeight.Bold), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Odds(r)
                     ChevronSlot(true)
                 }
                 if (h.base.value == null) Text("Makes a build possible", style = zen(12.sp, color = C.blue)) else StatChanges(model, h, r)
                 RebuildLine(model, r)
-                ListRow({ model.graph.improveHeroes.openFinalBuild(h.hero.id, r); model.sheet = Sheet(SheetKind.HERO_UPGRADE_BUILD, id, back = SheetKind.HERO_UPGRADE_PIECE) },
+                ListRow({ model.graph.improveHeroes.openFinalBuild(h.hero.id, r); model.graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_BUILD, id, back = SheetKind.HERO_UPGRADE_PIECE) },
                     Modifier.padding(top = 6.dp)) {
                     Text("Final build with this piece", style = zen(12.sp))
                 }
@@ -396,7 +396,7 @@ private fun RebuildLine(model: AppModel, r: HeroUpgradeRow) {
 @Composable
 internal fun HeroUpgradeBuildSheet(model: AppModel) {
     val fb = model.graph.improveHeroes.finalBuild
-    SheetBody("Final build", button = "Done", onButton = { model.sheet = null }) {
+    SheetBody("Final build", button = "Done", onButton = { model.graph.nav.sheet = null }) {
         if (fb == null) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (model.graph.improveHeroes.finalBuildBusy) { Spinner(); Text("Working out the build", style = zen(12.sp)) }
@@ -405,9 +405,9 @@ internal fun HeroUpgradeBuildSheet(model: AppModel) {
             return@SheetBody
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Face(model.face(fb.hero), 40.dp)
+            Face(model.graph.heroes.face(fb.hero), 40.dp)
             Column(Modifier.weight(1f)) {
-                Text(model.heroName(fb.hero), style = zen(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(model.graph.heroes.heroName(fb.hero), style = zen(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(fb.note + " · usually ${fb.gain}", style = zen(11.sp, FontWeight.Medium, C.muted))
             }
         }
@@ -429,9 +429,9 @@ internal fun HeroUpgradeBuildSheet(model: AppModel) {
             val mine = it.id == fb.pieceId
             Card(shadow = if (mine) C.pink else null, radius = 12.dp, border = 2.dp, padding = PaddingValues(10.dp)) {
                 Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GearTile(it, 40.dp, setIcon = model.content.set(it.set)?.icon)
+                    GearTile(it, 40.dp, setIcon = model.graph.content.content.set(it.set)?.icon)
                     Column(Modifier.weight(1f)) {
-                        Text("${model.content.set(it.set)?.name ?: it.set.removeSuffix("Set")} ${it.slot.label}", style = zen(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${model.graph.content.content.set(it.set)?.name ?: it.set.removeSuffix("Set")} ${it.slot.label}", style = zen(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(fb.from[i], style = zen(11.sp, color = if (mine) C.deepPink else C.blue))
                         if (mine) GearSearchSubs(it)
                     }
@@ -447,7 +447,7 @@ internal fun HeroUpgradeBuildSheet(model: AppModel) {
 
 @Composable
 internal fun HeroUpgradeHelpSheet(model: AppModel) {
-    SheetBody("How it works", button = "Got it", onButton = { model.sheet = null }) {
+    SheetBody("How it works", button = "Got it", onButton = { model.graph.nav.sheet = null }) {
         SectionTitle("What is checked")
         Text("Every piece below +15 that is level 85 or 88 and Epic or Heroic, for every hero with a saved setup. Gear worn by heroes " +
             "of your pool run is only tried on its own hero.", style = zen(12.sp, FontWeight.Medium))

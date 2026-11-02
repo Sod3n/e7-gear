@@ -39,7 +39,7 @@ fun TabBar(model: AppModel, current: Screen) {
                 val shape = RoundedCornerShape(999.dp)
                 Box(Modifier.weight(1f).height(40.dp)
                     .then(if (on) Modifier.hardShadow(C.shadow, 2.dp, 2.dp, 20.dp).clip(shape).background(C.pink).border(2.dp, C.edge, shape) else Modifier.clip(shape))
-                    .clickable { model.tab(s) },
+                    .clickable { model.graph.nav.tab(s) },
                     contentAlignment = Alignment.Center) {
                     Text(label, style = zen(14.sp, color = if (on) C.onAccent else C.muted))
                 }
@@ -65,7 +65,7 @@ fun CrashCard(model: e7.gearscan.AppModel) {
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         VSpace(6.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            LinkText("Report this") { model.go(e7.gearscan.Screen.Feedback(crash)); model.graph.feedback.dismissCrash() }
+            LinkText("Report this") { model.graph.nav.go(e7.gearscan.Screen.Feedback(crash)); model.graph.feedback.dismissCrash() }
             LinkText("Dismiss", color = C.muted) { model.graph.feedback.dismissCrash() }
         }
     }

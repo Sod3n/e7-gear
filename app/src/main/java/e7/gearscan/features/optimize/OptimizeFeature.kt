@@ -55,6 +55,9 @@ class OptimizeFeature(g: AppGraph) : Feature(g, "optimize") {
     val limitMs = 15_000L
     val longLimitMs = 60_000L
 
+    /** With the "closest to targets" goal, results show match % unless another rating is picked. */
+    var showMatch by mutableStateOf(true)
+
     var search: SearchState? by mutableStateOf(null)
 
     private val searchWork = work<Unit>("Search", Weight.Light)

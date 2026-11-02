@@ -28,7 +28,7 @@ class PoolSpeedTest {
         }
         inst.runOnMainSync { model = AppModel(inst.targetContext.applicationContext as Application) }
         waitFor(20_000) { model.ready }
-        waitFor(60_000) { model.content.heroes.isNotEmpty() }
+        waitFor(60_000) { model.graph.content.content.heroes.isNotEmpty() }
         var restored = false
         inst.runOnMainSync { restored = model.graph.scan.restore(backup!!) }
         assertTrue("backup didn't restore", restored)

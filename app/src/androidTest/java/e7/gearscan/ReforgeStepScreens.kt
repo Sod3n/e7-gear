@@ -77,7 +77,7 @@ class ReforgeStepScreens {
         }
 
         // a hero whose worn build counts a finished, not yet reforged level 85 piece as reforged
-        val box = model.box!!
+        val box = model.graph.scan.box!!
         val hero = model.graph.improveHeroes.heroes().first { h -> model.graph.heroes.request(h.id).reforged && box.gearOf(h.id).size == 6 &&
             box.gearOf(h.id).values.any { it.reforgeable && box.canReforge(it.id) } }
         val build = model.graph.heroes.currentBuild(hero.id)!!
@@ -93,26 +93,26 @@ class ReforgeStepScreens {
 
         // finishing records the reforges into the box; Undo takes them back
         ui { for (i in steps.indices) model.graph.checklist.done[i] = true; model.graph.checklist.finish(); overlay = false }
-        val after = model.box!!
+        val after = model.graph.scan.box!!
         check(toReforge.all { after.itemsById.getValue(it).level == 90 }) { "reforged pieces not level 90 after finishing" }
         check(toReforge.all { after.itemsById.getValue(it).equippedOn == hero.id }) { "reforged pieces left the hero" }
-        val toast = checkNotNull(model.toast) { "no toast after recording" }
+        val toast = checkNotNull(model.graph.messages.toast) { "no toast after recording" }
         check(toast.text.contains("reforged")) { "toast: ${toast.text}" }
         ui { toast.onAction?.invoke() }
-        check(toReforge.all { model.box!!.itemsById.getValue(it).level == 85 }) { "Undo didn't restore the reforged pieces" }
+        check(toReforge.all { model.graph.scan.box!!.itemsById.getValue(it).level == 85 }) { "Undo didn't restore the reforged pieces" }
 
         // the back link stays reachable: pinned once its place scrolls away
-        ui { model.go(Screen.ScanData) }
+        ui { model.graph.nav.go(Screen.ScanData) }
         check(rule.onAllNodesWithTag(PINNED_BACK_TAG, useUnmergedTree = true).fetchSemanticsNodes().isEmpty()) { "pinned back shown before scrolling" }
         for ((w, f) in listOf(353 to 1.3f, 411 to 1f)) { ui { width = w; font = f }; shoot("3-top-$w") }
         repeat(6) { rule.onRoot().performTouchInput { swipeUp(startY = bottom * 0.8f, endY = bottom * 0.2f, durationMillis = 300) } }
         rule.waitForIdle()
         check(rule.onAllNodesWithTag(PINNED_BACK_TAG, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) { "no pinned back after scrolling" }
         for ((w, f) in listOf(353 to 1.3f, 411 to 1f)) { ui { width = w; font = f }; shoot("4-scrolled-$w") }
-        val depth = model.stack.size
+        val depth = model.graph.nav.stack.size
         rule.onAllNodesWithTag(PINNED_BACK_TAG, useUnmergedTree = true)[0].performClick()
         rule.waitForIdle()
-        check(model.stack.size == depth - 1) { "pinned back didn't go back" }
+        check(model.graph.nav.stack.size == depth - 1) { "pinned back didn't go back" }
         File(shots, "result.txt").writeText("hero ${hero.name}: ${toReforge.size} reforge steps of ${steps.size}; pinned back ok\n")
         ui { model.graph.checklist.unload() }
     }
@@ -141,7 +141,7 @@ class ReforgeStepScreens {
             File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) } }
 
         // a worn +15 piece turned into crit damage (or another stat it lacks), the way a search with mods would
-        val box = model.box!!
+        val box = model.graph.scan.box!!
         val hero = model.graph.improveHeroes.heroes().first { h -> box.gearOf(h.id).size == 6 && model.graph.heroes.currentBuild(h.id) != null }
         val cur = model.graph.heroes.currentBuild(hero.id)!!
         val modded = cur.items.firstNotNullOfOrNull { it ->
@@ -166,22 +166,22 @@ class ReforgeStepScreens {
         check(model.graph.checklist.rolledValue(at) == want) { "rolled ${model.graph.checklist.rolledValue(at)}, wanted $want" }
         shot("3-rolled-set")
         ui { for (i in model.graph.checklist.done.indices) model.graph.checklist.done[i] = true; model.graph.checklist.finish(); overlay = false }
-        val written = model.box!!.itemsById.getValue(modded.id).subs[m.index]
+        val written = model.graph.scan.box!!.itemsById.getValue(modded.id).subs[m.index]
         check(written.type == m.to && written.value == want && written.modified) { "box has ${written.type} ${written.value} modified=${written.modified}" }
-        val toast = checkNotNull(model.toast) { "no toast after recording" }
+        val toast = checkNotNull(model.graph.messages.toast) { "no toast after recording" }
         check(toast.text.contains("1 modified") && !toast.text.contains("planned")) { "toast: ${toast.text}" }
         shot("4-recorded")
         ui { toast.onAction?.invoke() }
-        val undone = model.box!!.itemsById.getValue(modded.id).subs[m.index]
+        val undone = model.graph.scan.box!!.itemsById.getValue(modded.id).subs[m.index]
         check(undone.type == original.type && undone.value == original.value) { "Undo left ${undone.type} ${undone.value}" }
 
         // Equip in app: no roll was asked, so the planned value goes in and the toast says so
         ui { model.graph.heroes.recordBuild(hero.id, build) }
-        val planned = model.box!!.itemsById.getValue(modded.id).subs[m.index]
+        val planned = model.graph.scan.box!!.itemsById.getValue(modded.id).subs[m.index]
         check(planned.type == m.to && planned.value == m.toValue) { "Equip in app wrote ${planned.type} ${planned.value}" }
-        check(model.toast!!.text.contains("planned values")) { "toast: ${model.toast!!.text}" }
-        ui { model.toast!!.onAction?.invoke() }
-        check(model.box!!.itemsById.getValue(modded.id).subs[m.index].value == original.value) { "Undo after Equip in app" }
+        check(model.graph.messages.toast!!.text.contains("planned values")) { "toast: ${model.graph.messages.toast!!.text}" }
+        ui { model.graph.messages.toast!!.onAction?.invoke() }
+        check(model.graph.scan.box!!.itemsById.getValue(modded.id).subs[m.index].value == original.value) { "Undo after Equip in app" }
         File(dir, "result.txt").writeText("${hero.name}: ${modded.slot} ${m.from.short} ${m.fromValue} -> ${m.to.short} planned ${m.toValue}, rolled $want; " +
             "recorded, undone; Equip in app wrote the planned value\n")
         ui { model.graph.checklist.unload() }

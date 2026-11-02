@@ -45,7 +45,7 @@ class TouchScreens {
         lateinit var model: AppModel
         ui { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.go(Screen.Heroes) }
+        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.graph.nav.go(Screen.Heroes) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
         if (images.isDirectory) model.graph.content.imageBase = images.toURI().toString()
         rule.setContent {
@@ -54,10 +54,10 @@ class TouchScreens {
         }
         tap("All names"); shot("20-hero-browse-353-big"); tap("A-F")
         shot("21-hero-filtered-353-big")
-        val hero = model.box!!.heroes.first()
-        ui { model.sheet = Sheet(SheetKind.ARTIFACT, hero.id) }
+        val hero = model.graph.scan.box!!.heroes.first()
+        ui { model.graph.nav.sheet = Sheet(SheetKind.ARTIFACT, hero.id) }
         tap("All names"); tap("G-L"); shot("22-artifact-browse-353-big")
-        ui { model.sheet = Sheet(SheetKind.TARGETS, hero.id) }
+        ui { model.graph.nav.sheet = Sheet(SheetKind.TARGETS, hero.id) }
         tap("Speed")
         val oldStatFields = rule.onAllNodes(hasSetTextAction(), useUnmergedTree = true)
         assertTrue(oldStatFields.fetchSemanticsNodes().size >= 3)
@@ -65,14 +65,14 @@ class TouchScreens {
         rule.waitForIdle()
         assertEquals(220.0, model.graph.heroes.request(hero.id).targets[Stat.SPD.ordinal], 1e-8)
         shot("23-legacy-stat-input-353-big", legacyStats = true)
-        ui { model.sheet = Sheet(SheetKind.BONUS, hero.id) }
+        ui { model.graph.nav.sheet = Sheet(SheetKind.BONUS, hero.id) }
         assertTrue(rule.onAllNodes(hasSetTextAction(), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         shot("24-legacy-bonus-input-353-big", legacyStats = true)
-        ui { model.sheet = null; model.graph.settings.proxyOn = true; model.go(Screen.ScanData) }
+        ui { model.graph.nav.sheet = null; model.graph.settings.proxyOn = true; model.graph.nav.go(Screen.ScanData) }
         clipboard("127.0.0.1:10808"); tap("Paste")
         assertEquals("127.0.0.1:10808", model.graph.settings.proxy)
         shot("25-proxy-paste-353-big")
-        ui { model.go(Screen.Feedback()) }
+        ui { model.graph.nav.go(Screen.Feedback()) }
         clipboard("Local screenshot audit, never sent.")
         tap("Paste"); shot("26-feedback-paste-353-big")
         rule.onAllNodesWithText("Local screenshot audit, never sent.").assertCountEquals(1)

@@ -43,7 +43,7 @@ class ThemeScreens {
         rule.waitUntil(20_000) { model.ready }
         ui { check(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })) }
         rule.setContent { Box(Modifier.width(411.dp).fillMaxHeight()) { App(model) {} } }
-        val hero = model.box!!.heroes.first { model.gameHero(it) != null && model.box!!.gearOf(it.id).size == 6 }.id
+        val hero = model.graph.scan.box!!.heroes.first { model.graph.heroes.gameHero(it) != null && model.graph.scan.box!!.gearOf(it.id).size == 6 }.id
         val screens = listOf("optimize" to Screen.Optimize, "heroes" to Screen.Heroes, "hero" to Screen.HeroDetail(hero),
             "scan-data" to Screen.ScanData, "sell-filters" to Screen.SellFilters,
             "gear-potential" to Screen.GearPotential, "upgrade" to Screen.Upgrade, "overlay-intro" to Screen.OverlayIntro,
@@ -51,7 +51,7 @@ class ThemeScreens {
         for (dark in listOf(false, true)) {
             ui { Themes.set(ctx, dark) }
             for ((name, screen) in screens) {
-                ui { model.go(screen) }
+                ui { model.graph.nav.go(screen) }
                 shot((if (dark) "dark-" else "light-") + name)
             }
         }

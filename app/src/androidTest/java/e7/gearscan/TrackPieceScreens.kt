@@ -95,7 +95,7 @@ class TrackPieceScreens {
         fun shot(name: String) { rule.waitForIdle(); val bmp = rule.onRoot().captureToImage().asAndroidBitmap()
             File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) } }
         fun ranked() = model.graph.tracker.results.any { it.alts.size >= 2 }
-        val necklaces = model.box!!.items.filter { it.slot == e7.gearscan.data.Slot.NECKLACE && it.rank == "Epic" && it.enhance in 3..9 && UpgradeRecord.supported(it) }
+        val necklaces = model.graph.scan.box!!.items.filter { it.slot == e7.gearscan.data.Slot.NECKLACE && it.rank == "Epic" && it.enhance in 3..9 && UpgradeRecord.supported(it) }
             .sortedByDescending { it.score }.take(30)
         val piece = necklaces.firstOrNull { p ->
             ui { model.graph.tracker.selectPiece(p.id) }
@@ -140,7 +140,7 @@ class TrackPieceScreens {
         fun both(name: String) { for ((w, f) in listOf(353 to 1.3f, 411 to 1f)) { ui { width = w; font = f }; shoot("$name-$w") } }
 
         // an Epic piece at +9 or +12 that is an upgrade for some hero whatever its rolls
-        val candidates = model.box!!.items.filter { it.rank == "Epic" && it.level == 85 && it.enhance in 9..12 && UpgradeRecord.supported(it) && model.box!!.canReforge(it.id) }
+        val candidates = model.graph.scan.box!!.items.filter { it.rank == "Epic" && it.level == 85 && it.enhance in 9..12 && UpgradeRecord.supported(it) && model.graph.scan.box!!.canReforge(it.id) }
             .sortedByDescending { it.score }.take(40)
         var first = 0L
         val piece = candidates.firstOrNull { p ->
@@ -163,7 +163,7 @@ class TrackPieceScreens {
         both("3-after-record")
         while (model.graph.tracker.record!!.item.enhance < 15) recordWeakStep()
         both("4-finished")
-        ui { overlay = false; model.go(Screen.Upgrade) }
+        ui { overlay = false; model.graph.nav.go(Screen.Upgrade) }
         both("4b-app-finished")
         ui { overlay = true }
         rule.onNodeWithContentDescription("Record reforge").performClick()
@@ -175,7 +175,7 @@ class TrackPieceScreens {
         val target = model.graph.tracker.equipHeroes.first()
         rule.onNodeWithText("${target.name} · ${target.nowGain}").performClick()
         rule.waitForIdle()
-        val worn = model.box!!.gearOf(target.id)[piece.slot]
+        val worn = model.graph.scan.box!!.gearOf(target.id)[piece.slot]
         check(worn?.id == piece.id && worn.level == 90) { "the box doesn't show the reforged piece on ${target.name}" }
         both("7-equipped")
         ui { overlay = false }
@@ -183,7 +183,7 @@ class TrackPieceScreens {
         ui { overlay = true }
         rule.onNodeWithContentDescription("Undo equip").performClick()
         rule.waitForIdle()
-        val back = model.box!!.itemsById.getValue(piece.id)
+        val back = model.graph.scan.box!!.itemsById.getValue(piece.id)
         check(back.level == 85 && back.enhance == piece.enhance && back.equippedOn == piece.equippedOn) { "Undo didn't restore the scanned piece" }
         File(shots, "result.txt").writeText("piece ${piece.slot} +${piece.enhance}: first check $first ms, recheck after +3 $recheck ms; " +
             "hero ${hero.name} ${hero.hits.size}/${hero.total}; equipped on ${target.name} (${target.nowGain}) and undone\n")

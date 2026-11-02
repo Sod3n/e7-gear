@@ -45,7 +45,7 @@ class KnownIssuesScreens {
         rule.waitUntil(20_000) { model.ready }
         rule.setContent { Box(Modifier.width(411.dp).fillMaxHeight()) { App(model) {} } }
         for (dark in listOf(false, true)) {
-            ui { Themes.set(ctx, dark); model.go(Screen.Feedback()) }
+            ui { Themes.set(ctx, dark); model.graph.nav.go(Screen.Feedback()) }
             Thread.sleep(1500)
             rule.waitForIdle()
             rule.onNodeWithText("Already known").assertExists()

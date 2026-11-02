@@ -172,6 +172,6 @@ class ScanFeatureTest {
         assertEquals(0L, g.scan.lastScan)
         assertTrue(g.marks.cleared.isEmpty())
         assertFalse(g.scan.boxFile.exists)
-        assertEquals(listOf<Screen>(Screen.ScanIntro), g.nav.screens())
+        assertEquals(listOf<Screen>(Screen.ScanIntro), g.nav.stack)
     }
 }

@@ -42,8 +42,8 @@ class HeroFilter {
     val active get() = query.isNotBlank() || element != null || role != null
 
     fun matches(model: AppModel, h: OwnedHero): Boolean {
-        if (query.isNotBlank() && !nameMatches(model.heroName(h), query)) return false
-        val g = model.gameHero(h)
+        if (query.isNotBlank() && !nameMatches(model.graph.heroes.heroName(h), query)) return false
+        val g = model.graph.heroes.gameHero(h)
         return (element == null || g?.element == element) && (role == null || g?.role == role)
     }
 }

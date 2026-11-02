@@ -37,7 +37,7 @@ class AppGraph(val disk: Disk, val scope: CoroutineScope, foreground: Foreground
     val store = Store(disk, version = STATE_VERSION, migrations = Migrations.all, scope = scope, fileName = "state.json")
     val work = WorkHost(scope, foreground)
     val messages = Messages()
-    val nav = Nav(Screen.Optimize, messages::dismissConfirm)
+    val nav = Nav(Screen.Optimize, { id -> heroes.heroName(id) }, { pool.state?.running == true }, messages::dismissConfirm)
     val content = ContentFeature(this)
     val appUpdate = AppUpdateFeature(this)
     val scan = ScanFeature(this)

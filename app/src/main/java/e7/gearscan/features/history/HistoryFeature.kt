@@ -28,6 +28,8 @@ class HistoryFeature(g: AppGraph) : Feature(g, "history") {
         file.write(History.encode(entries))
     }
 
+    fun flag(at: Long) = "From history · ${e7.gearscan.ui.historyStamp(at)}. Gear may have moved since; check each piece."
+
     /** A stored build on today's gear (a mod put back on its piece); null if the hero or a piece is gone. */
     fun restoreBuild(heroId: Long, refs: List<PieceRef>): Build? {
         val b = g.scan.box ?: return null

@@ -33,12 +33,12 @@ class SearchSpeedTest {
             while (!ok()) { assertTrue("timed out waiting for the model", System.currentTimeMillis() < end); Thread.sleep(100) }
         }
         waitFor(20_000) { model.ready }
-        waitFor(60_000) { model.content.heroes.isNotEmpty() }
+        waitFor(60_000) { model.graph.content.content.heroes.isNotEmpty() }
         var restored = false
         inst.runOnMainSync { restored = model.graph.scan.restore(backup!!) }
         assertTrue("backup didn't restore", restored)
         val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 6)
-        val box = model.box!!
+        val box = model.graph.scan.box!!
         val args = InstrumentationRegistry.getArguments()
         val which = args.getString("cases") ?: "saved"
         // comma-separated label parts, _ for a space: am instrument's shell would split spaces and pipes
@@ -77,7 +77,7 @@ class SearchSpeedTest {
             q.goal != Goal.TARGETS || q.targets.any { !it.isNaN() } || q.mins.any { !it.isNaN() }
         }.sortedByDescending { model.graph.heroes.tier(it.id) }
 
-        if (which == "saved") for (h in saved) time("T${model.graph.heroes.tier(h.id)} ${model.heroName(h)}", model.graph.heroes.setup(h.id)!!)
+        if (which == "saved") for (h in saved) time("T${model.graph.heroes.tier(h.id)} ${model.graph.heroes.heroName(h)}", model.graph.heroes.setup(h.id)!!)
 
         // the one-new-piece search that follows every search with a build, as the app runs it (its own 10 s cap)
         if (which == "ghost") for (h in saved) {
@@ -86,18 +86,18 @@ class SearchSpeedTest {
             val t0 = System.nanoTime()
             val g = SearchRun(s, 1, Ghost.candidates(s, best, s.req.reforged, best.value), maxGhost = 1, startThreshold = best.value)
             g.run(threads, 10_000)
-            Log.i("E7Speed", "%-48s %6d ms %s found=%b".format(java.util.Locale.US, "ghost T${model.graph.heroes.tier(h.id)} ${model.heroName(h)}",
+            Log.i("E7Speed", "%-48s %6d ms %s found=%b".format(java.util.Locale.US, "ghost T${model.graph.heroes.tier(h.id)} ${model.graph.heroes.heroName(h)}",
                 (System.nanoTime() - t0) / 1_000_000, if (g.engine.timedOut) "TIMEOUT" else "ok", g.builds().firstOrNull()?.ghost != null))
         }
 
         if (which == "stress") {
             val picks = listOf("Frieren", "Rhianna and Luciella", "Commander Pavel", "Lionheart Cermia", "Briar Witch Iseria", "Aube")
             for (name in picks) {
-                val h = saved.firstOrNull { model.heroName(it) == name } ?: continue
+                val h = saved.firstOrNull { model.graph.heroes.heroName(it) == name } ?: continue
                 val base = model.graph.heroes.request(h.id)
                 fun all(edit: Request.() -> Unit): Setup {
                     val q = base.copy().apply { lowerPriorityOnly = false }.apply(edit)
-                    return Setup(h, model.gameHero(h)!!, model.graph.heroes.config(h.id), q, box, model.content, { true })
+                    return Setup(h, model.graph.heroes.gameHero(h)!!, model.graph.heroes.config(h.id), q, box, model.graph.content.content, { true })
                 }
                 time("$name · all gear", all {})
                 time("$name · all gear, no sets", all { setAlts = emptyList() })

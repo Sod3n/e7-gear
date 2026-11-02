@@ -56,7 +56,7 @@ class FloatingScreens {
         check(restored) { "restore failed" }
         rule.setContent { Box(Modifier.width(353.dp).height(571.dp)) { App(model) {} } }
 
-        val piece = model.box!!.items.first { it.rank == "Epic" && it.enhance == 9 && UpgradeRecord.supported(it) }
+        val piece = model.graph.scan.box!!.items.first { it.rank == "Epic" && it.enhance == 9 && UpgradeRecord.supported(it) }
         ui { model.graph.settings.useOverGameNative(true); model.graph.tracker.selectPiece(piece.id); model.graph.tracker.show(); model.graph.overlay.expanded = true
             model.graph.overlay.floating = true; model.graph.overlay.floatingPanel = true }
         rule.waitUntil(120_000) { !model.graph.tracker.busy }
@@ -71,7 +71,7 @@ class FloatingScreens {
         rule.waitForIdle()
         check(model.graph.overlay.floatingPanel) { "the Panel chip didn't bring the tracker back" }
         ui { model.graph.tracker.hide() }
-        val hero = model.graph.improveHeroes.heroes().first { model.box!!.gearOf(it.id).size == 6 }
+        val hero = model.graph.improveHeroes.heroes().first { model.graph.scan.box!!.gearOf(it.id).size == 6 }
         ui { model.loadBuildChecklist(hero.id, model.graph.heroes.currentBuild(hero.id)!!, "Floating check"); model.graph.overlay.expanded = true }
         shoot("3-checklist")
         ui { model.graph.overGame.closeFloatingPanel() }

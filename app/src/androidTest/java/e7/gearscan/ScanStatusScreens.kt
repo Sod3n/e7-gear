@@ -62,7 +62,7 @@ class ScanStatusScreens {
         ui { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
         rule.setContent { Box(Modifier.width(411.dp).fillMaxHeight()) { App(model) {} } }
-        ui { model.go(Screen.Capture) }
+        ui { model.graph.nav.go(Screen.Capture) }
 
         val states = listOf(
             Triple(ScanStep.WAITING, 0 to 0, 2_000L), Triple(ScanStep.CONNECTED, 2 to 3, 6_000L),

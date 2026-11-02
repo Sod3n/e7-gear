@@ -49,12 +49,12 @@ private fun sets(model: AppModel, q: PotentialQuery) = when {
 }
 internal val AppModel.f get() = graph.findGear
 internal fun AppModel.show(o: Outcome) = graph.messages.show(o)
-internal fun open(model: AppModel, kind: SheetKind, id: Long = 0) { model.sheet = Sheet(kind, id) }
+internal fun open(model: AppModel, kind: SheetKind, id: Long = 0) { model.graph.nav.sheet = Sheet(kind, id) }
 
 @Composable
 fun FindGearScreen(model: AppModel) {
-    val q = model.f.query
-    val result = model.f.result
+    val q = model.graph.findGear.query
+    val result = model.graph.findGear.result
     var tab by rememberSaveable { mutableStateOf(if (result == null) 0 else 1) }
     var count by rememberSavedFor(result, 20)
     val resultId = System.identityHashCode(result)
@@ -62,11 +62,11 @@ fun FindGearScreen(model: AppModel) {
     LaunchedEffect(result) { if (result != null && seenResult != resultId) tab = 1; seenResult = resultId }
     key(tab, result) {
         Frame(null, null, actions = if (tab == 0) ({
-            PinkButton(if (model.f.busy) "Searching" else "Find gear", Modifier.weight(1f), enabled = !model.f.busy) { model.show(model.f.find()) }
+            PinkButton(if (model.graph.findGear.busy) "Searching" else "Find gear", Modifier.weight(1f), enabled = !model.graph.findGear.busy) { model.graph.messages.show(model.graph.findGear.find()) }
         }) else if (result != null && result.matches.isNotEmpty()) ({
-            val fresh = !model.f.stale
-            PinkButton(if (fresh) Count(result.matches.size).of("match", "matches").let { "Track all $it" } else "Update matches", Modifier.weight(1f), enabled = !model.f.busy) {
-                model.show(if (fresh) model.f.trackAll() else model.f.find())
+            val fresh = !model.graph.findGear.stale
+            PinkButton(if (fresh) Count(result.matches.size).of("match", "matches").let { "Track all $it" } else "Update matches", Modifier.weight(1f), enabled = !model.graph.findGear.busy) {
+                model.graph.messages.show(if (fresh) model.graph.findGear.trackAll() else model.graph.findGear.find())
             }
         }) else null) {
             BackToPrevious()
@@ -118,9 +118,9 @@ fun FindGearScreen(model: AppModel) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Column(Modifier.weight(1f)) {
                             TargetsLine(applied, zen(13.sp, color = C.blue))
-                            if (model.f.stale) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (model.graph.findGear.stale) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Search changed", style = zen(11.sp, FontWeight.Medium, C.deepPink))
-                                LinkText("Update", size = 11) { model.show(model.f.find()) }
+                                LinkText("Update", size = 11) { model.graph.messages.show(model.graph.findGear.find()) }
                             } else Text("${slots(applied)} · ${sets(model, applied)}", style = zen(11.sp, FontWeight.Medium, C.muted))
                         }
                         Pill("Edit", onClick = { tab = 0 })
@@ -130,7 +130,7 @@ fun FindGearScreen(model: AppModel) {
                     CountText(Count(result.matches.size), "piece", style = dela(16.sp), modifier = Modifier.weight(1f))
                     Text("Best odds first", style = zen(11.sp, color = C.muted))
                 }
-                if (model.f.busy) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (model.graph.findGear.busy) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Spinner(); Text("Checking your gear", style = zen(12.sp))
                 }
                 if (result.matches.isEmpty()) Card {
@@ -165,7 +165,7 @@ fun FindGearScreen(model: AppModel) {
     }
 }
 
-internal fun gearOwner(model: AppModel, item: Item) = item.equippedOn?.let { model.hero(it)?.let(model::heroName) ?: "Hero not in scan" } ?: "In bag"
+internal fun gearOwner(model: AppModel, item: Item) = item.equippedOn?.let { model.graph.heroes.hero(it)?.let(model.graph.heroes::heroName) ?: "Hero not in scan" } ?: "In bag"
 internal fun finishAction(match: FindGearMatch, q: PotentialQuery) = when {
     match.outcome.matchesNow -> "Ready now"
     match.item.enhance == 15 -> "Reforge only"
@@ -195,7 +195,7 @@ internal fun GearSearchIdentity(model: AppModel, original: Item, highlight: Set<
             GearSearchSubs(item, highlight)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GearPositionLabel(model, item,explicitGameScore)
-                if (owner) item.equippedOn?.let { model.hero(it) }?.let { h -> OwnerTag(model.heroName(h)) }
+                if (owner) item.equippedOn?.let { model.graph.heroes.hero(it) }?.let { h -> OwnerTag(model.graph.heroes.heroName(h)) }
             }
         }
     }

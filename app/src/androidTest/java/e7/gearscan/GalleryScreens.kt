@@ -74,38 +74,38 @@ class GalleryScreens {
             }
         }
         dir.mkdirs(); dir.listFiles()?.filter { it.name.startsWith("sell") || it.name.startsWith("gear") }?.forEach { it.delete() }
-        ui { m.tab(Screen.Gear) }; shot("gear-00-home-before")
-        ui { m.go(Screen.SellFilters); m.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; shot("sell-00-worth-before"); ui { m.sheet = null }
+        ui { m.graph.nav.tab(Screen.Gear) }; shot("gear-00-home-before")
+        ui { m.graph.nav.go(Screen.SellFilters); m.graph.nav.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; shot("sell-00-worth-before"); ui { m.graph.nav.sheet = null }
         ui { m.graph.sellReview.find() }
         rule.waitUntil(240_000) { !m.graph.sellReview.busy }
         rule.waitUntil(120_000) { !m.graph.sellReview.curveBusy && m.graph.sellReview.keepCurve != null }
         android.util.Log.i("E7Gallery", "keep curve ${m.graph.sellReview.keepCurve?.pieces} pieces in ${m.graph.sellReview.keepCurve?.millis} ms")
-        ui { m.tab(Screen.Gear) }; shot("gear-01-home")
-        ui { m.tab(Screen.ScanData) }; shot("gear-02-scan-data")
-        ui { m.tab(Screen.ScanResult) }; shot("gear-03-imported")
-        ui { m.tab(Screen.Gear); m.go(Screen.SellFilters) }
+        ui { m.graph.nav.tab(Screen.Gear) }; shot("gear-01-home")
+        ui { m.graph.nav.tab(Screen.ScanData) }; shot("gear-02-scan-data")
+        ui { m.graph.nav.tab(Screen.ScanResult) }; shot("gear-03-imported")
+        ui { m.graph.nav.tab(Screen.Gear); m.graph.nav.go(Screen.SellFilters) }
         for (theme in only.split(",")) {
-            dark = theme == "dark"; ui { Themes.set(ctx, dark); overlay = false; m.sheet = null; if (m.screen != Screen.SellFilters) { m.tab(Screen.Gear); m.go(Screen.SellFilters) } }
+            dark = theme == "dark"; ui { Themes.set(ctx, dark); overlay = false; m.graph.nav.sheet = null; if (m.graph.nav.screen != Screen.SellFilters) { m.graph.nav.tab(Screen.Gear); m.graph.nav.go(Screen.SellFilters) } }
             tap("Set up"); shot("sell-01-setup")
-            ui { m.go(Screen.SellKept) }; ui { m.back() }
+            ui { m.graph.nav.go(Screen.SellKept) }; ui { m.graph.nav.back() }
             rule.onAllNodesWithText("Worth rolling").onFirst().assertExists()
             tap("Matches"); shot("sell-02-list")
             scrollDown(); shot("sell-03-list-more")
-            val first = m.graph.sellReview.result?.matches?.firstOrNull { it.item.id !in m.reviewedIds }
-            if (first != null) { ui { m.sheet = Sheet(SheetKind.SELL_DETAILS, first.item.id) }; shot("sell-04-details"); ui { m.sheet = null } }
-            ui { m.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; shot("sell-05-worth-rolling")
-            rule.onAllNodesWithText("Total gold").onFirst().performClick(); rule.waitForIdle(); shot("sell-05i-explain"); ui { m.confirm = null }
+            val first = m.graph.sellReview.result?.matches?.firstOrNull { it.item.id !in m.graph.marks.reviewed }
+            if (first != null) { ui { m.graph.nav.sheet = Sheet(SheetKind.SELL_DETAILS, first.item.id) }; shot("sell-04-details"); ui { m.graph.nav.sheet = null } }
+            ui { m.graph.nav.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; shot("sell-05-worth-rolling")
+            rule.onAllNodesWithText("Total gold").onFirst().performClick(); rule.waitForIdle(); shot("sell-05i-explain"); ui { m.graph.messages.dialog = null }
             rule.onNodeWithContentDescription("Keep-rolling chance").performTouchInput { down(center); moveBy(androidx.compose.ui.geometry.Offset(40f, 0f)); moveBy(androidx.compose.ui.geometry.Offset(40f, 0f)) }; rule.mainClock.advanceTimeBy(300); shot("sell-05e-dragging")
             rule.onNodeWithContentDescription("Keep-rolling chance").performTouchInput { up() }; rule.waitForIdle()
             rule.onAllNodesWithContentDescription("Type a value")[1].performClick(); rule.waitForIdle(); shot("sell-05f-typing")
-            ui { m.sheet = null }; ui { m.sheet = Sheet(SheetKind.SELL_WORTH, 0) }
-            ui { m.graph.sellReview.edit(m.graph.sellReview.query.copy(rollOn = 10.0)); m.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; shot("sell-05c-why"); ui { m.graph.sellReview.edit(m.graph.sellReview.query.copy(rollOn = 1.0)) }
-            ui { m.sheet = Sheet(SheetKind.SELL_INVENTORY, 0) }; shot("sell-05b-gear-to-review")
-            ui { m.sheet = Sheet(SheetKind.SELL_SLOTS, 0) }; shot("sell-05g-slots"); ui { m.sheet = Sheet(SheetKind.SELL_MAINS, 0) }; shot("sell-05h-mains")
-            ui { m.sheet = Sheet(SheetKind.SELL_SAFEGUARDS, 0) }; shot("sell-05d-safeguards")
-            ui { m.askReset("Reset the safeguards?", "Spd 20, Cr 25%, Cd 35% and 40% for every % stat; flat stats off.") {} }; shot("sell-09-confirm"); ui { m.confirm = null }
-            if (theme == only.split(",").first()) ui { m.sheet = null; m.graph.sellReview.result?.matches?.take(6)?.forEach { m.graph.marks.markReviewed(it.item.id, keep = true) } }
-            ui { m.sheet = null; m.go(Screen.SellKept) }; shot("sell-06-kept"); ui { m.go(Screen.SellFilters) }
+            ui { m.graph.nav.sheet = null }; ui { m.graph.nav.sheet = Sheet(SheetKind.SELL_WORTH, 0) }
+            ui { m.graph.sellReview.edit(m.graph.sellReview.query.copy(rollOn = 10.0)); m.graph.nav.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; shot("sell-05c-why"); ui { m.graph.sellReview.edit(m.graph.sellReview.query.copy(rollOn = 1.0)) }
+            ui { m.graph.nav.sheet = Sheet(SheetKind.SELL_INVENTORY, 0) }; shot("sell-05b-gear-to-review")
+            ui { m.graph.nav.sheet = Sheet(SheetKind.SELL_SLOTS, 0) }; shot("sell-05g-slots"); ui { m.graph.nav.sheet = Sheet(SheetKind.SELL_MAINS, 0) }; shot("sell-05h-mains")
+            ui { m.graph.nav.sheet = Sheet(SheetKind.SELL_SAFEGUARDS, 0) }; shot("sell-05d-safeguards")
+            ui { m.graph.messages.askReset("Reset the safeguards?", "Spd 20, Cr 25%, Cd 35% and 40% for every % stat; flat stats off.") {} }; shot("sell-09-confirm"); ui { m.graph.messages.dialog = null }
+            if (theme == only.split(",").first()) ui { m.graph.nav.sheet = null; m.graph.sellReview.result?.matches?.take(6)?.forEach { m.graph.marks.markReviewed(it.item.id, keep = true) } }
+            ui { m.graph.nav.sheet = null; m.graph.nav.go(Screen.SellKept) }; shot("sell-06-kept"); ui { m.graph.nav.go(Screen.SellFilters) }
             ui { m.graph.sellReview.trackMatches(openOverlay = false) }
             ui { m.graph.overlay.expanded = true; m.graph.overlay.usableHeightDp = 260f; overlay = true }; rule.mainClock.advanceTimeBy(2000); Thread.sleep(2000); rule.mainClock.advanceTimeBy(500); shot("sell-07-overlay")
             rule.onNodeWithContentDescription("More").performClick(); rule.mainClock.advanceTimeBy(500); shot("sell-08-overlay-more")

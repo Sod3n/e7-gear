@@ -52,8 +52,8 @@ fun OverlayIntroScreen(model: AppModel) {
     fun go() {
         if (model.graph.settings.overGameNative) { model.graph.settings.nativeSeen = true; OverlayService.stop(ctx) } else OverlayService.start(ctx)
         model.graph.settings.overlaySeen = true
-        model.save()
-        model.back()
+        model.graph.store.saveNow()
+        model.graph.nav.back()
         if (model.graph.tracker.shown) model.graph.tracker.runCheck()
         model.graph.scan.openGame()
     }
@@ -153,7 +153,7 @@ fun FeedbackScreen(model: AppModel, error: String?) {
                 shot?.let { r.put("screenshot", it) }
                 model.graph.feedback.send(r) { o -> sending = false; outcome = o to id }
             }
-            else -> PinkButton("Done", Modifier.weight(1f)) { model.back() }
+            else -> PinkButton("Done", Modifier.weight(1f)) { model.graph.nav.back() }
         }
     }) {
         BackToPrevious()

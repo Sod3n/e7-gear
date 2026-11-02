@@ -41,7 +41,7 @@ class QueueScreens {
         lateinit var model: AppModel
         ui { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.go(Screen.GearPotential) }
+        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.graph.nav.go(Screen.GearPotential) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
         if (images.isDirectory) model.graph.content.imageBase = images.toURI().toString()
         var overlay by mutableStateOf(false)

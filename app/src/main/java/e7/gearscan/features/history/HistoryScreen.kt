@@ -33,7 +33,7 @@ fun historyStamp(at: Long): String = STAMP.format(Instant.ofEpochMilli(at).atZon
 /** Optimize's History: every finished pool run and one-hero search, newest first; open one to see its results as they were. */
 @Composable
 fun HistoryList(model: AppModel) {
-    model.rev
+    model.graph.scan.rev
     if (model.graph.history.entries.isEmpty()) {
         Text("Every pool run and one-hero search you finish shows up here, to look back at its results.", style = zen(13.sp, FontWeight.Medium, C.muted))
         return
@@ -50,10 +50,10 @@ fun HistoryList(model: AppModel) {
 
 @Composable
 private fun HistoryRow(model: AppModel, e: HistoryEntry) {
-    val hero = if (e.pool) null else e.builds.keys.firstOrNull()?.let { model.hero(it) }
-    ListRow({ if (!model.graph.history.openHistory(e)) model.showToast(if (e.pool) "A pool run is going; open this when it ends" else "A search is going; open this when it ends") },
+    val hero = if (e.pool) null else e.builds.keys.firstOrNull()?.let { model.graph.heroes.hero(it) }
+    ListRow({ if (!model.graph.history.openHistory(e)) model.graph.messages.showToast(if (e.pool) "A pool run is going; open this when it ends" else "A search is going; open this when it ends") },
         Modifier.padding(horizontal = 12.dp, vertical = 10.dp), leading = {
-            if (hero != null) Face(model.face(hero), 34.dp)
+            if (hero != null) Face(model.graph.heroes.face(hero), 34.dp)
             else Box(Modifier.size(34.dp).clip(CircleShape).background(C.pink).border(2.dp, C.edge, CircleShape), contentAlignment = Alignment.Center) {
                 Text("一括", style = zen(10.sp, FontWeight.Bold, C.onAccent))
             }

@@ -37,7 +37,7 @@ class NavTest {
             val r = op(ref)
             val n = op(object : Target(nav) { override fun setConfirm() { confirm = true } })
             assertEquals(r, n)
-            assertEquals(ref.stack, nav.screens())
+            assertEquals(ref.stack, nav.stack)
             assertEquals(ref.sheet, nav.sheet)
         }
     }
@@ -80,11 +80,11 @@ class NavTest {
     @Test fun sameScreenTwiceGetsTwoEntries() {
         val nav = Nav(Screen.Optimize)
         nav.go(Screen.HeroUpgrades()); nav.go(Screen.HeroUpgrades())
-        val ids = nav.stack.map { it.id }
+        val ids = nav.entries.map { it.id }
         assertEquals(3, ids.toSet().size)
         nav.back()
-        assertEquals(ids.take(2), nav.stack.map { it.id })
-        nav.setScreens(listOf(Screen.Gear))
-        assertNotEquals(ids[0], nav.stack[0].id)
+        assertEquals(ids.take(2), nav.entries.map { it.id })
+        nav.stack = listOf(Screen.Gear)
+        assertNotEquals(ids[0], nav.entries[0].id)
     }
 }

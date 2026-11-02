@@ -40,7 +40,7 @@ class UpgradeScreens {
         ui { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
         ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })) }
-        val piece = model.box!!.items.first { UpgradeRecord.supported(it) && it.rank == "Epic" && it.enhance == 9 && it.id !in model.clearedIds }
+        val piece = model.graph.scan.box!!.items.first { UpgradeRecord.supported(it) && it.rank == "Epic" && it.enhance == 9 && it.id !in model.graph.marks.cleared }
         var width by mutableStateOf(411)
         var font by mutableStateOf(1f)
         var overlay by mutableStateOf(false)
@@ -50,7 +50,7 @@ class UpgradeScreens {
                 Box(Modifier.width(width.dp).fillMaxHeight()) { if (overlay) OverlayUi(model.graph, { _, _ -> }, {}, {}) else App(model) {} }
             }
         }
-        ui { model.graph.tracker.selectPiece(piece.id); model.go(Screen.Upgrade) }
+        ui { model.graph.tracker.selectPiece(piece.id); model.graph.nav.go(Screen.Upgrade) }
         shoot("01-picker-411")
         ui { width = 353; font = 1.3f }
         shoot("01-picker-353-big")

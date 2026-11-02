@@ -49,8 +49,8 @@ import e7.gearscan.data.Match
 
 @Composable
 fun HeroesScreen(model: AppModel) {
-    model.rev
-    val box = model.box
+    model.graph.scan.rev
+    val box = model.graph.scan.box
     val f = remember { HeroFilter() }
     var open by rememberSaveable { mutableStateOf<Long?>(null) }
     // the open row stays in the tier it was opened in, so it doesn't jump while the bar is dragged
@@ -58,7 +58,7 @@ fun HeroesScreen(model: AppModel) {
     var showLow by rememberSaveable { mutableStateOf(false) }
     var byMatch by rememberSaveable { mutableStateOf(false) }
     Frame(model, Screen.Heroes) {
-        ScreenTitle("Heroes") { ScanChip(model.graph.scan.scannedLabel(), model.graph.scan.phase != ScanPhase.IDLE) { if (model.graph.scan.phase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
+        ScreenTitle("Heroes") { ScanChip(model.graph.scan.scannedLabel(), model.graph.scan.phase != ScanPhase.IDLE) { if (model.graph.scan.phase != ScanPhase.IDLE) model.graph.nav.go(Screen.Capture) else model.graph.nav.go(Screen.ScanData) } }
         if (box == null) { Text("Scan the game to see your heroes.", style = zen(13.sp, FontWeight.Medium, C.muted)); return@Frame }
         HeroFilterBar(f)
         DashedBox(Modifier.fillMaxWidth(), color = C.blue, bg = C.ghostBg, radius = 12.dp) {
@@ -79,7 +79,7 @@ fun HeroesScreen(model: AppModel) {
             var first = true
             for (t in tiers) {
                 val hs = shown.filter { group(it) == t }.let { g ->
-                    if (byMatch) g.sortedWith(compareBy<OwnedHero> { model.graph.heroes.matchFor(it.id)?.pct ?: 101 }.thenBy { model.heroName(it) }) else g.sortedBy { model.heroName(it) }
+                    if (byMatch) g.sortedWith(compareBy<OwnedHero> { model.graph.heroes.matchFor(it.id)?.pct ?: 101 }.thenBy { model.graph.heroes.heroName(it) }) else g.sortedBy { model.graph.heroes.heroName(it) }
                 }
                 if (hs.isEmpty()) continue
                 if (!first) Box(Modifier.fillMaxWidth().height(1.5.dp).background(C.line))
@@ -108,17 +108,17 @@ fun HeroesScreen(model: AppModel) {
 
 @Composable
 private fun HeroRow(model: AppModel, h: OwnedHero, last: Boolean, onTap: () -> Unit) {
-    val gear = model.box?.gearOf(h.id)?.values ?: emptyList()
+    val gear = model.graph.scan.box?.gearOf(h.id)?.values ?: emptyList()
     val t = model.graph.heroes.tier(h.id)
     Row(Modifier.fillMaxWidth().tap(onTap).padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Face(model.face(h), 36.dp, ring = if (t >= 3) C.pink else C.faint)
+        Face(model.graph.heroes.face(h), 36.dp, ring = if (t >= 3) C.pink else C.faint)
         val match = model.graph.heroes.matchFor(h.id)
         LaunchedEffect(h.id) { if (match == null) model.graph.heroes.loadPresetsQuietly(h.id, network = t >= 3) }
         // the name gets the row's width; sets and match sit under it
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(model.heroName(h), style = zen(14.sp).copy(lineHeight = 17.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            val sets = Calc.setCounts(gear, model.content)
+            Text(model.graph.heroes.heroName(h), style = zen(14.sp).copy(lineHeight = 17.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            val sets = Calc.setCounts(gear, model.graph.content.content)
             // always this tall, so a match arriving later doesn't push the list down
             Row(Modifier.height(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (match != null) MatchChip(match.pct)
@@ -136,17 +136,17 @@ private fun TierEditor(model: AppModel, h: OwnedHero, onClose: () -> Unit) {
     val t = model.graph.heroes.tier(h.id)
     Column(Modifier.fillMaxWidth().hatch().border(2.5.dp, C.edge).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth().tap(onClose), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Face(model.face(h), 36.dp)
+            Face(model.graph.heroes.face(h), 36.dp)
             // the tier sits under the name, which keeps the row's width: long names don't fit beside "Best of account"
             Column(Modifier.weight(1f)) {
-                Text(model.heroName(h), style = zen(14.sp).copy(lineHeight = 17.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(model.graph.heroes.heroName(h), style = zen(14.sp).copy(lineHeight = 17.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(tierLabel(t), style = zen(12.sp, color = C.deepPink), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         TierBar(t) { model.graph.heroes.setTier(h.id, it) }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(TIER_LABELS[0], style = zen(10.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f))
-            LinkText("Hero details", size = 11) { model.go(Screen.HeroDetail(h.id)) }
+            LinkText("Hero details", size = 11) { model.graph.nav.go(Screen.HeroDetail(h.id)) }
             Text(TIER_LABELS[4], style = zen(10.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
     }
@@ -168,7 +168,7 @@ private fun MatchCard(model: AppModel, id: Long, m: Match.Result) {
     Card(shadow = C.shadow, radius = 14.dp, border = 2.5.dp, padding = PaddingValues(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             Text("Match with", style = zen(13.sp))
-            LinkText(m.label, size = 13) { model.sheet = Sheet(SheetKind.PRESET, id) }
+            LinkText(m.label, size = 13) { model.graph.nav.sheet = Sheet(SheetKind.PRESET, id) }
             Spacer(Modifier.weight(1f))
             Text("${m.pct}%", style = dela(20.sp).pinkShadow(4f))
         }
@@ -199,30 +199,30 @@ private fun MatchCard(model: AppModel, id: Long, m: Match.Result) {
 
 @Composable
 fun HeroDetailScreen(model: AppModel, id: Long) {
-    model.rev
-    val h = model.hero(id) ?: return
+    model.graph.scan.rev
+    val h = model.graph.heroes.hero(id) ?: return
     val cur = model.graph.heroes.currentBuild(id)
-    val gear = model.box?.gearOf(id) ?: emptyMap()
+    val gear = model.graph.scan.box?.gearOf(id) ?: emptyMap()
     val cfg = model.graph.heroes.config(id)
     val tier = model.graph.heroes.tier(id)
     Frame(model, Screen.Heroes, actions = {
-        PinkButton("Optimize ${model.heroName(h)}", Modifier.weight(1f), enabled = model.gameHero(h) != null, short = "Optimize") {
-            model.graph.heroes.pickHero(id); model.graph.heroes.team = listOf(id); model.tab(Screen.Optimize)
+        PinkButton("Optimize ${model.graph.heroes.heroName(h)}", Modifier.weight(1f), enabled = model.graph.heroes.gameHero(h) != null, short = "Optimize") {
+            model.graph.heroes.pickHero(id); model.graph.heroes.team = listOf(id); model.graph.nav.tab(Screen.Optimize)
         }
-        OutlineButton("Bonus stats") { model.sheet = Sheet(SheetKind.BONUS, id) }
+        OutlineButton("Bonus stats") { model.graph.nav.sheet = Sheet(SheetKind.BONUS, id) }
     }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BackToPrevious(Modifier.weight(1f))
             Text("Tier $tier", style = zen(12.sp, color = C.muted))
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Face(model.face(h), 70.dp)
+            Face(model.graph.heroes.face(h), 70.dp)
             Column(Modifier.weight(1f)) {
-                Text(model.heroName(h), style = dela(24.sp).pinkShadow(), maxLines = 2)
-                val g = model.gameHero(h)
+                Text(model.graph.heroes.heroName(h), style = dela(24.sp).pinkShadow(), maxLines = 2)
+                val g = model.graph.heroes.gameHero(h)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     g?.element?.let { AsyncImage(gameImage("icons/elements/element-$it.png"), null, Modifier.width(14.dp).height(14.dp)) }
-                    val art = model.content.artifact(cfg.artifact ?: model.graph.heroes.request(id).artifact)
+                    val art = model.graph.content.content.artifact(cfg.artifact ?: model.graph.heroes.request(id).artifact)
                     ArtifactIcon(model, art, 18.dp)
                     Text(art?.name ?: "No artifact chosen",
                         style = zen(12.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -250,8 +250,8 @@ fun HeroDetailScreen(model: AppModel, id: Long) {
         } else Text("No game data for this hero yet.", style = zen(12.sp, color = C.red))
         if (model.graph.improveHeroes.heroes().any { it.id == id }) {
             val st = model.graph.improveHeroes.heroUpgrades
-            val rows = remember(st?.result, model.graph.improveHeroes.minGain, model.rev) { st?.result?.let { r -> model.graph.improveHeroes.view(r).firstOrNull { it.hero.id == id }?.rows } }
-            RowCard("Upgrades", { model.go(Screen.HeroUpgrades(id)) }) {
+            val rows = remember(st?.result, model.graph.improveHeroes.minGain, model.graph.scan.rev) { st?.result?.let { r -> model.graph.improveHeroes.view(r).firstOrNull { it.hero.id == id }?.rows } }
+            RowCard("Upgrades", { model.graph.nav.go(Screen.HeroUpgrades(id)) }) {
                 Text(when {
                     st?.running == true -> "Checking your gear"
                     rows == null -> "Find pieces that could improve this hero"
@@ -273,7 +273,7 @@ fun HeroDetailScreen(model: AppModel, id: Long) {
         }
         SectionTitle("Gear now")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Slot.entries.forEach { s -> GearTile(gear[s], 46.dp, slotIcon = s.icon, setIcon = gear[s]?.let { model.content.set(it.set)?.icon }) }
+            Slot.entries.forEach { s -> GearTile(gear[s], 46.dp, slotIcon = s.icon, setIcon = gear[s]?.let { model.graph.content.content.set(it.set)?.icon }) }
         }
         SectionTitle("Saved builds")
         if (cfg.saved.isEmpty()) Text("No saved builds yet. Save one from a search result.", style = zen(12.sp, FontWeight.Medium, C.muted))
@@ -293,9 +293,9 @@ fun HeroDetailScreen(model: AppModel, id: Long) {
                             if (items.size < sb.items.size) " · ${sb.items.size - items.size} pieces gone" else "",
                             style = zen(11.sp, FontWeight.Medium, C.muted))
                     }
-                    Calc.setCounts(items, model.content).forEach { (s, _) -> SetIcon(s.icon, 22.dp) }
+                    Calc.setCounts(items, model.graph.content.content).forEach { (s, _) -> SetIcon(s.icon, 22.dp) }
                     if (!equipped && b != null) Pill("Equip", onClick = { model.graph.heroes.equip(id, b) })
-                    Text("×", style = zen(16.sp, color = C.muted), modifier = Modifier.tap { cfg.saved.removeAt(i); model.touch(); model.save() }.padding(4.dp))
+                    Text("×", style = zen(16.sp, color = C.muted), modifier = Modifier.tap { cfg.saved.removeAt(i); model.graph.scan.touch(); model.graph.store.saveNow() }.padding(4.dp))
                 }
             }
         }

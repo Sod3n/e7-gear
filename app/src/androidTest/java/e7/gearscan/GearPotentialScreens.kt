@@ -70,9 +70,9 @@ class GearPotentialScreens {
         fun each(name: String, at: () -> Unit = {}) {
             for ((w, f) in setups) { ui { width = w; font = f }; at(); snap("$name-$w-${if (f > 1f) "big" else "1x"}") }
         }
-        fun go(vararg s: Screen) = ui { model.sheet = null; model.stack = s.toList() }
-        fun sheet(kind: SheetKind, id: Long = 0) = ui { model.sheet = Sheet(kind, id) }
-        fun search() { ui { model.toast = null; model.graph.messages.show(model.graph.findGear.find()) }; rule.waitUntil(30_000) { !model.graph.findGear.busy }; assertNull(model.toast) }
+        fun go(vararg s: Screen) = ui { model.graph.nav.sheet = null; model.graph.nav.stack = s.toList() }
+        fun sheet(kind: SheetKind, id: Long = 0) = ui { model.graph.nav.sheet = Sheet(kind, id) }
+        fun search() { ui { model.graph.messages.toast = null; model.graph.messages.show(model.graph.findGear.find()) }; rule.waitUntil(30_000) { !model.graph.findGear.busy }; assertNull(model.graph.messages.toast) }
         fun scrollTo(text: String) = rule.onAllNodesWithText(text, substring = true, useUnmergedTree = true).onFirst().performScrollTo()
 
         each("00-gear-tab-first") { go(Screen.Gear) }
@@ -90,7 +90,7 @@ class GearPotentialScreens {
             sheet(SheetKind.POTENTIAL_TARGETS); rule.onNodeWithContentDescription("Minimum Spd").performClick()
             snap("02g-number-$w-${if (f > 1f) "big" else "1x"}"); tap("Cancel")
         }
-        ui { model.sheet = null }
+        ui { model.graph.nav.sheet = null }
 
         go(Screen.Gear, Screen.GearPotential)
         search()
@@ -119,7 +119,7 @@ class GearPotentialScreens {
         ui { model.graph.findGear.edit(model.graph.findGear.query.copy(slots = setOf(Slot.HELMET, Slot.NECKLACE))) }
         each("06a-stale") { go(Screen.Gear, Screen.GearPotential) }
         ui { model.graph.messages.show(model.graph.findGear.trackAll(openOverlay = false)) }
-        File(out, "result.txt").appendText("track all on a stale list: screen=${model.screen} toast=${model.toast?.text}\n")
+        File(out, "result.txt").appendText("track all on a stale list: screen=${model.graph.nav.screen} toast=${model.graph.messages.toast?.text}\n")
         each("06b-stale-after-track-all") { go(Screen.Gear, Screen.GearPotential) }
         // joint targets on one set and slot
         ui { model.graph.findGear.edit(PotentialQuery(targets = mapOf(GearStat.SPD to "20", GearStat.HP_P to "5"), sets = setOf("DestructionSet"), slots = setOf(Slot.HELMET))) }
@@ -147,8 +147,8 @@ class GearPotentialScreens {
         val first = model.graph.findGear.result!!.matches.first { it.item.enhance < 15 && it.outcome.chance > 0 }
         go(Screen.Gear, Screen.GearPotential)
         ui { model.graph.messages.show(model.graph.findGear.trackAll(openOverlay = false)) }
-        File(out, "result.txt").appendText("track all on a fresh list: screen=${model.screen} queue=${model.graph.tracker.queue.size} toast=${model.toast?.text}\n")
-        each("10a-track-all") { ui { model.sheet = null } }
+        File(out, "result.txt").appendText("track all on a fresh list: screen=${model.graph.nav.screen} queue=${model.graph.tracker.queue.size} toast=${model.graph.messages.toast?.text}\n")
+        each("10a-track-all") { ui { model.graph.nav.sheet = null } }
         ui { model.graph.tracker.show(); model.graph.overlay.expanded = true; overlay = true }
         each("10b-overlay-all")
         ui { overlay = false; model.graph.tracker.hide() }
@@ -156,7 +156,7 @@ class GearPotentialScreens {
         search()
         ui { model.graph.messages.show(model.graph.findGear.track(model.graph.findGear.result!!.matches.first { it.item.id == first.item.id })) }
         File(out, "result.txt").appendText("track one: stale=${model.graph.findGear.stale} (a start-only record must not mark the list stale)\n")
-        each("10c-track-one") { ui { model.sheet = null } }
+        each("10c-track-one") { ui { model.graph.nav.sheet = null } }
         ui { model.graph.tracker.show(); model.graph.overlay.expanded = true; overlay = true }
         each("10d-overlay-one")
         ui { overlay = false; model.graph.tracker.hide() }
@@ -168,7 +168,7 @@ class GearPotentialScreens {
         search()
         go(Screen.Gear, Screen.GearPotential); tap("Matches"); snap("11b-dark-results")
         sheet(SheetKind.POTENTIAL_PIECE, first.item.id); snap("11c-dark-piece")
-        ui { model.sheet = null; e7.gearscan.ui.Themes.set(ctx, false) }
+        ui { model.graph.nav.sheet = null; e7.gearscan.ui.Themes.set(ctx, false) }
     }
 
     @Test fun searchFilterAndTrackTargets() {
@@ -178,7 +178,7 @@ class GearPotentialScreens {
         lateinit var model: AppModel
         ui { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.go(Screen.GearPotential) }
+        ui { assertTrue(model.graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() })); model.graph.nav.go(Screen.GearPotential) }
         val images = File(ctx.getExternalFilesDir(null), "audit-images")
         if (images.isDirectory) model.graph.content.imageBase = images.toURI().toString()
         var width by mutableStateOf(411)
@@ -193,13 +193,13 @@ class GearPotentialScreens {
         shot("01-filters-411")
         ui { width = 353; font = 1.3f }
         shot("01-filters-353-big")
-        ui { model.sheet = Sheet(SheetKind.POTENTIAL_SLOTS, 0) }
+        ui { model.graph.nav.sheet = Sheet(SheetKind.POTENTIAL_SLOTS, 0) }
         shot("01-slots-353-big"); tap("Done")
-        ui { model.sheet = Sheet(SheetKind.POTENTIAL_MAINS, 0) }
+        ui { model.graph.nav.sheet = Sheet(SheetKind.POTENTIAL_MAINS, 0) }
         shot("01-mains-353-big"); tap("Done")
         rule.onAllNodes(hasText("Find gear") and hasClickAction()).onFirst().performTouchInput { click() }; rule.waitForIdle()
         rule.waitUntil(30_000) { !model.graph.findGear.busy }
-        assertNull(model.toast)
+        assertNull(model.graph.messages.toast)
         val first = model.graph.findGear.result!!
         assertTrue(first.matches.isNotEmpty())
         assertTrue(first.matches.none { it.item.slot == Slot.BOOTS })
@@ -254,12 +254,12 @@ class GearPotentialScreens {
         shot("07-empty-353-big")
         ui { model.graph.findGear.edit(model.graph.findGear.query.copy(minimumChance = "0")); model.graph.messages.show(model.graph.findGear.find()) }
         rule.waitUntil(30_000) { !model.graph.findGear.busy }
-        tap("${model.content.set(best.item.set)?.name} ${best.item.slot.label}")
-        assertEquals(SheetKind.POTENTIAL_PIECE, model.sheet!!.kind)
+        tap("${model.graph.content.content.set(best.item.set)?.name} ${best.item.slot.label}")
+        assertEquals(SheetKind.POTENTIAL_PIECE, model.graph.nav.sheet!!.kind)
         shot("07-piece-353-big")
 
         ui { model.graph.messages.show(model.graph.findGear.track(best)) }
-        assertEquals(Screen.Upgrade, model.screen)
+        assertEquals(Screen.Upgrade, model.graph.nav.screen)
         assertEquals(mapOf(GearStat.SPD to 20.0, GearStat.HP_P to 5.0), model.graph.tracker.goal!!.minimums)
         shot("08-track-selected-353-big")
         tap("Change")

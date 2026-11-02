@@ -35,39 +35,6 @@ import e7.gearscan.ui.Confirm
 import e7.gearscan.ui.Toast
 import kotlin.concurrent.thread
 
-sealed class Screen {
-    data object ScanIntro : Screen()
-    data object ScanData : Screen()
-    data object Capture : Screen()
-    data object ScanResult : Screen()
-    data object Optimize : Screen()
-    data object Heroes : Screen()
-    data object Gear : Screen()
-    data object Results : Screen()
-    data object GhostBuild : Screen()
-    data class Compare(val index: Int, val poolHero: Long? = null) : Screen()
-    data class HeroDetail(val id: Long) : Screen()
-    data class DiffItems(val kind: Int) : Screen()
-    data object OverlayIntro : Screen()
-    data class Feedback(val error: String? = null) : Screen()
-    data object PoolRun : Screen()
-    data object Upgrade : Screen()
-    data object GearPotential : Screen()
-    data object SellFilters : Screen()
-    data object SellKept : Screen()
-    /** Pieces that could make heroes with a setup better once finished: every hero, or the pieces for [heroId]. */
-    data class HeroUpgrades(val heroId: Long? = null) : Screen()
-    /** A pool run's results walked hero by hero, with reviewed marks. */
-    data class PoolReview(val id: Long) : Screen()
-    /** One pool hero's full setup; [setup]: walk the heroes with no build, else the ready ones. */
-    data class PoolHero(val id: Long, val setup: Boolean) : Screen()
-}
-
-enum class SheetKind { PRESET, TARGETS, ADVANCED, BONUS, SETS, MAINS, GOALS, SHOW, HERO_PICK, ARTIFACT, POOL_PICK, POOL_WORSE, POOL_LOW, POOL_HEROES, POOL_LIST, POOL_TRADES, SCAN_RESTART, POTENTIAL_HELP, POTENTIAL_TARGETS, POTENTIAL_SLOTS, POTENTIAL_SETS, POTENTIAL_MAINS, POTENTIAL_OPTIONS, POTENTIAL_PIECE, SELL_SCORE, SELL_WEIGHTS, SELL_FLOORS, SELL_CUSTOMS, SELL_HEROES, SELL_INVENTORY, SELL_SLOTS, SELL_SETS, SELL_MAINS, SELL_LEVELS, SELL_QUALITY, SELL_DETAILS, SELL_HELP, SELL_SAFEGUARDS, SELL_EXTRA, SELL_WORTH, HERO_UPGRADE_PIECE, HERO_UPGRADE_HELP, HERO_UPGRADE_SETTINGS, HERO_UPGRADE_BUILD }
-
-/** [back] is the sheet to return to when this one finishes; null closes. */
-data class Sheet(val kind: SheetKind, val heroId: Long, val back: SheetKind? = null)
-
 class AppModel(app: Application) : AndroidViewModel(app) {
     val graph = getApplication<E7GearApp>().graph
     private val files = app.filesDir
@@ -77,63 +44,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     val rev get() = graph.scan.rev
     private val configs get() = graph.heroes.configs
     val lastScan get() = graph.scan.lastScan
-    /** With the "closest to targets" goal, results show match % unless another rating is picked. */
-    var showMatch by mutableStateOf(true)
-
-    var stack: List<Screen>
-        get() = graph.nav.screens()
-        internal set(v) { graph.nav.setScreens(v) }
-    var sheet: Sheet?
-        get() = graph.nav.sheet
-        set(v) { graph.nav.sheet = v }
-
     var ready by mutableStateOf(false)
         private set
 
-    // ---- navigation ----
-    val screen get() = graph.nav.screen
-
-    fun go(s: Screen) = graph.nav.go(s)
-    fun replace(s: Screen) = graph.nav.replace(s)
-    fun tab(s: Screen) = graph.nav.tab(s)
-    /** A screen as a back link names it: its title. */
-    fun screenLabel(s: Screen): String = when (s) {
-        Screen.ScanIntro, Screen.Capture -> "Scan"
-        Screen.ScanData -> "Scan & data"
-        Screen.ScanResult -> "Imported"
-        Screen.Optimize -> "Optimize"
-        Screen.Gear -> "Gear"
-        Screen.Heroes -> "Heroes"
-        Screen.Results -> "Best 50"
-        Screen.GhostBuild -> "Ghost build"
-        is Screen.Compare -> s.poolHero?.let { id -> hero(id)?.let(::heroName) } ?: "Build #${s.index + 1}"
-        is Screen.HeroDetail -> hero(s.id)?.let(::heroName) ?: "Hero"
-        is Screen.DiffItems -> listOf("New items", "Enhanced", "Moved").getOrElse(s.kind) { "Imported" }
-        Screen.OverlayIntro -> "Show over game"
-        is Screen.Feedback -> "Feedback"
-        Screen.PoolRun -> if (pool?.running == true) "Optimizing pool" else "Pool done"
-        is Screen.PoolReview -> hero(s.id)?.let(::heroName) ?: "Pool done"
-        is Screen.PoolHero -> hero(s.id)?.let(::heroName) ?: "Whole pool"
-        Screen.Upgrade -> "Track upgrades"
-        Screen.GearPotential -> "Find gear"
-        Screen.SellFilters -> "Sell review"
-        Screen.SellKept -> "Kept pieces"
-        is Screen.HeroUpgrades -> s.heroId?.let { id -> hero(id)?.let(::heroName) } ?: "Improve heroes"
-    }
-
-    /** Where back goes from the current screen, by name. */
-    fun backLabel(): String = stack.getOrNull(stack.size - 2)?.let(::screenLabel) ?: "Back"
-
-    fun back(): Boolean = graph.nav.back()
-
-    // every change is saved shortly after: Android may close the app while the player is in the game
-    fun touch() = graph.scan.touch()
-
-    // ---- heroes ----
-    fun hero(id: Long): OwnedHero? = graph.heroes.hero(id)
-    fun gameHero(h: OwnedHero): GameHero? = graph.heroes.gameHero(h)
-    fun heroName(h: OwnedHero) = graph.heroes.heroName(h)
-    fun face(h: OwnedHero) = graph.heroes.face(h)
+    private fun hero(id: Long): OwnedHero? = graph.heroes.hero(id)
+    private fun heroName(h: OwnedHero) = graph.heroes.heroName(h)
+    private fun face(h: OwnedHero) = graph.heroes.face(h)
 
     // kept for Improve heroes, the tracker and the checklists until those move
     private val pool get() = graph.pool.state
@@ -157,26 +73,11 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     private fun equipPool(run: e7.gearscan.features.pool.PoolState?, reforge: List<Long>, mods: List<Pair<Long, e7.gearscan.data.Mod>>?) =
         graph.pool.equip(run, reforge, mods)
 
-    var toast: Toast?
-        get() = graph.messages.toast
-        set(v) { graph.messages.toast = v }
-    var confirm: Confirm?
-        get() = graph.messages.dialog
-        set(v) { graph.messages.dialog = v }
-    fun askReset(title: String, body: String, run: () -> Unit) = graph.messages.confirm(title, body, "Reset") { run() }
-    fun explain(title: String, body: String) = graph.messages.explain(title, body)
-
-    fun showToast(text: String, action: String? = null, onAction: (() -> Unit)? = null) = graph.messages.showToast(text, action, onAction)
-
     // swiped away from recents: nothing is left to show the result, so stop rather than leave the service running
     override fun onCleared() {
         cancelAllWork()
         super.onCleared()
     }
-
-    // ---- marks ----
-    val clearedIds get() = graph.marks.cleared
-    val reviewedIds get() = graph.marks.reviewed
 
     /** Loads one hero's build as the in-game checklist; finishing it records the build. */
     fun loadBuildChecklist(heroId: Long, b: Build, title: String, flag: String? = null) {
@@ -188,7 +89,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun loadPoolChecklist(): Boolean {
         val p = pool ?: return false
         val b = poolOverlay() ?: return false
-        graph.checklist.load(b) { equipPool(p, b.pieces.filter { it.reforgeStep }.map { it.item.id }, graph.checklist.rolledMods()); tab(Screen.Optimize) }
+        graph.checklist.load(b) { equipPool(p, b.pieces.filter { it.reforgeStep }.map { it.item.id }, graph.checklist.rolledMods()); graph.nav.tab(Screen.Optimize) }
         return true
     }
 
@@ -200,11 +101,10 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             ob.pieces.filter { !it.onHero || it.otherMenu }.map { it.copyFor(name) }
         }
         val pieces = steps.filter { it.menu == 0 } + steps.filter { it.menu == 1 } + steps.filter { it.menu == 2 }
-        return e7.gearscan.overlay.OverlayBuild("Pool · ${pieces.size} moves", null, pieces, emptyList(), p.takeIf { it.fromHistory }?.let { historyFlag(it.startedAt) })
+        return e7.gearscan.overlay.OverlayBuild("Pool · ${pieces.size} moves", null, pieces, emptyList(), p.takeIf { it.fromHistory }?.let { graph.history.flag(it.startedAt) })
     }
 
     // ---- over the game ----
-    fun historyFlag(at: Long) = "From history · ${e7.gearscan.ui.historyStamp(at)}. Gear may have moved since; check each piece."
 
     fun overlayBuild(heroId: Long, b: Build, title: String, flag: String? = null): e7.gearscan.overlay.OverlayBuild {
         val h = hero(heroId)
@@ -243,10 +143,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         graph.work.cancelAll()
     }
 
-    fun save() { graph.store.saveNow() }
-
-    private fun saveBox() = graph.scan.saveBox()
-
     // last in the class: startup work started here reads fields declared above, which must exist before it runs
     init {
         e7.gearscan.data.Http.agent = "E7Gear/${graph.appUpdate.version}"
@@ -255,7 +151,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             val b = withContext(Dispatchers.IO) { graph.loadOnce(); graph.scan.readBox() }
             graph.feedback.loadCrash()
             graph.scan.adopt(b)
-            stack = listOf(if (!graph.settings.consent && box == null) Screen.ScanIntro else Screen.Optimize)
+            graph.nav.stack = listOf(if (!graph.settings.consent && box == null) Screen.ScanIntro else Screen.Optimize)
             ready = true
             graph.heroes.team.firstOrNull()?.let { graph.heroes.ensurePresets(it) }
             if (content.heroes.isEmpty()) graph.content.checkNow()

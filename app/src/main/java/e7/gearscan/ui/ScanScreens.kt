@@ -69,19 +69,19 @@ fun rememberStartScan(model: AppModel): () -> Unit {
         onDispose { owner.lifecycle.removeObserver(watch) }
     }
     LaunchedEffect(model.graph.scan.scanNow) { if (model.graph.scan.scanNow) { model.graph.scan.scanNow = false; scan() } }
-    return { if (model.graph.scan.game == null || (model.graph.scan.otherVpnActive() && !model.graph.settings.proxyOn)) scan() else model.sheet = Sheet(SheetKind.SCAN_RESTART, 0) }
+    return { if (model.graph.scan.game == null || (model.graph.scan.otherVpnActive() && !model.graph.settings.proxyOn)) scan() else model.graph.nav.sheet = Sheet(SheetKind.SCAN_RESTART, 0) }
 }
 
 /** Fresh session for a scan: Android lets no app close another, so the player taps Force stop on the game's page. */
 @Composable
 fun ScanRestartSheet(model: AppModel) {
     SheetBody("Start the game fresh", button = "Restart Epic Seven", onButton = {
-        model.sheet = null; model.graph.scan.afterRestart = true; model.graph.scan.openGameSettings()
+        model.graph.nav.sheet = null; model.graph.scan.afterRestart = true; model.graph.scan.openGameSettings()
     }) {
         Text("The scan reads the game's login, so Epic Seven has to start from its title screen. If it's open, tap Force stop on the next screen and come back: the scan starts by itself.",
             style = zen(13.sp, FontWeight.Medium))
         Text("Android doesn't let one app close another, so this one tap is yours.", style = zen(11.sp, FontWeight.Medium, C.muted))
-        LinkText("It's not running · scan now") { model.sheet = null; model.graph.scan.scanNow = true }
+        LinkText("It's not running · scan now") { model.graph.nav.sheet = null; model.graph.scan.scanNow = true }
     }
 }
 
@@ -94,8 +94,8 @@ private fun rememberScanNow(model: AppModel): () -> Unit {
     }
     return {
         when {
-            model.graph.scan.game == null -> { model.graph.scan.error = ScanError.NOT_INSTALLED; if (model.screen != Screen.Capture) model.go(Screen.Capture) }
-            model.graph.scan.otherVpnActive() && !model.graph.settings.proxyOn -> { model.graph.scan.error = ScanError.VPN; if (model.screen != Screen.Capture) model.go(Screen.Capture) }
+            model.graph.scan.game == null -> { model.graph.scan.error = ScanError.NOT_INSTALLED; if (model.graph.nav.screen != Screen.Capture) model.graph.nav.go(Screen.Capture) }
+            model.graph.scan.otherVpnActive() && !model.graph.settings.proxyOn -> { model.graph.scan.error = ScanError.VPN; if (model.graph.nav.screen != Screen.Capture) model.graph.nav.go(Screen.Capture) }
             else -> VpnService.prepare(ctx)?.let { vpn.launch(it) } ?: model.graph.scan.onVpnGranted()
         }
     }
@@ -106,9 +106,9 @@ fun ScanIntroScreen(model: AppModel) {
     var agree by remember { mutableStateOf(model.graph.settings.consent) }
     Frame(null, null, actions = {
         PinkButton("Continue", Modifier.weight(1f), enabled = agree) {
-            model.graph.settings.consent = true; model.save(); model.replace(Screen.ScanData)
+            model.graph.settings.consent = true; model.graph.store.saveNow(); model.graph.nav.replace(Screen.ScanData)
         }
-        OutlineButton("Not now") { model.graph.settings.consent = agree; model.save(); model.replace(Screen.Optimize) }
+        OutlineButton("Not now") { model.graph.settings.consent = agree; model.graph.store.saveNow(); model.graph.nav.replace(Screen.Optimize) }
     }) {
         CrashCard(model)
         VSpace(6.dp)
@@ -155,7 +155,7 @@ fun ScanIntroScreen(model: AppModel) {
             Checkbox(agree) { agree = it }
             Text("I understand what is sent and agree to scan", style = zen(13.sp))
         }
-        LinkText("Restore a backup or import a gear.txt instead") { model.graph.settings.consent = agree; model.save(); model.replace(Screen.ScanData) }
+        LinkText("Restore a backup or import a gear.txt instead") { model.graph.settings.consent = agree; model.graph.store.saveNow(); model.graph.nav.replace(Screen.ScanData) }
     }
 }
 
@@ -178,12 +178,12 @@ fun ScanDataScreen(model: AppModel) {
     var note by remember { mutableStateOf<String?>(null) }
     val restore = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { model.graph.scan.readUri(it) }?.let {
-            if (model.graph.scan.restore(it)) { model.tab(Screen.Optimize); model.showToast("Backup restored") } else note = "That file is not a backup from this app."
+            if (model.graph.scan.restore(it)) { model.graph.nav.tab(Screen.Optimize); model.graph.messages.showToast("Backup restored") } else note = "That file is not a backup from this app."
         }
     }
     val importGear = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { model.graph.scan.readUri(it) }?.let { t ->
-            note = runCatching { model.graph.scan.import(t); model.go(Screen.ScanResult); null }.getOrElse { "That file is not a Fribbels gear.txt." }
+            note = runCatching { model.graph.scan.import(t); model.graph.nav.go(Screen.ScanResult); null }.getOrElse { "That file is not a Fribbels gear.txt." }
         }
     }
     fun share(uri: Uri, mime: String) {
@@ -193,7 +193,7 @@ fun ScanDataScreen(model: AppModel) {
     val box = model.graph.scan.box
     model.graph.scan.rev
     Frame(null, null, actions = {
-        PinkButton("Scan now", Modifier.weight(1f)) { if (!model.graph.settings.consent) model.go(Screen.ScanIntro) else start() }
+        PinkButton("Scan now", Modifier.weight(1f)) { if (!model.graph.settings.consent) model.graph.nav.go(Screen.ScanIntro) else start() }
     }) {
         BackToPrevious()
         ScreenTitle("Scan & data", "読取")
@@ -217,11 +217,11 @@ fun ScanDataScreen(model: AppModel) {
                     Text("Use my VPN as a proxy", style = zen(13.sp))
                     Text("Only if you need your own VPN to play", style = zen(11.sp, FontWeight.Medium, C.muted))
                 }
-                Toggle(model.graph.settings.proxyOn) { model.graph.settings.proxyOn = it; model.save() }
+                Toggle(model.graph.settings.proxyOn) { model.graph.settings.proxyOn = it; model.graph.store.saveNow() }
             }
             if (model.graph.settings.proxyOn) {
                 VSpace(8.dp)
-                PasteField(model.graph.settings.proxy, "SOCKS5 host:port", 240) { model.graph.settings.proxy = it.trim(); model.save() }
+                PasteField(model.graph.settings.proxy, "SOCKS5 host:port", 240) { model.graph.settings.proxy = it.trim(); model.graph.store.saveNow() }
                 VSpace(4.dp)
                 Text("Switch your VPN app to SOCKS5 proxy mode first; Android runs one VPN at a time.",
                     style = zen(11.sp, FontWeight.Medium, C.muted))
@@ -231,11 +231,11 @@ fun ScanDataScreen(model: AppModel) {
         Card(shadow = null, radius = 14.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
             // saved straight to Downloads; sharing is an extra the toast offers, not a sheet in the way
             DataRow("Export gear.txt", "Fribbels format, for desktop tools · saved to Downloads/E7GearScan", box != null) {
-                model.graph.scan.exportGear()?.let { (uri, name) -> model.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "text/plain") } }
+                model.graph.scan.exportGear()?.let { (uri, name) -> model.graph.messages.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "text/plain") } }
             }
             DataRow("Back up everything", "Heroes, builds, tiers, settings · saved to Downloads/E7GearScan", true) {
                 val (uri, name) = model.graph.scan.export("e7gear-backup.json", model.graph.scan.backupText())
-                model.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "application/json") }
+                model.graph.messages.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "application/json") }
             }
             DataRow("Over the game", if (model.graph.settings.overGameNative) "Phone's floating window · tap to use E7 Gear's panel" else "E7 Gear's panel · tap to use the phone's floating window", true) {
                 model.graph.settings.useOverGameNative(!model.graph.settings.overGameNative)
@@ -244,7 +244,7 @@ fun ScanDataScreen(model: AppModel) {
             DataRow("Import a gear.txt file", null, true) { importGear.launch(arrayOf("text/plain", "application/json", "*/*")) }
             DataRow("Game content", model.graph.content.status ?: ("Version ${model.graph.content.content.version}" +
                 if (model.graph.content.checkedAt > 0) " · checked ${model.graph.scan.scannedLabelOf(model.graph.content.checkedAt)}" else ""), true) { model.graph.content.checkNow() }
-            DataRow("Report a bug", null, true) { model.go(Screen.Feedback()) }
+            DataRow("Report a bug", null, true) { model.graph.nav.go(Screen.Feedback()) }
             Row(Modifier.fillMaxWidth().tap { if (erase) model.graph.scan.erase() else erase = true }.padding(horizontal = 12.dp, vertical = 10.dp)) {
                 Text(if (erase) "Tap again to erase everything" else "Erase all data", style = zen(13.sp, color = C.deepPink))
             }
@@ -305,7 +305,7 @@ fun CaptureScreen(model: AppModel) {
         }
     }) {
         // leaving keeps the scan running; the header chip on the main screens shows it
-        if (model.stack.size > 1) BackToPrevious()
+        if (model.graph.nav.stack.size > 1) BackToPrevious()
         if (capturing) {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.ink).tap { model.graph.scan.openGame() }
                 .padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically,
@@ -379,8 +379,8 @@ private fun ErrorCard(err: ScanError, model: AppModel) {
         Text(body, style = zen(12.sp, FontWeight.Medium, C.muted))
         VSpace(6.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            if (err == ScanError.VPN) LinkText("Open proxy setting") { model.replace(Screen.ScanData) }
-            LinkText("Report this") { model.go(Screen.Feedback("$title: $body")) }
+            if (err == ScanError.VPN) LinkText("Open proxy setting") { model.graph.nav.replace(Screen.ScanData) }
+            LinkText("Report this") { model.graph.nav.go(Screen.Feedback("$title: $body")) }
         }
     }
 }
@@ -407,9 +407,9 @@ fun ScanResultScreen(model: AppModel) {
     val box = model.graph.scan.box ?: return
     val d = model.graph.scan.lastDiff
     Frame(null, null, actions = {
-        PinkButton("Go to optimizer", Modifier.weight(1f)) { model.tab(Screen.Optimize) }
+        PinkButton("Go to optimizer", Modifier.weight(1f)) { model.graph.nav.tab(Screen.Optimize) }
     }) {
-        if (model.stack.size > 1) BackToPrevious()
+        if (model.graph.nav.stack.size > 1) BackToPrevious()
         ScreenTitle("Imported", "取込")
         Card(padding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
             Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
@@ -422,7 +422,7 @@ fun ScanResultScreen(model: AppModel) {
                 style = zen(11.sp, FontWeight.Medium, C.muted))
         }
         Card(shadow = null, radius = 14.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-            ListRow({ model.tab(Screen.Gear) }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            ListRow({ model.graph.nav.tab(Screen.Gear) }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                 Text("Gear", style = zen(14.sp))
                 Text("Sell review · Improve heroes · Find gear", style = zen(11.sp, FontWeight.Medium, C.muted))
             }
@@ -432,10 +432,10 @@ fun ScanResultScreen(model: AppModel) {
             Text(if (d == null) "This is your first scan." else "Nothing changed since the last scan.", style = zen(13.sp, FontWeight.Medium, C.muted))
         } else {
             Card(shadow = null, radius = 14.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-                DiffRow("New items", "+${d.newItems.size}", C.blue) { model.go(Screen.DiffItems(0)) }
+                DiffRow("New items", "+${d.newItems.size}", C.blue) { model.graph.nav.go(Screen.DiffItems(0)) }
                 DiffRow("Removed items", "−${d.removedItems.size}", C.red, null)
-                DiffRow("Enhanced", "${d.enhanced.size}", C.ink) { model.go(Screen.DiffItems(1)) }
-                DiffRow("Moved between heroes", "${d.moved.size}", C.ink) { model.go(Screen.DiffItems(2)) }
+                DiffRow("Enhanced", "${d.enhanced.size}", C.ink) { model.graph.nav.go(Screen.DiffItems(1)) }
+                DiffRow("Moved between heroes", "${d.moved.size}", C.ink) { model.graph.nav.go(Screen.DiffItems(2)) }
                 if (d.newHeroes.isNotEmpty()) DiffRow(if (d.newHeroes.size == 1) "New hero" else "New heroes",
                     d.newHeroes.take(2).joinToString(", ") + if (d.newHeroes.size > 2) " +${d.newHeroes.size - 2}" else "", C.blue, null)
             }
@@ -478,7 +478,7 @@ fun ItemRow(model: AppModel, it: Item, owner: String? = null) {
                 Row {
                     Text("${it.mainType.short} ${it.mainType.format(it.mainValue)}", style = zen(13.sp), modifier = Modifier.weight(1f))
                     // a hero missing from the scan's hero list still wears the piece in the game
-                    val who = owner ?: it.equippedOn?.let { id -> model.hero(id)?.let(model::heroName) ?: "hero not in scan" }
+                    val who = owner ?: it.equippedOn?.let { id -> model.graph.heroes.hero(id)?.let(model.graph.heroes::heroName) ?: "hero not in scan" }
                     Text(who ?: "free", style = zen(11.sp, color = if (who != null) C.blue else C.muted))
                 }
                 VSpace(3.dp)

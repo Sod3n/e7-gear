@@ -19,30 +19,30 @@ import e7.gearscan.Screen
 fun GearScreen(model: AppModel) {
     Frame(model, Screen.Gear) {
         ScreenTitle("Gear", "ソウビ")
-        if (model.box == null) {
+        if (model.graph.scan.box == null) {
             Card {
                 Text("Import your gear first", style = dela(17.sp)); VSpace(6.dp)
                 Text("Scan the game or restore a backup in Scan & data.", style = zen(12.sp, color = C.muted))
-                VSpace(10.dp); OutlineButton("Scan & data", Modifier.fillMaxWidth(), height = 44.dp) { model.go(Screen.ScanData) }
+                VSpace(10.dp); OutlineButton("Scan & data", Modifier.fillMaxWidth(), height = 44.dp) { model.graph.nav.go(Screen.ScanData) }
             }
             return@Frame
         }
-        val sell = model.graph.sellReview.result?.let { r -> r.matches.count { it.item.id !in model.reviewedIds } }
+        val sell = model.graph.sellReview.result?.let { r -> r.matches.count { it.item.id !in model.graph.marks.reviewed } }
         ModeCard("Sell review", "Worst rolls first. Sell or keep each piece, with its ES now and at +15.",
             listOfNotNull(sell?.let { "$it to review" }, model.graph.marks.kept.size.takeIf { it > 0 }?.let { "$it kept" }).joinToString(" · ").ifEmpty { "Not checked yet" }) {
-            model.go(Screen.SellFilters)
+            model.graph.nav.go(Screen.SellFilters)
         }
         val heroes = model.graph.improveHeroes.heroUpgrades?.takeIf { !it.running && it.result != null && !model.graph.improveHeroes.stale }?.result
             ?.let { r -> model.graph.improveHeroes.view(r).count { it.rows.isNotEmpty() } }
         ModeCard("Improve heroes", "Unfinished pieces that would make a hero you've set up better once enhanced.",
-            heroes?.let { "$it heroes can get better" } ?: "Not checked yet") { model.go(Screen.HeroUpgrades()) }
+            heroes?.let { "$it heroes can get better" } ?: "Not checked yet") { model.graph.nav.go(Screen.HeroUpgrades()) }
         val found = model.graph.findGear.result?.matches?.size
         ModeCard("Find gear", "Pieces that can still reach the substats you ask for, with the chance.",
-            found?.let { "${e7.gearscan.value.Count(it).of("piece")} found last time" } ?: "Choose a target") { model.go(Screen.GearPotential) }
+            found?.let { "${e7.gearscan.value.Count(it).of("piece")} found last time" } ?: "Choose a target") { model.graph.nav.go(Screen.GearPotential) }
         if (model.graph.tracker.queue.isNotEmpty() || model.graph.tracker.record != null)
-            RowCard("Over the game", { model.go(Screen.Upgrade) }) { Text("Continue tracking", style = zen(12.sp)) }
+            RowCard("Over the game", { model.graph.nav.go(Screen.Upgrade) }) { Text("Continue tracking", style = zen(12.sp)) }
         if (model.graph.marks.kept.isNotEmpty())
-            RowCard("Kept pieces", { model.go(Screen.SellKept) }) { Text("${model.graph.marks.kept.size} kept", style = zen(12.sp)) }
+            RowCard("Kept pieces", { model.graph.nav.go(Screen.SellKept) }) { Text("${model.graph.marks.kept.size} kept", style = zen(12.sp)) }
     }
 }
 

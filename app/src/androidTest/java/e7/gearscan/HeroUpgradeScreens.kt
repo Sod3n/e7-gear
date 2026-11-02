@@ -84,20 +84,20 @@ class HeroUpgradeScreens {
         val hero = model.graph.improveHeroes.view(r).first { it.rows.isNotEmpty() }
         val row = hero.rows.first()
         // the stat chips are worked out in the background: shoot once they are in
-        ui { model.sheet = null; model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) }
+        ui { model.graph.nav.sheet = null; model.graph.nav.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) }
         val tops = model.graph.improveHeroes.view(r).mapNotNull { h -> h.rows.firstOrNull()?.let { Triple(h.hero.id, it.pick.piece, model.graph.improveHeroes.rebuilds) } }
         rule.waitUntil(60_000) { tops.all { it in model.graph.improveHeroes.changes } }
         for ((w, f) in listOf(411 to 1f, 353 to 1.3f)) {
             ui { width = w; font = f }
             val tag = "$w-${if (f > 1f) "big" else "1x"}"
-            ui { model.sheet = null; model.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) }; shoot("3-by-hero-$tag")
+            ui { model.graph.nav.sheet = null; model.graph.nav.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) }; shoot("3-by-hero-$tag")
             rule.onAllNodesWithText("By piece", useUnmergedTree = true)[0].performTouchInput { click() }; shoot("3d-by-piece-$tag")
             rule.onAllNodesWithText("By hero", useUnmergedTree = true)[0].performTouchInput { click() }
-            ui { model.stack = listOf(Screen.Gear, Screen.HeroUpgrades(), Screen.HeroUpgrades(hero.hero.id)) }; shoot("4-hero-$tag")
-            ui { model.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, row.pick.piece) }; shoot("5-piece-$tag")
-            ui { model.graph.improveHeroes.openFinalBuild(hero.hero.id, row); model.sheet = Sheet(SheetKind.HERO_UPGRADE_BUILD, row.pick.piece) }
+            ui { model.graph.nav.stack = listOf(Screen.Gear, Screen.HeroUpgrades(), Screen.HeroUpgrades(hero.hero.id)) }; shoot("4-hero-$tag")
+            ui { model.graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, row.pick.piece) }; shoot("5-piece-$tag")
+            ui { model.graph.improveHeroes.openFinalBuild(hero.hero.id, row); model.graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_BUILD, row.pick.piece) }
             rule.waitUntil(60_000) { !model.graph.improveHeroes.finalBuildBusy }; shoot("5b-final-build-$tag")
-            ui { model.sheet = null }
+            ui { model.graph.nav.sheet = null }
         }
     }
 
@@ -112,7 +112,7 @@ class HeroUpgradeScreens {
             .grantRuntimePermission(ctx.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
         rule.runOnUiThread { model = AppModel(ctx.applicationContext as Application) }
         rule.waitUntil(20_000) { model.ready }
-        check(model.content.heroes.isNotEmpty()) { "no game content" }
+        check(model.graph.content.content.heroes.isNotEmpty()) { "no game content" }
         var ok = false
         ui { ok = model.graph.scan.restore(backup); model.graph.settings.consent = true; Themes.set(ctx, false) }
         check(ok) { "restore failed" }
@@ -139,9 +139,9 @@ class HeroUpgradeScreens {
                 shoot("$name-$w-${if (f > 1f) "big" else "1x"}")
             }
         }
-        ui { model.go(Screen.ScanResult) }
+        ui { model.graph.nav.go(Screen.ScanResult) }
         each("0-imported")
-        ui { model.go(Screen.HeroUpgrades()) }
+        ui { model.graph.nav.go(Screen.HeroUpgrades()) }
         each("1-intro")
         ui { model.graph.improveHeroes.start() }
         rule.waitUntil(5 * 60_000) { (model.graph.improveHeroes.heroUpgrades?.done ?: 0) > 0 }
@@ -160,7 +160,7 @@ class HeroUpgradeScreens {
             "${r.unknownSteps} open steps, ${(System.currentTimeMillis() - t0) / 1000} s"
         Log.i("HeroUpgradeScreens", line)
         File(shots, "result.txt").writeText(line + "\n" + view.joinToString("\n") { h ->
-            "${model.heroName(h.hero)} t${model.graph.heroes.tier(h.hero.id)} now=${h.bestNow} rows=${h.rows.size} " +
+            "${model.graph.heroes.heroName(h.hero)} t${model.graph.heroes.tier(h.hero.id)} now=${h.bestNow} rows=${h.rows.size} " +
                 h.rows.take(3).joinToString { "${it.pick.piece} ${it.chance}% ${it.typical}/${it.best}" } })
         check(!model.graph.improveHeroes.resumable) { "a finished check still offers to continue" }
         check(!model.graph.improveHeroes.stale) { "a fresh result reads as stale" }
@@ -190,34 +190,34 @@ class HeroUpgradeScreens {
         each("3e-rebuilds")
         val rebuildView = model.graph.improveHeroes.view(r)
         val rebuildHero = rebuildView.first { h -> h.rows.any { it.pick.sets.isNotEmpty() } }
-        ui { model.go(Screen.HeroUpgrades(rebuildHero.hero.id)) }
+        ui { model.graph.nav.go(Screen.HeroUpgrades(rebuildHero.hero.id)) }
         each("3f-rebuild-hero")
         val rebuildRow = rebuildHero.rows.first { it.pick.sets.isNotEmpty() }
-        ui { model.graph.improveHeroes.openFinalBuild(rebuildHero.hero.id, rebuildRow); model.sheet = Sheet(SheetKind.HERO_UPGRADE_BUILD, rebuildRow.pick.piece) }
+        ui { model.graph.improveHeroes.openFinalBuild(rebuildHero.hero.id, rebuildRow); model.graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_BUILD, rebuildRow.pick.piece) }
         rule.waitUntil(60_000) { !model.graph.improveHeroes.finalBuildBusy }
         check(model.graph.improveHeroes.finalBuild != null) { "no final build for a rebuild pick" }
         each("3g-final-build-rebuild", sheet = true)
-        ui { model.sheet = null; model.graph.improveHeroes.useRebuilds(false); model.go(Screen.HeroUpgrades()) }
+        ui { model.graph.nav.sheet = null; model.graph.improveHeroes.useRebuilds(false); model.graph.nav.go(Screen.HeroUpgrades()) }
         val hero = model.graph.improveHeroes.view(r).first { it.rows.isNotEmpty() }
-        ui { model.go(Screen.HeroUpgrades(hero.hero.id)) }
+        ui { model.graph.nav.go(Screen.HeroUpgrades(hero.hero.id)) }
         each("4-hero")
-        ui { model.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, hero.rows.first().pick.piece) }
+        ui { model.graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, hero.rows.first().pick.piece) }
         each("5-piece", sheet = true)
-        ui { model.graph.improveHeroes.openFinalBuild(hero.hero.id, hero.rows.first()); model.sheet = Sheet(SheetKind.HERO_UPGRADE_BUILD, hero.rows.first().pick.piece) }
+        ui { model.graph.improveHeroes.openFinalBuild(hero.hero.id, hero.rows.first()); model.graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_BUILD, hero.rows.first().pick.piece) }
         rule.waitUntil(60_000) { !model.graph.improveHeroes.finalBuildBusy }
         val fb = checkNotNull(model.graph.improveHeroes.finalBuild) { "no final build" }
         // this piece only: every other piece is the one the hero's best build already has
         check(fb.from.count { it == "This piece, upgraded" } == 1) { "final build: ${fb.from}" }
         each("5b-final-build", sheet = true)
-        ui { model.sheet = Sheet(SheetKind.HERO_UPGRADE_HELP, 0) }
+        ui { model.graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_HELP, 0) }
         each("6-help", sheet = true)
-        ui { model.sheet = null; model.go(Screen.HeroDetail(hero.hero.id)) }
+        ui { model.graph.nav.sheet = null; model.graph.nav.go(Screen.HeroDetail(hero.hero.id)) }
         each("7-hero-detail") { scrollTo("Upgrades") }
-        ui { model.go(Screen.HeroUpgrades()) }
+        ui { model.graph.nav.go(Screen.HeroUpgrades()) }
         for (dark in listOf(true)) {
             ui { Themes.set(ctx, dark); width = 411; font = 1f }
             top(); shoot("8-dark-by-hero")
-            ui { model.go(Screen.HeroUpgrades(hero.hero.id)) }
+            ui { model.graph.nav.go(Screen.HeroUpgrades(hero.hero.id)) }
             top(); shoot("8-dark-hero")
             ui { Themes.set(ctx, false) }
         }
@@ -225,7 +225,7 @@ class HeroUpgradeScreens {
         check(model.graph.tracker.queue.size == hero.rows.size) { "the tracker list has ${model.graph.tracker.queue.size} of ${hero.rows.size} pieces" }
         check(model.graph.tracker.queueSource == "heroes") { "the tracker doesn't know the list came from Improve heroes" }
         e7.gearscan.overlay.OverlayService.stop(ctx)
-        ui { model.go(Screen.Upgrade) }
+        ui { model.graph.nav.go(Screen.Upgrade) }
         each("9-tracker")
     }
 }

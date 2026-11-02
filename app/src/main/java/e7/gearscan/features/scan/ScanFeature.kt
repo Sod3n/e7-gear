@@ -138,7 +138,7 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
         g.store.erase()
         g.tracker.reset()
         adopt()
-        g.nav.setScreens(listOf(Screen.ScanIntro))
+        g.nav.stack = listOf(Screen.ScanIntro)
     }
 
     private fun stopAll() {
