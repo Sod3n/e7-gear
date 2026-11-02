@@ -235,7 +235,7 @@ fun SellFiltersScreen(model:AppModel) {
             PinkButton("Review over game",Modifier.weight(1f),short="Over game") { model.trackSellMatches() }
         }else PinkButton(if(result!=null&&!model.sellFresh)"Update matches" else "Find matches",Modifier.weight(1f)) { jump=true;model.findSellGear() }
     }) {
-        BackToPrevious(model);ScreenTitle("Sell review")
+        BackToPrevious();ScreenTitle("Sell review")
         Segmented(listOf("Set up","Matches"),tab) { tab=it }
         if(model.sellBusy)Card(shadow=null,padding=PaddingValues(12.dp)) {
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(9.dp)) { Spinner();Text("Checking ${model.sellDone} / ${model.sellTotal}",style=zen(13.sp)) }

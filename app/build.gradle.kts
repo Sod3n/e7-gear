@@ -114,6 +114,7 @@ composeCompiler {
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":kit"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)

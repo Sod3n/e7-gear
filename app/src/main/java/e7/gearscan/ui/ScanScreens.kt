@@ -195,7 +195,7 @@ fun ScanDataScreen(model: AppModel) {
     Frame(null, null, actions = {
         PinkButton("Scan now", Modifier.weight(1f)) { if (!model.consent) model.go(Screen.ScanIntro) else start() }
     }) {
-        BackToPrevious(model)
+        BackToPrevious()
         ScreenTitle("Scan & data", "読取")
         Card(padding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -305,7 +305,7 @@ fun CaptureScreen(model: AppModel) {
         }
     }) {
         // leaving keeps the scan running; the header chip on the main screens shows it
-        if (model.stack.size > 1) BackToPrevious(model)
+        if (model.stack.size > 1) BackToPrevious()
         if (capturing) {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.ink).tap { model.openGame() }
                 .padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically,
@@ -409,7 +409,7 @@ fun ScanResultScreen(model: AppModel) {
     Frame(null, null, actions = {
         PinkButton("Go to optimizer", Modifier.weight(1f)) { model.tab(Screen.Optimize) }
     }) {
-        if (model.stack.size > 1) BackToPrevious(model)
+        if (model.stack.size > 1) BackToPrevious()
         ScreenTitle("Imported", "取込")
         Card(padding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
             Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
@@ -462,7 +462,7 @@ fun DiffItemsScreen(model: AppModel, kind: Int) {
     val d = model.lastDiff ?: return
     val ids = when (kind) { 0 -> d.newItems; 1 -> d.enhanced; else -> d.moved }
     Frame(null, null) {
-        BackToPrevious(model)
+        BackToPrevious()
         ScreenTitle(listOf("New items", "Enhanced", "Moved")[kind])
         if (ids.isEmpty()) Text("None since the last scan.", style = zen(13.sp, FontWeight.Medium, C.muted))
         ids.mapNotNull { box.itemsById[it] }.forEach { ItemRow(model, it) }

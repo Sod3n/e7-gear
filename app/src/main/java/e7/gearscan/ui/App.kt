@@ -8,7 +8,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Alignment
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -28,6 +28,17 @@ import e7.gearscan.Screen
 
 @Composable
 fun App(model: AppModel, onExit: () -> Unit) {
+    val back = remember(model) {
+        object : BackLink {
+            override val label get() = model.backLabel()
+            override fun go() { model.back() }
+        }
+    }
+    CompositionLocalProvider(LocalBack provides back) { AppContent(model, onExit) }
+}
+
+@Composable
+private fun AppContent(model: AppModel, onExit: () -> Unit) {
     BackHandler { if (!model.back()) onExit() }
     if (!model.ready) { Box(Modifier.fillMaxSize().background(C.paper)); return }
     if (model.content.heroes.isEmpty()) { GameDataScreen(model); return }
@@ -77,44 +88,8 @@ fun App(model: AppModel, onExit: () -> Unit) {
         }
         }
         SheetHost(model)
-        ToastHost(model, Modifier.align(Alignment.BottomCenter))
-        ConfirmHost(model)
+        ToastHost(model.graph.messages, Modifier.align(Alignment.BottomCenter))
+        ConfirmHost(model.graph.messages)
     }
-    }
-}
-
-/** Asks before a reset; Cancel, back or a tap outside keeps everything as it is. */
-@Composable
-private fun ConfirmHost(model: AppModel) {
-    val c = model.confirm ?: return
-    Box(Modifier.fillMaxSize().background(C.scrim).tap { model.confirm = null }, contentAlignment = Alignment.Center) {
-        Card(Modifier.padding(horizontal = 28.dp).tap { }, padding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
-            Text(c.title, style = dela(18.sp))
-            VSpace(6.dp); Text(c.body, style = zen(13.sp, color = C.muted))
-            VSpace(14.dp)
-            val run = c.run
-            if (run == null) PinkButton("Got it", Modifier.fillMaxWidth()) { model.confirm = null }
-            else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlineButton("Cancel", Modifier.weight(1f), height = 46.dp) { model.confirm = null }
-                PinkButton(c.action ?: "Reset", Modifier.weight(1f)) { model.confirm = null; c.run?.invoke() }
-            }
-        }
-    }
-}
-
-/** Floats over the bottom of the screen, so showing it never moves anything. */
-@Composable
-private fun ToastHost(model: AppModel, modifier: Modifier) {
-    val t = model.toast ?: return
-    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
-    // counts only while the app is in front: a toast set from over the game waits for the player to come back
-    LaunchedEffect(t.id) {
-        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) { kotlinx.coroutines.delay(6000); if (model.toast?.id == t.id) model.toast = null }
-    }
-    Row(modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 92.dp).fillMaxWidth()
-        .clip(RoundedCornerShape(14.dp)).background(C.ink).padding(horizontal = 14.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(t.text, style = zen(13.sp, color = C.card), modifier = Modifier.weight(1f), maxLines = 3, overflow = TextOverflow.Ellipsis)
-        if (t.action != null) Text(t.action, style = dela(13.sp, C.pink), modifier = Modifier.tap { t.onAction?.invoke(); model.toast = null })
     }
 }

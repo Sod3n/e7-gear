@@ -7,7 +7,7 @@ import java.io.File
 /** Light and dark come from the palettes in ui/Theme.kt; a colour written anywhere else would not switch. */
 class ThemeRulesTest {
     private val src = File("src/main/java")
-    private fun sources() = sequenceOf(src, File("../core/src/main/java")).flatMap { it.walk() }
+    private fun sources() = sequenceOf(src, File("../core/src/main/java"), File("../kit/src/main/java")).flatMap { it.walk() }
     private fun hits(rule: Regex, skip: Set<String> = emptySet()) = sources().filter { it.extension == "kt" && it.name !in skip }.flatMap { f ->
         f.readLines().withIndex().filter { rule.containsMatchIn(it.value) }.map { "${f.name}:${it.index + 1}: ${it.value.trim()}" }
     }.toList()

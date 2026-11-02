@@ -41,8 +41,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import e7.gearscan.AppModel
-import e7.gearscan.Screen
 
 /**
  * Screen layout from the design: scrolling content with an 18 dp gutter and 11 dp gaps, an
@@ -50,10 +48,9 @@ import e7.gearscan.Screen
  */
 @Composable
 fun Frame(
-    model: AppModel?,
-    tab: Screen?,
     scroll: Boolean = true,
     actions: (@Composable RowScope.() -> Unit)? = null,
+    tabBar: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val pinned = androidx.compose.runtime.remember { PinnedBack() }
@@ -78,10 +75,10 @@ fun Frame(
         }
         if (actions != null) {
             Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 12.dp)
-                .then(if (tab == null) Modifier.navigationBarsPadding() else Modifier),
+                .then(if (tabBar == null) Modifier.navigationBarsPadding() else Modifier),
                 horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
         }
-        if (tab != null && model != null) TabBar(model, tab)
+        tabBar?.invoke()
     }
 }
 
@@ -97,27 +94,6 @@ class PinnedBack {
 }
 
 val LocalPinnedBack = androidx.compose.runtime.staticCompositionLocalOf<PinnedBack?> { null }
-
-@Composable
-fun TabBar(model: AppModel, current: Screen) {
-    Column(Modifier.fillMaxWidth().background(C.card).drawBehind {
-        drawRect(C.edge, size = androidx.compose.ui.geometry.Size(size.width, 2.5.dp.toPx()))
-    }.navigationBarsPadding().padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 8.dp)) {
-        Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            for ((label, s) in listOf("Optimize" to Screen.Optimize, "Heroes" to Screen.Heroes, "Gear" to Screen.Gear)) {
-                val on = s == current
-                val shape = RoundedCornerShape(999.dp)
-                Box(Modifier.weight(1f).height(40.dp)
-                    .then(if (on) Modifier.hardShadow(C.shadow, 2.dp, 2.dp, 20.dp).clip(shape).background(C.pink).border(2.dp, C.edge, shape) else Modifier.clip(shape))
-                    .clickable { model.tab(s) },
-                    contentAlignment = Alignment.Center) {
-                    Text(label, style = zen(14.sp, color = if (on) C.onAccent else C.muted))
-                }
-            }
-            ThemeSwitch()
-        }
-    }
-}
 
 /** Moon in the light theme, sun in the dark one. The phone's setting decides until the first tap. */
 @Composable

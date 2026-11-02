@@ -72,7 +72,7 @@ fun OverlayIntroScreen(model: AppModel) {
             }
         }
     }) {
-        BackToPrevious(model)
+        BackToPrevious()
         val upgrade = OverlayState.upgrade != null
         Text(if (upgrade) "Track upgrades over the game" else "Show this build over the game", style = TitleStyle.copy(fontSize = 24.sp, lineHeight = 28.sp))
         Text(if (upgrade) "Record each +3 in a small floating panel and check whether the piece could improve a hero build." else "A small panel floats on top of Epic Seven, so you can equip each piece without switching apps.",
@@ -157,7 +157,7 @@ fun FeedbackScreen(model: AppModel, error: String?) {
             else -> PinkButton("Done", Modifier.weight(1f)) { model.back() }
         }
     }) {
-        BackToPrevious(model)
+        BackToPrevious()
         ScreenTitle("Feedback", "報告")
         if (error != null && outcome == null) StateCard("Opened from an error", "Topic is set to Bug and the error is attached: ${error.lineSequence().first()}")
         when (outcome?.first) {

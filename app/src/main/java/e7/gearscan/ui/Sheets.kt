@@ -179,24 +179,6 @@ fun SheetHost(model: AppModel) {
 private val tall = setOf(SheetKind.TARGETS, SheetKind.HERO_PICK, SheetKind.ARTIFACT, SheetKind.POOL_PICK, SheetKind.POOL_HEROES, SheetKind.POOL_LIST)
 
 @Composable
-internal fun SheetBody(title: String, trailing: @Composable (() -> Unit)? = null, button: String? = null, onButton: (() -> Unit)? = null,
-                      content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth()) {
-        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, style = TitleStyle, modifier = Modifier.weight(1f))
-                trailing?.invoke()
-            }
-            content()
-        }
-        if (button != null && onButton != null) {
-            Box(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) { PinkButton(button, Modifier.fillMaxWidth(), onClick = onButton) }
-        }
-    }
-}
-
-@Composable
 private fun PresetSheet(model: AppModel, heroId: Long) {
     val h = model.hero(heroId) ?: return
     var tab by remember { mutableIntStateOf(0) }

@@ -10,7 +10,7 @@ import java.io.File
 /** Whole-app rules that single screens can't show: locale-proof formatting and every referenced icon on disk. */
 class SourceRulesTest {
     private val src = File("src/main/java")
-    private fun sources() = sequenceOf(src, File("../core/src/main/java")).flatMap { it.walk() }
+    private fun sources() = sequenceOf(src, File("../core/src/main/java"), File("../kit/src/main/java")).flatMap { it.walk() }
     private val assets = File("src/main/assets")
 
     @Test
@@ -82,7 +82,7 @@ class SourceRulesTest {
     @Test
     fun fontsCoverEveryCharacterUsed() {
         // the bundled fonts are subsets; a character outside them renders as a box
-        val fonts = File("src/main/res/font").listFiles()!!.filter { it.extension == "ttf" }.map { cmap(it.readBytes()) }
+        val fonts = File("../kit/src/main/res/font").listFiles()!!.filter { it.extension == "ttf" }.map { cmap(it.readBytes()) }
         val used = sources().filter { it.extension == "kt" }
             .flatMap { f -> Regex("\"([^\"\\n]*)\"").findAll(f.readText()).map { it.groupValues[1] } }
             .flatMap { it.asSequence() }.filter { it.code > 0x7E && !it.isWhitespace() }.toSet()

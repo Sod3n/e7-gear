@@ -69,7 +69,7 @@ class ScanPill(private val ctx: Context, private val onTap: PendingIntent) {
         val t = TextView(ctx).apply {
             setTextColor(p.ink.toArgb())
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            typeface = ResourcesCompat.getFont(ctx, R.font.zenmarugothic_bold) ?: Typeface.DEFAULT_BOLD
+            typeface = ResourcesCompat.getFont(ctx, e7.gearscan.kit.R.font.zenmarugothic_bold) ?: Typeface.DEFAULT_BOLD
             isSingleLine = true; ellipsize = android.text.TextUtils.TruncateAt.END
         }
         val r = LinearLayout(ctx).apply {

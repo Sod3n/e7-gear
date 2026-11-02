@@ -27,7 +27,7 @@ fun SellKeptScreen(model: AppModel) {
         when (sort) { 0 -> list.asReversed(); 1 -> list.sortedBy(::es); else -> list.sortedByDescending(::es) }
     }
     Frame(model, null) {
-        BackToPrevious(model); ScreenTitle("Kept pieces")
+        BackToPrevious(); ScreenTitle("Kept pieces")
         Text("${all.size} kept", style = zen(12.sp, color = C.muted))
         CardGrid(Slot.entries, columns = 3, gap = 6.dp) { s, m ->
             Pill(s.label, m, selected = s in slots, onClick = { slots = if (s in slots) slots - s else slots + s; count = 30 },
