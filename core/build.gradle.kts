@@ -27,3 +27,16 @@ dependencies {
     testFixturesCompileOnly(libs.json)
     testFixturesCompileOnly(libs.junit)
 }
+
+tasks.register<JavaExec>("syntheticFixtures") {
+    description = "Writes gear.txt, backup.json and content.json for the screen audit to build/fixtures/synthetic"
+    group = "verification"
+    classpath = sourceSets["testFixtures"].runtimeClasspath + configurations["testRuntimeClasspath"]
+    mainClass.set("e7.gearscan.testing.SyntheticBox")
+    args(
+        layout.buildDirectory
+            .dir("fixtures/synthetic")
+            .get()
+            .asFile.path,
+    )
+}

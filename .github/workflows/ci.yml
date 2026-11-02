@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v4.7.1
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Cache the NDK
+        uses: actions/cache@v4.2.3
+        with:
+          path: /usr/local/lib/android/sdk/ndk/29.0.14206865
+          key: ndk-29.0.14206865
+
+      - uses: android-actions/setup-android@v3.2.2
+        with:
+          packages: platform-tools platforms;android-34 build-tools;34.0.0 ndk;29.0.14206865
+
+      - uses: gradle/actions/setup-gradle@v4.4.4
+
+      - name: Test, build and check
+        run: ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :core:ktlintCheck
+
+      - name: Upload reports
+        if: failure()
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: reports
+          path: |
+            **/build/reports/
+            **/build/test-results/
+          if-no-files-found: ignore

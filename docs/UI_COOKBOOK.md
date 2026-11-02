@@ -1,6 +1,6 @@
 # E7 Gear UI cookbook
 
-Read this before designing or changing any screen, sheet or overlay page. It is built from the owner's corrections
+Read this before designing or changing any screen, sheet or overlay page. It is built from the maintainer's corrections
 (quoted). Examples show how a principle was applied once; they are not the rule. When a new case comes up, apply the
 principle, not the nearest example.
 
@@ -99,10 +99,10 @@ grids with a centred short last row, every stat with its icon, both themes.
 
 ## Before showing anything
 
-The owner is not the reviewer. A round reaches them only after:
+The maintainer is not the reviewer. A round reaches them only after:
 1. **Self-review against the principles**: answer each "Ask" for every screen touched, on the real renders (353 dp big
    font and 411 dp, light and dark).
-2. **Independent review**: a fresh subagent gets only the screenshots and this file and lists everything this owner would
+2. **Independent review**: a fresh subagent gets only the screenshots and this file and lists everything the maintainer would
    object to. Fix those first.
 3. **Machine checks clean, sized to the step**:
    - each design round: ScreenAudit filtered to the touched screens at the hardest setups (353 dp big font, Russian),
@@ -110,14 +110,14 @@ The owner is not the reviewer. A round reaches them only after:
    - renders for review come from a saved result, not a fresh computation: Improve heroes'
      `HeroUpgradeScreens#quickRender` reads E7_FIXTURES/hero_upgrades.json (21 s with the emulator already up). Keep the
      emulator running through a design session.
-   - before a build goes to the owner's phone, and before release: the full audit
-     (`E7_FIXTURES=~/Documents/epic7/gear_cleanup/fixtures tools/audit.sh`, ~8 min, emulator only) and every androidTest
+   - before a build goes to the maintainer's phone, and before release: the full audit
+     (`E7_FIXTURES=<fixture folder> tools/audit.sh`, ~8 min, emulator only) and every androidTest
      suite that touches the change.
    - New screens and states are added to ScreenAudit in the same change, including the states where the player decides
      something (with results, not only empty or intro states).
-4. **Only real product choices go to the owner**, each with what it changes for the player.
+4. **Only real product choices go to the maintainer**, each with what it changes for the player.
 
-When a correction comes in anyway: fix it, find the principle it falls under (or add one here, in the owner's words), and
+When a correction comes in anyway: fix it, find the principle it falls under (or add one here, in the maintainer's words), and
 if it can be checked by machine, add the check to ScreenAudit or SourceRulesTest in the same change.
 
 ## How the app does it
