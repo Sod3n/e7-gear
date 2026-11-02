@@ -279,7 +279,7 @@ class HeroesFeature(g: AppGraph) : Feature(g, "heroes") {
         val cfg = config(id)
         val hb = Calc.heroBase(game, cfg, cfg.artifact ?: p.artifact, content)
         cfg.request = Presets.toRequest(p, hb, cfg.request, tab, auto)
-        g.scan.touch()
+        g.rev.bump()
         g.store.saveNow()
     }
 
@@ -288,7 +288,7 @@ class HeroesFeature(g: AppGraph) : Feature(g, "heroes") {
         val game = gameHero(h) ?: return
         val cfg = config(id)
         cfg.request = role.request(Calc.heroBase(game, cfg, cfg.artifact, content), cfg.request)
-        g.scan.touch()
+        g.rev.bump()
         g.store.saveNow()
     }
 
@@ -305,7 +305,7 @@ class HeroesFeature(g: AppGraph) : Feature(g, "heroes") {
     fun clearTargets(id: Long, confirmed: Confirmed) {
         val req = request(id)
         req.targets.fill(Double.NaN); req.mins.fill(Double.NaN); req.maxs.fill(Double.NaN); req.weights.fill(0); req.fromPreset.fill(false)
-        g.scan.touch(); g.store.saveNow()
+        g.rev.bump(); g.store.saveNow()
     }
 
     fun equip(heroId: Long, build: Build): Map<Long, Long?> {
@@ -355,14 +355,14 @@ class HeroesFeature(g: AppGraph) : Feature(g, "heroes") {
     fun saveBuild(heroId: Long, build: Build, name: String) {
         val cfg = config(heroId)
         cfg.saved += SavedBuild(name, build.items.filter { !it.ghost }.map { it.id })
-        g.scan.touch()
+        g.rev.bump()
         g.store.saveNow()
     }
 
     fun lockBuild(build: Build) {
         val b = box ?: return
         build.items.filter { !it.ghost }.forEach { b.setLocked(it, true) }
-        g.scan.touch()
+        g.rev.bump()
         g.scan.saveBox()
     }
 

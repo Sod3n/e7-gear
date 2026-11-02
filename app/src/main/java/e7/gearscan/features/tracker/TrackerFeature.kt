@@ -398,7 +398,7 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
 
     fun useRebuilds(on: Boolean) {
         g.improveHeroes.rebuilds = on
-        g.scan.touch()
+        g.rev.bump()
         runCheck()
     }
 
@@ -470,7 +470,7 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
 
     private fun persistBox(b: Box) {
         g.scan.replaceBox(b)
-        g.scan.touch()
+        g.rev.bump()
         g.scan.saveBox()
         g.store.saveNow()
     }

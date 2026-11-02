@@ -40,13 +40,13 @@ class ScanFeatureTest {
         g.pool.run.start { CompletableDeferred<Unit>().await(); published += "pool" }
         g.sellReview.curve.start { CompletableDeferred<Unit>().await(); published += "curve" }
         assertTrue(g.work.active.isNotEmpty())
-        val rev = g.scan.rev
+        val rev = g.rev.value
         g.scan.import(text)
         assertTrue(g.work.active.isEmpty())
         assertTrue(published.isEmpty())
         assertEquals(box.items.size, g.scan.box!!.items.size)
         assertTrue(g.scan.lastScan > 0)
-        assertTrue(g.scan.rev > rev)
+        assertTrue(g.rev.value > rev)
         g.disk.flush()
         assertEquals(text, g.scan.boxFile.read())
     }

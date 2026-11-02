@@ -50,7 +50,7 @@ import kotlinx.coroutines.delay
 @OptIn(LinkStyle::class)
 fun PoolSetup(graph: AppGraph) {
     // drawn inside Frame's content, which skips unless it reads the change counter itself
-    graph.scan.rev
+    graph.rev.value
     val heroes = graph.pool.heroes()
     LaunchedEffect(heroes.map { it.id }) { heroes.forEach { graph.heroes.loadPresetsQuietly(it.id, network = true) } }
     val now = heroes.associate { it.id to graph.heroes.matchFor(it.id)?.pct }
@@ -128,7 +128,7 @@ private fun PendingCard(graph: AppGraph) {
 /** 4a's button: hero count plus a time estimate. */
 @Composable
 fun poolAction(graph: AppGraph): Action {
-    graph.scan.rev
+    graph.rev.value
     val heroes = graph.pool.heroes()
     val ready = heroes.count { graph.heroes.hasBuild(it.id) == true }
     val skipped = heroes.count { graph.heroes.hasBuild(it.id) == false }
@@ -319,7 +319,7 @@ private fun TierBars(graph: AppGraph, p: PoolState, running: Boolean) {
 @Composable
 @OptIn(LinkStyle::class)
 fun PoolHeroScreen(graph: AppGraph, heroId: Long, setup: Boolean) {
-    graph.scan.rev
+    graph.rev.value
     val h = graph.heroes.hero(heroId) ?: run { graph.nav.back(); return }
     // the queue is fixed on entry: a hero given a role stops counting as "no build" but must stay in the walk
     val queue = remember(setup) {
@@ -340,7 +340,7 @@ fun PoolHeroScreen(graph: AppGraph, heroId: Long, setup: Boolean) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BackToPrevious(Modifier.weight(1f))
             // tapping the stamp takes the mark off, so this hero comes up again in the walk
-            if (req.reviewed) { Box(Modifier.tap { req.reviewed = false; graph.scan.touch() }) { Stamp("済", "reviewed", C.blue) }; HSpace(8.dp) }
+            if (req.reviewed) { Box(Modifier.tap { req.reviewed = false; graph.rev.bump() }) { Stamp("済", "reviewed", C.blue) }; HSpace(8.dp) }
             Text("${i + 1} of ${queue.size}", style = zen(12.sp, color = C.muted))
         }
         Card(padding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
@@ -380,7 +380,7 @@ fun PoolHeroScreen(graph: AppGraph, heroId: Long, setup: Boolean) {
 
 @Composable
 fun PoolPickSheet(graph: AppGraph) {
-    graph.scan.rev
+    graph.rev.value
     val f = remember { HeroFilter() }
     SheetBody("Pick heroes", button = "Done", onButton = { graph.store.saveNow(); graph.nav.sheet = null }) {
         Text("Heroes picked here join the run on top of the ticked tiers.", style = zen(12.sp, FontWeight.Medium, C.muted))
@@ -429,7 +429,7 @@ fun PoolWorseSheet(graph: AppGraph) {
 @Composable
 @OptIn(LinkStyle::class)
 fun PoolListSheet(graph: AppGraph) {
-    graph.scan.rev
+    graph.rev.value
     val heroes = graph.pool.members()
     val reviewed = heroes.count { graph.heroes.request(it.id).reviewed }
     val next = heroes.firstOrNull { graph.heroes.hasBuild(it.id) == true && it.id !in graph.pool.skip && !graph.heroes.request(it.id).reviewed }
@@ -466,7 +466,7 @@ fun PoolListSheet(graph: AppGraph) {
 /** Pieces one hero of the run wanted from another: what the run did with each, and the player's call for a re-run. */
 @Composable
 fun PoolTradesSheet(graph: AppGraph) {
-    graph.scan.rev
+    graph.rev.value
     val p = graph.pool.state ?: return
     val changes = p.trades.count { graph.pool.tradeMoves(it) != it.made }
     SheetBody("Contested trades", button = if (changes == 0) "Done" else "Re-run with $changes " + if (changes == 1) "change" else "changes", onButton = {

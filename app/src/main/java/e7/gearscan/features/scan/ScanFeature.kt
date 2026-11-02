@@ -43,9 +43,6 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
             return boxRef
         }
 
-    var rev by mutableIntStateOf(0)
-        private set
-
     var game: String? = null
         private set
 
@@ -68,18 +65,13 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
         game = g.platform.findGame()
     }
 
-    fun touch() {
-        rev++
-        g.store.saveSoon()
-    }
-
     fun replaceBox(b: Box?) {
         boxRef = b
         boxVersion++
     }
 
     fun commit() {
-        touch()
+        g.rev.bump()
         saveBox()
         g.store.saveNow()
     }
@@ -108,7 +100,7 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
         lastScan = System.currentTimeMillis()
         g.boxChanged(old, nb)
         boxFile.write(text)
-        touch()
+        g.rev.bump()
         g.store.saveNow()
         g.imported()
     }
@@ -217,10 +209,10 @@ class ScanFeature(g: AppGraph) : Feature(g, "scan") {
                     error = err ?: ScanError.NOTHING
                     // the reason goes into bug reports ("last error"), so a failed import can be told apart later
                     g.feedback.lastError = "scan: ${error!!.name.lowercase()}" + (cause?.let { " · $it" } ?: "")
-                    g.feedback.saveScanLog()
+                    g.feedback.saveScanLog(capture.logText())
                     return@launch
                 }
-                g.feedback.saveScanLog()
+                g.feedback.saveScanLog(capture.logText())
                 capture.clear()
                 decodeSec = ((System.currentTimeMillis() - t0) / 1000).toInt().coerceAtLeast(1)
                 import(text)

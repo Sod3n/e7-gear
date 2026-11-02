@@ -58,7 +58,7 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun OptimizeScreen(graph: AppGraph) {
-    graph.scan.rev
+    graph.rev.value
     val box = graph.scan.box
     val team = graph.heroes.team.mapNotNull { graph.heroes.hero(it) }
     val pool = box != null && graph.pool.mode
@@ -264,7 +264,7 @@ fun ratingText(r: Rating, v: Double) = when (r) {
 @Composable
 @OptIn(LinkStyle::class)
 fun ResultsScreen(graph: AppGraph) {
-    graph.scan.rev
+    graph.rev.value
     val s = graph.optimize.search ?: run { OptimizeScreen(graph); return }
     val h = graph.heroes.hero(s.heroId) ?: return
     val req = graph.heroes.request(h.id)
@@ -374,7 +374,7 @@ private fun ModsLine(graph: AppGraph, s: e7.gearscan.features.optimize.SearchSta
             top.isEmpty() -> "Mods on"
             else -> top.count { b -> b.items.any { it.mod != null } }.let { n -> if (n == 0) "Mods on · no mod beats these builds" else "Mods on · $n of the top ${top.size} use a mod" }
         }, style = zen(12.sp, color = if (req.mods) C.deepPink else C.muted), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (!req.mods && !s.running) LinkText("Turn on") { req.mods = true; graph.scan.touch(); graph.store.saveNow(); graph.optimize.startSearch() }
+        if (!req.mods && !s.running) LinkText("Turn on") { req.mods = true; graph.rev.bump(); graph.store.saveNow(); graph.optimize.startSearch() }
     }
 }
 
@@ -474,7 +474,7 @@ private fun SkeletonCard(i: Int) {
 @Composable
 @OptIn(LinkStyle::class)
 fun CompareScreen(graph: AppGraph, index: Int, poolHero: Long?, review: Boolean = false) {
-    graph.scan.rev
+    graph.rev.value
     val s = graph.optimize.search
     val heroId = poolHero ?: s?.heroId ?: return
     val b = (if (poolHero != null) graph.pool.state?.builds?.get(poolHero) else s?.builds?.getOrNull(index)) ?: return

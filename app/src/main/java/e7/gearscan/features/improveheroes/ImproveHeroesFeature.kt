@@ -107,12 +107,12 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
 
     fun useMinGain(rolls: Double) {
         minGain = rolls
-        g.scan.touch()
+        g.rev.bump()
     }
 
     fun useRebuilds(on: Boolean) {
         rebuilds = on
-        g.scan.touch()
+        g.rev.bump()
     }
 
     /** The heroes the check covers: every hero with a setup, as in [e7.gearscan.features.heroes.HeroesFeature.gearSetups]. */
@@ -128,7 +128,7 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
     /** What the answer depends on: scan, recorded upgrades, cleared pieces, the pool's protected gear, setups, content. */
     fun key(): String {
         val memoKey =
-            listOf(box, g.scan.lastScan, g.tracker.records, g.marks.cleared, g.pool.tiers, g.pool.extra, g.heroes.tiers, g.scan.rev, content.version)
+            listOf(box, g.scan.lastScan, g.tracker.records, g.marks.cleared, g.pool.tiers, g.pool.extra, g.heroes.tiers, g.rev.value, content.version)
         keyMemo?.takeIf { it.first == memoKey }?.let { return it.second }
         val raw =
             "hero-upgrades-v2|${g.scan.lastScan}|" +
@@ -301,7 +301,7 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
     /** Works out [rows]' stat changes off the main thread, top rows first; rows already known are skipped. */
     suspend fun warmChanges(rows: List<Pair<Long, HeroUpgradeRow>>) {
         val r = heroUpgrades?.result ?: return
-        val key = listOf(r, g.scan.lastScan, g.scan.rev, g.marks.cleared)
+        val key = listOf(r, g.scan.lastScan, g.rev.value, g.marks.cleared)
         if (changesFor != key) {
             changes.clear()
             changesFor = key
@@ -326,7 +326,7 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
             }
         }
         val r = heroUpgrades?.result ?: return emptyList()
-        val key = listOf(r, g.scan.lastScan, g.scan.rev, g.marks.cleared)
+        val key = listOf(r, g.scan.lastScan, g.rev.value, g.marks.cleared)
         return withContext(Dispatchers.Default) {
             val (setups, pieces) =
                 synchronized(this@ImproveHeroesFeature) {

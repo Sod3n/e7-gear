@@ -50,7 +50,7 @@ import e7.gearscan.data.Match
 @Composable
 @OptIn(LinkStyle::class)
 fun HeroesScreen(graph: AppGraph) {
-    graph.scan.rev
+    graph.rev.value
     val box = graph.scan.box
     val f = remember { HeroFilter() }
     var open by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -202,7 +202,7 @@ private fun MatchCard(graph: AppGraph, id: Long, m: Match.Result) {
 
 @Composable
 fun HeroDetailScreen(graph: AppGraph, id: Long) {
-    graph.scan.rev
+    graph.rev.value
     val h = graph.heroes.hero(id) ?: return
     val cur = graph.heroes.currentBuild(id)
     val gear = graph.scan.box?.gearOf(id) ?: emptyMap()
@@ -252,7 +252,7 @@ fun HeroDetailScreen(graph: AppGraph, id: Long) {
         } else Text("No game data for this hero yet.", style = zen(12.sp, color = C.red))
         if (graph.improveHeroes.heroes().any { it.id == id }) {
             val st = graph.improveHeroes.heroUpgrades
-            val rows = remember(st?.result, graph.improveHeroes.minGain, graph.scan.rev) { st?.result?.let { r -> graph.improveHeroes.view(r).firstOrNull { it.hero.id == id }?.rows } }
+            val rows = remember(st?.result, graph.improveHeroes.minGain, graph.rev.value) { st?.result?.let { r -> graph.improveHeroes.view(r).firstOrNull { it.hero.id == id }?.rows } }
             RowCard("Upgrades", { graph.nav.go(Screen.HeroUpgrades(id)) }) {
                 Text(when {
                     st?.running == true -> "Checking your gear"
@@ -297,7 +297,7 @@ fun HeroDetailScreen(graph: AppGraph, id: Long) {
                     }
                     Calc.setCounts(items, graph.content.content).forEach { (s, _) -> SetIcon(s.icon, 22.dp) }
                     if (!equipped && b != null) Pill("Equip", onClick = { graph.heroes.equip(id, b) })
-                    Text("×", style = zen(16.sp, color = C.muted), modifier = Modifier.tap { cfg.saved.removeAt(i); graph.scan.touch(); graph.store.saveNow() }.padding(4.dp))
+                    Text("×", style = zen(16.sp, color = C.muted), modifier = Modifier.tap { cfg.saved.removeAt(i); graph.rev.bump(); graph.store.saveNow() }.padding(4.dp))
                 }
             }
         }

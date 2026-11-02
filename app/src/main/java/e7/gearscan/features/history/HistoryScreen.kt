@@ -33,7 +33,7 @@ fun historyStamp(at: Long): String = STAMP.format(Instant.ofEpochMilli(at).atZon
 /** Optimize's History: every finished pool run and one-hero search, newest first; open one to see its results as they were. */
 @Composable
 fun HistoryList(graph: AppGraph) {
-    graph.scan.rev
+    graph.rev.value
     if (graph.history.entries.isEmpty()) {
         Text("Every pool run and one-hero search you finish shows up here, to look back at its results.", style = zen(13.sp, FontWeight.Medium, C.muted))
         return

@@ -68,7 +68,7 @@ class ContentFeature(g: AppGraph) : Feature(g, "content") {
                         ContentUpdate.Result.UPDATED -> {
                             content = o.content!!
                             imageBase = content.imageBase
-                            g.scan.touch()
+                            g.rev.bump()
                             Outcome.Note("Updated to ${o.version}")
                         }
                         ContentUpdate.Result.NEEDS_APP -> Outcome.Note("Content ${o.version} needs a newer app")
