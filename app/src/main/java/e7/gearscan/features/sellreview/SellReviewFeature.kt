@@ -68,7 +68,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
         listOf(
             g.scan.box,
             g.scan.lastScan,
-            g.tracker.recordedSteps,
+            g.records.recordedSteps,
             settingsKey(),
             query.copy(rollOn = 0.0),
         )
@@ -106,7 +106,7 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
         val b = g.scan.box ?: return Outcome.Done
         val text = b.toText()
         val scan = g.scan.lastScan
-        val records = g.tracker.recordedSteps
+        val records = g.records.recordedSteps
         val removed = g.marks.reviewed
         val members = g.pool.members().map { it.id }.toSet()
         val names = b.allHeroes.associate { it.id to g.heroes.heroName(it) }
@@ -170,12 +170,12 @@ class SellReviewFeature(g: AppGraph) : Feature(g, "sellReview") {
 
     fun context(q: SellQuery): SellSearch.Context? {
         val b = g.scan.box ?: return null
-        val key = listOf(b, g.scan.lastScan, g.tracker.records, g.marks.reviewed, settingsKey(), q)
+        val key = listOf(b, g.scan.lastScan, g.records.records, g.marks.reviewed, settingsKey(), q)
         if (key != contextKey) {
             cachedContext =
                 SellSearch.Context(
                     b,
-                    g.tracker.recordedSteps,
+                    g.records.recordedSteps,
                     g.scan.lastScan,
                     g.marks.reviewed,
                     g.pool.members().map { it.id }.toSet(),

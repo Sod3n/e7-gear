@@ -116,7 +116,7 @@ class SellFiltersScreens {
         ui { graph.overlay.expanded=true;graph.overlay.usableHeightDp=240f;overlay=true }
         noPoints();shot("13-overlay-review",true)
         rule.onNodeWithContentDescription("Next gear").performClick();rule.waitForIdle();assertEquals(1,t.queueIndex);shot("14-overlay-next",true)
-        val index=t.queue.indexOfFirst { e->t.records[e.id]!!.item.let { it.rank=="Epic"&&it.enhance<15 } }
+        val index=t.queue.indexOfFirst { e->graph.records.records[e.id]!!.item.let { it.rank=="Epic"&&it.enhance<15 } }
         assertTrue(index>=0);ui { t.selectInQueue(index) }
         rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Roll review");noPoints();shot("16-overlay-roll-evidence",true);tap("Back")
         val before=t.record!!.item;val countBefore=t.reviewRolls!!.size;val statText=t.reviewStatText

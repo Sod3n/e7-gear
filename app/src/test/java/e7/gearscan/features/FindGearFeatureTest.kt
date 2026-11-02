@@ -90,7 +90,7 @@ class FindGearFeatureTest {
         found(g)
         val match = g.findGear.result!!.matches.first { it.item.enhance < 15 }
         assertEquals(Outcome.Done, g.findGear.track(match))
-        assertEquals(1, g.tracker.records.size)
+        assertEquals(1, g.records.records.size)
         assertFalse(g.findGear.stale)
         assertEquals(Outcome.Done, g.findGear.trackAll(openOverlay = false))
         assertFalse(g.findGear.stale)
@@ -102,7 +102,7 @@ class FindGearFeatureTest {
         g.findGear.edit(g.findGear.query.copy(minimumChance = "5"))
         assertTrue(g.findGear.stale)
         assertTrue(g.findGear.trackAll() is Outcome.Failed)
-        assertEquals(0, g.tracker.records.size)
+        assertEquals(0, g.records.records.size)
     }
 
     @Test fun anInvalidQueryFailsWithItsReason() = runTest(UnconfinedTestDispatcher()) {

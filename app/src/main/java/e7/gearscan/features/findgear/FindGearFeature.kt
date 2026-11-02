@@ -40,7 +40,7 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
     val stale get() = search.stale
 
     private fun recordedSteps(): List<Step> =
-        g.tracker.recordedSteps.values
+        g.records.recordedSteps.values
             .map { r -> r.item.let { Step(it.id, r.history.size, it.enhance, it.mainValue, it.subs.map { s -> s.type to s.value }) } }
             .sortedBy { it.id }
 
@@ -64,7 +64,7 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
         val scan = g.scan.lastScan
         val cleared = g.marks.cleared
         val items = b.items.filter { it.id !in cleared }.map { original ->
-            val item = g.tracker.recordedSteps[original.id]?.item ?: original
+            val item = g.records.recordedSteps[original.id]?.item ?: original
             item to b.canReforge(item.id)
         }.filter { q.includes(it.first) }
         return search.start { key ->
@@ -99,7 +99,7 @@ class FindGearFeature(g: AppGraph) : Feature(g, "findGear") {
         val applied = result ?: return Outcome.Failed("Find gear first.")
         val scan = g.scan.lastScan
         val original = g.scan.box?.itemsById?.get(match.item.id)
-        val latest = g.tracker.records[match.item.id]?.takeIf { it.scan == scan }?.item ?: original
+        val latest = g.records.records[match.item.id]?.takeIf { it.scan == scan }?.item ?: original
         if (latest == null || (!UpgradeRecord.supported(latest) && latest.enhance < 15) || latest.id in g.marks.cleared) {
             return Outcome.Failed("This piece changed. Tap Find gear to refresh the list.")
         }

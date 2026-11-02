@@ -43,7 +43,7 @@ private val GAINS = listOf(HeroUpgrades.MIN_GAIN to "Any", 0.5 to "½ roll", 1.0
 
 /** The piece as the check saw it: a recorded upgrade of this scan wins over the scanned piece. */
 internal fun heroUpgradeItem(graph: AppGraph, id: Long): Item? =
-    graph.tracker.records[id]?.takeIf { it.scan == graph.scan.lastScan }?.item ?: graph.scan.box?.itemsById?.get(id)
+    graph.records.records[id]?.takeIf { it.scan == graph.scan.lastScan }?.item ?: graph.scan.box?.itemsById?.get(id)
 
 /** Improve heroes: pieces below +15 that could make a hero with a setup better once finished, by hero or by piece. */
 @Composable

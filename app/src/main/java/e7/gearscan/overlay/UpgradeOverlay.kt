@@ -151,7 +151,7 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                 t.sellQueueComplete -> PanelTextPages("List complete\n\nEvery piece in this list is marked sold or kept.\n\nUndo mark restores the last local mark. Rescan after selling to refresh the game inventory.",maxHeight.value)
                 draft != null -> DraftBody(draft, maxHeight.value)
                 pane == UpgradePane.PIECE -> PieceSummary(t, item, maxHeight.value, es)
-                pane == UpgradePane.LIST -> QueuePage(t, maxHeight.value) { pane = UpgradePane.PIECE }
+                pane == UpgradePane.LIST -> QueuePage(g, maxHeight.value) { pane = UpgradePane.PIECE }
                 pane == UpgradePane.MENU -> {
                     val options = listOfNotNull("Open E7 Gear", if(t.isRollReview)"Roll review" else if (!t.hasTarget) "Build advice" else "Targets", "History", "Help") + listOfNotNull("Correct".takeIf { UpgradeRecord.supported(item) }) +
                         listOfNotNull("Track the better bet".takeIf { t.betterBet != null },
@@ -321,7 +321,8 @@ private fun DraftBody(d: UpgradeDraft, height: Float) {
 }
 
 @Composable
-private fun QueuePage(t: TrackerFeature, height: Float, selected: () -> Unit) {
+private fun QueuePage(g: AppGraph, height: Float, selected: () -> Unit) {
+    val t = g.tracker
     val scale = LocalDensity.current.fontScale
     val perPage = floor((height - 30) / (42 * scale.coerceAtLeast(1f))).toInt().coerceAtLeast(1)
     var page by remember(t.pendingQueue, perPage) { mutableIntStateOf(t.queueIndex.coerceAtLeast(0) / perPage) }
@@ -330,7 +331,7 @@ private fun QueuePage(t: TrackerFeature, height: Float, selected: () -> Unit) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             t.pendingQueue.drop(page * perPage).take(perPage).forEachIndexed { offset, entry ->
-                val item = t.records[entry.id]?.item
+                val item = g.records.records[entry.id]?.item
                 if (item != null) Row(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(9.dp)).background(if (entry.id == t.selected) C.lightPink else C.field)
                     .border(1.dp, C.line, RoundedCornerShape(9.dp)).tap { t.selectInQueue(page * perPage + offset); selected() }.padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {

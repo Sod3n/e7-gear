@@ -62,8 +62,11 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
 
     var shown by mutableStateOf(false)
         private set
-    var records: Map<Long, UpgradeRecord> by mutableStateOf(emptyMap())
-        private set
+    private var records: Map<Long, UpgradeRecord>
+        get() = g.records.records
+        set(value) {
+            g.records.records = value
+        }
     var selected: Long? by mutableStateOf(null)
         private set
     var queue: List<QueueEntry> by mutableStateOf(emptyList())
@@ -231,8 +234,6 @@ class TrackerFeature(g: AppGraph) : Feature(g, "tracker") {
         runCatching { restore(JSONObject(upgrades.read()!!), save = false) }
             .onFailure { if (upgrades.exists) error = "Saved upgrade history could not be read. Your scan is unchanged." }
     }
-
-    val recordedSteps: Map<Long, UpgradeRecord> get() = records.filterValues { it.scan == scan && it.history.size > 1 }
 
     fun select(
         item: Item,

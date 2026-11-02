@@ -128,11 +128,11 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
     /** What the answer depends on: scan, recorded upgrades, cleared pieces, the pool's protected gear, setups, content. */
     fun key(): String {
         val memoKey =
-            listOf(box, g.scan.lastScan, g.tracker.records, g.marks.cleared, g.pool.tiers, g.pool.extra, g.heroes.tiers, g.scan.rev, content.version)
+            listOf(box, g.scan.lastScan, g.records.records, g.marks.cleared, g.pool.tiers, g.pool.extra, g.heroes.tiers, g.scan.rev, content.version)
         keyMemo?.takeIf { it.first == memoKey }?.let { return it.second }
         val raw =
             "hero-upgrades-v2|${g.scan.lastScan}|" +
-                g.tracker.records.values.filter { it.scan == g.scan.lastScan }.sortedBy { it.item.id }.joinToString { it.toJson().toString() } +
+                g.records.records.values.filter { it.scan == g.scan.lastScan }.sortedBy { it.item.id }.joinToString { it.toJson().toString() } +
                 "|${g.marks.cleared.sorted()}|${g.pool.members().map { it.id }.sorted()}|${content.version}|" +
                 heroes().joinToString(",") { "${it.id}=${g.heroes.setupKey(it.id)}" }
         return sha256(raw).also { keyMemo = memoKey to it }
@@ -144,7 +144,7 @@ class ImproveHeroesFeature(g: AppGraph) : Feature(g, "improveHeroes") {
     /** The box as recorded (manual upgrades of this scan applied, cleared pieces out), the heroes, the pieces to try, and a full fingerprint. */
     private fun inputs(): Triple<List<Setup>, List<Item>, String>? {
         val b0 = box ?: return null
-        val observed = g.tracker.records.values.filter { it.scan == g.scan.lastScan }.associate { it.item.id to it.item }
+        val observed = g.records.records.values.filter { it.scan == g.scan.lastScan }.associate { it.item.id to it.item }
         val b =
             Box(
                 JSONObject(b0.toText()).put(

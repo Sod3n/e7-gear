@@ -103,12 +103,12 @@ fun UpgradeScreen(graph: AppGraph) {
             CardGrid(listOf<Slot?>(null) + Slot.entries, columns = 3, gap = 6.dp) { s, m ->
                 Pill(s?.label ?: "All", selected = slot == s, modifier = m, onClick = { slot = s })
             }
-            val items = box.items.filter { it.id !in graph.marks.cleared && UpgradeRecord.supported(it) && (it.enhance < 15 || t.records[it.id]?.scan == graph.scan.lastScan) && (slot == null || it.slot == slot) }
+            val items = box.items.filter { it.id !in graph.marks.cleared && UpgradeRecord.supported(it) && (it.enhance < 15 || graph.records.records[it.id]?.scan == graph.scan.lastScan) && (slot == null || it.slot == slot) }
                 .filter { set == null || it.set == set }
-                .sortedWith(compareByDescending<Item> { t.records[it.id]?.scan == graph.scan.lastScan }.thenBy { it.slot.ordinal }.thenByDescending { it.enhance })
+                .sortedWith(compareByDescending<Item> { graph.records.records[it.id]?.scan == graph.scan.lastScan }.thenBy { it.slot.ordinal }.thenByDescending { it.enhance })
             SectionTitle("Your gear", trailing = "${items.size}")
             items.take(count).forEach { original ->
-                val item = t.records[original.id]?.takeIf { it.scan == graph.scan.lastScan }?.item ?: UpgradeRecord.fromScan(original)
+                val item = graph.records.records[original.id]?.takeIf { it.scan == graph.scan.lastScan }?.item ?: UpgradeRecord.fromScan(original)
                 Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp)) {
                     Column(Modifier.tap { t.selectPiece(original.id); choosing = false }) {
                         GearSearchIdentity(graph, item)
