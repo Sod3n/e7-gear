@@ -9,4 +9,5 @@ import kotlinx.coroutines.SupervisorJob
 fun startedGraph(ctx: Context): AppGraph = (ctx.applicationContext as E7GearApp).graph.also { it.start() }
 
 fun restartedGraph(ctx: Context): AppGraph =
-    AppGraph(Disk(ctx.filesDir), CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)).also { it.start() }
+    AppGraph(Disk(ctx.filesDir), CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate), platform = AndroidPlatform(ctx.applicationContext as android.app.Application))
+        .also { it.start() }
