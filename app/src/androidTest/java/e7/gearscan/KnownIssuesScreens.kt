@@ -40,7 +40,7 @@ class KnownIssuesScreens {
             {"id":"w","app":"gear","title":"Example: being worked on","detail":"","status":"working","fixed_on":null},
             {"id":"f","app":"gear","title":"Example: fixed lately","detail":"Update the app to get the fix.","status":"fixed","fixed_on":"2026-10-30"}]}""")
         lateinit var graph: AppGraph
-        ui { graph = startedGraph(ctx) }
+        ui { graph = restartedGraph(ctx) }
         rule.waitUntil(20_000) { graph.ready }
         rule.setContent { Box(Modifier.width(411.dp).fillMaxHeight()) { App(graph) {} } }
         for (dark in listOf(false, true)) {
