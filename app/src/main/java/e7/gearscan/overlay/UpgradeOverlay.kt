@@ -16,8 +16,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import e7.gearscan.AppGraph
@@ -67,7 +69,16 @@ private class UpgradeDraft(val record: UpgradeRecord, val correction: Boolean) {
     fun save(t: TrackerFeature) = t.commit(main, values, if (reveal) added?.let { it to (newValue ?: Double.NaN) } else null, correction)
 }
 
-/** The tracker is a fixed panel. Lists, long explanations and editing use explicit pages, never scroll containers. */
+/** The queue row and its gap; the body takes this room while the row is hidden, so the buttons stay put. */
+private const val QUEUE_SLOT = 43f
+
+/** Header, buttons, gaps and padding around the body, without the queue row. */
+private const val PANEL_CHROME = 96f
+
+/** The least room number entry needs to stay readable. */
+private const val BODY_FLOOR = 96f
+
+/** The tracker is a panel that ends at its piece page. Lists, long explanations and editing use explicit pages, never scroll containers. */
 @Composable
 fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean) -> Unit, onClose: () -> Unit) {
     val t = g.tracker
@@ -94,9 +105,9 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
         value = if (t.hasEs) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { t.esFor(item) } else null
     }
     val queueRow = t.queue.isNotEmpty() && (pane == UpgradePane.PIECE || pane == UpgradePane.LIST) && !t.editing
-    val height = min(280f + (scale - 1f).coerceIn(0f, .5f) * 80, (usable - 12).coerceAtLeast(160f))
+    val bodyCap = (usable - 12).coerceAtLeast(160f) - PANEL_CHROME - if (t.queue.isNotEmpty()) QUEUE_SLOT else 0f
     val shape = RoundedCornerShape(16.dp)
-    Column(Modifier.popIn(w).width(PANEL_WIDTH.dp).height(height.dp).clip(shape).background(C.card).border(2.dp, C.edge, shape)
+    Column(Modifier.popIn(w).width(PANEL_WIDTH.dp).clip(shape).background(C.card).border(2.dp, C.edge, shape)
         .testTag("gear-tracker-panel").padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.weight(1f).dragWindow(onMove), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -121,7 +132,9 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
             if (!t.isSellQueue) PanelAction(if (pane == UpgradePane.LIST) "Piece" else "List", Modifier.width(46.dp), enabled = !t.editing&&!t.sellQueueComplete) { pane = if (pane == UpgradePane.LIST) UpgradePane.PIECE else UpgradePane.LIST }
             PanelAction("›", Modifier.width(60.dp), enabled = t.queueIndex < t.pendingQueue.lastIndex && !t.editing, label = "Next gear") { t.selectInQueue(t.queueIndex + 1); pane = UpgradePane.PIECE }
         }
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 2.dp).testTag("gear-tracker-body")) {
+        PanelBody(Modifier.fillMaxWidth(), floor = BODY_FLOOR.dp, cap = bodyCap.dp, extra = if (t.queue.isNotEmpty() && !queueRow) QUEUE_SLOT.dp else 0.dp,
+            natural = { PieceSummary(t, item, 10_000f, es, measure = true) }) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 2.dp).testTag("gear-tracker-body")) {
             when {
                 t.error != null -> PanelTextPages(t.error!!, maxHeight.value)
                 t.sellQueueComplete -> PanelTextPages("List complete\n\nEvery piece in this list is marked sold or kept.\n\nUndo mark restores the last local mark. Rescan after selling to refresh the game inventory.",maxHeight.value)
@@ -158,6 +171,7 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                 }
             }
         }
+        }
         Row(Modifier.fillMaxWidth().height(34.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             when {
                 t.error != null -> PanelAction("Back", Modifier.weight(1f)) { t.dismissError() }
@@ -193,6 +207,19 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                 }
             }
         }
+    }
+}
+
+/** As tall as [natural] (the piece page drawn with room to spare) for every page of this piece, so the buttons below don't move. */
+@Composable
+private fun PanelBody(modifier: Modifier, floor: Dp, cap: Dp, extra: Dp, natural: @Composable () -> Unit, content: @Composable () -> Unit) {
+    SubcomposeLayout(modifier) { c ->
+        val width = c.maxWidth
+        val measured = subcompose("natural") { Box(Modifier.padding(horizontal = 2.dp)) { natural() } }.maxOfOrNull { it.measure(Constraints(maxWidth = width)).height } ?: 0
+        val capPx = cap.roundToPx()
+        val height = measured.coerceIn(minOf(floor.roundToPx(), capPx), capPx) + extra.roundToPx()
+        val placeables = subcompose("body", content).map { it.measure(Constraints.fixed(width, height)) }
+        layout(width, height) { placeables.forEach { it.place(0, 0) } }
     }
 }
 
