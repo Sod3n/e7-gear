@@ -463,20 +463,20 @@ class ScreenAudit {
                 if (model.graph.nav.screen != Screen.PoolRun || model.graph.pool.state?.fromHistory != true) add("opening a pool run from history doesn't show it", "history")
                 if (rule.onAllNodesWithText("Just record", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) add("a run from history offers to equip", "history")
                 if (rule.onAllNodesWithText("Checklist", useUnmergedTree = true).fetchSemanticsNodes().isEmpty()) add("a pool run from history has no checklist", "history")
-                ui { model.loadPoolChecklist() }
+                ui { model.graph.checklist.loadPool() }
                 if (model.graph.checklist.build?.flag == null) add("a pool run's checklist from history isn't flagged", "history")
             }
             model.graph.history.entries.firstOrNull { it.at == model.graph.pool.pending }?.let { p ->
                 ui { model.graph.nav.tab(Screen.Optimize); model.graph.history.shown = true; model.graph.history.openHistory(p) }
                 if (model.graph.pool.state?.fromHistory != false || model.graph.pool.state?.startedAt != p.at) add("the pending run opens read only from history", "history")
-                ui { model.loadPoolChecklist() }
+                ui { model.graph.checklist.loadPool() }
                 if (model.graph.checklist.build?.flag != null) add("the pending run's checklist is flagged as from history", "history")
             } ?: add("no pending run in history", "history")
             ui { model.graph.nav.tab(Screen.Optimize); model.graph.history.shown = true; e?.let { model.graph.history.openHistory(it) } }
         })
         steps.add("overlay-pool" to {
             ui { model.graph.history.entries.firstOrNull { it.at == model.graph.pool.pending }?.let { model.graph.history.openHistory(it) }
-                model.loadPoolChecklist(); model.graph.overlay.expanded = true; model.graph.overlay.tab = 0 }
+                model.graph.checklist.loadPool(); model.graph.overlay.expanded = true; model.graph.overlay.tab = 0 }
             if (model.graph.checklist.build?.pieces?.any { it.forHero != null } != true) add("the pool checklist has no moves to show", "overlay-pool")
             overlay = true
         })
@@ -726,7 +726,7 @@ class ScreenAudit {
         })
         screen("compare-mods", Screen.Optimize, Screen.Results, Screen.Compare(0))
         steps.add("overlay-mods" to {
-            ui { model.graph.optimize.search?.builds?.firstOrNull()?.let { model.graph.checklist.load(model.overlayBuild(hero, it, "Build #1")) {}; model.graph.overlay.expanded = true; model.graph.overlay.tab = 0 } }
+            ui { model.graph.optimize.search?.builds?.firstOrNull()?.let { model.graph.checklist.load(model.graph.checklist.overlayBuild(hero, it, "Build #1")) {}; model.graph.overlay.expanded = true; model.graph.overlay.tab = 0 } }
             overlay = true
             rule.waitForIdle()
             // a modification happens in the game, so it is a step even on a piece the hero already wears
@@ -741,7 +741,7 @@ class ScreenAudit {
             ui {
                 val before = model.graph.checklist.done.count { it }
                 model.graph.checklist.markCurrentDone()
-                model.graph.optimize.search?.builds?.firstOrNull()?.let { model.graph.checklist.load(model.overlayBuild(hero, it, "Build #1")) {} }
+                model.graph.optimize.search?.builds?.firstOrNull()?.let { model.graph.checklist.load(model.graph.checklist.overlayBuild(hero, it, "Build #1")) {} }
                 kept = model.graph.checklist.done.count { it } == before + 1 && model.graph.checklist.lastDone != null
                 model.graph.checklist.undo(); model.graph.overlay.expanded = true; model.graph.overlay.tab = 0
             }
@@ -757,7 +757,7 @@ class ScreenAudit {
         screen("compare", Screen.Optimize, Screen.Results, Screen.Compare(0))
         screen("overlay-intro", Screen.Optimize, Screen.Results, Screen.Compare(0), Screen.OverlayIntro)
         steps.add("overlay-bubble" to {
-            ui { model.graph.optimize.search?.builds?.firstOrNull()?.let { model.graph.checklist.load(model.overlayBuild(hero, it, "Build #1")) {} } }
+            ui { model.graph.optimize.search?.builds?.firstOrNull()?.let { model.graph.checklist.load(model.graph.checklist.overlayBuild(hero, it, "Build #1")) {} } }
             overlay = true
         })
         steps.add("overlay-bubble-dragging" to { ui { model.graph.overlay.dragging = true } })
@@ -771,7 +771,7 @@ class ScreenAudit {
         steps.add("overlay-recorded" to { ui { model.graph.checklist.recorded = true } })
         steps.add("overlay-bubble-all-done" to { ui { model.graph.checklist.recorded = false; model.graph.overlay.expanded = false } })
         steps.add("overlay-history-flag" to { ui { model.graph.optimize.search?.builds?.firstOrNull()?.let {
-            model.graph.checklist.load(model.overlayBuild(hero, it, "Build #1", model.graph.history.flag(System.currentTimeMillis() - 86_400_000))) {} }
+            model.graph.checklist.load(model.graph.checklist.overlayBuild(hero, it, "Build #1", model.graph.history.flag(System.currentTimeMillis() - 86_400_000))) {} }
             model.graph.overlay.expanded = true; model.graph.overlay.tab = 0 } })
 
         // state flips that must not move anything else: (name, open the screen, change the state)
@@ -824,7 +824,7 @@ class ScreenAudit {
                 { capture(model, 300_000) }),
             Triple("feedback: topic", { ui { model.graph.nav.sheet = null; model.graph.nav.stack = listOf(Screen.ScanData, Screen.Feedback()) } }, { clickText("Idea") }),
             Triple("feedback: tick", { ui { model.graph.nav.stack = listOf(Screen.ScanData, Screen.Feedback()) } }, { clickText("Include the last scan log") }),
-            Triple("overlay: piece done", { ui { model.graph.optimize.search = single; single!!.builds.firstOrNull()?.let { model.graph.checklist.load(model.overlayBuild(hero, it, "Build #1")) {} }; model.graph.overlay.expanded = true; model.graph.overlay.tab = 0 }; overlay = true },
+            Triple("overlay: piece done", { ui { model.graph.optimize.search = single; single!!.builds.firstOrNull()?.let { model.graph.checklist.load(model.graph.checklist.overlayBuild(hero, it, "Build #1")) {} }; model.graph.overlay.expanded = true; model.graph.overlay.tab = 0 }; overlay = true },
                 // tick a piece that isn't the open one: the open (current) piece moving on is the checklist's own flow
                 { ui { model.graph.checklist.done.indices.lastOrNull { !model.graph.checklist.done[it] && it != model.graph.checklist.current }?.let { model.graph.checklist.done[it] = true } } }),
         )
@@ -903,10 +903,10 @@ class ScreenAudit {
                 rule.waitForIdle(); overlay = false; rule.waitForIdle()
             }
             val b = single!!.builds.first()
-            ui { model.graph.optimize.search = single; model.loadBuildChecklist(hero, b, "Build #1") }
+            ui { model.graph.optimize.search = single; model.graph.checklist.loadBuild(hero, b, "Build #1") }
             finish()
             if (worn(hero) != wants(b)) add("a finished checklist isn't recorded", "one hero")
-            ui { model.graph.pool.state = poolDone; model.graph.pool.pending = poolDone.startedAt; model.loadPoolChecklist() }
+            ui { model.graph.pool.state = poolDone; model.graph.pool.pending = poolDone.startedAt; model.graph.checklist.loadPool() }
             finish()
             val wrong = poolDone.builds.filter { (id, pb) -> pb != null && worn(id) != wants(pb) }.keys
             if (wrong.isNotEmpty() || model.graph.pool.pending != null) add("a finished pool checklist isn't recorded", "${wrong.size} heroes differ, pending ${model.graph.pool.pending}")

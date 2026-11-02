@@ -495,7 +495,7 @@ fun CompareScreen(model: AppModel, index: Int, poolHero: Long?, review: Boolean 
     }) else ({
         val at = model.graph.pool.state?.startedAt?.takeIf { poolHero != null } ?: model.graph.optimize.search?.startedAt ?: 0
         PinkButton("Show over game", Modifier.weight(1f)) {
-            if (!model.showOverGame(heroId, b, if (teamHero != null) heroName else "$heroName #${index + 1}",
+            if (!model.graph.overGame.show(heroId, b, if (teamHero != null) heroName else "$heroName #${index + 1}",
                     if (readOnly) model.graph.history.flag(at) else null)) model.graph.nav.go(Screen.OverlayIntro)
         }
         // a past run's pieces may have moved; the checklist checks each one in the game, equipping blind here doesn't

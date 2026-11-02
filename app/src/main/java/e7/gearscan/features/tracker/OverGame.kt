@@ -2,6 +2,7 @@ package e7.gearscan.features.tracker
 
 import e7.gearscan.AppGraph
 import e7.gearscan.Screen
+import e7.gearscan.opt.Build
 
 class OverGame(private val g: AppGraph) {
     // false = E7 Gear's own overlay (any phone), true = the phone's floating window showing the app's panel
@@ -29,6 +30,11 @@ class OverGame(private val g: AppGraph) {
         } else {
             g.nav.go(Screen.OverlayIntro)
         }
+    }
+
+    fun show(heroId: Long, b: Build, title: String, flag: String? = null): Boolean {
+        g.checklist.loadBuild(heroId, b, title, flag)
+        return showChecklist()
     }
 
     fun showChecklist(): Boolean {

@@ -82,7 +82,7 @@ class ReforgeStepScreens {
             box.gearOf(h.id).values.any { it.reforgeable && box.canReforge(it.id) } }
         val build = model.graph.heroes.currentBuild(hero.id)!!
         val toReforge = build.items.filter { it.reforgeable && box.canReforge(it.id) }.map { it.id }.toSet()
-        ui { model.loadBuildChecklist(hero.id, build, "Reforge check"); model.graph.overlay.expanded = true; overlay = true }
+        ui { model.graph.checklist.loadBuild(hero.id, build, "Reforge check"); model.graph.overlay.expanded = true; overlay = true }
         val steps = model.graph.checklist.build!!.pieces
         check(steps.filter { it.reforgeStep }.map { it.item.id }.toSet() == toReforge) { "reforge steps ${steps.filter { it.reforgeStep }.map { it.item.id }} vs $toReforge" }
         // equipping comes first, then reforging, then modifying
@@ -152,7 +152,7 @@ class ReforgeStepScreens {
         val build = e7.gearscan.opt.Build(cur.items.map { if (it.id == modded.id) modded else it }, cur.value, cur.final, cur.ratings, cur.fromOthers)
         val original = box.itemsById.getValue(modded.id).subs[m.index]
 
-        ui { model.loadBuildChecklist(hero.id, build, "Mod check"); model.graph.overlay.expanded = true; overlay = true }
+        ui { model.graph.checklist.loadBuild(hero.id, build, "Mod check"); model.graph.overlay.expanded = true; overlay = true }
         val at = model.graph.checklist.build!!.pieces.indexOfFirst { it.modStep }
         check(at >= 0) { "no mod step" }
         shot("1-checklist-before-mod-step")

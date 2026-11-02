@@ -227,8 +227,8 @@ fun PoolRunScreen(model: AppModel) {
     } else Frame(null, null, actions = ({
         // moves happen in the game, so the checklist comes first; its last step records them here
         PinkButton("Checklist", Modifier.weight(1f)) {
-            if (model.loadPoolChecklist()) {
-                model.startLoadedOverGame()
+            if (model.graph.checklist.loadPool()) {
+                model.graph.overGame.open()
             }
         }
         if (!p.fromHistory) OutlineButton("Just record") { model.graph.pool.equip(); model.graph.nav.tab(Screen.Optimize) }
