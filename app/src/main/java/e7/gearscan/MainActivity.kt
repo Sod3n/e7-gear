@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.getBooleanExtra(EXTRA_CAPTURE, false)) model.showCapture()
+        if (intent.getBooleanExtra(EXTRA_CAPTURE, false)) model.graph.scan.showCapture()
     }
 
     private fun applySystemBars(dark: Boolean) {

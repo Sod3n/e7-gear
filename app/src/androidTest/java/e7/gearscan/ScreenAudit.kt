@@ -1,5 +1,7 @@
 package e7.gearscan
 
+import e7.gearscan.features.scan.ScanError
+import e7.gearscan.features.scan.ScanPhase
 import android.app.Application
 import android.graphics.Bitmap
 import android.os.Build
@@ -98,7 +100,7 @@ class ScreenAudit {
         rule.waitUntil(20_000) { model.ready }
         // the APK carries no game data: the first start downloads it from the content site
         rule.waitUntil(60_000) { model.content.heroes.isNotEmpty() }
-        rule.runOnUiThread { model.importBox(gear); model.consent = true }
+        rule.runOnUiThread { model.graph.scan.import(gear); model.consent = true }
         rule.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, setup.fontScale)) {
@@ -588,10 +590,10 @@ class ScreenAudit {
         screen("capture-ready", Screen.ScanData, Screen.Capture)
         steps.add("capture-running" to { capture(model, 20_000) })
         steps.add("capture-lobby" to { capture(model, 300_000) })
-        ScanError.entries.forEach { e -> steps.add("capture-error-${e.name.lowercase()}" to { ui { resetCapture(model); model.scanError = e } }) }
+        ScanError.entries.forEach { e -> steps.add("capture-error-${e.name.lowercase()}" to { ui { resetCapture(model); model.graph.scan.error = e } }) }
         // import a box missing a few items first, so the result has real "new items" to show
         val older = org.json.JSONObject(gear).apply { val a = getJSONArray("items"); repeat(5) { a.remove(0) } }.toString()
-        steps.add("scan-result" to { ui { resetCapture(model); model.importBox(older); model.importBox(gear); model.stack = listOf(Screen.Optimize, Screen.ScanData, Screen.ScanResult) } })
+        steps.add("scan-result" to { ui { resetCapture(model); model.graph.scan.import(older); model.graph.scan.import(gear); model.stack = listOf(Screen.Optimize, Screen.ScanData, Screen.ScanResult) } })
         (0..2).forEach { screen("diff-$it", Screen.ScanResult, Screen.DiffItems(it)) }
         // the Gear tab and its three modes
         screen("gear-home", Screen.Gear)
@@ -970,15 +972,15 @@ class ScreenAudit {
 
     private fun capture(model: AppModel, bytes: Int) = ui {
         Capture.clear(); Capture.open().write(Capture.DIR_S2C, ByteArray(bytes), bytes)
-        model.captureStarted = Long.MAX_VALUE / 2
-        model.captureConns = 1; model.captureBytes = bytes.toLong()
-        model.scanError = null
-        model.scanPhase = ScanPhase.CAPTURING
+        model.graph.scan.captureStarted = Long.MAX_VALUE / 2
+        model.graph.scan.conns = 1; model.graph.scan.bytes = bytes.toLong()
+        model.graph.scan.error = null
+        model.graph.scan.phase = ScanPhase.CAPTURING
         model.stack = listOf(Screen.ScanData, Screen.Capture)
     }
 
     private fun resetCapture(model: AppModel) {
-        Capture.clear(); model.scanPhase = ScanPhase.IDLE; model.scanError = null; model.captureStarted = 0
+        Capture.clear(); model.graph.scan.phase = ScanPhase.IDLE; model.graph.scan.error = null; model.graph.scan.captureStarted = 0
         model.stack = listOf(Screen.ScanData, Screen.Capture)
     }
 

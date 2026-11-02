@@ -1,5 +1,7 @@
 package e7.gearscan
 
+import e7.gearscan.features.scan.ScanError
+import e7.gearscan.features.scan.ScanPhase
 import android.app.Application
 import android.app.PendingIntent
 import android.content.Intent
@@ -66,23 +68,23 @@ class ScanStatusScreens {
             Triple(ScanStep.LOGIN, 4 to 40, 12_000L), Triple(ScanStep.LOBBY, 7 to 363, 20_000L), Triple(ScanStep.LATE, 3 to 5, 45_000L))
         for (dark in listOf(false, true)) {
             val t = if (dark) "dark" else "light"
-            ui { Themes.set(ctx, dark); Capture.vpnRunning = false; model.scanPhase = ScanPhase.IDLE; model.scanError = null }
+            ui { Themes.set(ctx, dark); Capture.vpnRunning = false; model.graph.scan.phase = ScanPhase.IDLE; model.graph.scan.error = null }
             feed(0, 0); waitForPoll()
             rule.onNodeWithText("Not scanning").assertExists()
             shot("$t-0-idle")
             for ((step, traffic, ago) in states) {
                 feed(traffic.first, traffic.second)
-                ui { Capture.vpnRunning = true; model.captureStarted = System.currentTimeMillis() - ago; model.scanPhase = ScanPhase.CAPTURING }
+                ui { Capture.vpnRunning = true; model.graph.scan.captureStarted = System.currentTimeMillis() - ago; model.graph.scan.phase = ScanPhase.CAPTURING }
                 waitForPoll()
-                check(model.scanStep == step) { "expected $step, got ${model.scanStep}" }
+                check(model.graph.scan.step == step) { "expected $step, got ${model.graph.scan.step}" }
                 rule.onAllNodesWithText(step.title)[0].assertExists()
                 shot("$t-${step.ordinal + 1}-${step.name.lowercase()}")
             }
-            ui { Capture.vpnRunning = false; model.scanPhase = ScanPhase.IDLE; model.scanError = ScanError.NOTHING }
+            ui { Capture.vpnRunning = false; model.graph.scan.phase = ScanPhase.IDLE; model.graph.scan.error = ScanError.NOTHING }
             waitForPoll()
             shot("$t-6-nothing")
         }
-        ui { Capture.vpnRunning = false; model.scanPhase = ScanPhase.IDLE; model.scanError = null }
+        ui { Capture.vpnRunning = false; model.graph.scan.phase = ScanPhase.IDLE; model.graph.scan.error = null }
         Capture.clear()
     }
 

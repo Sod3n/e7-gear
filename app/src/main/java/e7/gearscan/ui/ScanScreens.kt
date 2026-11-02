@@ -1,5 +1,9 @@
 package e7.gearscan.ui
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import e7.gearscan.features.scan.ScanError
+import e7.gearscan.features.scan.ScanPhase
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.draw.alpha
 import android.content.Intent
@@ -24,10 +28,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,8 +49,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import e7.gearscan.AppModel
-import e7.gearscan.ScanError
-import e7.gearscan.ScanPhase
 import e7.gearscan.Screen
 import e7.gearscan.data.Item
 import e7.gearscan.data.ScanStatus
@@ -64,24 +64,24 @@ fun rememberStartScan(model: AppModel): () -> Unit {
     val scan = rememberScanNow(model)
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
-        val watch = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME && model.scanAfterRestart) { model.scanAfterRestart = false; scan() } }
+        val watch = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME && model.graph.scan.afterRestart) { model.graph.scan.afterRestart = false; scan() } }
         owner.lifecycle.addObserver(watch)
         onDispose { owner.lifecycle.removeObserver(watch) }
     }
-    LaunchedEffect(model.scanNow) { if (model.scanNow) { model.scanNow = false; scan() } }
-    return { if (model.game == null || (model.otherVpnActive() && !model.proxyOn)) scan() else model.sheet = Sheet(SheetKind.SCAN_RESTART, 0) }
+    LaunchedEffect(model.graph.scan.scanNow) { if (model.graph.scan.scanNow) { model.graph.scan.scanNow = false; scan() } }
+    return { if (model.graph.scan.game == null || (model.graph.scan.otherVpnActive() && !model.proxyOn)) scan() else model.sheet = Sheet(SheetKind.SCAN_RESTART, 0) }
 }
 
 /** Fresh session for a scan: Android lets no app close another, so the player taps Force stop on the game's page. */
 @Composable
 fun ScanRestartSheet(model: AppModel) {
     SheetBody("Start the game fresh", button = "Restart Epic Seven", onButton = {
-        model.sheet = null; model.scanAfterRestart = true; model.openGameSettings()
+        model.sheet = null; model.graph.scan.afterRestart = true; model.graph.scan.openGameSettings()
     }) {
         Text("The scan reads the game's login, so Epic Seven has to start from its title screen. If it's open, tap Force stop on the next screen and come back: the scan starts by itself.",
             style = zen(13.sp, FontWeight.Medium))
         Text("Android doesn't let one app close another, so this one tap is yours.", style = zen(11.sp, FontWeight.Medium, C.muted))
-        LinkText("It's not running · scan now") { model.sheet = null; model.scanNow = true }
+        LinkText("It's not running · scan now") { model.sheet = null; model.graph.scan.scanNow = true }
     }
 }
 
@@ -90,13 +90,13 @@ fun ScanRestartSheet(model: AppModel) {
 private fun rememberScanNow(model: AppModel): () -> Unit {
     val ctx = LocalContext.current
     val vpn = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        if (r.resultCode == android.app.Activity.RESULT_OK) model.onVpnGranted()
+        if (r.resultCode == android.app.Activity.RESULT_OK) model.graph.scan.onVpnGranted()
     }
     return {
         when {
-            model.game == null -> { model.scanError = ScanError.NOT_INSTALLED; if (model.screen != Screen.Capture) model.go(Screen.Capture) }
-            model.otherVpnActive() && !model.proxyOn -> { model.scanError = ScanError.VPN; if (model.screen != Screen.Capture) model.go(Screen.Capture) }
-            else -> VpnService.prepare(ctx)?.let { vpn.launch(it) } ?: model.onVpnGranted()
+            model.graph.scan.game == null -> { model.graph.scan.error = ScanError.NOT_INSTALLED; if (model.screen != Screen.Capture) model.go(Screen.Capture) }
+            model.graph.scan.otherVpnActive() && !model.proxyOn -> { model.graph.scan.error = ScanError.VPN; if (model.screen != Screen.Capture) model.go(Screen.Capture) }
+            else -> VpnService.prepare(ctx)?.let { vpn.launch(it) } ?: model.graph.scan.onVpnGranted()
         }
     }
 }
@@ -177,21 +177,21 @@ fun ScanDataScreen(model: AppModel) {
     var erase by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf<String?>(null) }
     val restore = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        uri?.let { model.readUri(it) }?.let {
+        uri?.let { model.graph.scan.readUri(it) }?.let {
             if (model.restore(it)) { model.tab(Screen.Optimize); model.showToast("Backup restored") } else note = "That file is not a backup from this app."
         }
     }
     val importGear = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        uri?.let { model.readUri(it) }?.let { t ->
-            note = runCatching { model.importBox(t); model.go(Screen.ScanResult); null }.getOrElse { "That file is not a Fribbels gear.txt." }
+        uri?.let { model.graph.scan.readUri(it) }?.let { t ->
+            note = runCatching { model.graph.scan.import(t); model.go(Screen.ScanResult); null }.getOrElse { "That file is not a Fribbels gear.txt." }
         }
     }
     fun share(uri: Uri, mime: String) {
         ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM, uri)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), null))
     }
-    val box = model.box
-    model.rev
+    val box = model.graph.scan.box
+    model.graph.scan.rev
     Frame(null, null, actions = {
         PinkButton("Scan now", Modifier.weight(1f)) { if (!model.consent) model.go(Screen.ScanIntro) else start() }
     }) {
@@ -199,14 +199,14 @@ fun ScanDataScreen(model: AppModel) {
         ScreenTitle("Scan & data", "読取")
         Card(padding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                val icon = model.game?.let { g -> runCatching { ctx.packageManager.getApplicationIcon(g) }.getOrNull() }
+                val icon = model.graph.scan.game?.let { g -> runCatching { ctx.packageManager.getApplicationIcon(g) }.getOrNull() }
                 Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).stripes(C.stripeA, C.stripeB, shape = RoundedCornerShape(10.dp))
                     .border(2.dp, C.edge, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
                     if (icon != null) AsyncImage(icon, null, Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)))
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(if (model.game != null) "Epic Seven found" else "Epic Seven not installed", style = dela(15.sp))
-                    Text(box?.let { "${if (model.lastScan > 0) "Last scan ${model.scannedLabel().removePrefix("Scanned ")}" else "Imported"} · ${fmtInt(it.items.size.toDouble())} items · ${it.heroes.size} heroes" }
+                    Text(if (model.graph.scan.game != null) "Epic Seven found" else "Epic Seven not installed", style = dela(15.sp))
+                    Text(box?.let { "${if (model.graph.scan.lastScan > 0) "Last scan ${model.graph.scan.scannedLabel().removePrefix("Scanned ")}" else "Imported"} · ${fmtInt(it.items.size.toDouble())} items · ${it.heroes.size} heroes" }
                         ?: "No scan yet", style = zen(11.sp, FontWeight.Medium, C.muted))
                 }
             }
@@ -231,10 +231,10 @@ fun ScanDataScreen(model: AppModel) {
         Card(shadow = null, radius = 14.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
             // saved straight to Downloads; sharing is an extra the toast offers, not a sheet in the way
             DataRow("Export gear.txt", "Fribbels format, for desktop tools · saved to Downloads/E7GearScan", box != null) {
-                model.exportGear()?.let { (uri, name) -> model.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "text/plain") } }
+                model.graph.scan.exportGear()?.let { (uri, name) -> model.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "text/plain") } }
             }
             DataRow("Back up everything", "Heroes, builds, tiers, settings · saved to Downloads/E7GearScan", true) {
-                val (uri, name) = model.export("e7gear-backup.json", model.backupText())
+                val (uri, name) = model.graph.scan.export("e7gear-backup.json", model.backupText())
                 model.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "application/json") }
             }
             DataRow("Over the game", if (model.overGameNative) "Phone's floating window · tap to use E7 Gear's panel" else "E7 Gear's panel · tap to use the phone's floating window", true) {
@@ -243,7 +243,7 @@ fun ScanDataScreen(model: AppModel) {
             DataRow("Restore from a backup", null, true) { restore.launch(arrayOf("application/json", "text/plain", "*/*")) }
             DataRow("Import a gear.txt file", null, true) { importGear.launch(arrayOf("text/plain", "application/json", "*/*")) }
             DataRow("Game content", model.contentStatus ?: ("Version ${model.content.version}" +
-                if (model.contentCheckedAt > 0) " · checked ${model.scannedLabelOf(model.contentCheckedAt)}" else ""), true) { model.checkContent() }
+                if (model.contentCheckedAt > 0) " · checked ${model.graph.scan.scannedLabelOf(model.contentCheckedAt)}" else ""), true) { model.checkContent() }
             DataRow("Report a bug", null, true) { model.go(Screen.Feedback()) }
             Row(Modifier.fillMaxWidth().tap { if (erase) model.eraseAll() else erase = true }.padding(horizontal = 12.dp, vertical = 10.dp)) {
                 Text(if (erase) "Tap again to erase everything" else "Erase all data", style = zen(13.sp, color = C.deepPink))
@@ -277,27 +277,27 @@ private fun DataRow(title: String, sub: String?, enabled: Boolean, onClick: () -
 fun CaptureScreen(model: AppModel) {
     val start = rememberStartScan(model)
     val ctx = LocalContext.current
-    val err = model.scanError
-    val capturing = model.scanPhase == ScanPhase.CAPTURING
-    val importing = model.scanPhase == ScanPhase.IMPORTING
-    val step = model.scanStep
+    val err = model.graph.scan.error
+    val capturing = model.graph.scan.phase == ScanPhase.CAPTURING
+    val importing = model.graph.scan.phase == ScanPhase.IMPORTING
+    val step = model.graph.scan.step
     Frame(null, null, actions = {
         when {
             importing -> PinkButton("Importing…", Modifier.weight(1f), enabled = false) {}
             // the main button is the next step: back to the game until the box arrives, then importing it
             capturing && step == ScanStep.LOBBY -> {
-                PinkButton("Import", Modifier.weight(1f)) { model.stopAndImport() }
-                OutlineButton("Game", Modifier.width(96.dp)) { model.openGame() }
+                PinkButton("Import", Modifier.weight(1f)) { model.graph.scan.stopAndImport() }
+                OutlineButton("Game", Modifier.width(96.dp)) { model.graph.scan.openGame() }
             }
             capturing && step == ScanStep.LATE -> {
-                PinkButton("Restart game", Modifier.weight(1f)) { model.restartGameDuringScan() }
-                OutlineButton("Game", Modifier.width(96.dp)) { model.openGame() }
+                PinkButton("Restart game", Modifier.weight(1f)) { model.graph.scan.restartGameDuringScan() }
+                OutlineButton("Game", Modifier.width(96.dp)) { model.graph.scan.openGame() }
             }
             capturing -> {
-                PinkButton("Back to the game", Modifier.weight(1f)) { model.openGame() }
-                OutlineButton("Stop", Modifier.width(96.dp)) { if (model.captureBytes > 0) model.stopAndImport() else model.returnedEarly = true }
+                PinkButton("Back to the game", Modifier.weight(1f)) { model.graph.scan.openGame() }
+                OutlineButton("Stop", Modifier.width(96.dp)) { if (model.graph.scan.bytes > 0) model.graph.scan.stopAndImport() else model.graph.scan.returnedEarly = true }
             }
-            err == ScanError.SERVER -> PinkButton("Send again", Modifier.weight(1f)) { model.stopAndImport() }
+            err == ScanError.SERVER -> PinkButton("Send again", Modifier.weight(1f)) { model.graph.scan.stopAndImport() }
             err == ScanError.NOT_INSTALLED -> PinkButton("Open Play Store", Modifier.weight(1f)) {
                 ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=Epic%20Seven")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
@@ -307,13 +307,13 @@ fun CaptureScreen(model: AppModel) {
         // leaving keeps the scan running; the header chip on the main screens shows it
         if (model.stack.size > 1) BackToPrevious()
         if (capturing) {
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.ink).tap { model.openGame() }
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.ink).tap { model.graph.scan.openGame() }
                 .padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PulseDot(9.dp)
                 Column {
                     Text("Scanning is ON", style = zen(12.sp, color = C.card))
-                    Text(if (model.pillAllowed) "Its status shows over the game · tap it to come back"
+                    Text(if (model.graph.scan.pillAllowed) "Its status shows over the game · tap it to come back"
                         else "Shown in your notifications · tap there to come back", style = zen(10.sp, FontWeight.Medium, C.faint))
                 }
             }
@@ -347,20 +347,20 @@ fun CaptureScreen(model: AppModel) {
                 }
                 VSpace(10.dp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Counter("CONNECTIONS", "${model.captureConns}", Modifier.weight(1f))
-                    Counter("CAPTURED", "${model.captureBytes / 1024} KB", Modifier.weight(1f))
+                    Counter("CONNECTIONS", "${model.graph.scan.conns}", Modifier.weight(1f))
+                    Counter("CAPTURED", "${model.graph.scan.bytes / 1024} KB", Modifier.weight(1f))
                 }
                 VSpace(10.dp)
-                Milestone("Game connected", model.captureConns > 0)
-                Milestone("Login started", model.captureBytes > ScanStatus.LOGIN_BYTES)
-                Milestone("Lobby reached · heroes and gear", model.captureBytes > ScanStatus.LOBBY_BYTES)
+                Milestone("Game connected", model.graph.scan.conns > 0)
+                Milestone("Login started", model.graph.scan.bytes > ScanStatus.LOGIN_BYTES)
+                Milestone("Lobby reached · heroes and gear", model.graph.scan.bytes > ScanStatus.LOBBY_BYTES)
             }
             else -> Card {
                 Text("Start the scan before you open the game: it reads the game's login, so Epic Seven has to start from its title screen. Then log in until the lobby.",
                     style = zen(14.sp, FontWeight.Medium))
             }
         }
-        if (!importing && !model.pillAllowed) LinkText("Show the scan status over the game · allow it", size = 12) { model.allowPill() }
+        if (!importing && !model.graph.scan.pillAllowed) LinkText("Show the scan status over the game · allow it", size = 12) { model.graph.scan.allowPill() }
         if (err != ScanError.NOTHING) Text("The capture is always kept, so any problem can be retried from here.", style = zen(12.sp, FontWeight.Medium, C.muted))
     }
 }
@@ -369,7 +369,7 @@ fun CaptureScreen(model: AppModel) {
 private fun ErrorCard(err: ScanError, model: AppModel) {
     val (title, body) = when (err) {
         ScanError.NOTHING -> "Nothing captured" to "The scan has to see the game's login. Try again: E7 Gear restarts the game for you, then log in until the lobby."
-        ScanError.SERVER -> "Fribbels' server unreachable" to "Your capture is kept (${model.captureBytes / 1024} KB)."
+        ScanError.SERVER -> "Fribbels' server unreachable" to "Your capture is kept (${model.graph.scan.bytes / 1024} KB)."
         ScanError.VPN -> "Another VPN is on" to "Switch it to proxy mode, then turn on “Use my VPN as a proxy”."
         ScanError.NOT_INSTALLED -> "Epic Seven not installed" to "Install the game, then come back."
     }
@@ -404,8 +404,8 @@ private fun Milestone(text: String, done: Boolean) {
 
 @Composable
 fun ScanResultScreen(model: AppModel) {
-    val box = model.box ?: return
-    val d = model.lastDiff
+    val box = model.graph.scan.box ?: return
+    val d = model.graph.scan.lastDiff
     Frame(null, null, actions = {
         PinkButton("Go to optimizer", Modifier.weight(1f)) { model.tab(Screen.Optimize) }
     }) {
@@ -418,7 +418,7 @@ fun ScanResultScreen(model: AppModel) {
                 Column(Modifier.weight(1f)) { Text(fmtInt(box.heroes.size.toDouble()), style = dela(32.sp).pinkShadow()); Text("heroes", style = zen(11.sp, FontWeight.Medium, C.muted)) }
             }
             VSpace(8.dp)
-            Text(if (model.decodeSec > 0) "Decoded in ${model.decodeSec} s · saved on this phone" else "Saved on this phone",
+            Text(if (model.graph.scan.decodeSec > 0) "Decoded in ${model.graph.scan.decodeSec} s · saved on this phone" else "Saved on this phone",
                 style = zen(11.sp, FontWeight.Medium, C.muted))
         }
         Card(shadow = null, radius = 14.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
@@ -458,8 +458,8 @@ private fun DiffRow(label: String, value: String, color: androidx.compose.ui.gra
 
 @Composable
 fun DiffItemsScreen(model: AppModel, kind: Int) {
-    val box = model.box ?: return
-    val d = model.lastDiff ?: return
+    val box = model.graph.scan.box ?: return
+    val d = model.graph.scan.lastDiff ?: return
     val ids = when (kind) { 0 -> d.newItems; 1 -> d.enhanced; else -> d.moved }
     Frame(null, null) {
         BackToPrevious()

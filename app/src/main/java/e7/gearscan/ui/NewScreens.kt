@@ -1,5 +1,7 @@
 package e7.gearscan.ui
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -22,11 +24,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,7 +56,7 @@ fun OverlayIntroScreen(model: AppModel) {
         model.save()
         model.back()
         if (OverlayState.upgrade != null) model.checkUpgrade()
-        model.openGame()
+        model.graph.scan.openGame()
     }
     val native = model.overGameNative
     LifecycleResumeEffect(waiting) {

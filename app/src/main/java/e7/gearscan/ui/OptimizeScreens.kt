@@ -1,5 +1,8 @@
 package e7.gearscan.ui
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import e7.gearscan.features.scan.ScanPhase
 import androidx.compose.foundation.background
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -22,11 +25,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import e7.gearscan.AppModel
 import e7.gearscan.Screen
-import e7.gearscan.ScanPhase
 import e7.gearscan.Sheet
 import e7.gearscan.SheetKind
 import e7.gearscan.calc.Calc
@@ -76,7 +75,7 @@ fun OptimizeScreen(model: AppModel) {
             }
         })
     }) {
-        ScreenTitle("Optimize", "最適化") { ScanChip(model.scannedLabel(), model.scanPhase != ScanPhase.IDLE) { if (model.scanPhase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
+        ScreenTitle("Optimize", "最適化") { ScanChip(model.graph.scan.scannedLabel(), model.graph.scan.phase != ScanPhase.IDLE) { if (model.graph.scan.phase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
         CrashCard(model)
         model.appUpdate?.let { u ->
             val p = model.updateProgress
@@ -277,7 +276,7 @@ fun ResultsScreen(model: AppModel) {
     })) {
         BackToPrevious()
         if (s.historyAt != 0L) HistoryNote(s.historyAt)
-        ScreenTitle("Best 50") { ScanChip(model.scannedLabel(), model.scanPhase != ScanPhase.IDLE) { if (model.scanPhase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
+        ScreenTitle("Best 50") { ScanChip(model.graph.scan.scannedLabel(), model.graph.scan.phase != ScanPhase.IDLE) { if (model.graph.scan.phase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Face(model.face(h), 26.dp, ringWidth = 2.dp)
             Text("${model.heroName(h)} · ${req.goal.label}", style = zen(13.sp).copy(lineHeight = 16.sp), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)

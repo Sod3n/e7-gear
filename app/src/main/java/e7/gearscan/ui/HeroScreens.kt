@@ -1,5 +1,8 @@
 package e7.gearscan.ui
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import e7.gearscan.features.scan.ScanPhase
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,11 +20,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,7 +37,6 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import e7.gearscan.AppModel
 import e7.gearscan.Screen
-import e7.gearscan.ScanPhase
 import e7.gearscan.Sheet
 import e7.gearscan.SheetKind
 import e7.gearscan.calc.Calc
@@ -58,7 +58,7 @@ fun HeroesScreen(model: AppModel) {
     var showLow by rememberSaveable { mutableStateOf(false) }
     var byMatch by rememberSaveable { mutableStateOf(false) }
     Frame(model, Screen.Heroes) {
-        ScreenTitle("Heroes") { ScanChip(model.scannedLabel(), model.scanPhase != ScanPhase.IDLE) { if (model.scanPhase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
+        ScreenTitle("Heroes") { ScanChip(model.graph.scan.scannedLabel(), model.graph.scan.phase != ScanPhase.IDLE) { if (model.graph.scan.phase != ScanPhase.IDLE) model.go(Screen.Capture) else model.go(Screen.ScanData) } }
         if (box == null) { Text("Scan the game to see your heroes.", style = zen(13.sp, FontWeight.Medium, C.muted)); return@Frame }
         HeroFilterBar(f)
         DashedBox(Modifier.fillMaxWidth(), color = C.blue, bg = C.ghostBg, radius = 12.dp) {
