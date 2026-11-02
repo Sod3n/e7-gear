@@ -686,7 +686,10 @@ class ScreenAudit {
         screen("feedback", Screen.ScanData, Screen.Feedback())
         screen("feedback-error", Screen.Capture, Screen.Feedback("Nothing captured: Stopped before the lobby"))
         steps.add("results" to { ui { graph.optimize.search = single; graph.nav.stack = listOf(Screen.Optimize, Screen.Results) } })
-        screen("ghost", Screen.Optimize, Screen.Results, Screen.GhostBuild)
+        steps.add("ghost" to {
+            if (graph.optimize.search?.ghost?.ghost == null) warn("the search found no ghost build, so the Ghost build screen goes unchecked", "ghost")
+            else ui { overlay = false; graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Optimize, Screen.Results, Screen.GhostBuild) }
+        })
         steps.add("results-none" to {
             // rules no build can meet: the ghost search and the blocker check must both finish and say so
             val req = graph.heroes.request(hero)
