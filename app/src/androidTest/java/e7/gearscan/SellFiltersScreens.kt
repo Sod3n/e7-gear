@@ -60,6 +60,11 @@ class SellFiltersScreens {
         val bitmap=if(roots==1)rule.onRoot().captureToImage().asAndroidBitmap() else inst.uiAutomation.takeScreenshot()
         bitmap.let { b->File(dir,"$name.png").outputStream().use { b.compress(Bitmap.CompressFormat.PNG,100,it) } }
     }
+    private fun withTracker(backup: String, edit: (JSONObject) -> Unit): String = JSONObject(backup).apply {
+        val files = getJSONObject("files")
+        files.put("upgrades.json", JSONObject(files.getString("upgrades.json")).also(edit).toString())
+    }.toString()
+
     @Test fun editableFiltersForecastReviewQueueAndBackup() {
         assumeTrue(Build.FINGERPRINT.contains("generic")||Build.HARDWARE.contains("ranchu"))
         File(ctx.getExternalFilesDir(null),"sell-filters").deleteRecursively()
@@ -128,12 +133,12 @@ class SellFiltersScreens {
         assertTrue(soldId in model.clearedIds);assertEquals(n-1,t.pendingQueue.size);assertNotEquals(soldId,t.selected)
         shot("19-sold-next",true)
         val afterSale=model.backupText()
-        val interrupted=JSONObject(afterSale);interrupted.getJSONObject("upgrades").put("selected",soldId)
-        ui { assertTrue(model.restore(interrupted.toString())) }
+        val interrupted=withTracker(afterSale) { it.put("selected",soldId) }
+        ui { assertTrue(model.restore(interrupted)) }
         assertNotEquals(soldId,t.selected);assertTrue(t.queueIndex>=0)
-        val stale=JSONObject(afterSale);stale.getJSONObject("upgrades").put("queueScan",model.lastScan-1)
+        val stale=withTracker(afterSale) { it.put("queueScan",model.lastScan-1) }
         val remaining=t.selected!!
-        ui { assertTrue(model.restore(stale.toString()));model.markOverlaySold(remaining) }
+        ui { assertTrue(model.restore(stale));model.markOverlaySold(remaining) }
         assertFalse(remaining in model.clearedIds);assertNotNull(t.error)
         ui { assertTrue(model.restore(afterSale)) }
         // Repeated events from the old button cannot mark the new piece.
@@ -148,7 +153,7 @@ class SellFiltersScreens {
         shot("21-sold-mark-restored",true)
         var returned=0;ui { t.returnToApp={returned++} };rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Open E7 Gear");assertEquals(1,returned)
         val backup=model.backupText();val saved=JSONObject(backup)
-        assertEquals(model.graph.sellReview.query,SellQuery.of(saved.getJSONObject("state").getJSONObject("sellQuery")))
+        assertEquals(model.graph.sellReview.query,SellQuery.of(saved.getJSONObject("fields").getJSONObject("sellReview.query")))
         val reopened=UpgradeTracker(File(ctx.filesDir,"upgrades.json"));assertTrue(reopened.isRollReview);assertEquals(t.reviewRolls,reopened.reviewRolls);assertEquals(t.queue,reopened.queue)
         val lastQuery=model.graph.sellReview.query
         ui { overlay=false;assertTrue(model.restore(backup));model.go(Screen.SellFilters) }
