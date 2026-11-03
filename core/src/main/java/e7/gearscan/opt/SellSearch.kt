@@ -93,8 +93,8 @@ object SellSearch {
         val contentVersion: String = "",
     ) {
         private val original = box.itemsById
-        val items =
-            box.items.filter { it.id !in removed }.map { original ->
+        private val observedAll =
+            box.items.map { original ->
                 val observed = records[original.id]?.takeIf { it.scan == scan }?.item
                 if (observed ==
                     null
@@ -117,10 +117,11 @@ object SellSearch {
                     )
                 }
             }
+        val items = observedAll.filter { it.id !in removed }
 
-        /** Median game ES of your +15 pieces per slot, the default bar a piece should reach. */
+        /** Median game ES of your +15 pieces per slot (marked ones too, so marking never moves the bar). */
         val autoEsBars: Map<Slot, Int> by lazy {
-            items.filter { it.enhance == 15 && it.level >= 85 }.groupBy { it.slot }.mapValues { (_, v) ->
+            observedAll.filter { it.enhance == 15 && it.level >= 85 }.groupBy { it.slot }.mapValues { (_, v) ->
                 v.map { gameScore(it) }.sorted()[
                     v.size /
                         2,

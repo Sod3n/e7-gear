@@ -392,7 +392,7 @@ class ImproveHeroesFeature(ctx: FeatureContext, private val contentFeature: Cont
                     Goal.CP -> "+${one(100 * d / kotlin.math.abs(v0))}% CP"
                 }
             }
-            val picks = byHero[h.id].orEmpty()
+            val picks = byHero[h.id].orEmpty().filter { it.piece !in marks.cleared && box?.itemsById?.containsKey(it.piece) != false }
             val rows =
                 picks.mapNotNull { p ->
                     // nothing else moving, or the best build however it is made

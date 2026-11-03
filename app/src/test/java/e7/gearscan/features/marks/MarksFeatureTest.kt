@@ -45,6 +45,20 @@ class MarksFeatureTest {
         assertEquals(1, notified)
     }
 
+    @Test fun aNewScanClearsSoldMarksButKeepsKeepMarks() = runTest(UnconfinedTestDispatcher()) {
+        val g = graph(this)
+        g.scan.import(box.toText())
+        val (a, b, c) = ids
+        g.marks.markReviewed(a, keep = false)
+        g.marks.recordSold(b, g.scan.lastScan, keep = false)
+        g.marks.markReviewed(c, keep = true)
+        // the player did not sell a or b: the new scan still has them, so they come back everywhere
+        g.scan.import(box.toText())
+        assertEquals(emptySet<Long>(), g.marks.cleared)
+        assertEquals(setOf(c), g.marks.kept)
+        assertTrue(g.marks.sold.none { !it.kept })
+    }
+
     @Test fun keptMarksSurviveARestart() = runTest(UnconfinedTestDispatcher()) {
         val dir = createTempDirectory("marks").toFile()
         val first = graph(this, dir)

@@ -27,17 +27,27 @@ fun GearScreen(graph: AppGraph) {
             }
             return@Frame
         }
-        val sell = graph.sellReview.result?.let { r -> r.matches.count { it.item.id !in graph.marks.reviewed && !graph.sellReview.keptByBar(it) } }
-        ModeCard("Sell review", "Worst rolls first. Sell or keep each piece, with its ES now and at +15.",
-            listOfNotNull(sell?.let { "$it to review" }, graph.marks.kept.size.takeIf { it > 0 }?.let { "$it kept" }).joinToString(" · ").ifEmpty { "Not checked yet" }) {
+        val sellReview = graph.sellReview
+        val sell = when {
+            sellReview.result == null -> "Not checked yet"
+            sellReview.stale -> "Out of date"
+            else -> sellReview.result!!.matches.count { it.item.id !in graph.marks.reviewed && !sellReview.keptByBar(it) }.let { "$it to review" }
+        }
+        ModeCard("Sell review", "Sell or keep each piece, with its ES now and at +15.",
+            listOfNotNull(sell, graph.marks.kept.size.takeIf { it > 0 }?.let { "$it kept" }).joinToString(" · ")) {
             graph.nav.go(Screen.SellFilters)
         }
-        val heroes = graph.improveHeroes.heroUpgrades?.takeIf { !it.running && it.result != null && !graph.improveHeroes.stale }?.result
-            ?.let { r -> graph.improveHeroes.view(r).count { it.rows.isNotEmpty() } }
-        ModeCard("Improve heroes", "Unfinished pieces that would make a hero you've set up better once enhanced.",
-            heroes?.let { "$it heroes can get better" } ?: "Not checked yet") { graph.nav.go(Screen.HeroUpgrades()) }
+        val check = graph.improveHeroes.heroUpgrades
+        val heroes = when {
+            check?.running == true -> "Checking"
+            check?.result == null -> "Not checked yet"
+            graph.improveHeroes.stale -> "Out of date"
+            else -> "${graph.improveHeroes.view(check.result!!).count { it.rows.isNotEmpty() }} heroes can get better"
+        }
+        ModeCard("Improve heroes", "Unfinished pieces that would make a hero you've set up better once enhanced.", heroes) { graph.nav.go(Screen.HeroUpgrades()) }
         val found = graph.findGear.result?.let { r ->
-            r.query.targets.entries.joinToString(" · ") { (t, v) -> "${t.short} ${targetValue(t, v)}" } + " · ${r.withOdds.size} can reach it"
+            r.query.targets.entries.joinToString(" · ") { (t, v) -> "${t.short} ${targetValue(t, v)}" } +
+                if (graph.findGear.stale) " · out of date" else " · ${r.open(graph.marks.cleared).withOdds.size} can reach it"
         }
         ModeCard("Find gear", "Pieces that can still reach the substats you ask for, with the chance.", found ?: "Choose a target") { graph.nav.go(Screen.GearPotential) }
         if (graph.tracker.queue.isNotEmpty() || graph.tracker.record != null)

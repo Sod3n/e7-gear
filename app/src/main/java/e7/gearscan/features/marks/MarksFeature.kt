@@ -64,6 +64,14 @@ class MarksFeature(ctx: FeatureContext, private val scanFeature: ScanFeature) : 
         changed()
     }
 
+    // a new scan is the truth: a piece marked Sold that is still there was not sold
+    override fun onImported() {
+        if (cleared.isEmpty()) return
+        cleared = emptySet()
+        sold = sold.filter { it.kept }
+        changed()
+    }
+
     private fun changed() {
         ctx.store.saveNow()
         onChange()

@@ -72,9 +72,11 @@ class ScanFeatureTest {
         g.marks.markReviewed(inBox[0], keep = false)
         g.marks.markReviewed(gone, keep = false)
         g.marks.markReviewed(-8L, keep = true)
+        g.marks.markReviewed(inBox[1], keep = true)
         g.scan.import(text)
-        assertEquals(setOf(inBox[0]), g.marks.cleared)
-        assertTrue(g.marks.kept.isEmpty())
+        // a new scan is the truth: Sold marks go (the piece still there was not sold), Keep marks stay for pieces still there
+        assertTrue(g.marks.cleared.isEmpty())
+        assertEquals(setOf(inBox[1]), g.marks.kept)
     }
 
     @Test fun aSecondImportKeepsTheDiffAgainstTheFirst() = runTest(UnconfinedTestDispatcher()) {

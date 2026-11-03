@@ -104,7 +104,8 @@ class TrackerFeature(
     private val content get() = contentFeature.content
 
     val record get() = records[selected]
-    val cleared: Set<Long> get() = marks.reviewed
+    // a Sell review walk passes over Keep marks too; other walks only over pieces marked Sold
+    val cleared: Set<Long> get() = if (scoreQuery != null) marks.reviewed else marks.cleared
     val pendingQueue get() = queue.filter { it.id !in cleared }
     val queueIndex get() = pendingQueue.indexOfFirst { it.id == selected }
     val isSellQueue get() = scoreQuery != null && queue.isNotEmpty()

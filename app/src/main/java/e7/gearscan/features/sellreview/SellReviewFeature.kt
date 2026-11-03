@@ -93,7 +93,9 @@ class SellReviewFeature(ctx: FeatureContext, private val content: ContentFeature
             query.copy(rollOn = 0.0),
         )
 
-    val stale get() = result != null && appliedKey != freshnessKey()
+    // pieces marked before the search are not in it: unmarking one (Unlock) makes the list out of date
+    private var appliedRemoved: Set<Long> = emptySet()
+    val stale get() = result != null && (appliedKey != freshnessKey() || !marks.reviewed.containsAll(appliedRemoved))
     val fresh get() = result != null && !stale && !busy
 
     fun edit(q: SellQuery) {
@@ -156,6 +158,7 @@ class SellReviewFeature(ctx: FeatureContext, private val content: ContentFeature
                     }
                 result = found
                 appliedKey = key
+                appliedRemoved = removed
                 computeCurve(found)
             } catch (e: CancellationException) {
                 throw e
@@ -186,6 +189,7 @@ class SellReviewFeature(ctx: FeatureContext, private val content: ContentFeature
         result = null
         keepCurve = null
         appliedKey = null
+        appliedRemoved = emptySet()
     }
 
     fun context(q: SellQuery): SellSearch.Context? {

@@ -98,7 +98,7 @@ fun FindGearScreen(graph: AppGraph) {
     LaunchedEffect(result) { if (result != null && seenResult != resultId) tab = 1; seenResult = resultId }
     key(tab, result) {
         val fresh = !graph.findGear.stale
-        val odds = result?.withOdds.orEmpty()
+        val odds = result?.open(graph.marks.cleared)?.withOdds.orEmpty()
         Frame(null, null, primary = when {
             tab == 0 -> Action(if (graph.findGear.busy) "Searching" else "Find gear", enabled = !graph.findGear.busy) { graph.messages.show(graph.findGear.find()) }
             result == null -> null
@@ -174,8 +174,9 @@ internal fun HelpRow(graph: AppGraph) {
 private fun Matches(graph: AppGraph, result: FindGearResult, fresh: Boolean, edit: () -> Unit) {
     val applied = result.query
     val grouped = graph.findGear.grouped
-    val odds = remember(result, grouped, graph.scan.box) { graph.findGear.ordered(result.withOdds) { it.item } }
-    val rare = remember(result, grouped, graph.scan.box) { graph.findGear.ordered(result.rareOnly) { it.item } }
+    val open = result.open(graph.marks.cleared)
+    val odds = remember(result, grouped, graph.scan.box, graph.marks.cleared) { graph.findGear.ordered(open.withOdds) { it.item } }
+    val rare = remember(result, grouped, graph.scan.box, graph.marks.cleared) { graph.findGear.ordered(open.rareOnly) { it.item } }
     var count by rememberSavedFor(result, 20)
     var rareOpen by rememberSaveable(System.identityHashCode(result)) { mutableStateOf(false) }
     var rareCount by rememberSavedFor(result to "rare", 20)

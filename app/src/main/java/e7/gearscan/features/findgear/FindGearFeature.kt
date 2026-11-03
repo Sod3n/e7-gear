@@ -33,7 +33,12 @@ data class FindGearResult(
 ) {
     val withOdds get() = matches.filter { !it.outcome.rareOnly }
     val rareOnly get() = matches.filter { it.outcome.rareOnly }
+
+    /** Without pieces marked Sold since the search (they leave the list at once). */
+    fun open(cleared: Set<Long>) = FindGearOpen(withOdds.filter { it.item.id !in cleared }, rareOnly.filter { it.item.id !in cleared })
 }
+
+data class FindGearOpen(val withOdds: List<FindGearMatch>, val rareOnly: List<FindGearMatch>)
 
 class FindGearFeature(ctx: FeatureContext, private val content: ContentFeature, private val scanFeature: ScanFeature, private val marks: MarksFeature, private val records: RecordsFeature) : Feature(ctx, "findGear") {
     data class Step(val id: Long, val count: Int, val enhance: Int, val main: Double, val subs: List<Pair<GearStat, Double>>)
@@ -133,7 +138,7 @@ class FindGearFeature(ctx: FeatureContext, private val content: ContentFeature, 
         val b = scanFeature.box ?: return Plan.Stop(Outcome.Failed("Scan your gear first."))
         if (busy || stale) return Plan.Stop(Outcome.Failed("Update the matches before starting a new list."))
         val cleared = marks.cleared
-        val entries = ordered(applied.withOdds) { it.item }.mapNotNull { match ->
+        val entries = ordered(applied.open(marks.cleared).withOdds) { it.item }.mapNotNull { match ->
             val original = b.itemsById[match.item.id]?.takeIf { it.id !in cleared } ?: return@mapNotNull null
             val set = content.content.set(original.set)
             original to TrackerFeature.QueueEntry(original.id, applied.query.goal(b.canReforge(original.id)), set?.name ?: original.set.removeSuffix("Set"), set?.icon)

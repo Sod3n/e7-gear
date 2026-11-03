@@ -72,6 +72,26 @@ class SellReviewFeatureTest {
         assertTrue(g.sellReview.stale)
     }
 
+    @Test fun unlockingAPieceTheSearchLeftOutMakesTheListOutOfDate() = runTest(UnconfinedTestDispatcher()) {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val g = AppGraph(Disk(createTempDirectory("sell").toFile()), this)
+        g.scan.replaceBox(tiny)
+        g.scan.lastScan = 1
+        val (kept, later) = tiny.items.map { it.id }
+        g.marks.markReviewed(kept, keep = true)
+        assertEquals(Outcome.Done, g.sellReview.find())
+        withContext(Dispatchers.Default) { while (g.sellReview.busy) Thread.sleep(20) }
+        assertTrue(g.sellReview.fresh)
+        // marking after the search filters on screen and keeps the list current
+        g.marks.markReviewed(later, keep = false)
+        assertTrue(g.sellReview.fresh)
+        g.marks.unmark(later)
+        assertTrue(g.sellReview.fresh)
+        // the search never saw the piece kept before it: Unlock must ask for an update
+        g.marks.unmark(kept)
+        assertTrue(g.sellReview.stale)
+    }
+
     @Test fun aStartWhileAnotherHeavyRunIsRefusedWithItsName() = runTest(UnconfinedTestDispatcher()) {
         val g = AppGraph(Disk(createTempDirectory("sell").toFile()), this)
         g.scan.replaceBox(tiny)
