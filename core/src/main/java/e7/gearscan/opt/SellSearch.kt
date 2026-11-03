@@ -119,17 +119,16 @@ object SellSearch {
             }
         val items = observedAll.filter { it.id !in removed }
 
-        /** Median game ES of your +15 pieces per slot (marked ones too, so marking never moves the bar). */
-        val autoEsBars: Map<Slot, Int> by lazy {
-            observedAll.filter { it.enhance == 15 && it.level >= 85 }.groupBy { it.slot }.mapValues { (_, v) ->
-                v.map { gameScore(it) }.sorted()[
-                    v.size /
-                        2,
-                ]
-            }
+        /** Median game ES of all your +15 pieces (marked ones too, so marking never moves it): the default bar for every slot. */
+        val autoEsBar: Int? by lazy {
+            observedAll
+                .filter { it.enhance == 15 && it.level >= 85 }
+                .map { gameScore(it) }
+                .sorted()
+                .let { v -> v.getOrNull(v.size / 2) }
         }
 
-        fun esBar(slot: Slot) = query.esBars[slot] ?: autoEsBars[slot]
+        fun esBar(slot: Slot) = query.esBars[slot] ?: query.esBar ?: autoEsBar
 
         fun es(item: Item) =
             EsForecast.of(item, gameScore(item), esBar(item.slot), query.reforge, box.canReforge(item.id), coverage(item), query.forecastMs)
@@ -290,7 +289,7 @@ object SellSearch {
 
         fun signature(): String {
             val text =
-                RollReview.VERSION + GearScore.VERSION + EsForecast.VERSION + autoEsBars.toSortedMap() + query.copy(rollOn = 0.0).toJson() +
+                RollReview.VERSION + GearScore.VERSION + EsForecast.VERSION + autoEsBar + query.copy(rollOn = 0.0).toJson() +
                     box.toText() +
                     records.values
                         .filter { it.scan == scan }

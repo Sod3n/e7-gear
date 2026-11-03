@@ -41,7 +41,9 @@ data class SellQuery(
     val scoreFilter: Boolean = false,
     val keepStats: Map<GearStat, Double> = DEFAULT_GUARDS,
     val keepChance: Double = 1.0,
-    /** Per-slot game ES a finished piece should reach; a missing slot uses the median of your +15 pieces. */
+    /** The game ES a finished piece should reach, every slot; null = the median of your +15 pieces. */
+    val esBar: Int? = null,
+    /** Advanced: per-slot bars that replace [esBar] for their slot. */
     val esBars: Map<Slot, Int> = emptyMap(),
     /** Chance to reach the ES bar at which a piece counts as worth enhancing further. */
     val rollOn: Double = 1.0,
@@ -52,7 +54,7 @@ data class SellQuery(
             !maximumChance.isFinite() || maximumChance !in 0.0..100.0 -> "Chance must be between 0 and 100%."
             !floorPercent.isFinite() || floorPercent !in 0.0..500.0 -> "Floor scale must be between 0 and 500%."
             floors.values.any { !it.isFinite() || it < 0 } -> "Floors must be nonnegative."
-            esBars.values.any { it !in 0..300 } -> "ES bars must be between 0 and 300."
+            esBars.values.any { it !in 0..300 } || esBar?.let { it !in 0..300 } == true -> "ES bars must be between 0 and 300."
             !rollOn.isFinite() || rollOn !in 0.0..100.0 -> "The keep-rolling chance must be between 0 and 100%."
             keepStats.values.any {
                 !it.isFinite() || it <= 0
@@ -139,6 +141,7 @@ data class SellQuery(
                     }
                 },
             ).put("keepChance", keepChance)
+            .put("esBar", esBar ?: JSONObject.NULL)
             .put("esBars", JSONObject().apply { esBars.forEach { (s, v) -> put(s.key, v) } })
             .put("rollOn", rollOn)
             .put("guardsV", 2)
@@ -264,6 +267,7 @@ data class SellQuery(
                             }
                         },
                     keepChance = if (!j.has("guardsV"))1.0 else j.optDouble("keepChance", 1.0),
+                    esBar = if (j.isNull("esBar")) null else j.optInt("esBar"),
                     esBars =
                         eb
                             ?.keys()

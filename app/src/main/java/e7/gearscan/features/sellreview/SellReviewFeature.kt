@@ -115,7 +115,9 @@ class SellReviewFeature(ctx: FeatureContext, private val content: ContentFeature
 
     fun resetScoreModel(confirmed: Confirmed) = edit(query.copy(score = GearScore.Model()))
 
-    fun resetEsBars(confirmed: Confirmed) = edit(query.copy(esBars = emptyMap()))
+    fun resetEsBar(confirmed: Confirmed) = edit(query.copy(esBar = null))
+
+    fun resetSlotBars(confirmed: Confirmed) = edit(query.copy(esBars = emptyMap()))
 
     fun resetSafeguards(confirmed: Confirmed) = edit(query.copy(keepStats = SellQuery.DEFAULT_GUARDS, keepChance = 1.0))
 
@@ -226,7 +228,7 @@ class SellReviewFeature(ctx: FeatureContext, private val content: ContentFeature
             return maxOf(100.0, kotlin.math.ceil((main + subs) * 2), query.floors.values.maxOrNull() ?: 0.0, query.maximumCurrentScore ?: 0.0)
         }
 
-    fun autoEsBars(): Map<Slot, Int> = context(query)?.autoEsBars.orEmpty()
+    fun autoEsBar(): Int? = context(query)?.autoEsBar
 
     fun floorPreview(slot: Slot): SellSearch.Floor? {
         if (query.matchMain) return null
