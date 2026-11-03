@@ -11,7 +11,7 @@ import e7.gearscan.opt.Setup
 import e7.gearscan.opt.UpgradeCheck
 
 /** What the tracker's check says about one piece, worked out from the hero setups. */
-internal class PieceCheck(private val contentFeature: ContentFeature, private val marks: MarksFeature, private val heroesFeature: HeroesFeature) {
+internal class PieceCheck(private val contentFeature: ContentFeature, private val marks: MarksFeature, private val heroesFeature: HeroesFeature, private val minGain: Double) {
     private val content get() = contentFeature.content
 
     fun compareSlot(
@@ -64,7 +64,9 @@ internal class PieceCheck(private val contentFeature: ContentFeature, private va
         pr: HeroUpgrades.PieceResult,
         rebuilds: Boolean,
     ): UpgradeCheck.HeroResult {
-        val hits = if (rebuilds) pr.hits else pr.swapHits
+        // counted like Improve heroes: finishes that gain at least the "Showing" minimum
+        val ref = if (rebuilds) pr.bar.value else pr.swapRef
+        val hits = (if (rebuilds) pr.hits else pr.swapHits).filterValues { ref == null || it >= ref + minGain * pr.bar.unit }
         val values = hits.values.sortedDescending()
         val now = if (rebuilds) pr.now else pr.swapNow
         val nowValue = if (rebuilds) pr.bar.value else pr.swapNowValue

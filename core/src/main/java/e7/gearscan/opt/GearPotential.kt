@@ -49,6 +49,19 @@ object GearPotential {
     ) {
         val rareOnly get() = supported && possible && chance == 0.0
 
+        /** Enhancing on can still pay: reachable with usual rolls and not there yet. */
+        val keepRolling get() = supported && possible && !matchesNow && chance > 0.0
+
+        /** The one short word every screen shows for this outcome. */
+        fun word() =
+            when {
+                !supported -> "?"
+                matchesNow -> "Ready"
+                rareOnly -> "Rare"
+                !possible -> "0%"
+                else -> Chance(chance).text
+            }
+
         fun label() =
             when {
                 !supported -> "Not forecast"

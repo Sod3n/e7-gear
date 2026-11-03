@@ -24,11 +24,15 @@ fun UpgradeScreen(graph: AppGraph) {
     val selected = t.record?.takeIf { it.scan == graph.scan.lastScan && it.item.id in box.itemsById }
     var choosing by rememberSaveable { mutableStateOf(selected == null) }
     val item = selected?.item
+    val goal = t.goal != null || t.scoreGoal != null
+    val out = t.readout.goalOutcome
     val overGame = when {
         choosing || item == null || t.sellQueueComplete -> null
         !t.hasTarget && !t.isSellQueue && t.scoreQuery == null && item.enhance == 15 -> null
-        item.enhance < 15 -> "Enhance over the game"
-        t.hasTarget -> "Reforge over the game"
+        t.isSellQueue -> "Open over the game"
+        // the button names the next step only when the forecast says it pays
+        item.enhance < 15 && (!goal || out?.keepRolling == true) -> "Enhance over the game"
+        item.enhance == 15 && goal && item.level == 85 && t.canReforge(item.id) && out?.let { it.chance > 0 && !it.matchesNow } == true -> "Reforge over the game"
         else -> "Open over the game"
     }
     Frame(null, null, primary = overGame?.let { Action(it) { graph.messages.show(t.openOverlay()) } }) {
@@ -86,10 +90,8 @@ private fun GoalVerdict(graph: AppGraph, t: TrackerFeature, item: Item) {
     val out = t.readout.goalOutcome
     val (big, color) = when {
         out == null || !out.supported -> "?" to C.muted
-        out.matchesNow -> "Done" to C.blue
-        out.rareOnly -> "Rare" to C.deepPink
-        !out.possible -> "0%" to C.deepPink
-        else -> Chance(out.chance).text to C.blue
+        out.rareOnly || !out.possible -> out.word() to C.deepPink
+        else -> out.word() to C.blue
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         FitText(big, dela(28.sp, color))

@@ -215,12 +215,15 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                         PanelAction("Sold ›", b, pink = keeps == false, enabled = t.canMarkSold, label = "Sold and next") { t.markSold(item.id); pane = UpgradePane.PIECE }
                         PanelAction("Keep ›", b, pink = keeps == true && !rollOn, enabled = t.canMarkSold, label = "Keep and next") { t.markSold(item.id, keep = true); pane = UpgradePane.PIECE }
                     }
-                    if (record) PanelAction("Record +${((item.enhance / 3 + 1) * 3).coerceAtMost(15)}", b, pink = !t.isSellQueue || rollOn) {
+                    // a goal walk: Record is the next step only while the targets are reachable and not reached
+                    val goalOn = if (t.goal != null || t.scoreGoal != null) t.readout.goalOutcome?.keepRolling == true else true
+                    if (record) PanelAction("Record +${((item.enhance / 3 + 1) * 3).coerceAtMost(15)}", b, pink = if (t.isSellQueue) rollOn else goalOn) {
                         correction = false; t.beginEdit()
                     }
                     // a finished piece: record the reforge, then equipping it, as done in the game
                     if (!t.isSellQueue && item.enhance == 15 && item.level == 85 && t.canReforge(item.id))
-                        PanelAction("Reforge", b, pink = t.checkRun.equipHeroes.isEmpty(), label = "Record reforge") { t.reforge() }
+                        PanelAction("Reforge", b, pink = if (t.goal != null || t.scoreGoal != null) t.readout.goalOutcome?.let { it.chance > 0 && !it.matchesNow } == true
+                            else t.checkRun.equipHeroes.isEmpty(), label = "Record reforge") { t.reforge() }
                     if (!t.isSellQueue && item.enhance == 15 && t.checkRun.equipHeroes.isNotEmpty() && t.worn.equippedOn == null)
                         PanelAction("Equip", b, pink = true, label = "Record equip") { pane = UpgradePane.EQUIP }
                 }
@@ -263,7 +266,7 @@ private fun PanelBody(modifier: Modifier, floor: Dp, cap: Dp, need: Dp, extra: D
 
 private fun chanceBadge(t: TrackerFeature) = if (!t.hasTarget && t.checkRun.results.isNotEmpty() && !t.checkRun.busy && t.scoreQuery == null)
     when { t.worn.equippedOn != null -> "Done"; t.record?.item?.enhance == 15 -> if (t.checkRun.equipHeroes.isNotEmpty()) "Equip" else "None"; else -> t.checkRun.chance?.let { "$it%" } ?: "Advice" }
-    else if(t.sellQueueComplete)"Done" else if(t.isRollReview)if(t.readout.reviewProtected)"Guard" else "Review" else t.readout.goalOutcome?.let { when { !it.supported -> "Unknown"; t.scoreGoal!=null -> if(it.matchesNow) "Above" else if(it.rareOnly) "Rare" else if(!it.possible) "0%" else it.label(); it.matchesNow -> "Ready"; it.rareOnly -> "Rare"; !it.possible -> "Stop"; else -> it.label() } } ?: if (t.checkRun.busy) "Busy" else "Advice"
+    else if(t.sellQueueComplete)"Done" else if(t.isRollReview)if(t.readout.reviewProtected)"Guard" else "Review" else t.readout.goalOutcome?.let { when { !it.supported -> "Unknown"; t.scoreGoal!=null -> if(it.matchesNow) "Above" else if(it.rareOnly) "Rare" else if(!it.possible) "0%" else it.label(); else -> it.word() } } ?: if (t.checkRun.busy) "Busy" else "Advice"
 
 /** The piece as the game's inventory cell (tile, ES under it, stats stacked beside it), then the verdict, which opens its page. */
 @Composable
@@ -345,7 +348,7 @@ private fun QueuePage(g: AppGraph, height: Float, selected: () -> Unit) {
                         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                             FitText("#${page * perPage + offset + 1}", zen(8.sp, color = C.muted), Modifier.weight(1f))
                             val out = entry.scoreGoal?.let { e7.gearscan.opt.GearScore.forecast(item,it).outcome(it.floor) }?:entry.goal?.let { GearPotential.forecast(item,it) }
-                            FitText(if(t.isRollReview)"Review" else if(out==null||!out.supported) "Unknown" else if (out.rareOnly) "Rare" else if (!out.possible) if(entry.scoreGoal==null) "Stop" else "0%" else out.label(), zen(9.sp, color = C.blue))
+                            FitText(if(t.isRollReview)"Review" else if(out==null||!out.supported) "Unknown" else out.word(), zen(9.sp, color = C.blue))
                         }
                     }
                 }

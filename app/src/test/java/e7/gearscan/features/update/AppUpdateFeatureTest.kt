@@ -108,6 +108,8 @@ class AppUpdateFeatureTest {
         assertTrue(phone.installed.isEmpty())
         phone.canInstall = true
         g.appUpdate.resumed()
+        // the install runs off the main thread; under a loaded machine it lands a moment later
+        awaitUntil { phone.installed.size == 1 }
         assertEquals(1, phone.installed.size)
         assertNull(g.appUpdate.problem)
     }

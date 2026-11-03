@@ -248,6 +248,6 @@ private fun MatchCard(graph: AppGraph, match: FindGearMatch, q: PotentialQuery) 
 
 @Composable
 internal fun ChanceText(match: FindGearMatch, size: Int) {
-    val rare = match.outcome.rareOnly
-    FitText(when { match.outcome.matchesNow -> "Ready"; rare -> "Rare"; else -> Chance(match.outcome.chance).text }, dela(size.sp, if (rare) C.deepPink else C.blue))
+    val out = match.outcome
+    FitText(out.word(), dela(size.sp, if (out.rareOnly || !out.possible) C.deepPink else C.blue))
 }

@@ -116,7 +116,7 @@ class UpgradeCheckRun(private val t: TrackerFeature, private val ctx: FeatureCon
             }
         val withRebuilds = improveHeroes.rebuilds
         val raw =
-            "upgrade-v3-piece|$withRebuilds|" + b.toText() + content.content.version + r.toJson().toString() +
+            "upgrade-v3-piece|$withRebuilds|${improveHeroes.minGain}|" + b.toText() + content.content.version + r.toJson().toString() +
                 setups.joinToString { s -> s.hero.id.toString() + s.cfg.toJson() + s.req.toJson() + s.excluded.sorted() }
         val sig = sha256(raw)
         // each hero's best build without the piece holds for every step recorded on it
@@ -133,7 +133,7 @@ class UpgradeCheckRun(private val t: TrackerFeature, private val ctx: FeatureCon
             busy = false
             return
         }
-        val pieces = PieceCheck(content, marks, heroesFeature)
+        val pieces = PieceCheck(content, marks, heroesFeature, improveHeroes.minGain)
         val out =
             check.start {
                 val scope = this

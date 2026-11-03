@@ -31,8 +31,9 @@ import e7.gearscan.opt.*
 internal fun esKeeps(es: EsForecast.Es, rollOn: Double): Boolean? = when {
     !es.supported || es.bar == null -> null
     es.reached -> true
-    es.finishShare == 0.0 -> false
     es.chance == 0.0 && es.possible -> false
+    // nothing left to enhance and a reforge can't lift it either
+    es.finishShare == 0.0 && es.chance == 0.0 -> false
     else -> es.worthRolling(rollOn)
 }
 
@@ -41,7 +42,7 @@ internal fun EsChip(es: EsForecast.Es, rollOn: Double, fill: Boolean = false, mo
     val text = when {
         !es.supported || es.bar == null -> "No forecast"
         es.reached -> "At bar ${es.bar}"
-        es.finishShare == 0.0 -> "Below bar ${es.bar}"
+        es.finishShare == 0.0 && es.chance == 0.0 -> "Below bar ${es.bar}"
         es.chance == 0.0 && es.possible -> "Rare only"
         else -> "${Chance(es.chance).text} reach ${es.bar}"
     }
