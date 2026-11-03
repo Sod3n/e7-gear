@@ -268,14 +268,13 @@ fun SellFiltersScreen(graph: AppGraph) {
                 Text("${pending.size} pieces to review",style=dela(19.sp))
                 if(result.query.minimumProcs>0||result.query.maximumTotalQuality!=null)Text("${if(result.query.minimumProcs>0)"${result.query.minimumProcs}+ upgrades · " else ""}${rollLimitText(result.query)}",style=zen(11.sp,color=C.blue))
                 if(result.query.scoreFilter)Text("Additional combined-value filter applied",style=zen(11.sp,color=C.muted))
-                if(guarded.isNotEmpty()||byBar.isNotEmpty()||unknown.isNotEmpty()||graph.marks.kept.isNotEmpty()) {
+                if(guarded.isNotEmpty()||byBar.isNotEmpty()||unknown.isNotEmpty()) {
                     VSpace(8.dp)
                     @OptIn(ExperimentalLayoutApi::class)
                     FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                         if(guarded.isNotEmpty())Pill("${guarded.size} kept by safeguards",selected=category==1,onClick={ category=if(category==1)0 else 1;count=20 })
                         if(byBar.isNotEmpty())Pill("${byBar.size} kept by ES bar",selected=category==3,onClick={ category=if(category==3)0 else 3;count=20 })
                         if(unknown.isNotEmpty())Pill("${unknown.size} no forecast",selected=category==2,onClick={ category=if(category==2)0 else 2;count=20 })
-                        if(graph.marks.kept.isNotEmpty())Pill("${graph.marks.kept.size} kept",onClick={ graph.nav.go(Screen.SellKept) })
                     }
                     if(category==2) { VSpace(6.dp);Text("No roll history, so no forecast.",style=zen(11.sp,color=C.muted)) }
                     if(category==1) { VSpace(6.dp);Text("Can still reach a stat you protect.",style=zen(11.sp,color=C.muted)) }

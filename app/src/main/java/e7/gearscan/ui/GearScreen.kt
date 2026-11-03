@@ -34,7 +34,7 @@ fun GearScreen(graph: AppGraph) {
             else -> sellReview.result!!.matches.count { it.item.id !in graph.marks.reviewed && !sellReview.keptByBar(it) }.let { "$it to review" }
         }
         ModeCard("Sell review", "Sell or keep each piece, with its ES now and at +15.",
-            listOfNotNull(sell, graph.marks.kept.size.takeIf { it > 0 }?.let { "$it kept" }).joinToString(" · ")) {
+            sell) {
             graph.nav.go(Screen.SellFilters)
         }
         val check = graph.improveHeroes.heroUpgrades

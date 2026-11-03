@@ -91,7 +91,7 @@ fun HeroUpgradesScreen(graph: AppGraph, heroId: Long?) {
             if (!running) Intro(graph)
             return@Frame
         }
-        if (graph.improveHeroes.stale) Notice("Your gear or setups changed since this check. Pieces that are gone dropped out; check again for the current answer.")
+        if (graph.improveHeroes.stale) Notice("Gear or setups changed since this check")
         if (one != null || heroId != null) {
             if (one == null) Text("This hero has no saved setup in this check.", style = zen(12.sp, FontWeight.Medium, C.muted))
             else HeroPage(graph, one)

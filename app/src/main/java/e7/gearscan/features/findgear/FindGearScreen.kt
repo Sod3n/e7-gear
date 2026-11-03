@@ -212,7 +212,6 @@ private fun Matches(graph: AppGraph, result: FindGearResult, fresh: Boolean, edi
             Text("No piece can reach these targets", style = dela(16.sp))
             VSpace(6.dp)
             Text("Lower a target or widen the filters.", style = zen(12.sp, FontWeight.Medium, C.muted))
-            if (result.unsupported > 0) Text("${result.unsupported} not checked: no forecast for them.", style = zen(12.sp, FontWeight.Medium, C.muted))
             VSpace(12.dp)
             if (result.rareHidden > 0) CardAction(Action("Show ${result.rareHidden} with rare rolls") {
                 graph.findGear.edit(withChanceStop(graph.findGear.query, 0)); graph.messages.show(graph.findGear.find())

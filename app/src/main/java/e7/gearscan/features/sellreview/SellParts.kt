@@ -189,16 +189,16 @@ internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.R
             // estimates: shown rounded and with ~ so they never read as exact
             fun rough(x: Double): String { val m = x / 1e6; return "~" + when { m >= 100 -> "${kotlin.math.round(m).toLong()}M"; m >= 1 -> String.format(java.util.Locale.US, "%.1fM", m); else -> "${kotlin.math.round(x / 1e3).toLong()}k" } }
             val extraText = extra?.takeIf { it.isFinite() && good - curve.good[index + 1] > 1e-3 }?.let { rough(it) }
-            StatTile("Good pieces kept", "~$g of $all", (good / curve.possible.coerceAtLeast(1e-9)).toFloat(), C.blue, Modifier.weight(1f).fillMaxHeight(), short = "~$g") {
+            StatTile("Good pieces kept", "~$g of $all", (good / curve.possible.coerceAtLeast(1e-9)).toFloat(), C.blue, Modifier.weight(1f).fillMaxHeight(), short = "~$g", labelShort = "Good") {
                 explain("Good pieces kept", "Pieces from your list (${curve.pieces}) that end at or above your ES bar. If every one were taken to +15, about $all would make it. " +
                     "At $at, a piece stops after any +3 that leaves it below a $at chance, so about $g still make it. Counted over every way the remaining rolls can land, weighted by how likely each is. " + ESTIMATE)
             }
-            StatTile("Total gold", rough(gold), (gold / curve.allGold.coerceAtLeast(1.0)).toFloat(), C.deepPink, Modifier.weight(1f).fillMaxHeight()) {
+            StatTile("Total gold", rough(gold), (gold / curve.allGold.coerceAtLeast(1.0)).toFloat(), C.deepPink, Modifier.weight(1f).fillMaxHeight(), labelShort = "Gold") {
                 explain("Total gold", "Enhance gold for the pieces in your list, from their current level. Each +3 is paid only while a piece is still being rolled; " +
                     "it stops once its chance drops below $at. Finishing every piece to +15 would cost ${rough(curve.allGold)}. " +
                     "Uses the enhancement-stone price; gold already spent and gold from selling are not counted. " + ESTIMATE)
             }
-            StatTile("Each extra piece", extraText ?: "—", null, C.ink, Modifier.weight(1f).fillMaxHeight()) {
+            StatTile("Each extra piece", extraText ?: "—", null, C.ink, Modifier.weight(1f).fillMaxHeight(), labelShort = "Per piece") {
                 explain("Each extra piece", "What one more good piece costs when you roll a little longer: the gold at $at minus the gold one step stricter on the slider, " +
                     "divided by how many more good pieces that buys." + (extraText?.let { " Here about $it per piece." } ?: " At the strictest setting there is no step to compare with.") + " " + ESTIMATE)
             }
@@ -207,12 +207,13 @@ internal fun KeepRollingSlider(value: Double, curve: e7.gearscan.opt.KeepCurve.R
 }
 
 @Composable
-private fun StatTile(label: String, value: String, fill: Float?, color: androidx.compose.ui.graphics.Color, modifier: Modifier, short: String? = null, explain: (() -> Unit)? = null) {
+private fun StatTile(label: String, value: String, fill: Float?, color: androidx.compose.ui.graphics.Color, modifier: Modifier, short: String? = null, labelShort: String? = null,
+                     explain: (() -> Unit)? = null) {
     val shape = RoundedCornerShape(12.dp)
     Column(modifier.padding(bottom = 3.dp).hardShadow(C.shadow, 0.dp, 3.dp, 12.dp).clip(shape).background(C.card).border(1.5.dp, C.edge, shape).tap(explain).padding(horizontal = 9.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, style = zen(10.sp, color = C.muted), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Box(Modifier.weight(1f)) { FitText(label, zen(10.sp, color = C.muted), short = labelShort) }
             if (explain != null) Text("?", style = dela(11.sp, C.muted))
         }
         FitText(value, dela(16.sp, color), short = short)

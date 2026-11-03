@@ -86,7 +86,7 @@ private fun Tracked(graph: AppGraph, t: TrackerFeature, selected: UpgradeRecord,
     }
     // what the rail over the game doesn't carry: fixing an entry, taking one back, closing it
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (UpgradeRecord.supported(item)) OutlineButton("Correct the numbers", Modifier.fillMaxWidth(), height = 40.dp) {
+        if (UpgradeRecord.supported(item)) OutlineButton("Fix recorded stats", Modifier.fillMaxWidth(), height = 40.dp) {
             t.beginEdit(correction = true); graph.messages.show(t.openOverlay())
         }
         if (selected.history.size > 1) OutlineButton("Undo last entry", Modifier.fillMaxWidth(), height = 40.dp) {
