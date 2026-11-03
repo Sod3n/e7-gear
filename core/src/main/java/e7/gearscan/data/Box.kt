@@ -42,6 +42,12 @@ class Box(
 
     fun gameScore(item: Item) = InventoryOrder.score(item, rawItems[item.id])
 
+    fun <T> walk(
+        entries: List<T>,
+        byEs: Boolean = true,
+        item: (T) -> Item,
+    ) = InventoryOrder.walk(entries, item, if (byEs) ::gameScore else null)
+
     fun gearOf(heroId: Long): Map<Slot, Item> = items.filter { it.equippedOn == heroId }.associateBy { it.slot }
 
     fun setEquipped(

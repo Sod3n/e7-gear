@@ -43,6 +43,14 @@ class FindGearFeature(ctx: FeatureContext, private val content: ContentFeature, 
     var query by saved("query", PotentialQuery(), Codecs.obj({ it.toJson() }, { PotentialQuery.of(it) }))
         private set
 
+    /** On: matches and Track all follow the game's filters (set, slot tab, level) instead of the best chance first. */
+    var grouped by saved("grouped", false, Codecs.bool)
+
+    fun <T> ordered(
+        list: List<T>,
+        item: (T) -> Item,
+    ) = scanFeature.box?.takeIf { grouped }?.walk(list, item = item) ?: list
+
     private val search = freshWork<Inputs, FindGearResult>("Find gear") { Inputs(query, scanFeature.lastScan, recordedSteps()) }
 
     val result get() = search.result
@@ -125,7 +133,7 @@ class FindGearFeature(ctx: FeatureContext, private val content: ContentFeature, 
         val b = scanFeature.box ?: return Plan.Stop(Outcome.Failed("Scan your gear first."))
         if (busy || stale) return Plan.Stop(Outcome.Failed("Update the matches before starting a new list."))
         val cleared = marks.cleared
-        val entries = applied.withOdds.mapNotNull { match ->
+        val entries = ordered(applied.withOdds) { it.item }.mapNotNull { match ->
             val original = b.itemsById[match.item.id]?.takeIf { it.id !in cleared } ?: return@mapNotNull null
             val set = content.content.set(original.set)
             original to TrackerFeature.QueueEntry(original.id, applied.query.goal(b.canReforge(original.id)), set?.name ?: original.set.removeSuffix("Set"), set?.icon)

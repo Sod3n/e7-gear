@@ -6,9 +6,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,5 +80,45 @@ internal fun GoalLines(item: Item, minimums: Map<GearStat, Double>, size: Int = 
             }
         }
         note?.let { Text(it, style = zen((size - 1).sp, FontWeight.Medium, C.muted)) }
+    }
+}
+
+/** Groups a list the way the game's filters find its pieces: set, slot tab, level. */
+@Composable
+internal fun GroupPill(on: Boolean, onChange: (Boolean) -> Unit) = Pill("By set", selected = on, onClick = { onChange(!on) })
+
+/** Where the player switches the game's filters: the set, slot and level of the pieces under it, and how many there are. */
+@Composable
+internal fun GroupHeader(graph: AppGraph, item: Item, count: Int) {
+    val set = graph.content.content.set(item.set)
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        val nameWidth = maxWidth / 2
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            SetIcon(set?.icon, 18.dp)
+            Text(set?.name ?: item.set.removeSuffix("Set"), style = dela(14.sp), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = nameWidth))
+            GearIcon(item.slot.icon, 16.dp, C.ink)
+            Text("Lv.${item.level}", style = zen(12.sp, FontWeight.Medium, C.muted), softWrap = false)
+            Box(Modifier.weight(1f).height(6.dp).drawBehind {
+                val w = 2.dp.toPx()
+                drawRect(C.edge, size = Size(size.width, w))
+                drawRect(C.edge, topLeft = Offset(0f, size.height - w), size = Size(size.width, w))
+            })
+            Text("$count", style = zen(11.sp, FontWeight.Bold, C.muted))
+        }
+    }
+}
+
+/** [shown] with a [GroupHeader] where the set, slot or level changes; the counts are over [all]. */
+@Composable
+internal fun <T> GroupedRows(graph: AppGraph, grouped: Boolean, shown: List<T>, all: List<T>, item: (T) -> Item?, row: @Composable (T) -> Unit) {
+    val counts = remember(all, grouped) { if (grouped) all.mapNotNull(item).groupingBy(InventoryOrder::group).eachCount() else emptyMap() }
+    var last: Any? = null
+    shown.forEach { r ->
+        val i = item(r)
+        if (grouped && i != null && InventoryOrder.group(i) != last) {
+            last = InventoryOrder.group(i)
+            GroupHeader(graph, i, counts[last] ?: 0)
+        }
+        row(r)
     }
 }

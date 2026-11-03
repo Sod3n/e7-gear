@@ -94,6 +94,26 @@ class FindGearFeatureTest {
         assertFalse(g.findGear.stale)
     }
 
+    @Test fun trackAllFollowsTheListGroupedByTheGamesFiltersOnlyWhenAsked() = runTest(UnconfinedTestDispatcher()) {
+        val g = graph(this)
+        assertFalse(g.findGear.grouped)
+        assertTrue(g.sellReview.grouped)
+        found(g)
+        val odds = g.findGear.result!!.withOdds
+        assertEquals(Outcome.Done, g.trackAllMatches(openOverlay = false))
+        assertEquals(odds.map { it.item.id }, g.tracker.queue.map { it.id })
+
+        g.findGear.grouped = true
+        assertEquals(Outcome.Done, g.trackAllMatches(openOverlay = false))
+        val shown = g.findGear.ordered(odds) { it.item }.map { it.item }
+        assertEquals(shown.map { it.id }, g.tracker.queue.map { it.id })
+        val groups = shown.map { Triple(it.set, it.slot, it.level) }
+        assertTrue(groups.distinct().size > 1)
+        assertEquals(groups.distinct().size, groups.zipWithNext().count { (a, b) -> a != b } + 1)
+        assertEquals(shown.map { it.set }.distinct().size, shown.zipWithNext().count { (a, b) -> a.set != b.set } + 1)
+        assertEquals(odds.first().item.set, shown.first().set)
+    }
+
     @Test fun trackAllOnAStaleResultFails() = runTest(UnconfinedTestDispatcher()) {
         val g = graph(this)
         found(g)

@@ -25,12 +25,16 @@ fun SellKeptScreen(graph: AppGraph) {
     // kept keeps the order pieces were kept in
     val all = graph.marks.kept.toList().mapNotNull { box?.itemsById?.get(it) }
     fun es(item: Item) = InventoryOrder.score(item)
+    val grouped = graph.sellReview.keptGrouped
     val shown = all.filter { (slots.isEmpty() || it.slot in slots) && (sets.isEmpty() || it.set in sets) }.let { list ->
         when (sort) { 0 -> list.asReversed(); 1 -> list.sortedBy(::es); else -> list.sortedByDescending(::es) }
-    }
+    }.let { list -> if (grouped && box != null) box.walk(list, byEs = false) { it } else list }
     Frame(graph, null) {
         BackToPrevious(); ScreenTitle("Kept pieces")
-        Text("${all.size} kept", style = zen(12.sp, color = C.muted))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("${all.size} kept", style = zen(12.sp, color = C.muted), modifier = Modifier.weight(1f))
+            GroupPill(grouped) { graph.sellReview.keptGrouped = it }
+        }
         CardGrid(Slot.entries, columns = 3, gap = 6.dp) { s, m ->
             Pill(s.label, m, selected = s in slots, onClick = { slots = if (s in slots) slots - s else slots + s; count = 30 },
                 leading = { GearIcon(s.icon, 14.dp, if (s in slots) C.onAccent else C.ink) })
@@ -43,7 +47,7 @@ fun SellKeptScreen(graph: AppGraph) {
         }
         Segmented(listOf("Newest", "Lowest ES", "Highest ES"), sort) { sort = it }
         if (shown.isEmpty()) Card { Text(if (all.isEmpty()) "Nothing kept yet. Tap Keep in Sell review." else "No kept piece matches these filters.", style = zen(13.sp)) }
-        shown.take(count).forEach { item ->
+        GroupedRows(graph, grouped, shown.take(count), shown, { it }) { item ->
             val view = if (item.enhance < 15) UpgradeRecord.fromScan(item) else item
             Card(shadow = null, padding = PaddingValues(10.dp)) {
                 GearSearchIdentity(graph, item, showEs = false) { Text("ES ${es(item)}", style = dela(13.sp)) }

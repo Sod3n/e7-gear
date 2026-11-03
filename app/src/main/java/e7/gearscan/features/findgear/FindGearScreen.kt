@@ -173,8 +173,9 @@ internal fun HelpRow(graph: AppGraph) {
 @Composable
 private fun Matches(graph: AppGraph, result: FindGearResult, fresh: Boolean, edit: () -> Unit) {
     val applied = result.query
-    val odds = result.withOdds
-    val rare = result.rareOnly
+    val grouped = graph.findGear.grouped
+    val odds = remember(result, grouped, graph.scan.box) { graph.findGear.ordered(result.withOdds) { it.item } }
+    val rare = remember(result, grouped, graph.scan.box) { graph.findGear.ordered(result.rareOnly) { it.item } }
     var count by rememberSavedFor(result, 20)
     var rareOpen by rememberSaveable(System.identityHashCode(result)) { mutableStateOf(false) }
     var rareCount by rememberSavedFor(result to "rare", 20)
@@ -193,8 +194,13 @@ private fun Matches(graph: AppGraph, result: FindGearResult, fresh: Boolean, edi
         Spinner(); Text("Checking your gear", style = zen(12.sp))
     }
     val dim = if (fresh) Modifier else Modifier.alpha(.45f)
-    if (odds.isNotEmpty()) Text("${odds.size} can reach it at +15", style = dela(16.sp))
-    else if (rare.isNotEmpty()) Text("None with usual rolls", style = dela(16.sp))
+    if (odds.isNotEmpty() || rare.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.weight(1f)) {
+            if (odds.isNotEmpty()) FitText("${odds.size} can reach it at +15", dela(16.sp), short = "${odds.size} can reach it")
+            else FitText("None with usual rolls", dela(16.sp))
+        }
+        GroupPill(grouped) { graph.findGear.grouped = it }
+    }
     else Card {
         val best = result.bestBelow
         if (best != null) {
@@ -215,12 +221,12 @@ private fun Matches(graph: AppGraph, result: FindGearResult, fresh: Boolean, edi
         }
     }
     Column(dim, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        odds.take(count).forEach { MatchCard(graph, it, applied) }
+        GroupedRows(graph, grouped, odds.take(count), odds, { it.item }) { MatchCard(graph, it, applied) }
         if (count < odds.size) OutlineButton("Show 20 more", Modifier.fillMaxWidth(), height = 42.dp) { count += 20 }
         if (rare.isNotEmpty()) Fold("${rare.size} need a rare roll", rareOpen, { rareOpen = !rareOpen }) {
             Text("A rare roll is a value the game allows but almost never gives, like Speed +5 on level 85 gear. It lands too seldom to put a " +
                 "number on, so these pieces show no percent and stay out of the count and Track all.", style = zen(12.sp, FontWeight.Medium, C.muted))
-            rare.take(rareCount).forEach { MatchCard(graph, it, applied) }
+            GroupedRows(graph, grouped, rare.take(rareCount), rare, { it.item }) { MatchCard(graph, it, applied) }
             if (rareCount < rare.size) OutlineButton("Show 20 more", Modifier.fillMaxWidth(), height = 42.dp) { rareCount += 20 }
         }
     }

@@ -254,10 +254,17 @@ fun SellFiltersScreen(graph: AppGraph) {
         }else if(result==null)Card {
             Text("Tap Find matches",style=dela(17.sp))
         }else {
-            val done=graph.marks.reviewed;val pending=result.matches.filter { it.item.id !in done }
-            val guarded=result.rows.filter { it.protected&&it.item.id !in done };val unknown=result.rows.filter { it.unknown&&!it.protected&&it.item.id !in done }
+            val done=graph.marks.reviewed;val grouped=graph.sellReview.grouped
+            // ordered over the whole result, so marking a piece never reorders the groups left
+            val matches=remember(result,grouped,graph.scan.box) { graph.sellReview.ordered(result.matches) { it.item } }
+            val rows=remember(result,grouped,graph.scan.box) { graph.sellReview.ordered(result.rows) { it.item } }
+            val pending=matches.filter { it.item.id !in done }
+            val guarded=rows.filter { it.protected&&it.item.id !in done };val unknown=rows.filter { it.unknown&&!it.protected&&it.item.id !in done }
             Card(shadow=null,padding=PaddingValues(12.dp)) {
-                Text("${pending.size} pieces to review",style=dela(19.sp))
+                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.weight(1f)) { FitText("${pending.size} pieces to review",dela(19.sp),short="${pending.size} to review") }
+                    GroupPill(grouped) { graph.sellReview.grouped=it }
+                }
                 val rolling=pending.mapNotNull { it.es }.filter { it.finishShare>0&&it.worthRolling(q.rollOn)&&!it.reached }
                 if(rolling.isNotEmpty())Text("${rolling.size} worth rolling now",style=zen(12.sp,color=C.blue))
                 if(result.query.minimumProcs>0||result.query.maximumTotalQuality!=null)Text("${if(result.query.minimumProcs>0)"${result.query.minimumProcs}+ upgrades · " else ""}${rollLimitText(result.query)}",style=zen(11.sp,color=C.blue))
@@ -279,7 +286,7 @@ fun SellFiltersScreen(graph: AppGraph) {
             if(shown.isEmpty())Card {
                 Text("Nothing matches",style=dela(17.sp))
             }
-            shown.take(count).forEach { row->Card(shadow=null,radius=14.dp,border=2.dp,padding=PaddingValues(12.dp)) {
+            GroupedRows(graph,grouped,shown.take(count),shown,{ it.item }) { row->Card(shadow=null,radius=14.dp,border=2.dp,padding=PaddingValues(12.dp)) {
                 Column(Modifier.tap { openSell(graph,SheetKind.SELL_DETAILS,row.item.id) }) {
                     SellCardHead(graph,row)
                     VSpace(10.dp)

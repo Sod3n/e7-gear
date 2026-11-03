@@ -86,6 +86,18 @@ class ImproveHeroesFeature(ctx: FeatureContext, private val contentFeature: Cont
 
     /** Off: a finish counts only put in place of the hero's piece in that slot, nothing else moving. On: any build the search finds. */
     var rebuilds by saved("rebuilds", false, Codecs.bool)
+
+    /** On: the piece list and Track all follow the game's filters (set, slot tab, level). */
+    var grouped by saved("grouped", false, Codecs.bool)
+
+    fun <T> ordered(
+        list: List<T>,
+        item: (T) -> Item?,
+    ): List<T> {
+        val b = scanFeature.box?.takeIf { grouped } ?: return list
+        val (known, gone) = list.partition { item(it) != null }
+        return b.walk(known) { item(it)!! } + gone
+    }
     val result = savedFile("hero_upgrades.json", backup = false, path = "hero_upgrades.json")
     val progress = savedFile("hero_upgrades_progress.json", backup = false, path = "hero_upgrades_progress.json")
     val run = work<Unit>("Improve heroes check", Weight.Heavy, notice = "Finding upgrades for your heroes")

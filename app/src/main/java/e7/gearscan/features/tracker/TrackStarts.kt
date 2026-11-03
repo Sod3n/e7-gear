@@ -6,7 +6,6 @@ import e7.gearscan.features.records.RecordsFeature
 import e7.gearscan.features.scan.ScanFeature
 import e7.gearscan.state.FeatureContext
 import e7.gearscan.Screen
-import e7.gearscan.data.InventoryOrder
 import e7.gearscan.data.Item
 import e7.gearscan.data.SellQuery
 import e7.gearscan.data.UpgradeRecord
@@ -57,8 +56,7 @@ class TrackStarts(private val t: TrackerFeature, private val ctx: FeatureContext
                         row.goal.reforgeAllowed, row.goal.supported,
                     )
             }
-        val walked = scan.box?.let { b -> InventoryOrder.walk(entries, { it.first }, b::gameScore) } ?: entries
-        t.startQueue(walked, scan.lastScan, query)
+        t.startQueue(entries, scan.lastScan, query)
         t.configure()
         show()
         return if (openOverlay) t.openOverlay() else Outcome.Done

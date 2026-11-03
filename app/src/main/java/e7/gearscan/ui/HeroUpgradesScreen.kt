@@ -58,7 +58,7 @@ fun HeroUpgradesScreen(graph: AppGraph, heroId: Long?) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val listed = when {
         one != null -> one.rows.map { it.pick.piece }
-        tab == 1 -> view?.let { piecesOf(graph, it).map { p -> p.first } }.orEmpty()
+        tab == 1 -> view?.let { v -> if (graph.improveHeroes.grouped) byPiece(graph, v).let { (a, b) -> a + b } else piecesOf(graph, v) }?.map { p -> p.first }.orEmpty()
         else -> view?.flatMap { h -> h.rows.map { it.pick.piece } }?.distinct().orEmpty()
     }.filter { it !in graph.marks.cleared }
     Frame(null, null,
@@ -227,15 +227,25 @@ private fun piecesOf(graph: AppGraph, view: List<HeroUpgradeHero>): List<Pair<Lo
         .sortedWith(compareByDescending<Pair<Long, List<Pair<HeroUpgradeHero, HeroUpgradeRow>>>> { graph.heroes.tier(it.second.first().first.hero.id) }
             .thenByDescending { it.second.first().second.expected }.thenBy { it.first })
 
+/** The likely pieces and the long shots, each in the list's order (by the game's filters when grouped). */
+private fun byPiece(graph: AppGraph, view: List<HeroUpgradeHero>) =
+    piecesOf(graph, view).partition { (_, hs) -> hs.maxOf { it.second.hits } > LONG_SHOT }
+        .let { (likely, long) -> listOf(likely, long).map { graph.improveHeroes.ordered(it) { p -> graph.scan.box?.itemsById?.get(p.first) } } }
+        .let { it[0] to it[1] }
+
 @Composable
 private fun ByPiece(graph: AppGraph, view: List<HeroUpgradeHero>) {
-    val all = remember(view) { piecesOf(graph, view) }
-    val (likely, long) = all.partition { (_, hs) -> hs.maxOf { it.second.hits } > LONG_SHOT }
+    val grouped = graph.improveHeroes.grouped
+    val (likely, long) = remember(view, grouped) { byPiece(graph, view) }
     var count by rememberSavedFor(view, 20)
     var showLong by rememberSavedFor(view, false)
     val shown = likely + if (showLong) long else emptyList()
-    shown.take(count).forEach { (id, heroes) ->
-        val item = heroUpgradeItem(graph, id) ?: return@forEach
+    if (likely.isNotEmpty() || long.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionTitle("Pieces", Modifier.weight(1f), trailing = "${likely.size + long.size}")
+        GroupPill(grouped) { graph.improveHeroes.grouped = it }
+    }
+    GroupedRows(graph, grouped, shown.take(count), shown, { graph.scan.box?.itemsById?.get(it.first) }) { (id, heroes) ->
+        val item = heroUpgradeItem(graph, id) ?: return@GroupedRows
         val r0 = heroes.first().second
         Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp), onClick = { graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, id) }) {
             GearSearchIdentity(graph, item, owner = true) { Odds(r0) }

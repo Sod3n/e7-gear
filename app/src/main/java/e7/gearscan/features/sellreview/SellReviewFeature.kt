@@ -40,6 +40,15 @@ import kotlinx.coroutines.withContext
 class SellReviewFeature(ctx: FeatureContext, private val content: ContentFeature, private val scanFeature: ScanFeature, private val marks: MarksFeature, private val recordsFeature: RecordsFeature, private val heroes: HeroesFeature, private val pool: PoolFeature) : Feature(ctx, "sellReview") {
     var query by saved("query", SellQuery(), Codecs.obj({ it.toJson() }, { SellQuery.of(it) }))
         private set
+
+    /** Lists and the walk over the game follow the game's filters: set, slot tab, level. */
+    var grouped by saved("grouped", true, Codecs.bool)
+    var keptGrouped by saved("keptGrouped", false, Codecs.bool)
+
+    fun <T> ordered(
+        list: List<T>,
+        item: (T) -> Item,
+    ) = scanFeature.box?.takeIf { grouped }?.walk(list, item = item) ?: list
     val progress = savedFile("sell_progress.jsonl", backup = false, path = "sell_progress.jsonl")
     val run = work<Unit>("Sell review", Weight.Heavy, notice = "Checking sell filters")
     val curve = work<Unit>("Keep curve")
@@ -159,7 +168,7 @@ class SellReviewFeature(ctx: FeatureContext, private val content: ContentFeature
         val b = scanFeature.box ?: return Plan.Stop(Outcome.Done)
         val reviewed = marks.reviewed
         val rows =
-            found.matches.filter { id == null || it.item.id == id }
+            ordered(found.matches) { it.item }.filter { id == null || it.item.id == id }
                 .mapNotNull { row -> b.itemsById[row.item.id]?.takeIf { it.id !in reviewed }?.let { it to row } }
         if (rows.isEmpty()) return Plan.Stop(Outcome.Failed("No matching pieces remain. Update the search."))
         return Plan.Go(rows to found.query)

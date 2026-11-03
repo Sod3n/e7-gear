@@ -91,6 +91,8 @@ class HeroUpgradeScreens {
             val tag = "$w-${if (f > 1f) "big" else "1x"}"
             ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) }; shoot("3-by-hero-$tag")
             rule.onAllNodesWithText("By piece", useUnmergedTree = true)[0].performTouchInput { click() }; shoot("3d-by-piece-$tag")
+            rule.onAllNodesWithText("By set", useUnmergedTree = true)[0].performTouchInput { click() }; check(graph.improveHeroes.grouped); shoot("3e-by-piece-grouped-$tag")
+            rule.onAllNodesWithText("By set", useUnmergedTree = true)[0].performTouchInput { click() }; check(!graph.improveHeroes.grouped)
             rule.onAllNodesWithText("By hero", useUnmergedTree = true)[0].performTouchInput { click() }
             ui { graph.nav.stack = listOf(Screen.Gear, Screen.HeroUpgrades(), Screen.HeroUpgrades(hero.hero.id)) }; shoot("4-hero-$tag")
             ui { graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_PIECE, row.pick.piece) }; shoot("5-piece-$tag")
