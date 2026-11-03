@@ -42,6 +42,31 @@ object InventoryOrder {
             "res" to GearStat.RES,
         )
 
+    private val grades = mapOf("Epic" to 5, "Heroic" to 4, "Rare" to 3)
+
+    /** A batch in the order the game's inventory shows it: set by set (as the list first meets them), slot tab, level, then the ES grid. */
+    fun <T> walk(
+        entries: List<T>,
+        item: (T) -> Item,
+        es: (Item) -> Int,
+    ): List<T> {
+        val items = entries.map(item)
+        val sets = HashMap<String, Int>()
+        val set = items.map { sets.getOrPut(it.set) { sets.size } }
+        val score = items.map(es)
+        return entries.indices
+            .sortedWith(
+                compareBy(
+                    { set[it] },
+                    { items[it].slot.ordinal },
+                    { items[it].level },
+                    { score[it] },
+                    { grades[items[it].rank] ?: 2 },
+                    { items[it].id },
+                ),
+            ).map(entries::get)
+    }
+
     fun score(
         item: Item,
         raw: JSONObject? = null,

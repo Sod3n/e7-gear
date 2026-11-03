@@ -114,6 +114,13 @@ class SellFiltersScreens {
         ui { graph.trackMatches(openOverlay=false) }
         val t=graph.tracker
         assertEquals(n,t.queue.size);assertTrue(t.isRollReview);assertTrue(t.queue.all { it.scoreGoal==null&&it.goal==null });noPoints();shot("12-review-tracker")
+        // the review walks the game's filters: one set, its slot tabs, one level at a time
+        val box=graph.scan.box!!;val listed=result.matches.map { it.item };val walked=t.queue.map { box.itemsById.getValue(it.id) }
+        fun <K> contiguous(keys:List<K>)=keys.zipWithNext().count { (a,b)->a!=b }+1==keys.distinct().size
+        fun changes(l:List<Item>)=listOf<(Item)->Any>({ it.set },{ it.slot },{ it.level }).map { k->l.zipWithNext().count { (a,b)->k(a)!=k(b) } }
+        assertEquals(listed.map { it.id }.sorted(),walked.map { it.id }.sorted());assertEquals(listed.first().set,walked.first().set)
+        assertTrue(contiguous(walked.map { it.set }));assertTrue(contiguous(walked.map { it.set to it.slot }));assertTrue(contiguous(walked.map { Triple(it.set,it.slot,it.level) }))
+        File(ctx.getExternalFilesDir(null),"sell-filters/walk.txt").writeText("$n pieces; set/slot/level changes in list order ${changes(listed)}, walked ${changes(walked)}\n")
         ui { graph.overlay.expanded=true;graph.overlay.usableHeightDp=240f;overlay=true }
         noPoints();shot("13-overlay-review",true)
         rule.onNodeWithContentDescription("Next gear").performClick();rule.waitForIdle();assertEquals(1,t.queueIndex);shot("14-overlay-next",true)

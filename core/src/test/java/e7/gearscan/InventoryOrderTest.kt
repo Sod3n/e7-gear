@@ -50,6 +50,27 @@ class InventoryOrderTest {
         assertEquals(8, InventoryOrder.score(box(percent).items[0], percent)) // 12*.4 + 30*.135
     }
 
+    @Test fun aBatchWalksSetThenSlotTabThenLevelThenTheEsGrid() {
+        fun piece(
+            id: Long,
+            set: String,
+            slot: String,
+            level: Int,
+            speed: Double = 10.0,
+        ) = raw(id, slot = slot, speed = speed).put("set", set).put("level", level)
+        val b =
+            box(
+                piece(1, "HitSet", "Ring", 85),
+                piece(2, "SpeedSet", "Weapon", 88),
+                piece(3, "HitSet", "Weapon", 85, speed = 13.0),
+                piece(4, "SpeedSet", "Weapon", 85),
+                piece(5, "HitSet", "Weapon", 85),
+                piece(6, "HitSet", "Weapon", 88),
+                piece(7, "HitSet", "Helmet", 85),
+            )
+        assertEquals(listOf(5L, 3L, 6L, 7L, 1L, 4L, 2L), InventoryOrder.walk(b.items, { it }, b::gameScore).map { it.id })
+    }
+
     @Test fun personalScanMatchesTheGamesScores() {
         val fixture = System.getenv("E7_FIXTURES")?.let { File(it, "gear.txt") }
         val expected = System.getenv("E7_GAME_SORT_EXPECTED")?.let(::File)

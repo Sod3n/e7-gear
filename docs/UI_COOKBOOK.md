@@ -39,7 +39,11 @@ an internal baseline.
   "enchancment filter does make sense only on upgrade steps, not for each level".
 - Said (2026-11-03): "can you show percents instead of \"1 in x\" metric? Everywhere in app." Chances are percents
   through `Chance` (two significant digits; 0% and 100% only when certain); SourceRulesTest bans "1 in N".
-- Ask: could a player check this number against something in the game? Is the unit one they already think in?
+- Said (2026-11-03): "group batch reviews by set -> slot -> level, so you dont need to jump back and forward". A walk
+  over the game follows the game's own filters: Sell review's walk goes set filter, slot tab, level filter, then up the ES
+  grid (`InventoryOrder.walk`). Best-first lists (Find gear, Improve heroes) keep their rank, since players stop early.
+- Ask: could a player check this number against something in the game? Is the unit one they already think in? Does a
+  walk over the game visit pieces in the order the game's filters find them?
 - Example: GS became the game's Equipment Score; cost became gold; enhancement filters step +0/+3/…/+15.
 
 ### 4. Numbers are honest

@@ -40,6 +40,8 @@ class Box(
 
     fun hero(id: Long) = allHeroes.firstOrNull { it.id == id }
 
+    fun gameScore(item: Item) = InventoryOrder.score(item, rawItems[item.id])
+
     fun gearOf(heroId: Long): Map<Slot, Item> = items.filter { it.equippedOn == heroId }.associateBy { it.slot }
 
     fun setEquipped(
