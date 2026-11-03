@@ -66,10 +66,10 @@ class QueueScreens {
         shot("31-queue-first-353-big")
         tap("›"); assertEquals(1, t.queueIndex)
         shot("32-queue-next-353-big")
-        tap("List"); shot("33-queue-list-353-big")
+        rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle(); tap("List"); shot("33-queue-list-353-big")
         rule.onNodeWithContentDescription("Next list page").performClick(); shot("34-queue-page-two-353-big")
         ui { t.selectInQueue(25) }
-        tap("Piece")
+        tap("Back")
         assertEquals(25, t.queueIndex)
         ui { graph.overlay.floatingPanel = true }
         rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle(); tap("Open E7 Gear"); assertFalse(graph.overlay.floatingPanel)

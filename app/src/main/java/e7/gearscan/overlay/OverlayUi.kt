@@ -177,6 +177,10 @@ fun OverlayTop(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean) ->
 }
 
 const val PANEL_WIDTH = 330
+
+/** The tracker over the game is a rail about as wide as the game's left bar (landscape), starting under its title row. */
+const val RAIL_WIDTH = 104
+const val RAIL_TOP = 38
 const val PANEL_GAP = 4
 const val BUBBLE = 56
 /** The bubble's window: the bubble with room for its shadow and badge. The hint's window is as tall, so the two line up. */

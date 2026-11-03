@@ -180,6 +180,7 @@ class TrackPieceScreens {
         ui { overlay = false }
         both("7b-app-equipped")
         ui { overlay = true }
+        rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle()
         rule.onNodeWithContentDescription("Undo equip").performClick()
         rule.waitForIdle()
         val back = graph.scan.box!!.itemsById.getValue(piece.id)

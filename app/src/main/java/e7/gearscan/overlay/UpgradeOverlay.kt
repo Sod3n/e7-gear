@@ -13,6 +13,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -29,7 +30,6 @@ import e7.gearscan.features.tracker.TrackerFeature
 import e7.gearscan.opt.EsForecast
 import e7.gearscan.opt.GearBounds
 import e7.gearscan.opt.GearPotential
-import e7.gearscan.features.sellreview.EsBar
 import e7.gearscan.features.sellreview.EsChip
 import e7.gearscan.ui.*
 import kotlin.math.floor
@@ -72,25 +72,26 @@ private class UpgradeDraft(val record: UpgradeRecord, val correction: Boolean) {
     fun save(t: TrackerFeature) = t.commit(main, values, if (reveal) added?.let { it to (newValue ?: Double.NaN) } else null, correction)
 }
 
-/** The queue row and its gap; the body takes this room while the row is hidden, so the buttons stay put. */
-private const val QUEUE_SLOT = 43f
-
-/** Header, buttons, gaps and padding around the body, without the queue row. */
-private const val PANEL_CHROME = 96f
+/** The rail's rows, in dp; the body takes what is left of the screen height under [RAIL_TOP]. */
+private const val RAIL_PAD = 6f
+private const val TOP_ROW = 24f
+private const val NAV_ROW = 24f
+private const val ACTION = 28f
+private const val GAP = 4f
 
 /** The least room number entry needs to stay readable. */
 private const val BODY_FLOOR = 96f
 
-/** Height PanelChoices needs to show every choice on one page, or 0 when the draft page is not a chooser. */
-private fun UpgradeDraft.chooserNeed(): Float {
-    val count = when (page) { EntryPage.CHOOSE -> choiceNames.size; EntryPage.STEP -> stepOptions.size; else -> return 0f }
-    return 55f + 34f * choiceRows(count)
+/** Room a draft page needs: every choice on its own row, or the number entry with its buttons and slider. */
+private fun UpgradeDraft.need(): Float = when (page) {
+    EntryPage.CHOOSE -> 20f + 34f * choiceNames.size
+    EntryPage.STEP -> 20f + 34f * stepOptions.size
+    EntryPage.VALUE -> 150f
+    EntryPage.REVIEW -> 0f
 }
 
-private fun choiceRows(count: Int) = (count + choiceColumns(count) - 1) / choiceColumns(count)
-private fun choiceColumns(count: Int) = if (count > 4) 3 else 2
-
-/** The tracker is a panel that ends at its piece page. Lists, long explanations and editing use explicit pages, never scroll containers. */
+/** The tracker is a narrow rail that fits the game's left bar and ends at its content. Lists, long explanations and editing use
+ *  explicit pages, never scroll containers. */
 @Composable
 fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean) -> Unit, onClose: () -> Unit) {
     val t = g.tracker
@@ -112,55 +113,54 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
         return
     }
     val config = LocalConfiguration.current
-    val scale = LocalDensity.current.fontScale
-    val usable = if (w.usableHeightDp > 0) min(config.screenHeightDp.toFloat(), w.usableHeightDp) else config.screenHeightDp.toFloat()
+    val usable = (if (w.usableHeightDp > 0) min(config.screenHeightDp.toFloat(), w.usableHeightDp) else config.screenHeightDp.toFloat()) - RAIL_TOP
     val es by produceState<EsForecast.Es?>(null, item, t.scoreQuery, t.cleared) {
         value = if (t.hasEs) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { t.readout.esFor(item) } else null
     }
     val queueRow = t.queue.isNotEmpty() && (pane == UpgradePane.PIECE || pane == UpgradePane.LIST) && !t.editing
-    val bodyCap = (usable - 12).coerceAtLeast(160f) - PANEL_CHROME - if (t.queue.isNotEmpty()) QUEUE_SLOT else 0f
-    val shape = RoundedCornerShape(16.dp)
-    Column(Modifier.popIn(w).width(PANEL_WIDTH.dp).clip(shape).background(C.card).border(2.dp, C.edge, shape)
-        .testTag("gear-tracker-panel").padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(Modifier.weight(1f).dragWindow(onMove), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                GearTile(item, 30.dp, setIcon = t.setIcon)
-                Column(Modifier.weight(1f)) {
-                    FitText(if(t.sellQueueComplete)"List complete" else item.slot.label, dela((if (scale > 1.3f) 10 else 11).sp))
-                    FitText(if(t.sellQueueComplete)"All pieces marked" else t.setName ?: item.set.removeSuffix("Set"), zen((if (scale > 1.3f) 8 else 9).sp, color = C.muted))
-                }
-            }
-            if (!t.isSellQueue) Box(Modifier.width(48.dp).tap { if (!t.editing) pane = if (!t.hasTarget) UpgradePane.ADVICE else UpgradePane.GOAL }, contentAlignment = Alignment.Center) {
-                FitText(chanceBadge(t), dela(12.sp, C.blue))
-            }
-            if(t.canUndoSold&&!t.sellQueueComplete&&!t.editing)PanelAction("Undo",Modifier.width(38.dp),label="Undo last mark") { t.undoSold();pane=UpgradePane.PIECE }
-            else if (t.worn.canUndoEquip && !t.editing) PanelAction("Undo", Modifier.width(38.dp), label = "Undo equip") { t.worn.undoEquip(); pane = UpgradePane.PIECE }
-            PanelAction(if (t.notice == null) "···" else "···!", Modifier.width(34.dp), enabled = !t.editing, label = "More") { pane = if (pane == UpgradePane.MENU) UpgradePane.PIECE else UpgradePane.MENU }
+    val slots = if (t.isSellQueue) 3 else 2
+    val actions = slots * ACTION + (slots - 1) * GAP
+    val chrome = 2 * RAIL_PAD + TOP_ROW + 2 * GAP + actions + if (t.queue.isNotEmpty()) NAV_ROW + GAP else 0f
+    val bodyCap = (usable - 12 - chrome).coerceAtLeast(BODY_FLOOR)
+    val openVerdict = { if (!t.editing) pane = if (!t.hasTarget) UpgradePane.ADVICE else UpgradePane.GOAL }
+    val menu = menuOptions(t, item)
+    // the menu and the queue list may grow the rail while they are open, so they don't page two lines at a time
+    val need = draft?.need() ?: when (pane) {
+        UpgradePane.MENU -> 8f + 34f * menu.size
+        UpgradePane.LIST -> 30f + 42f * min(t.pendingQueue.size, 6) * LocalDensity.current.fontScale.coerceAtLeast(1f)
+        else -> 0f
+    }
+    val shape = RoundedCornerShape(14.dp)
+    Column(Modifier.popIn(w).padding(end = 4.dp, bottom = 4.dp).width(RAIL_WIDTH.dp).hardShadow(C.pink, 3.dp, 3.dp, 14.dp).clip(shape).background(C.card)
+        .border(2.dp, C.edge, shape).testTag("gear-tracker-panel").padding(RAIL_PAD.dp), verticalArrangement = Arrangement.spacedBy(GAP.dp)) {
+        Row(Modifier.fillMaxWidth().height(TOP_ROW.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(GAP.dp)) {
+            PanelAction(if (t.notice == null) "···" else "···!", Modifier.width(30.dp), enabled = !t.editing, label = "More") { pane = if (pane == UpgradePane.MENU) UpgradePane.PIECE else UpgradePane.MENU }
+            Spacer(Modifier.weight(1f).fillMaxHeight().dragWindow(onMove))
             PanelAction("–", Modifier.width(30.dp), label = "Collapse tracker") { w.expanded = false; onDock(false) }
-            PanelAction("×", Modifier.width(30.dp), label = "Close tracker", click = onClose)
         }
-        if (queueRow) Row(Modifier.fillMaxWidth().height(38.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-            PanelAction("‹", Modifier.width(60.dp), enabled = t.queueIndex > 0 && !t.editing, label = "Previous gear") { t.selectInQueue(t.queueIndex - 1); pane = UpgradePane.PIECE }
-            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { FitText(if(t.sellQueueComplete)"0 remaining" else if(t.needsRollRefresh)"Refresh list for overall ranking" else if(t.isSellQueue)"${t.queueIndex + 1} / ${t.pendingQueue.size} · sell in E7 first" else "${t.queueIndex + 1} / ${t.pendingQueue.size} matches", zen(10.sp, color = C.blue)) }
-            if (!t.isSellQueue) PanelAction(if (pane == UpgradePane.LIST) "Piece" else "List", Modifier.width(46.dp), enabled = !t.editing&&!t.sellQueueComplete) { pane = if (pane == UpgradePane.LIST) UpgradePane.PIECE else UpgradePane.LIST }
-            PanelAction("›", Modifier.width(60.dp), enabled = t.queueIndex < t.pendingQueue.lastIndex && !t.editing, label = "Next gear") { t.selectInQueue(t.queueIndex + 1); pane = UpgradePane.PIECE }
+        if (queueRow) Row(Modifier.fillMaxWidth().height(NAV_ROW.dp), horizontalArrangement = Arrangement.spacedBy(GAP.dp), verticalAlignment = Alignment.CenterVertically) {
+            PanelAction("‹", Modifier.width(26.dp), enabled = t.queueIndex > 0 && !t.editing, label = "Previous gear") { t.selectInQueue(t.queueIndex - 1); pane = UpgradePane.PIECE }
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                FitText(if (t.sellQueueComplete) "0 left" else if (t.needsRollRefresh) "Refresh" else "${t.queueIndex + 1}/${t.pendingQueue.size}", zen(10.sp, color = C.blue))
+            }
+            PanelAction("›", Modifier.width(26.dp), enabled = t.queueIndex < t.pendingQueue.lastIndex && !t.editing, label = "Next gear") { t.selectInQueue(t.queueIndex + 1); pane = UpgradePane.PIECE }
         }
-        PanelBody(Modifier.fillMaxWidth(), floor = BODY_FLOOR.dp, cap = bodyCap.dp, need = (draft?.chooserNeed() ?: 0f).dp, extra = if (t.queue.isNotEmpty() && !queueRow) QUEUE_SLOT.dp else 0.dp,
-            natural = { PieceSummary(t, item, 10_000f, es, measure = true) }) {
-        BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 2.dp).testTag("gear-tracker-body")) {
+        PanelBody(Modifier.fillMaxWidth(), floor = BODY_FLOOR.dp, cap = bodyCap.dp, need = need.dp,
+            extra = if (t.queue.isNotEmpty() && !queueRow) (NAV_ROW + GAP).dp else 0.dp,
+            natural = { RailPiece(t, item, 10_000f, es, onMove, measure = true) {} }) { fits ->
+        BoxWithConstraints(Modifier.fillMaxSize().testTag("gear-tracker-body")) {
             when {
                 t.error != null -> PanelTextPages(t.error!!, maxHeight.value)
-                t.sellQueueComplete -> PanelTextPages("List complete\n\nEvery piece in this list is marked sold or kept.\n\nUndo mark restores the last local mark. Rescan after selling to refresh the game inventory.",maxHeight.value)
+                t.sellQueueComplete -> PanelTextPages("List complete\n\nEvery piece in this list is marked sold or kept.\n\nRescan after selling to refresh the game inventory.", maxHeight.value)
                 draft != null -> DraftBody(draft, maxHeight.value)
-                pane == UpgradePane.PIECE -> PieceSummary(t, item, maxHeight.value, es)
+                pane == UpgradePane.PIECE -> RailPiece(t, item, if (fits) maxHeight.value else 0f, es, onMove, onVerdict = openVerdict)
                 pane == UpgradePane.LIST -> QueuePage(g, maxHeight.value) { pane = UpgradePane.PIECE }
                 pane == UpgradePane.MENU -> {
-                    val options = listOfNotNull("Open E7 Gear", if(t.isRollReview)"Roll review" else if (!t.hasTarget) "Build advice" else "Targets", "History", "Help") + listOfNotNull("Correct".takeIf { UpgradeRecord.supported(item) }) +
-                        listOfNotNull("Track the better bet".takeIf { t.checkRun.betterBet != null },
-                            "Final build".takeIf { !t.hasTarget && t.checkRun.results.any { it.build.isNotEmpty() && (it.hits.isNotEmpty() || it.current) } },
-                            (if (t.rebuilds) "This piece only" else "Allow rebuilds").takeIf { !t.hasTarget },
-                            "Recheck builds".takeIf { !t.hasTarget }, "Notice".takeIf { t.notice != null })
+                    val options = menu
                     PanelChoices(options, maxHeight.value, "") { i -> when (options[i]) {
+                        "Undo last mark" -> { t.undoSold(); pane = UpgradePane.PIECE }
+                        "Undo equip" -> { t.worn.undoEquip(); pane = UpgradePane.PIECE }
+                        "List" -> pane = UpgradePane.LIST
                         "Open E7 Gear" -> { pane = UpgradePane.PIECE; t.returnToApp() }
                         "Targets", "Roll review" -> pane = UpgradePane.GOAL
                         "Build advice" -> pane = UpgradePane.ADVICE
@@ -172,6 +172,7 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                         "Track the better bet" -> { t.checkRun.betterBet?.let { t.switchTo(it.first) }; pane = UpgradePane.PIECE }
                         "This piece only", "Allow rebuilds" -> { t.useRebuilds(!t.rebuilds); pane = UpgradePane.ADVICE }
                         "Notice" -> pane = UpgradePane.HELP
+                        "Close" -> onClose()
                     } }
                 }
                 pane == UpgradePane.GOAL -> GoalPage(t, maxHeight.value)
@@ -185,53 +186,72 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
             }
         }
         }
-        Row(Modifier.fillMaxWidth().height(34.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        // as tall as the buttons this page has: the body above keeps its height, so the first button never moves
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(GAP.dp)) {
+            val b = Modifier.fillMaxWidth().height(ACTION.dp)
             when {
-                t.error != null -> PanelAction("Back", Modifier.weight(1f)) { t.dismissError() }
+                t.error != null -> PanelAction("Back", b) { t.dismissError() }
                 draft != null -> {
-                    PanelAction(if (draft.page == EntryPage.CHOOSE) "Cancel" else "Back", Modifier.weight(1f)) {
+                    if (draft.page == EntryPage.VALUE) PanelAction("Apply total", b, pink = true) { draft.apply() }
+                    else if (draft.page == EntryPage.REVIEW || draft.correction && draft.page == EntryPage.CHOOSE) PanelAction("Save +${draft.next}", b, pink = true) {
+                        if (draft.save(t)) pane = UpgradePane.PIECE
+                    }
+                    PanelAction(if (draft.page == EntryPage.CHOOSE) "Cancel" else "Back", b) {
                         when (draft.page) {
                             EntryPage.CHOOSE -> { t.cancelEdit(); pane = UpgradePane.PIECE }
                             EntryPage.STEP -> draft.page = EntryPage.VALUE
                             else -> draft.page = EntryPage.CHOOSE
                         }
                     }
-                    if (draft.page == EntryPage.VALUE) PanelAction("Apply total", Modifier.weight(1.5f), pink = true) { draft.apply() }
-                    else if (draft.page == EntryPage.REVIEW || draft.correction && draft.page == EntryPage.CHOOSE) PanelAction("Save +${draft.next}", Modifier.weight(1.5f), pink = true) {
-                        if (draft.save(t)) pane = UpgradePane.PIECE
-                    }
                 }
-                t.sellQueueComplete -> PanelAction("Undo mark",Modifier.weight(1.5f),pink=true,enabled=t.canUndoSold) { t.undoSold();pane=UpgradePane.PIECE }
+                t.sellQueueComplete -> PanelAction("Undo mark", b, pink = true, enabled = t.canUndoSold) { t.undoSold(); pane = UpgradePane.PIECE }
                 pane == UpgradePane.PIECE -> {
-                    if(t.isSellQueue) {
-                        PanelAction("Sold ›",Modifier.weight(1f),pink=true,enabled=t.canMarkSold,label="Sold and next") { t.markSold(item.id);pane=UpgradePane.PIECE }
-                        PanelAction("Keep ›",Modifier.weight(1f),enabled=t.canMarkSold,label="Keep and next") { t.markSold(item.id, keep = true);pane=UpgradePane.PIECE }
+                    if (t.isSellQueue) {
+                        PanelAction("Sold ›", b, pink = true, enabled = t.canMarkSold, label = "Sold and next") { t.markSold(item.id); pane = UpgradePane.PIECE }
+                        PanelAction("Keep ›", b, enabled = t.canMarkSold, label = "Keep and next") { t.markSold(item.id, keep = true); pane = UpgradePane.PIECE }
                     }
-                    if (item.enhance < 15 && UpgradeRecord.supported(item)) PanelAction("Record +${((item.enhance / 3 + 1) * 3).coerceAtMost(15)}", Modifier.weight(if(t.isSellQueue)1.2f else 1.7f), pink = !t.isSellQueue) { correction = false; t.beginEdit() }
+                    if (item.enhance < 15 && UpgradeRecord.supported(item)) PanelAction("Record +${((item.enhance / 3 + 1) * 3).coerceAtMost(15)}", b, pink = !t.isSellQueue) {
+                        correction = false; t.beginEdit()
+                    }
                     // a finished piece: record the reforge, then equipping it, as done in the game
                     if (!t.isSellQueue && item.enhance == 15 && item.level == 85 && t.canReforge(item.id))
-                        PanelAction("Reforge", Modifier.weight(1.2f), pink = t.checkRun.equipHeroes.isEmpty(), label = "Record reforge") { t.reforge() }
+                        PanelAction("Reforge", b, pink = t.checkRun.equipHeroes.isEmpty(), label = "Record reforge") { t.reforge() }
                     if (!t.isSellQueue && item.enhance == 15 && t.checkRun.equipHeroes.isNotEmpty() && t.worn.equippedOn == null)
-                        PanelAction("Equip", Modifier.weight(1.2f), pink = true, label = "Record equip") { pane = UpgradePane.EQUIP }
+                        PanelAction("Equip", b, pink = true, label = "Record equip") { pane = UpgradePane.EQUIP }
                 }
                 else -> {
-                    PanelAction("Back", Modifier.weight(1f)) { pane = UpgradePane.PIECE }
-                    if (pane == UpgradePane.HISTORY && r.history.size > 1) PanelAction("Undo last entry", Modifier.weight(1.5f)) { t.undo(); pane = UpgradePane.PIECE }
+                    PanelAction("Back", b) { pane = UpgradePane.PIECE }
+                    if (pane == UpgradePane.HISTORY && r.history.size > 1) PanelAction("Undo last entry", b) { t.undo(); pane = UpgradePane.PIECE }
                 }
             }
         }
     }
 }
 
+/** The ··· menu, most used first. */
+private fun menuOptions(t: TrackerFeature, item: Item) = listOfNotNull(
+    "Undo last mark".takeIf { t.canUndoSold && !t.sellQueueComplete },
+    "Undo equip".takeIf { t.worn.canUndoEquip },
+    "List".takeIf { t.queue.isNotEmpty() && !t.isSellQueue && !t.sellQueueComplete },
+    "Correct".takeIf { UpgradeRecord.supported(item) },
+    "Open E7 Gear", if (t.isRollReview) "Roll review" else if (!t.hasTarget) "Build advice" else "Targets", "History", "Help",
+    "Track the better bet".takeIf { t.checkRun.betterBet != null },
+    "Final build".takeIf { !t.hasTarget && t.checkRun.results.any { it.build.isNotEmpty() && (it.hits.isNotEmpty() || it.current) } },
+    (if (t.rebuilds) "This piece only" else "Allow rebuilds").takeIf { !t.hasTarget },
+    "Recheck builds".takeIf { !t.hasTarget }, "Notice".takeIf { t.notice != null }, "Close")
+
 /** As tall as [natural] (the piece page drawn with room to spare) for every page of this piece, so the buttons below don't move. */
 @Composable
-private fun PanelBody(modifier: Modifier, floor: Dp, cap: Dp, need: Dp, extra: Dp, natural: @Composable () -> Unit, content: @Composable () -> Unit) {
+private fun PanelBody(modifier: Modifier, floor: Dp, cap: Dp, need: Dp, extra: Dp, natural: @Composable () -> Unit, content: @Composable (fits: Boolean) -> Unit) {
     SubcomposeLayout(modifier) { c ->
         val width = c.maxWidth
-        val measured = subcompose("natural") { Box(Modifier.padding(horizontal = 2.dp)) { natural() } }.maxOfOrNull { it.measure(Constraints(maxWidth = width)).height } ?: 0
+        // only measured, never shown: hidden from accessibility so the piece isn't read (or found by tests) twice
+        val measured = subcompose("natural") { Box(Modifier.padding(horizontal = 2.dp).clearAndSetSemantics { }) { natural() } }
+            .maxOfOrNull { it.measure(Constraints(maxWidth = width)).height } ?: 0
         val capPx = cap.roundToPx()
         val height = maxOf(measured.coerceIn(minOf(floor.roundToPx(), capPx), capPx), minOf(need.roundToPx(), capPx)) + extra.roundToPx()
-        val placeables = subcompose("body", content).map { it.measure(Constraints.fixed(width, height)) }
+        val fits = height - extra.roundToPx() >= measured
+        val placeables = subcompose("body") { content(fits) }.map { it.measure(Constraints.fixed(width, height)) }
         layout(width, height) { placeables.forEach { it.place(0, 0) } }
     }
 }
@@ -240,52 +260,33 @@ private fun chanceBadge(t: TrackerFeature) = if (!t.hasTarget && t.checkRun.resu
     when { t.worn.equippedOn != null -> "Done"; t.record?.item?.enhance == 15 -> if (t.checkRun.equipHeroes.isNotEmpty()) "Equip" else "None"; else -> t.checkRun.chance?.let { "$it%" } ?: "Advice" }
     else if(t.sellQueueComplete)"Done" else if(t.isRollReview)if(t.readout.reviewProtected)"Guard" else "Review" else t.readout.goalOutcome?.let { when { !it.supported -> "Unknown"; t.scoreGoal!=null -> if(it.matchesNow) "Above" else if(it.rareOnly) "Rare" else if(!it.possible) "0%" else it.label(); it.matchesNow -> "Ready"; it.rareOnly -> "Rare"; !it.possible -> "Stop"; else -> it.label() } } ?: if (t.checkRun.busy) "Busy" else "Advice"
 
+/** The piece as the game's inventory cell (tile, ES under it, stats stacked beside it), then the verdict, which opens its page. */
 @Composable
-private fun PieceSummary(t: TrackerFeature, item: Item, height: Float, es: EsForecast.Es?, measure: Boolean = false) {
+private fun RailPiece(t: TrackerFeature, item: Item, height: Float, es: EsForecast.Es?, onMove: (Float, Float) -> Unit, measure: Boolean = false, onVerdict: () -> Unit) {
     if (height < 60 * LocalDensity.current.fontScale + 12) {
         PanelTextPages("${item.rank} Lv.${item.level} · ${item.mainType.short} ${item.mainType.format(item.mainValue)}\n" +
-            item.subs.joinToString("\n") { "${it.type.short} ${it.type.format(it.value)}" } +
-            if (!t.hasTarget||t.isRollReview) "\n${t.readout.title}" + (weakestLine(t)?.let { "\n$it" } ?: "") else "", height)
+            item.subs.joinToString("\n") { "${it.type.short} ${it.type.format(it.value)}" }, height)
         return
     }
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(Modifier.fillMaxWidth().inset().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatStack(item, highlight = t.goal?.minimums?.keys ?: emptySet(), size = 10)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                FitText(if(t.isRollReview)t.readout.reviewRolls?.let { "${e7.gearscan.opt.RollReview.overallWeakCount(it)}/${it.size} low" }?:"History unknown" else "${item.rank} · Lv.${item.level}", zen(9.sp, color = C.muted))
-                t.goal?.let { GoalLines(item, it.minimums, size = 10) }
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        // the tile's +level badge sits above its corner: the top padding keeps it inside the body
+        Row(Modifier.fillMaxWidth().dragWindow(onMove).padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                GearTile(item, 36.dp, setIcon = t.setIcon)
+                Text("${InventoryOrder.score(item)}", style = dela(11.sp))
             }
+            StatStack(item, highlight = t.goal?.minimums?.keys ?: emptySet(), size = 9)
         }
-        if (t.hasEs) {
-            if (es != null) EsBlock(es, t.rollOn) else if (measure) EsBlockSpace()
+        Column(Modifier.fillMaxWidth().tap(onVerdict), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            if (t.hasEs) {
+                if (es != null) EsChip(es, t.rollOn, fill = true)
+                else if (measure) EsChip(EsForecast.Es(0, 1, 0.0, 1.0, 1.0, false, true, 1.0, 1.0), 0.0, fill = true, modifier = Modifier.alpha(0f))
+            } else {
+                val badge = chanceBadge(t)
+                FitText(badge, dela(18.sp, if (badge in setOf("Rare", "Stop", "0%")) C.deepPink else C.blue))
+            }
+            t.goal?.let { GoalLines(item, it.minimums, size = 9) }
         }
-        if (!t.hasTarget && !t.hasEs) FitText(t.readout.title, zen(10.sp, color = C.blue))
-        // the measuring copy keeps a line for advice that arrives after the check, so the panel doesn't grow then
-        if (!t.hasTarget) (weakestLine(t) ?: " ".takeIf { measure && item.enhance < 15 })?.let { FitText(it, zen(9.sp, color = C.muted)) }
-    }
-}
-
-@Composable
-private fun EsBlock(e: EsForecast.Es, rollOn: Double) {
-    Column(Modifier.fillMaxWidth().inset().padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            FitText("ES ${e.now}", dela(13.sp), Modifier.weight(1f))
-            EsChip(e, rollOn)
-        }
-        EsBar(e)
-    }
-}
-
-/** The room [EsBlock] takes, for the measuring copy while the forecast is still being worked out. */
-@Composable
-private fun EsBlockSpace() {
-    val clear = Color.Transparent
-    Column(Modifier.fillMaxWidth().inset().padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            FitText("ES", dela(13.sp, clear), Modifier.weight(1f))
-            Box(Modifier.border(1.5.dp, clear, RoundedCornerShape(999.dp)).padding(horizontal = 9.dp, vertical = 3.dp)) { Text("Rare only", style = zen(11.sp, color = clear)) }
-        }
-        EsBar(EsForecast.Es(0, 1, 0.0, 1.0, 1.0, false, true, 1.0, 1.0), Modifier.alpha(0f))
     }
 }
 
@@ -298,25 +299,22 @@ private fun DraftBody(d: UpgradeDraft, height: Float) {
         EntryPage.STEP -> PanelChoices(d.stepOptions.map { fmtNum(it) }, height, "Change by") { i ->
             d.step = d.stepOptions[i]; d.page = EntryPage.VALUE
         }
-        EntryPage.VALUE -> Column(verticalArrangement = Arrangement.spacedBy(if (height < 95) 2.dp else 3.dp)) {
-            Row(Modifier.height(if (height < 95) 21.dp else 24.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                FitText("${d.type.short} · ${fmtNum(d.bounds.minimum)}-${fmtNum(d.bounds.maximum)}", zen((if (height < 95) 10 else 11).sp), Modifier.weight(1f))
-                if (d.bounds.maximum - d.bounds.minimum >= 10) PanelAction("Step ${fmtNum(d.step)}", Modifier.width(65.dp), label = "Choose step size") { d.page = EntryPage.STEP }
+        EntryPage.VALUE -> Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            FitText("${d.type.short} · ${fmtNum(d.bounds.minimum)}-${fmtNum(d.bounds.maximum)}", zen(10.sp))
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { FitText(fmtNum(d.input), dela(20.sp, C.blue)) }
+            Row(Modifier.fillMaxWidth().height(30.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                PanelAction("−", Modifier.weight(1f), label = "Decrease value") { d.input = (d.input - d.step).coerceIn(d.bounds.minimum, d.bounds.maximum) }
+                PanelAction("+", Modifier.weight(1f), label = "Increase value") { d.input = (d.input + d.step).coerceIn(d.bounds.minimum, d.bounds.maximum) }
             }
-            Row(Modifier.height(if (height < 95) 32.dp else 36.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PanelAction("−", Modifier.width(38.dp), label = "Decrease value") { d.input = (d.input - d.step).coerceIn(d.bounds.minimum, d.bounds.maximum) }
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { FitText(fmtNum(d.input), dela((if (height < 95) 18 else 21).sp, C.blue)) }
-                PanelAction("+", Modifier.width(38.dp), label = "Increase value") { d.input = (d.input + d.step).coerceIn(d.bounds.minimum, d.bounds.maximum) }
-            }
-            NumberRangeSlider(d.input, d.bounds.minimum, d.bounds.maximum, d.step, Modifier.fillMaxWidth().height(if (height < 95) 18.dp else 24.dp)) { d.input = it }
+            NumberRangeSlider(d.input, d.bounds.minimum, d.bounds.maximum, d.step, Modifier.fillMaxWidth().height(20.dp)) { d.input = it }
+            if (d.bounds.maximum - d.bounds.minimum >= 10) PanelAction("Step ${fmtNum(d.step)}", Modifier.fillMaxWidth().height(26.dp), label = "Choose step size") { d.page = EntryPage.STEP }
         }
         EntryPage.REVIEW -> if (height < 60 * LocalDensity.current.fontScale + 12) {
             PanelTextPages("Review +${d.next}\n${d.item.mainType.short} ${d.item.mainType.format(d.main)} · automatic\n" +
                 d.preview().subs.joinToString("\n") { "${it.type.short} ${it.type.format(it.value)}" }, height)
-        } else Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            FitText("Review +${d.next} · ${d.item.mainType.short} ${d.item.mainType.format(d.main)}", zen(11.sp))
-            StatStack(d.preview(), main = false, size = 10)
-            FitText("Main stat is automatic", zen(9.sp, color = C.muted))
+        } else Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            FitText("Check +${d.next}", zen(10.sp))
+            StatStack(d.preview(), size = 9)
         }
     }
 }
@@ -355,8 +353,8 @@ private fun QueuePage(g: AppGraph, height: Float, selected: () -> Unit) {
 @Composable
 private fun PanelChoices(names: List<String>, height: Float, title: String, select: (Int) -> Unit) {
     val scale = LocalDensity.current.fontScale
-    val columns = choiceColumns(names.size)
-    val rows = floor((height - (if (title.isEmpty()) 8 else 55)) / 34).toInt().coerceIn(1, 3)
+    val columns = 1
+    val rows = floor((height - (if (title.isEmpty()) 8 else 20) - (if (names.size * 34 > height) 28 else 0)) / 34).toInt().coerceAtLeast(1)
     val count = rows * columns
     var page by remember(names, count) { mutableIntStateOf(0) }
     val pages = ((names.size + count - 1) / count).coerceAtLeast(1)
@@ -485,9 +483,9 @@ private fun adviceText(t: TrackerFeature) = buildList {
 @Composable
 private fun PanelPager(page: Int, pages: Int, text: String, kind: String, change: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().height(24.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        PanelAction("‹", Modifier.width(32.dp), enabled = page > 0, label = "Previous $kind page") { change(page - 1) }
+        PanelAction("‹", Modifier.width(26.dp), enabled = page > 0, label = "Previous $kind page") { change(page - 1) }
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { FitText(text, zen(9.sp, color = C.muted)) }
-        PanelAction("›", Modifier.width(32.dp), enabled = page + 1 < pages, label = "Next $kind page") { change(page + 1) }
+        PanelAction("›", Modifier.width(26.dp), enabled = page + 1 < pages, label = "Next $kind page") { change(page + 1) }
     }
 }
 

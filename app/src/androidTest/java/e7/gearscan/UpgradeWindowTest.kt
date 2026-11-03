@@ -78,23 +78,36 @@ class UpgradeWindowTest {
             // Non-focusable Compose overlay text is absent from this emulator's accessibility-window roots.
             // Locate the solid pink Record action in the screenshot, then inject a real touch.
             val density = ctx.resources.displayMetrics.density
-            val x = ((14 + PANEL_WIDTH * .2f) * density).toInt()
+            fun pink(px: Int, py: Int) = landscape.getPixel(px, py).let { android.graphics.Color.red(it) > 200 && android.graphics.Color.green(it) < 160 && android.graphics.Color.blue(it) > 100 }
+            // the rail starts after any display cutout, so look for the pink Record button across the left of the screen
+            var x = -1
             val runs = mutableListOf<IntRange>()
-            var start = -1
-            for (y in 0 until landscape.height) {
-                val pixel = landscape.getPixel(x, y)
-                val pink = android.graphics.Color.red(pixel) > 200 && android.graphics.Color.green(pixel) < 160 && android.graphics.Color.blue(pixel) > 100
-                if (pink && start < 0) start = y
-                if (!pink && start >= 0) { if (y - start > 30) runs += start until y; start = -1 }
+            for (xDp in 8..200 step 8) {
+                val cx = (xDp * density).toInt()
+                var start = -1
+                for (y in 0 until landscape.height) {
+                    val p = pink(cx, y)
+                    if (p && start < 0) start = y
+                    if (!p && start >= 0) { if (y - start > 30) runs += start until y; start = -1 }
+                }
+                if (runs.isNotEmpty()) { x = cx; break }
             }
             assertTrue("Record control is not visible", runs.isNotEmpty())
             val record = runs.first()
+            var right = x
+            // along the button's upper edge, above its label, to find where the button (and so the rail) ends
+            val edgeRow = record.first + (3 * density).toInt()
+            while (right + 1 < landscape.width && pink(right + 1, edgeRow)) right++
             tapAt(x.toFloat(), (record.first + record.last) / 2f)
             assertTrue(tracker.editing)
             shot("09-editor-landscape")
             val topInset = if (Build.VERSION.SDK_INT >= 30) ctx.getSystemService(android.view.WindowManager::class.java).currentWindowMetrics.windowInsets
                 .getInsetsIgnoringVisibility(android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout()).top else 0
-            tapAt((14 + PANEL_WIDTH - 58) * density, topInset + (6 + 26) * density)
+            // the rail's collapse button sits at the right end of its top row: find the rail's top border above it in the shot
+            val cx = (right - 15 * density).toInt()
+            val top = (0 until record.first).firstOrNull { y -> landscape.getPixel(cx, y).let { android.graphics.Color.red(it) < 90 && android.graphics.Color.green(it) < 90 && android.graphics.Color.blue(it) < 140 } }
+            assertTrue("rail top border not found (inset $topInset)", top != null)
+            tapAt(cx.toFloat(), top!! + 20 * density)
             assertFalse(graph.overlay.expanded)
             shot("10-bubble-landscape")
         } finally {

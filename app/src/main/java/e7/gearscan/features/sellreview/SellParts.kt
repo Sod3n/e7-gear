@@ -28,7 +28,7 @@ import e7.gearscan.opt.*
 
 /** Short chip: how many finishes reach the bar, coloured by the keep-rolling chance. */
 @Composable
-internal fun EsChip(es: EsForecast.Es, rollOn: Double) {
+internal fun EsChip(es: EsForecast.Es, rollOn: Double, fill: Boolean = false, modifier: Modifier = Modifier) {
     val (text, good) = when {
         !es.supported || es.bar == null -> "No forecast" to null
         es.reached -> "At bar ${es.bar}" to true
@@ -38,8 +38,10 @@ internal fun EsChip(es: EsForecast.Es, rollOn: Double) {
     }
     val shape = RoundedCornerShape(999.dp)
     val tint = when (good) { true -> C.blue; false -> C.deepPink; null -> C.muted }
-    Box(Modifier.clip(shape).background(tint.copy(alpha = .13f)).border(1.5.dp, tint, shape).padding(horizontal = 9.dp, vertical = 3.dp)) {
-        Text(text, style = zen(11.sp, color = tint))
+    // fill: as wide as its column, the text shrinking to fit (the narrow panel over the game)
+    Box(modifier.then(if (fill) Modifier.fillMaxWidth() else Modifier).clip(shape).background(tint.copy(alpha = .13f)).border(1.5.dp, tint, shape)
+        .padding(horizontal = if (fill) 6.dp else 9.dp, vertical = 3.dp), contentAlignment = Alignment.Center) {
+        if (fill) FitText(text, zen(11.sp, color = tint)) else Text(text, style = zen(11.sp, color = tint))
     }
 }
 

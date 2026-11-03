@@ -119,7 +119,7 @@ class SellFiltersScreens {
         rule.onNodeWithContentDescription("Next gear").performClick();rule.waitForIdle();assertEquals(1,t.queueIndex);shot("14-overlay-next",true)
         val index=t.queue.indexOfFirst { e->graph.records.records[e.id]!!.item.let { it.rank=="Epic"&&it.enhance<15 } }
         assertTrue(index>=0);ui { t.selectInQueue(index) }
-        rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Roll review");noPoints();shot("16-overlay-roll-evidence",true);tap("Back")
+        rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();choose("Roll review");noPoints();shot("16-overlay-roll-evidence",true);tap("Back")
         val before=t.record!!.item;val countBefore=t.readout.reviewRolls!!.size;val statText=t.readout.reviewStatText
         val next=(before.enhance/3+1)*3
         tap("Record +$next");val sub=before.subs.first();choose("${sub.type.short}: ${fmtNum(sub.value)}")
@@ -143,7 +143,9 @@ class SellFiltersScreens {
         ui { assertTrue(graph.scan.restore(afterSale)) }
         // Repeated events from the old button cannot mark the new piece.
         ui { graph.tracker.markSold(soldId) };assertEquals(n-1,t.pendingQueue.size)
-        rule.onNodeWithContentDescription("Undo last mark").performClick();rule.waitForIdle()
+        // the stale mark above left an error page in the rail; a player taps Back, then finds Undo in the menu
+        if(t.error!=null)tap("Back")
+        rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();rule.onNodeWithContentDescription("Undo last mark").performClick();rule.waitForIdle()
         assertFalse(soldId in graph.marks.cleared);assertEquals(n,t.pendingQueue.size);assertEquals(soldId,t.selected)
         assertEquals(history,t.record!!.history.size);shot("20-undo-sold-mark",true)
         ui { overlay=false;assertTrue(graph.scan.restore(afterSale));graph.nav.go(Screen.Upgrade) }

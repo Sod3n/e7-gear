@@ -795,7 +795,7 @@ class ScreenAudit {
         steps.add("track-upgrades" to {
             val m = findGear.result?.withOdds?.firstOrNull { it.item.enhance < 15 }
             if (m == null) { add("no Find gear match below +15 to track, so Track upgrades goes unchecked", "track-upgrades"); return@to }
-            ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Gear, Screen.GearPotential); graph.messages.show(graph.trackMatch(m)) }
+            ui { overlay = false; graph.tracker.hide(); graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Gear, Screen.GearPotential); graph.messages.show(graph.trackMatch(m)) }
             if (graph.nav.screen != Screen.Upgrade) add("tracking a Find gear match does not open Track upgrades", "track-upgrades")
             else if (graph.nav.backLabel() != "Find gear") add("back from Track upgrades names the wrong screen", graph.nav.backLabel())
         })

@@ -184,7 +184,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             // the list hangs under the controls, whatever height they take
             addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placeBody() }
         }
-        if (w.expanded) params.width = (338 * d).toInt()
+        if (w.expanded) params.width = (panelWindowDp() * d).toInt()
         wm.addView(body, bodyParams)
         wm.addView(target, targetParams)
         wm.addView(hint, hintParams)
@@ -408,6 +408,9 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         frames.launch { delay(260); stopSelf() }
     }
 
+    /** The window around the expanded panel: the rail plus its shadow while tracking, the checklist panel otherwise. */
+    private fun panelWindowDp() = if (graph.tracker.shown) RAIL_WIDTH + 8 else 338
+
     private fun placeBody() {
         val v = view ?: return
         val b = body ?: return
@@ -454,11 +457,11 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         glide?.cancel()
         val d = resources.displayMetrics.density
         // wrap-content overlays are first measured at dialog width (~320 dp), which would squeeze the panel
-        params.width = if (expanded) (338 * d).toInt() else WindowManager.LayoutParams.WRAP_CONTENT
-        // open on the left: in the game's gear screens the list to pick from is on the right
+        params.width = if (expanded) (panelWindowDp() * d).toInt() else WindowManager.LayoutParams.WRAP_CONTENT
+        // open on the left: in the game's gear screens the list to pick from is on the right; the tracker's rail sits in the left bar
         params.gravity = Gravity.TOP or if (expanded) Gravity.START else Gravity.END
-        params.x = if (expanded) (14 * d).toInt() else 0
-        if (expanded) { params.y = (6 * d).toInt(); wm.updateViewLayout(v, params); placeBody(); placeHint() } else placeBubble()
+        params.x = if (expanded) ((if (graph.tracker.shown) 4 else 14) * d).toInt() else 0
+        if (expanded) { params.y = ((if (graph.tracker.shown) RAIL_TOP else 6) * d).toInt(); wm.updateViewLayout(v, params); placeBody(); placeHint() } else placeBubble()
     }
 
     private fun foreground() {

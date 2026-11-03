@@ -118,7 +118,7 @@ class NoScrollScreens {
             menu("Targets"); shot("$label-targets"); while (advance("details")) check(); tap("Back")
             menu("Help"); shot("$label-help"); var pages = 1; while (advance("details")) { check(); pages++; assertTrue(pages < 100) }; tap("Back")
             menu("History"); shot("$label-history"); tap("Back")
-            tap("List"); shot("$label-list")
+            menu("List"); shot("$label-list")
             var listPages = 1
             while (advance("list")) { check(); listPages++; assertTrue(listPages <= 43) }
             assertTrue(listPages > 1)
