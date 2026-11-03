@@ -39,10 +39,10 @@ object GearBounds {
         val s = item.subs[index]
         if (correction) {
             val rolls = s.rolls.coerceAtLeast(1)
-            // The scanned value wins for preset/modded gear and imperfect imported roll metadata.
+            // the scanned value wins for preset/modded gear; a correction may move one roll between lines
             return Limits(
-                minOf(s.value, rolls * Finish.range(s.type, item.level).first.toDouble()),
-                maxOf(s.value, rolls * Finish.maximumRoll(s.type, item.level).toDouble()),
+                minOf(s.value, (rolls - 1).coerceAtLeast(1) * Finish.range(s.type, item.level).first.toDouble()),
+                maxOf(s.value, (rolls + 1) * Finish.maximumRoll(s.type, item.level).toDouble()),
             )
         }
         val reveal = item.rank == "Heroic" && item.subs.size == 3 && enhance == 12

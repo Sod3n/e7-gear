@@ -184,7 +184,7 @@ private fun Matches(graph: AppGraph, result: FindGearResult, fresh: Boolean, edi
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f)) {
                 GoalTargets(applied, zen(13.sp, color = C.blue), full = false, extra = changedFilters(applied))
-                if (!fresh) Text("Filters changed", style = zen(11.sp, FontWeight.Medium, C.deepPink), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!fresh) Text(if (graph.findGear.query == applied) "Gear changed since this search" else "Filters changed", style = zen(11.sp, FontWeight.Medium, C.deepPink), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 else Text("${slots(applied)} · ${sets(graph, applied)}${if (applied.mains.isNotEmpty()) " · " + mains(applied) else ""}", style = zen(11.sp, FontWeight.Medium, C.muted),
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -212,8 +212,12 @@ private fun Matches(graph: AppGraph, result: FindGearResult, fresh: Boolean, edi
             Text("No piece can reach these targets", style = dela(16.sp))
             VSpace(6.dp)
             Text("Lower a target or widen the filters.", style = zen(12.sp, FontWeight.Medium, C.muted))
+            if (result.unsupported > 0) Text("${result.unsupported} not checked: no forecast for them.", style = zen(12.sp, FontWeight.Medium, C.muted))
             VSpace(12.dp)
-            OutlineButton("Edit search", Modifier.fillMaxWidth(), height = 42.dp, onClick = edit)
+            if (result.rareHidden > 0) CardAction(Action("Show ${result.rareHidden} with rare rolls") {
+                graph.findGear.edit(withChanceStop(graph.findGear.query, 0)); graph.messages.show(graph.findGear.find())
+            })
+            else OutlineButton("Edit search", Modifier.fillMaxWidth(), height = 42.dp, onClick = edit)
         }
     }
     if (odds.isNotEmpty() || rare.isNotEmpty()) Segmented(listOf("Best chance", "By set"), if (grouped) 1 else 0) { graph.findGear.grouped = it == 1 }

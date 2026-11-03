@@ -30,6 +30,8 @@ data class FindGearResult(
     val seconds: Double,
     /** The likeliest piece that missed only the minimum chance, for the empty list's nearest fix. */
     val bestBelow: FindGearMatch? = null,
+    /** Pieces left out only because they need a rare roll (the chance setting excludes those). */
+    val rareHidden: Int = 0,
 ) {
     val withOdds get() = matches.filter { !it.outcome.rareOnly }
     val rareOnly get() = matches.filter { it.outcome.rareOnly }
@@ -98,11 +100,13 @@ class FindGearFeature(ctx: FeatureContext, private val content: ContentFeature, 
                     val matches = ArrayList<FindGearMatch>()
                     val anyChance = key.query.copy(minimumChance = "0", rareOnly = false)
                     var bestBelow: FindGearMatch? = null
+                    var rareHidden = 0
                     for ((item, allowed) in items) {
                         currentCoroutineContext().ensureActive()
                         val outcome = GearPotential.forecast(item, key.query.goal(allowed))
                         if (!outcome.supported) unsupported++
                         if (key.query.accepts(outcome)) matches += FindGearMatch(item, outcome, allowed)
+                        else if (outcome.rareOnly && key.query.copy(minimumChance = "0", rareOnly = true).accepts(outcome)) rareHidden++
                         else if (anyChance.accepts(outcome) && outcome.chance > (bestBelow?.outcome?.chance ?: 0.0)) bestBelow = FindGearMatch(item, outcome, allowed)
                     }
                     FindGearResult(
@@ -111,6 +115,7 @@ class FindGearFeature(ctx: FeatureContext, private val content: ContentFeature, 
                         unsupported,
                         (System.nanoTime() - t0) / 1e9,
                         bestBelow,
+                        rareHidden,
                     )
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {

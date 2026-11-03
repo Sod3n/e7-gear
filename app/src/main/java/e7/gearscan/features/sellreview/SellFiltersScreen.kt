@@ -220,16 +220,19 @@ fun SellFiltersScreen(graph: AppGraph) {
     var jump by remember { mutableStateOf(false) }
     LaunchedEffect(result) { if(result!=null&&jump) { tab=1;jump=false } }
     LaunchedEffect(result==null) { if(result==null)tab=0 }
-    val reviewing = tab==1&&result!=null&&result.matches.any { it.item.id !in graph.marks.reviewed&&!graph.sellReview.keptByBar(it) }&&graph.sellReview.fresh&&category==0
+    val reviewing = tab==1&&result!=null&&result.matches.any { it.item.id !in graph.marks.reviewed&&!graph.sellReview.keptByBar(it) }&&graph.sellReview.fresh
+    // nothing left to review on a current list: no button that only re-runs the same search
+    val doneReviewing = tab==1&&result!=null&&graph.sellReview.fresh&&!reviewing
     Frame(null,null,
         primary=when {
             graph.sellReview.busy -> null
             reviewing -> Action("Review over game",short="Over game") { graph.trackSell() }
+            doneReviewing -> null
             else -> Action(if(result!=null&&!graph.sellReview.fresh)"Update matches" else "Find matches") { jump=true;graph.findSell() }
         },
         secondary=when {
             graph.sellReview.busy -> Secondary("Stop",Span.Fill) { graph.sellReview.stop() }
-            reviewing -> Secondary("Edit filters",Span.Fill,before=true) { tab=0 }
+            reviewing||doneReviewing -> Secondary("Edit filters",Span.Fill,before=true) { tab=0 }
             else -> null
         }) {
         BackToPrevious();ScreenTitle("Sell review")
@@ -245,7 +248,7 @@ fun SellFiltersScreen(graph: AppGraph) {
             RowCard("Main stats",{openSell(graph,SheetKind.SELL_MAINS)},labelWidth=112.dp) { Text(if(q.mains.isEmpty())"Any main" else q.mains.joinToString { it.short },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             //levels filter removed (user 2026-11-01: useless in the current game)
             if(false)RowCard("Levels",{openSell(graph,SheetKind.SELL_LEVELS)},labelWidth=112.dp) { Text(if(q.levels.isEmpty())"Any level" else q.levels.sorted().joinToString(),style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
-            RowCard("More filters",{openSell(graph,SheetKind.SELL_EXTRA)},labelWidth=112.dp) { Text(if(q.scoreFilter)"Combined score on" else "Off",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            RowCard("More filters",{openSell(graph,SheetKind.SELL_EXTRA)},labelWidth=112.dp) { Text(listOfNotNull("Combined score".takeIf { q.scoreFilter },"No forecast shown".takeIf { q.includeUnknown },"Lv85 crafted only".takeIf { q.standardOnly }).joinToString(" · ").ifEmpty { "Off" },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("Kept pieces",{graph.nav.go(Screen.SellKept)},labelWidth=112.dp) { Text("${graph.marks.kept.size} kept",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             SectionTitle("Final step")
             Box(Modifier.fillMaxWidth().hardShadow(C.pink,4.dp,4.dp,14.dp)) {
@@ -281,6 +284,8 @@ fun SellFiltersScreen(graph: AppGraph) {
             }
             if(!graph.sellReview.fresh&&!graph.sellReview.busy)Text("Inventory or settings changed. Update before starting a list.",style=zen(12.sp,color=C.deepPink))
             val shown=when(category) { 1->guarded;2->unknown;3->byBar;else->pending }
+            // a pill whose list emptied (a setting changed) gives way to the review list
+            if(category!=0&&shown.isEmpty())LaunchedEffect(category) { category=0 }
             if(shown.isEmpty())Card {
                 Text("Nothing matches",style=dela(17.sp))
             }else Segmented(listOf("Worst rolls","By set"),if(grouped)1 else 0) { graph.sellReview.grouped=it==1 }
@@ -366,12 +371,12 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                 SellToggle("Count reforging",q.reforge) { update(q.copy(reforge=it)) }
                 SectionTitle("ES bar")
                 val auto=graph.sellReview.autoEsBars()
-                Slot.entries.forEach { slot->ValueSlider(slot.label,{ GearIcon(slot.icon,18.dp,C.ink) },(q.esBars[slot]?:auto[slot]?:80).toDouble(),EsForecast.esRange.first.toDouble(),EsForecast.esRange.last.toDouble(),1.0,{ "${it.toInt()}" }) { v->
+                Slot.entries.forEach { slot->ValueSlider(slot.label,{ GearIcon(slot.icon,18.dp,C.ink) },(q.esBars[slot]?:auto[slot]?:80).toDouble(),EsForecast.esRange.first.toDouble(),EsForecast.esRange.last.toDouble(),1.0,{ if(q.esBars[slot]==null&&auto[slot]==null)"none" else "${it.toInt()}" }) { v->
                     update(q.copy(esBars=q.esBars+(slot to v.toInt()))) } }
                 OutlineButton("Reset all to your +15 medians",Modifier.fillMaxWidth(),height=40.dp,enabled=q.esBars.isNotEmpty()) { graph.messages.askReset("Reset the ES bars?","Every slot goes back to the middle ES of your own +15 pieces.",graph.sellReview::resetEsBars) }
             }
             SheetKind.SELL_SAFEGUARDS->{
-                Text("Pieces that can still reach one of these stay out of Sell review.",style=zen(13.sp))
+                Text("Pieces with a ${Chance(q.keepChance/100).text}+ chance to reach one of these stay out of Sell review.",style=zen(13.sp))
                 GearStat.entries.forEach { stat->
                     val bound=GearBounds.target(stat,q.reforge,true);val step=if(stat.showsPercent||stat==GearStat.SPD)1.0 else 10.0
                     // far left is off; anywhere else sets that value

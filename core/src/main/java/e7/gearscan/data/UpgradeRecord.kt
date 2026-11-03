@@ -18,6 +18,11 @@ class UpgradeRecord(
         correction: Boolean = false,
     ): UpgradeRecord {
         val old = item
+        // correcting a recorded +3 step = recording that step again, so its roll lands on the stat that went up
+        val before = history.getOrNull(history.size - 2)
+        if (correction && before != null && before.enhance < old.enhance && before.subs.size == old.subs.size && added == null) {
+            return UpgradeRecord(scan, history.dropLast(1)).record(enhance, main, values)
+        }
         require(main.isFinite() && main > 0) { "Enter the main stat shown in the game." }
         require(
             values.size == old.subs.size &&
@@ -75,19 +80,7 @@ class UpgradeRecord(
         }
         val subs =
             old.subs.mapIndexed { i, s ->
-                Substat(
-                    s.type,
-                    values[i],
-                    s.rolls +
-                        if (!correction &&
-                            values[i] > s.value
-                        ) {
-                            1
-                        } else {
-                            0
-                        },
-                    s.modified,
-                )
+                Substat(s.type, values[i], s.rolls + if (!correction && values[i] > s.value) 1 else 0, s.modified)
             } +
                 listOfNotNull(added?.let { Substat(it.first, it.second, 1, false) })
         val observed =

@@ -130,7 +130,7 @@ private fun Intro(graph: AppGraph) {
         }
     }
     if (graph.improveHeroes.resumable) Text("The last check stopped before the end; it picks up where it was.", style = zen(11.sp, FontWeight.Medium, C.muted))
-    if (graph.pool.state?.running == true) Text("Starts after the other gear check.", style = zen(11.sp, FontWeight.Medium, C.muted))
+    if (graph.pool.state?.running == true) Text("Available once the other gear check finishes.", style = zen(11.sp, FontWeight.Medium, C.muted))
 }
 
 @Composable
@@ -208,7 +208,7 @@ private fun HeroRow(graph: AppGraph, h: HeroUpgradeHero) {
     ListRow({ graph.nav.go(Screen.HeroUpgrades(h.hero.id)) }, leading = { Face(graph.heroes.face(h.hero), 40.dp) }, trailing = {
         Slot(64.dp) { if (top != null && h.base.value != null) Column(horizontalAlignment = Alignment.End) {
             FitText("~${top.chance}%", dela(16.sp, C.blue))
-            Text("best chance", style = zen(9.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("top piece", style = zen(9.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
         } }
     }) {
         Text(graph.heroes.heroName(h.hero), style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -339,7 +339,7 @@ private fun HeroPage(graph: AppGraph, h: HeroUpgradeHero) {
     val (likely, long) = rows.partition { it.hits > LONG_SHOT }
     var count by rememberSavedFor(h, 20)
     var showLong by rememberSavedFor(h, false)
-    SectionTitle("${likely.size} ${if (likely.size == 1) "piece" else "pieces"} could help")
+    SectionTitle("${rows.size} ${if (rows.size == 1) "piece" else "pieces"} could help")
     val shown = likely + if (showLong) long else emptyList()
     shown.take(count).forEach { r ->
         val item = heroUpgradeItem(graph, r.pick.piece) ?: return@forEach

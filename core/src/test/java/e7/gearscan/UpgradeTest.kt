@@ -37,6 +37,15 @@ class UpgradeTest {
         main15 = 2700.0,
     )
 
+    @Test fun correctingAStepMovesItsRollToTheStatThatWentUp() {
+        // recorded Crit by mistake, then corrected to the Speed roll the game showed
+        val wrong = UpgradeRecord(99, listOf(piece())).record(3, 864.0, listOf(3.0, 5.0, 8.0, 5.0))
+        assertEquals(2, wrong.item.subs[2].rolls)
+        val fixed = wrong.record(3, 864.0, listOf(7.0, 5.0, 4.0, 5.0), correction = true)
+        assertEquals(2, fixed.item.subs[0].rolls)
+        assertEquals(1, fixed.item.subs[2].rolls)
+    }
+
     @Test fun observationsRoundTripAndUndoWithoutChangingTheScan() {
         val original = piece()
         val r = UpgradeRecord(99, listOf(original)).record(3, 864.0, listOf(7.0, 5.0, 4.0, 5.0))
