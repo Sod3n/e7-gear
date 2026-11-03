@@ -49,6 +49,9 @@ class SellReviewFeature(ctx: FeatureContext, private val content: ContentFeature
         list: List<T>,
         item: (T) -> Item,
     ) = scanFeature.box?.takeIf { grouped }?.walk(list, item) ?: list
+
+    /** The ES bar keeps it: at the bar, or at least the worth-rolling chance to reach it. Never in the sell list or walk. */
+    fun keptByBar(row: SellSearch.Row) = row.es?.let { esKeeps(it, query.rollOn) } == true
     val progress = savedFile("sell_progress.jsonl", backup = false, path = "sell_progress.jsonl")
     val run = work<Unit>("Sell review", Weight.Heavy, notice = "Checking sell filters")
     val curve = work<Unit>("Keep curve")
@@ -168,7 +171,7 @@ class SellReviewFeature(ctx: FeatureContext, private val content: ContentFeature
         val b = scanFeature.box ?: return Plan.Stop(Outcome.Done)
         val reviewed = marks.reviewed
         val rows =
-            ordered(found.matches) { it.item }.filter { id == null || it.item.id == id }
+            ordered(found.matches) { it.item }.filter { if (id == null) !keptByBar(it) else it.item.id == id }
                 .mapNotNull { row -> b.itemsById[row.item.id]?.takeIf { it.id !in reviewed }?.let { it to row } }
         if (rows.isEmpty()) return Plan.Stop(Outcome.Failed("No matching pieces remain. Update the search."))
         return Plan.Go(rows to found.query)

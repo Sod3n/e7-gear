@@ -220,7 +220,7 @@ fun SellFiltersScreen(graph: AppGraph) {
     var jump by remember { mutableStateOf(false) }
     LaunchedEffect(result) { if(result!=null&&jump) { tab=1;jump=false } }
     LaunchedEffect(result==null) { if(result==null)tab=0 }
-    val reviewing = tab==1&&result!=null&&result.matches.any { it.item.id !in graph.marks.reviewed }&&graph.sellReview.fresh&&category==0
+    val reviewing = tab==1&&result!=null&&result.matches.any { it.item.id !in graph.marks.reviewed&&!graph.sellReview.keptByBar(it) }&&graph.sellReview.fresh&&category==0
     Frame(null,null,
         primary=when {
             graph.sellReview.busy -> null
@@ -258,28 +258,29 @@ fun SellFiltersScreen(graph: AppGraph) {
             // ordered over the whole result, so marking a piece never reorders the groups left
             val matches=remember(result,grouped,graph.scan.box) { graph.sellReview.ordered(result.matches) { it.item } }
             val rows=remember(result,grouped,graph.scan.box) { graph.sellReview.ordered(result.rows) { it.item } }
-            val pending=matches.filter { it.item.id !in done }
+            val open=matches.filter { it.item.id !in done }
+            val byBar=open.filter { graph.sellReview.keptByBar(it) };val pending=open.filter { !graph.sellReview.keptByBar(it) }
             val guarded=rows.filter { it.protected&&it.item.id !in done };val unknown=rows.filter { it.unknown&&!it.protected&&it.item.id !in done }
             Card(shadow=null,padding=PaddingValues(12.dp)) {
                 Text("${pending.size} pieces to review",style=dela(19.sp))
-                val rolling=pending.mapNotNull { it.es }.filter { it.finishShare>0&&it.worthRolling(q.rollOn)&&!it.reached }
-                if(rolling.isNotEmpty())Text("${rolling.size} worth rolling now",style=zen(12.sp,color=C.blue))
                 if(result.query.minimumProcs>0||result.query.maximumTotalQuality!=null)Text("${if(result.query.minimumProcs>0)"${result.query.minimumProcs}+ upgrades · " else ""}${rollLimitText(result.query)}",style=zen(11.sp,color=C.blue))
                 if(result.query.scoreFilter)Text("Additional combined-value filter applied",style=zen(11.sp,color=C.muted))
-                if(guarded.isNotEmpty()||unknown.isNotEmpty()||graph.marks.kept.isNotEmpty()) {
+                if(guarded.isNotEmpty()||byBar.isNotEmpty()||unknown.isNotEmpty()||graph.marks.kept.isNotEmpty()) {
                     VSpace(8.dp)
                     @OptIn(ExperimentalLayoutApi::class)
                     FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                         if(guarded.isNotEmpty())Pill("${guarded.size} kept by safeguards",selected=category==1,onClick={ category=if(category==1)0 else 1;count=20 })
+                        if(byBar.isNotEmpty())Pill("${byBar.size} kept by ES bar",selected=category==3,onClick={ category=if(category==3)0 else 3;count=20 })
                         if(unknown.isNotEmpty())Pill("${unknown.size} no forecast",selected=category==2,onClick={ category=if(category==2)0 else 2;count=20 })
                         if(graph.marks.kept.isNotEmpty())Pill("${graph.marks.kept.size} kept",onClick={ graph.nav.go(Screen.SellKept) })
                     }
                     if(category==2) { VSpace(6.dp);Text("No roll history, so no forecast.",style=zen(11.sp,color=C.muted)) }
                     if(category==1) { VSpace(6.dp);Text("Can still reach a stat you protect.",style=zen(11.sp,color=C.muted)) }
+                    if(category==3) { VSpace(6.dp);Text("At your ES bar, or ${Chance(q.rollOn/100).text}+ to reach it.",style=zen(11.sp,color=C.muted)) }
                 }
             }
             if(!graph.sellReview.fresh&&!graph.sellReview.busy)Text("Inventory or settings changed. Update before starting a list.",style=zen(12.sp,color=C.deepPink))
-            val shown=when(category) { 1->guarded;2->unknown;else->pending }
+            val shown=when(category) { 1->guarded;2->unknown;3->byBar;else->pending }
             if(shown.isEmpty())Card {
                 Text("Nothing matches",style=dela(17.sp))
             }else Segmented(listOf("Worst rolls","By set"),if(grouped)1 else 0) { graph.sellReview.grouped=it==1 }

@@ -27,7 +27,7 @@ fun GearScreen(graph: AppGraph) {
             }
             return@Frame
         }
-        val sell = graph.sellReview.result?.let { r -> r.matches.count { it.item.id !in graph.marks.reviewed } }
+        val sell = graph.sellReview.result?.let { r -> r.matches.count { it.item.id !in graph.marks.reviewed && !graph.sellReview.keptByBar(it) } }
         ModeCard("Sell review", "Worst rolls first. Sell or keep each piece, with its ES now and at +15.",
             listOfNotNull(sell?.let { "$it to review" }, graph.marks.kept.size.takeIf { it > 0 }?.let { "$it kept" }).joinToString(" · ").ifEmpty { "Not checked yet" }) {
             graph.nav.go(Screen.SellFilters)

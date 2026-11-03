@@ -74,6 +74,10 @@ all settings. Buttons look like buttons; link-style text is rare. One main actio
   of place?" A pill reads as a tag, and it sat somewhere different on each screen. How a list is ordered is chosen with
   the app's switch for views (`Segmented`, like "By hero | By piece"), directly above the list it orders, the same way on
   every screen.
+- Said (2026-11-03), on weapons that could still end at 83–93 in the Sell review list: "but my filters are set to not sell
+  >90gs gear at all?" The ES bar and the worth-rolling chance only coloured chips; they never took a piece out of the
+  list. A setting that says what not to sell removes those pieces from the sell list and the walk over the game (behind
+  their own pill, like "kept by safeguards"), and a changed value updates the list at once.
 - Example: settings are rows that open their own sheet; a value is a slider over the game's range, tap the number to type.
 
 ### 6. Nothing moves unless the player moved it
