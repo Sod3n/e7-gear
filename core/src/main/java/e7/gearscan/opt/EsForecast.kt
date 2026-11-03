@@ -7,7 +7,7 @@ import kotlin.math.floor
 
 /** The game's Equipment Score now and at +15: substats use the game's weights, which GearScore's defaults equal. */
 object EsForecast {
-    const val VERSION = "es-v1"
+    const val VERSION = "es-v2"
 
     // itemenhance.exp: cumulative enhance XP to reach +1..+15, times equip_item.xp and itemgrade.need_xp_rate
     private val CUMULATIVE =
@@ -66,6 +66,8 @@ object EsForecast {
         val possible: Boolean,
         val supported: Boolean,
         val finishShare: Double,
+        /** Lowest and highest ES at +15 with usual rolls; [typical] is the average over every way the rolls can land. */
+        val worst: Double? = null,
     ) {
         val reached get() = bar != null && now >= bar
 
@@ -81,6 +83,7 @@ object EsForecast {
                 .put("possible", possible)
                 .put("supported", supported)
                 .put("finishShare", finishShare)
+                .put("worst", worst ?: JSONObject.NULL)
 
         companion object {
             fun of(j: JSONObject): Es {
@@ -94,6 +97,7 @@ object EsForecast {
                     j.getBoolean("possible"),
                     j.getBoolean("supported"),
                     j.getDouble("finishShare"),
+                    d("worst"),
                 )
             }
         }
@@ -136,6 +140,7 @@ object EsForecast {
             bar != null && f.possible,
             true,
             share,
+            f.worst?.let { floor(it + main + 1e-9) },
         )
     }
 }

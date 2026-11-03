@@ -9,7 +9,7 @@ import kotlin.math.*
 
 /** Full main+substat budget, with an optional discount outside the largest substat dimension. */
 object GearScore {
-    const val VERSION = "score-floor-v1"
+    const val VERSION = "score-floor-v2"
     private const val SCALE = 100_000_000.0
     val weights =
         GearStat.entries.associateWith {
@@ -137,6 +137,7 @@ object GearScore {
         val best: Double?,
         val rareBest: Double?,
         val reason: String? = null,
+        val worst: Double? = null,
     ) {
         val rareOnly get() = supported && possible && chance == 0.0
 
@@ -153,6 +154,7 @@ object GearScore {
                     expected ?: JSONObject.NULL,
                 ).put("best", best ?: JSONObject.NULL)
                 .put("rareBest", rareBest ?: JSONObject.NULL)
+                .put("worst", worst ?: JSONObject.NULL)
                 .put(
                     "reason",
                     reason ?: JSONObject.NULL,
@@ -170,6 +172,7 @@ object GearScore {
                     optional("best"),
                     optional("rareBest"),
                     if (j.isNull("reason"))null else j.getString("reason"),
+                    optional("worst"),
                 )
             }
         }
@@ -413,6 +416,7 @@ object GearScore {
         var chance = 0.0
         var expected = 0.0
         var best = Long.MIN_VALUE
+        var worst = Long.MAX_VALUE
         var rareBest = Long.MIN_VALUE
         try {
             val states =
@@ -453,6 +457,7 @@ object GearScore {
                 val largest = if (model.diversity == 0)0.0 else expectedMax(groups)
                 expected += p * (main + (1 - model.diversity / 100.0) * groupMean + model.diversity / 100.0 * largest) / SCALE
                 best = maxOf(best, score(main, groups.map { it.values.last() }, model.diversity))
+                worst = minOf(worst, score(main, groups.map { it.values.first() }, model.diversity))
                 rareBest =
                     maxOf(rareBest, score(main, rare.values.toList(), model.diversity))
             }
@@ -475,6 +480,7 @@ object GearScore {
                     expected,
                     best / (SCALE * 100),
                     rareBest / (SCALE * 100),
+                    worst = worst / (SCALE * 100),
                 )
             synchronized(cache) { cache[key] = result }
             return result
