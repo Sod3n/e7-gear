@@ -248,7 +248,7 @@ fun SellFiltersScreen(graph: AppGraph) {
             RowCard("Main stats",{openSell(graph,SheetKind.SELL_MAINS)},labelWidth=112.dp) { Text(if(q.mains.isEmpty())"Any main" else q.mains.joinToString { it.short },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             //levels filter removed (user 2026-11-01: useless in the current game)
             if(false)RowCard("Levels",{openSell(graph,SheetKind.SELL_LEVELS)},labelWidth=112.dp) { Text(if(q.levels.isEmpty())"Any level" else q.levels.sorted().joinToString(),style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
-            RowCard("More filters",{openSell(graph,SheetKind.SELL_EXTRA)},labelWidth=112.dp) { Text(listOfNotNull("ES bar per slot".takeIf { q.esBars.isNotEmpty() },"Combined score".takeIf { q.scoreFilter },"No forecast shown".takeIf { q.includeUnknown },"Lv85 crafted only".takeIf { q.standardOnly }).joinToString(" · ").ifEmpty { "Off" },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            RowCard("More filters",{openSell(graph,SheetKind.SELL_EXTRA)},labelWidth=112.dp) { Text(listOfNotNull("Combined score".takeIf { q.scoreFilter },"No forecast shown".takeIf { q.includeUnknown },"Lv85 crafted only".takeIf { q.standardOnly }).joinToString(" · ").ifEmpty { "Off" },style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             RowCard("Kept pieces",{graph.nav.go(Screen.SellKept)},labelWidth=112.dp) { Text("${graph.marks.kept.size} kept",style=zen(12.sp),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             SectionTitle("Final step")
             Box(Modifier.fillMaxWidth().hardShadow(C.pink,4.dp,4.dp,14.dp)) {
@@ -348,16 +348,15 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
     val title=when(sheet.kind) {
         SheetKind.SELL_SCORE->"How points work";SheetKind.SELL_WEIGHTS->"Stat weights";SheetKind.SELL_FLOORS->"Your comparison gear";SheetKind.SELL_CUSTOMS->"Custom comparisons";SheetKind.SELL_HEROES->"Comparison heroes"
         SheetKind.SELL_INVENTORY->"Gear to review";SheetKind.SELL_SLOTS->"Slots";SheetKind.SELL_SETS->"Sets";SheetKind.SELL_MAINS->"Main stats"
-        SheetKind.SELL_LEVELS->"Equipment levels";SheetKind.SELL_QUALITY->"Low roll values";SheetKind.SELL_DETAILS->"Rolls & stat potential";SheetKind.SELL_SAFEGUARDS->"Stat safeguards";SheetKind.SELL_EXTRA->"More filters";SheetKind.SELL_WORTH->"When to keep rolling";SheetKind.SELL_SLOT_BARS->"ES bar per slot";else->"How gear is compared"
+        SheetKind.SELL_LEVELS->"Equipment levels";SheetKind.SELL_QUALITY->"Low roll values";SheetKind.SELL_DETAILS->"Rolls & stat potential";SheetKind.SELL_SAFEGUARDS->"Stat safeguards";SheetKind.SELL_EXTRA->"More filters";SheetKind.SELL_WORTH->"When to keep rolling";else->"How gear is compared"
     }
     key(sheet.kind) {
-    SheetBody(title,button=when(sheet.kind) { SheetKind.SELL_WEIGHTS->"Back to scoring";SheetKind.SELL_CUSTOMS->"Back to comparisons";SheetKind.SELL_SLOT_BARS->"Back to more filters";else->"Done" },onButton={when(sheet.kind) { SheetKind.SELL_SLOT_BARS->openSell(graph,SheetKind.SELL_EXTRA); SheetKind.SELL_HEROES,SheetKind.SELL_CUSTOMS->openSell(graph,SheetKind.SELL_FLOORS);SheetKind.SELL_WEIGHTS->openSell(graph,SheetKind.SELL_SCORE);else->graph.nav.sheet=null }}) {
+    SheetBody(title,button=when(sheet.kind) { SheetKind.SELL_WEIGHTS->"Back to scoring";SheetKind.SELL_CUSTOMS->"Back to comparisons";else->"Done" },onButton={when(sheet.kind) { SheetKind.SELL_HEROES,SheetKind.SELL_CUSTOMS->openSell(graph,SheetKind.SELL_FLOORS);SheetKind.SELL_WEIGHTS->openSell(graph,SheetKind.SELL_SCORE);else->graph.nav.sheet=null }}) {
         when(sheet.kind) {
             SheetKind.SELL_EXTRA->{
                 SellToggle("Show pieces without a forecast",q.includeUnknown) { update(q.copy(includeUnknown=it)) }
                 SellToggle("Lv85 crafted gear only",q.standardOnly) { update(q.copy(standardOnly=it)) }
                 SellToggle("Also filter by combined score",q.scoreFilter) { update(q.copy(scoreFilter=it)) }
-                RowCard("ES bar per slot",{openSell(graph,SheetKind.SELL_SLOT_BARS)}) { Text(if(q.esBars.isEmpty())"Off · one bar" else "${q.esBars.size} of 6 slots",style=zen(12.sp)) }
                 if(q.scoreFilter) {
                     RowCard("Scoring",{openSell(graph,SheetKind.SELL_SCORE)}) { Text("Weights & diversity",style=zen(12.sp)) }
                     RowCard("Comparison gear",{openSell(graph,SheetKind.SELL_FLOORS)}) { Text("Equipped pieces",style=zen(12.sp)) }
@@ -375,12 +374,14 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                 ValueSlider("All slots",{},(q.esBar?:auto?:80).toDouble(),EsForecast.esRange.first.toDouble(),EsForecast.esRange.last.toDouble(),1.0,{ if(q.esBar==null&&auto==null)"none" else "${it.toInt()}" }) { v->
                     update(q.copy(esBar=v.toInt())) }
                 OutlineButton("Reset to your +15 median",Modifier.fillMaxWidth(),height=40.dp,enabled=q.esBar!=null) { graph.messages.askReset("Reset the ES bar?","It goes back to the middle ES of your own +15 pieces.",graph.sellReview::resetEsBar) }
-            }
-            SheetKind.SELL_SLOT_BARS->{
-                val one=q.esBar?:graph.sellReview.autoEsBar()
+                // per-slot bars are the exception: folded under the one bar, open when any slot has its own
+                var perSlot by rememberSaveable { mutableStateOf(q.esBars.isNotEmpty()) }
+                Fold(if(q.esBars.isEmpty())"Per slot" else "Per slot · ${q.esBars.size} of 6",perSlot,{ perSlot=!perSlot }) {
+                val one=q.esBar?:auto
                 Slot.entries.forEach { slot->ValueSlider(slot.label,{ GearIcon(slot.icon,18.dp,C.ink) },(q.esBars[slot]?:one?:80).toDouble(),EsForecast.esRange.first.toDouble(),EsForecast.esRange.last.toDouble(),1.0,{ if(q.esBars[slot]==null&&one==null)"none" else "${it.toInt()}" }) { v->
                     update(q.copy(esBars=q.esBars+(slot to v.toInt()))) } }
-                OutlineButton("Reset all to one bar",Modifier.fillMaxWidth(),height=40.dp,enabled=q.esBars.isNotEmpty()) { graph.messages.askReset("Use one bar again?","Every slot goes back to the ES bar in When to keep rolling.",graph.sellReview::resetSlotBars) }
+                OutlineButton("Reset all to one bar",Modifier.fillMaxWidth(),height=40.dp,enabled=q.esBars.isNotEmpty()) { graph.messages.askReset("Use one bar again?","Every slot goes back to the one ES bar above.",graph.sellReview::resetSlotBars) }
+                }
             }
             SheetKind.SELL_SAFEGUARDS->{
                 Text("Pieces with a ${Chance(q.keepChance/100).text}+ chance to reach one of these stay out of Sell review.",style=zen(13.sp))

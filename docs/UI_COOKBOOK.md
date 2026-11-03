@@ -78,6 +78,9 @@ all settings. Buttons look like buttons; link-style text is rare. One main actio
   >90gs gear at all?" The ES bar and the worth-rolling chance only coloured chips; they never took a piece out of the
   list. A setting that says what not to sell removes those pieces from the sell list and the walk over the game (behind
   their own pill, like "kept by safeguards"), and a changed value updates the list at once.
+- Said (2026-11-03), after I put per-slot ES bars in "More filters" for "move per piece ... ES bar filter be in 'advance'":
+  "I think instead it should be near overall bar?" then "just folded, that was I mean initialy". The finer version of a
+  setting folds right under that setting; "advanced" never means another screen.
 - Example: settings are rows that open their own sheet; a value is a slider over the game's range, tap the number to type.
 
 ### 6. Nothing moves unless the player moved it

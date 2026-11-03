@@ -604,9 +604,10 @@ class ScreenAudit {
         steps.add("sell-matches" to { clickText("Matches") })
         steps.add("sell-matches-flat" to { ui { graph.sellReview.grouped = true }; clickText("Worst rolls"); if (graph.sellReview.grouped) add("Sell review's Worst rolls switch doesn't turn grouping off", "sell") })
         steps.add("sell-matches-grouped" to { ui { graph.sellReview.grouped = false }; clickText("By set"); if (!graph.sellReview.grouped) add("Sell review's By set switch doesn't turn grouping on", "sell") })
-        listOf(SheetKind.SELL_WORTH, SheetKind.SELL_SAFEGUARDS, SheetKind.SELL_INVENTORY, SheetKind.SELL_SLOTS, SheetKind.SELL_SETS, SheetKind.SELL_MAINS, SheetKind.SELL_EXTRA, SheetKind.SELL_SLOT_BARS).forEach { k ->
+        listOf(SheetKind.SELL_WORTH, SheetKind.SELL_SAFEGUARDS, SheetKind.SELL_INVENTORY, SheetKind.SELL_SLOTS, SheetKind.SELL_SETS, SheetKind.SELL_MAINS, SheetKind.SELL_EXTRA).forEach { k ->
             steps.add("sell-${k.name.lowercase()}" to { ui { graph.messages.dialog = null; graph.nav.stack = listOf(Screen.Gear, Screen.SellFilters); graph.nav.sheet = Sheet(k, 0) } })
         }
+        steps.add("sell-worth-per-slot" to { ui { graph.messages.dialog = null; graph.nav.stack = listOf(Screen.Gear, Screen.SellFilters); graph.nav.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; clickText("Per slot", substring = true) })
         steps.add("sell-details" to { ui { graph.nav.stack = listOf(Screen.Gear, Screen.SellFilters) }; clickText("Matches"); ui { graph.nav.sheet = sellFirst?.let { Sheet(SheetKind.SELL_DETAILS, it) } } })
         steps.add("sell-explain" to { ui { graph.nav.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; clickText("Total gold") })
         steps.add("sell-confirm" to { ui { graph.messages.dialog = null; graph.nav.sheet = Sheet(SheetKind.SELL_WORTH, 0); graph.messages.askReset("Reset the ES bars?", "Every slot goes back to the middle ES of your own +15 pieces.") {} } })
