@@ -784,6 +784,11 @@ class ScreenAudit {
             ui { overlay = false; graph.tracker.hide(); graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Gear, Screen.GearPotential) }
             if (findGear.result?.rareOnly.isNullOrEmpty()) warn("Find gear's search finds no rare-roll piece on the fixture, so the rare fold goes unchecked", "find-gear")
             else runCatching { clickText("need a rare roll", substring = true) }.onFailure { add("can't open Find gear's rare-roll fold", it.message?.take(60) ?: "") }
+                .onSuccess {
+                    // the fold says why these pieces have no percent, for the player who opens it
+                    runCatching { rule.onAllNodesWithText("A rare roll is", substring = true, useUnmergedTree = true).onFirst().performScrollTo(); rule.waitForIdle() }
+                        .onFailure { add("Find gear's rare-roll fold doesn't say why its pieces have no percent", "find-gear") }
+                }
         })
         steps.add("track-upgrades" to {
             val m = findGear.result?.withOdds?.firstOrNull { it.item.enhance < 15 }

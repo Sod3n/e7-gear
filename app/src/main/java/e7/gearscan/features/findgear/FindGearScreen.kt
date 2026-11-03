@@ -218,6 +218,8 @@ private fun Matches(graph: AppGraph, result: FindGearResult, fresh: Boolean, edi
         odds.take(count).forEach { MatchCard(graph, it, applied) }
         if (count < odds.size) OutlineButton("Show 20 more", Modifier.fillMaxWidth(), height = 42.dp) { count += 20 }
         if (rare.isNotEmpty()) Fold("${rare.size} need a rare roll", rareOpen, { rareOpen = !rareOpen }) {
+            Text("A rare roll is a value the game allows but almost never gives, like Speed +5 on level 85 gear. It lands too seldom to put a " +
+                "number on, so these pieces show no percent and stay out of the count and Track all.", style = zen(12.sp, FontWeight.Medium, C.muted))
             rare.take(rareCount).forEach { MatchCard(graph, it, applied) }
             if (rareCount < rare.size) OutlineButton("Show 20 more", Modifier.fillMaxWidth(), height = 42.dp) { rareCount += 20 }
         }
