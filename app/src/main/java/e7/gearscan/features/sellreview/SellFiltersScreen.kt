@@ -267,9 +267,6 @@ fun SellFiltersScreen(graph: AppGraph) {
                         if(byBar.isNotEmpty())Pill("${byBar.size} kept by ES bar",selected=category==3,onClick={ category=if(category==3)0 else 3;count=20 })
                         if(unknown.isNotEmpty())Pill("${unknown.size} no forecast",selected=category==2,onClick={ category=if(category==2)0 else 2;count=20 })
                     }
-                    if(category==2) { VSpace(6.dp);Text("No roll history, so no forecast.",style=zen(11.sp,color=C.muted)) }
-                    if(category==1) { VSpace(6.dp);Text("Can still reach a stat you protect.",style=zen(11.sp,color=C.muted)) }
-                    if(category==3) { VSpace(6.dp);Text("At your ES bar or can still reach it.",style=zen(11.sp,color=C.muted)) }
                 }
             }
             if(!graph.sellReview.fresh&&!graph.sellReview.busy)Text("Inventory or settings changed. Update before starting a list.",style=zen(12.sp,color=C.deepPink))
@@ -486,9 +483,9 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                             val reforge=es.finishShare==0.0&&(es.best?:0.0)>es.now
                             val open=(es.finishShare>0||reforge)&&es.bar!=null&&!es.reached&&es.supported
                             Row(verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                                val rare=open&&es.chance==0.0&&es.possible
-                                Text(if(rare)"Rare" else if(open)Chance(es.chance).text else "ES ${es.now}",style=dela(28.sp,if(!open)C.ink else esTint(es,graph.sellReview.query.rollOn)))
-                                Text(when { es.bar==null->"no bar for this slot";rare->"only rare rolls reach ES ${es.bar}";open&&reforge->"reach ES ${es.bar} after reforge";open->"of finishes reach ES ${es.bar}";es.reached->"at or above your bar ${es.bar}";else->"finished · below bar ${es.bar}" },style=zen(12.sp,color=C.muted),modifier=Modifier.padding(bottom=5.dp))
+                                val sell=esKeeps(es)==false&&es.best!=null
+                                Text(if(sell)"Max ${kotlin.math.floor(es.best!!).toInt()}" else if(open)Chance(es.chance).text else "ES ${es.now}",style=dela(28.sp,if(!open&&!sell)C.ink else esTint(es,graph.sellReview.query.rollOn)))
+                                Text(when { es.bar==null->"no bar for this slot";sell->"your bar ${es.bar}";open&&reforge->"reach ES ${es.bar} after reforge";open->"of finishes reach ES ${es.bar}";es.reached->"at or above your bar ${es.bar}";else->"finished · below bar ${es.bar}" },style=zen(12.sp,color=C.muted),modifier=Modifier.padding(bottom=5.dp))
                             }
                             VSpace(8.dp);EsBar(es)
                             if(es.finishShare>0) { VSpace(4.dp);Text("~${EsForecast.goldText(es.finishShare*EsForecast.FULL_GOLD)} gold to +15",style=zen(11.sp,color=C.muted)) }

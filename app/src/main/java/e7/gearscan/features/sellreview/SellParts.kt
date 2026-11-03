@@ -48,8 +48,8 @@ internal fun EsChip(es: EsForecast.Es, rollOn: Double, fill: Boolean = false, mo
     val text = when {
         !es.supported || es.bar == null -> "No forecast"
         es.reached -> "At bar ${es.bar}"
-        es.finishShare == 0.0 && es.chance == 0.0 -> "Below bar ${es.bar}"
-        es.chance == 0.0 && es.possible -> "Rare only"
+        // a sell names its best ending, so the gap to the bar is the fact on the card
+        esKeeps(es) == false -> es.best?.let { "Max ${kotlin.math.floor(it).toInt()}" } ?: "Below bar ${es.bar}"
         else -> "${Chance(es.chance).text} reach ${es.bar}"
     }
     val shape = RoundedCornerShape(999.dp)

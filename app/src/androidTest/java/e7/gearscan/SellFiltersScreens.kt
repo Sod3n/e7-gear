@@ -19,6 +19,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import e7.gearscan.data.*
 import e7.gearscan.overlay.*
 import e7.gearscan.ui.App
+import e7.gearscan.ui.Outcome
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
@@ -74,7 +75,7 @@ class SellFiltersScreens {
         File(ctx.filesDir,"content.json").writeText(content.toString())
         lateinit var graph:AppGraph
         ui { graph=startedGraph(ctx) }
-        rule.waitUntil(20_000) { graph.ready }
+        rule.waitUntil(20_000) { graph.ready };rule.waitUntil(60_000) { graph.contentSettled() }
         ui { assertTrue(graph.scan.restore(assets.open("backup.json").bufferedReader().use { it.readText() }));graph.nav.go(Screen.SellFilters) }
         val images=File(ctx.getExternalFilesDir(null),"audit-images")
         if(images.isDirectory)graph.content.imageBase = images.toURI().toString()
@@ -113,7 +114,7 @@ class SellFiltersScreens {
         // the ES bar keeps what can still reach it: out of the list and the walk, behind its own pill
         val byBar=result.matches.count { graph.sellReview.keptByBar(it) };assertTrue(byBar>0)
         tap("$byBar kept by ES bar");noPoints();shot("11b-kept-by-es-bar");tap("$byBar kept by ES bar")
-        ui { graph.trackMatches(openOverlay=false) }
+        var started:Outcome?=null;ui { started=graph.trackMatches(openOverlay=false) };assertEquals(Outcome.Done,started)
         assertEquals(result.matches.size-byBar,graph.tracker.queue.size);assertTrue(graph.tracker.queue.none { e->result.matches.first { it.item.id==e.id }.let(graph.sellReview::keptByBar) })
         // the rest walks many pieces: a bar no piece can reach keeps none out
         ui { graph.sellReview.edit(graph.sellReview.query.copy(esBar=300));graph.sellReview.find() };rule.waitUntil(90_000) { !graph.sellReview.busy };assertTrue(graph.sellReview.fresh)
