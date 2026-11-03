@@ -25,6 +25,8 @@ or put them behind a tap.
   "this text is reduntant"; "something user would ignore"; "too much text".
 - Ask: if this line disappeared, would a player miss it? Does another element already say it?
 - Example: a chance repeated next to a bar that already showed it was removed; explanations of the keep-rolling tiles live behind a tap.
+- Said (2026-11-03): "keep the rare-roll fold, but for curious users add description why so". The why is the first line inside
+  the opened fold, not on the list.
 
 ### 3. Speak the game, in the player's units
 Use the game's own terms and quantities (ES, gold, rolls, +3 steps, pieces), not our model's internals or ratios against
