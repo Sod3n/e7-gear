@@ -19,14 +19,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import e7.gearscan.data.*
 import e7.gearscan.opt.*
-
-/** Says what the two ES numbers are: "47" alone read as "will become 80" when written "ES 47 -> 80". */
-internal fun esCaption(es: EsForecast.Es): String? = if (es.finishShare > 0) es.typical?.let { "now · usually ${it.toInt()} at +15" } else null
 
 /** Short chip: how many finishes reach the bar, coloured by the keep-rolling chance. */
 @Composable
@@ -45,29 +43,55 @@ internal fun EsChip(es: EsForecast.Es, rollOn: Double) {
     }
 }
 
-/** ES now (solid), usual at +15 (light), best (tick) and the bar (pink marker). */
+/** Where the piece is and where it can end: ES now (solid), the ES it can finish with at +15 on usual rolls (hatched, a blue
+ *  pin with its range above) and your bar (pink line, a pink pin with its number below). */
 @Composable
 internal fun EsBar(es: EsForecast.Es, modifier: Modifier = Modifier) {
-    val top = maxOf(es.bar ?: 0, es.best?.toInt() ?: 0, es.now, 1) * 1.08f
+    val lo = es.worst?.takeIf { es.finishShare > 0 }
+    val hi = es.best?.takeIf { es.finishShare > 0 }
+    val top = maxOf(es.bar ?: 0, hi?.toInt() ?: 0, es.now, 1) * 1.06f
     fun f(v: Number) = (v.toFloat() / top).coerceIn(0f, 1f)
-    BoxWithConstraints(modifier.fillMaxWidth().height(14.dp)) {
-        val w = maxWidth
-        Box(Modifier.align(Alignment.CenterStart).fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(C.line))
-        es.typical?.let { Box(Modifier.align(Alignment.CenterStart).width(w * f(it)).height(8.dp).clip(RoundedCornerShape(4.dp)).background(C.blue.copy(alpha = .35f))) }
-        Box(Modifier.align(Alignment.CenterStart).width(w * f(es.now)).height(8.dp).clip(RoundedCornerShape(4.dp)).background(C.blue))
-        es.best?.let { Box(Modifier.align(Alignment.CenterStart).offset(x = w * f(it) - 1.dp).width(2.dp).height(8.dp).background(C.blue.copy(alpha = .6f))) }
-        es.bar?.let { Box(Modifier.offset(x = w * f(it) - 1.5.dp).width(3.dp).fillMaxHeight().background(C.pink)) }
+    val shape = RoundedCornerShape(7.dp)
+    Column(modifier.fillMaxWidth()) {
+        if (lo != null && hi != null) Pin((f(lo) + f(hi)) / 2, if (lo == hi) "${lo.toInt()}" else "${lo.toInt()}–${hi.toInt()}", C.blue, below = false)
+        BoxWithConstraints(Modifier.fillMaxWidth().height(22.dp)) {
+            val w = maxWidth
+            // recessed like the game's gauges: a soft shade along the inside top edge
+            Box(Modifier.align(Alignment.CenterStart).fillMaxWidth().height(14.dp).clip(shape).background(C.line)
+                .drawWithContent { drawContent(); drawRect(C.edge.copy(alpha = .22f), size = androidx.compose.ui.geometry.Size(size.width, 3.dp.toPx())) }
+                .border(1.5.dp, C.edge, shape)) {
+                if (lo != null && hi != null) Box(Modifier.offset(x = w * f(lo)).width((w * (f(hi) - f(lo))).coerceAtLeast(3.dp)).fillMaxHeight()
+                    .stripes(C.blue.copy(alpha = .5f), C.blue.copy(alpha = .16f), 4.dp, androidx.compose.ui.graphics.RectangleShape))
+                Box(Modifier.width(w * f(es.now)).fillMaxHeight().background(C.blue))
+            }
+            es.bar?.let { Box(Modifier.offset(x = w * f(it) - 2.5.dp).width(5.dp).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(C.pink).border(1.dp, C.edge, RoundedCornerShape(3.dp))) }
+        }
+        es.bar?.let { Pin(f(it), "$it", C.pink, below = true) }
     }
 }
 
+/** A small pin: [text] in a pill whose tip sits on [fraction] of the width; the pill slides inward to stay inside, the tip doesn't. */
 @Composable
-internal fun EsLegend(es: EsForecast.Es) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("now ${es.now}", style = zen(10.sp, color = C.muted))
-        es.typical?.takeIf { es.finishShare > 0 }?.let { Text("usual +15 ${it.toInt()}", style = zen(10.sp, color = C.muted)) }
-        es.best?.takeIf { es.finishShare > 0 }?.let { Text("best ${it.toInt()}", style = zen(10.sp, color = C.muted)) }
-        Spacer(Modifier.weight(1f))
-        es.bar?.let { Text("bar $it", style = zen(10.sp, color = C.deepPink)) }
+private fun Pin(fraction: Float, text: String, color: androidx.compose.ui.graphics.Color, below: Boolean) {
+    androidx.compose.ui.layout.Layout({
+        Text(text, style = dela(11.sp, if (color == C.pink) textOn(color) else C.onTile), softWrap = false, modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(color).padding(horizontal = 7.dp))
+        androidx.compose.foundation.Canvas(Modifier.size(10.dp, 5.dp)) {
+            val p = androidx.compose.ui.graphics.Path().apply {
+                if (below) { moveTo(0f, size.height); lineTo(size.width, size.height); lineTo(size.width / 2, 0f) }
+                else { moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width / 2, size.height) }
+                close()
+            }
+            drawPath(p, color)
+        }
+    }, Modifier.fillMaxWidth()) { ms, c ->
+        val pill = ms[0].measure(c.copy(minWidth = 0))
+        val tip = ms[1].measure(c.copy(minWidth = 0))
+        val x = c.maxWidth * fraction
+        val px = (x - pill.width / 2f).toInt().coerceIn(0, (c.maxWidth - pill.width).coerceAtLeast(0))
+        val tx = (x - tip.width / 2f).toInt().coerceIn(0, (c.maxWidth - tip.width).coerceAtLeast(0))
+        layout(c.maxWidth, pill.height + tip.height) {
+            if (below) { tip.place(tx, 0); pill.place(px, tip.height) } else { pill.place(px, 0); tip.place(tx, pill.height) }
+        }
     }
 }
 

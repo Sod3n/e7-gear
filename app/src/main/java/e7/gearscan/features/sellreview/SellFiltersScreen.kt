@@ -149,18 +149,6 @@ internal fun esVerdict(es:EsForecast.Es,rollOn:Double):Pair<String,Boolean>? = w
 }
 
 @Composable
-internal fun EsSummary(es:EsForecast.Es?,rollOn:Double) {
-    if(es==null) { Text("Equipment Score not checked · update the list",style=zen(11.sp,color=C.muted));return }
-    Row(verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-        Text("ES ${es.now}",style=dela(17.sp))
-        if(es.finishShare>0)Text(es.typical?.let { "now · usually ${it.toInt()} at +15${es.best?.let { b->" · up to ${b.toInt()}" }?:""}" }?:"now · finish not forecast",style=zen(11.sp,color=C.muted))
-    }
-    esVerdict(es,rollOn)?.let { (text,good)->Text(text,style=zen(12.sp,color=if(good)C.blue else C.deepPink)) }
-        ?:Text(if(es.bar==null)"No +15 piece in this slot to set a bar · set one in Worth rolling" else "Chance not forecast for this piece",style=zen(11.sp,color=C.muted))
-    if(es.finishShare>0)Text("Finishing costs ${(es.finishShare*100).toInt()}% of a full +0 → +15",style=zen(10.sp,color=C.muted))
-}
-
-@Composable
 private fun RollTable(rolls:List<RollReview.Roll>?) {
     if(rolls==null) { Text("No reliable roll history for this piece.",style=zen(11.sp,color=C.muted));return }
     Column(verticalArrangement=Arrangement.spacedBy(5.dp)) {
@@ -297,10 +285,7 @@ fun SellFiltersScreen(graph: AppGraph) {
                     VSpace(10.dp)
                     row.es?.let { es->
                         Row(verticalAlignment=Alignment.Top) {
-                            Column(Modifier.weight(1f)) {
-                                Text("ES ${es.now}",style=dela(17.sp))
-                                esCaption(es)?.let { Text(it,style=zen(11.sp,FontWeight.Medium,C.muted)) }
-                            }
+                            Text("ES ${es.now}",style=dela(17.sp),modifier=Modifier.weight(1f))
                             EsChip(es,q.rollOn)
                         }
                         VSpace(6.dp);EsBar(es)
@@ -496,7 +481,7 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                                 Text(if(rare)"Rare" else if(open)Chance(es.chance).text else "ES ${es.now}",style=dela(28.sp,if(!open)C.ink else if(es.worthRolling(graph.sellReview.query.rollOn))C.blue else C.deepPink))
                                 Text(when { es.bar==null->"no bar for this slot";rare->"only rare rolls reach ES ${es.bar}";open->"of finishes reach ES ${es.bar}";es.reached->"at or above your bar ${es.bar}";else->"finished · below bar ${es.bar}" },style=zen(12.sp,color=C.muted),modifier=Modifier.padding(bottom=5.dp))
                             }
-                            VSpace(8.dp);EsBar(es);VSpace(3.dp);EsLegend(es)
+                            VSpace(8.dp);EsBar(es)
                             if(es.finishShare>0) { VSpace(4.dp);Text("~${EsForecast.goldText(es.finishShare*EsForecast.FULL_GOLD)} gold to +15",style=zen(11.sp,color=C.muted)) }
                         }
                     }

@@ -8,6 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -30,7 +31,6 @@ import e7.gearscan.opt.GearBounds
 import e7.gearscan.opt.GearPotential
 import e7.gearscan.features.sellreview.EsBar
 import e7.gearscan.features.sellreview.EsChip
-import e7.gearscan.features.sellreview.esCaption
 import e7.gearscan.ui.*
 import kotlin.math.floor
 import kotlin.math.min
@@ -269,10 +269,7 @@ private fun PieceSummary(t: TrackerFeature, item: Item, height: Float, es: EsFor
 private fun EsBlock(e: EsForecast.Es, rollOn: Double) {
     Column(Modifier.fillMaxWidth().inset().padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                FitText("ES ${e.now}", dela(13.sp))
-                FitText(esCaption(e) ?: " ", zen(9.sp, color = C.muted))
-            }
+            FitText("ES ${e.now}", dela(13.sp), Modifier.weight(1f))
             EsChip(e, rollOn)
         }
         EsBar(e)
@@ -285,10 +282,10 @@ private fun EsBlockSpace() {
     val clear = Color.Transparent
     Column(Modifier.fillMaxWidth().inset().padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) { FitText("ES", dela(13.sp, clear)); FitText(" ", zen(9.sp, color = clear)) }
+            FitText("ES", dela(13.sp, clear), Modifier.weight(1f))
             Box(Modifier.border(1.5.dp, clear, RoundedCornerShape(999.dp)).padding(horizontal = 9.dp, vertical = 3.dp)) { Text("Rare only", style = zen(11.sp, color = clear)) }
         }
-        Spacer(Modifier.fillMaxWidth().height(14.dp))
+        EsBar(EsForecast.Es(0, 1, 0.0, 1.0, 1.0, false, true, 1.0, 1.0), Modifier.alpha(0f))
     }
 }
 
