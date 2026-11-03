@@ -31,6 +31,7 @@ import e7.gearscan.opt.EsForecast
 import e7.gearscan.opt.GearBounds
 import e7.gearscan.opt.GearPotential
 import e7.gearscan.features.sellreview.EsChip
+import e7.gearscan.features.sellreview.esKeeps
 import e7.gearscan.ui.*
 import kotlin.math.floor
 import kotlin.math.min
@@ -206,11 +207,15 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                 }
                 t.sellQueueComplete -> PanelAction("Undo mark", b, pink = true, enabled = t.canUndoSold) { t.undoSold(); pane = UpgradePane.PIECE }
                 pane == UpgradePane.PIECE -> {
+                    // the pink button is what the forecast says to do next: sell it, enhance it on, or keep it
+                    val record = item.enhance < 15 && UpgradeRecord.supported(item)
+                    val keeps = es?.let { esKeeps(it, t.rollOn) }
+                    val rollOn = keeps == true && es?.reached == false && record
                     if (t.isSellQueue) {
-                        PanelAction("Sold ›", b, pink = true, enabled = t.canMarkSold, label = "Sold and next") { t.markSold(item.id); pane = UpgradePane.PIECE }
-                        PanelAction("Keep ›", b, enabled = t.canMarkSold, label = "Keep and next") { t.markSold(item.id, keep = true); pane = UpgradePane.PIECE }
+                        PanelAction("Sold ›", b, pink = keeps == false, enabled = t.canMarkSold, label = "Sold and next") { t.markSold(item.id); pane = UpgradePane.PIECE }
+                        PanelAction("Keep ›", b, pink = keeps == true && !rollOn, enabled = t.canMarkSold, label = "Keep and next") { t.markSold(item.id, keep = true); pane = UpgradePane.PIECE }
                     }
-                    if (item.enhance < 15 && UpgradeRecord.supported(item)) PanelAction("Record +${((item.enhance / 3 + 1) * 3).coerceAtMost(15)}", b, pink = !t.isSellQueue) {
+                    if (record) PanelAction("Record +${((item.enhance / 3 + 1) * 3).coerceAtMost(15)}", b, pink = !t.isSellQueue || rollOn) {
                         correction = false; t.beginEdit()
                     }
                     // a finished piece: record the reforge, then equipping it, as done in the game

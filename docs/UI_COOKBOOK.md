@@ -54,6 +54,10 @@ exact, estimated, unknown or out of date. No verdict ("best", "safe", "worth it"
 - Said: "when to keep rolling does not computed from user inventory?"; "we also need show that it is aproximate values";
   "it isnt feels like it actually best balance tho".
 - Ask: where does this number come from, for this player? Is its precision visible? Would I defend the verdict word?
+- Said (2026-11-03), over the game on a weapon the forecast called worth rolling ("11% reach 90", blue) under a pink
+  "Sold ›": "are you sure that is something that I should sell?", then: "It is was +6 piece that I upgraded to +9 when saw
+  4% chance to end >90gs". The pink button is a verdict too. It follows the forecast: Sold when the chip says sell, Record
+  when it says roll on, Keep when it is at the bar, none without a forecast (`esKeeps`, EsVerdictTest).
 - Example: keep-rolling tiles are computed live from the review list, marked as estimates, and explain themselves on tap.
   A placeholder or test value is never shipped looking like real data; if a build has one, the delivery message says so.
 

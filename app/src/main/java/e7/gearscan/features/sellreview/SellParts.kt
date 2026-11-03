@@ -27,15 +27,25 @@ import e7.gearscan.data.*
 import e7.gearscan.opt.*
 
 /** Short chip: how many finishes reach the bar, coloured by the keep-rolling chance. */
+/** The forecast's answer for a piece: keep (at the bar, or worth rolling on), sell, or null without a forecast. */
+internal fun esKeeps(es: EsForecast.Es, rollOn: Double): Boolean? = when {
+    !es.supported || es.bar == null -> null
+    es.reached -> true
+    es.finishShare == 0.0 -> false
+    es.chance == 0.0 && es.possible -> false
+    else -> es.worthRolling(rollOn)
+}
+
 @Composable
 internal fun EsChip(es: EsForecast.Es, rollOn: Double, fill: Boolean = false, modifier: Modifier = Modifier) {
-    val (text, good) = when {
-        !es.supported || es.bar == null -> "No forecast" to null
-        es.reached -> "At bar ${es.bar}" to true
-        es.finishShare == 0.0 -> "Below bar ${es.bar}" to false
-        es.chance == 0.0 && es.possible -> "Rare only" to false
-        else -> "${Chance(es.chance).text} reach ${es.bar}" to es.worthRolling(rollOn)
+    val text = when {
+        !es.supported || es.bar == null -> "No forecast"
+        es.reached -> "At bar ${es.bar}"
+        es.finishShare == 0.0 -> "Below bar ${es.bar}"
+        es.chance == 0.0 && es.possible -> "Rare only"
+        else -> "${Chance(es.chance).text} reach ${es.bar}"
     }
+    val good = esKeeps(es, rollOn)
     val shape = RoundedCornerShape(999.dp)
     val tint = when (good) { true -> C.blue; false -> C.deepPink; null -> C.muted }
     // fill: as wide as its column, the text shrinking to fit (the narrow panel over the game)
