@@ -130,15 +130,22 @@ The maintainer is not the reviewer. A round reaches them only after:
    font and 411 dp, light and dark).
 2. **Independent review**: a fresh subagent gets only the screenshots and this file and lists everything the maintainer would
    object to. Fix those first.
-3. **Machine checks clean, sized to the step**:
-   - each design round: ScreenAudit filtered to the touched screens at the hardest setups (353 dp big font, Russian),
-     ~1-2 min; unit tests (SourceRulesTest, ThemeRulesTest).
+3. **Machine checks clean, sized to the step**. Said (2026-11-03): "your audits after each change takes too much time each
+   time, can you optimize workflow?" (I had run unit gate + lint + audit + suites + an emulator reboot after every tweak.)
+   - each change, ~1 min, emulator already up: ONE gradle call with the touched unit tests and the one androidTest that
+     renders the touched screen, then read its screenshot:
+     `ANDROID_SERIAL=emulator-5554 E7_FIXTURES=<fixtures> ./gradlew -q :app:testDebugUnitTest --tests '<package>.*'
+     connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=e7.gearscan.<Screens>[#test]`
+     (e.g. SellFiltersScreens ~35 s, HeroUpgradeScreens#quickRender ~20 s). No lint, no full suite, no audit here.
    - renders for review come from a saved result, not a fresh computation: Improve heroes'
      `HeroUpgradeScreens#quickRender` reads E7_FIXTURES/hero_upgrades.json (21 s with the emulator already up). Keep the
      emulator running through a design session.
-   - before a build goes to the maintainer's phone, and before release: the full audit
-     (`E7_FIXTURES=<fixture folder> tools/audit.sh`, ~8 min, emulator only) and every androidTest
-     suite that touches the change.
+   - before a build goes to the maintainer's phone: all unit tests once, then ScreenAudit for the touched screens at the
+     hardest setups without repeating them (`AUDIT_UNIT=0 AUDIT_ONLY='sell*' AUDIT_SETUPS='353-big-en,411-big-ru'
+     E7_FIXTURES=<fixtures> tools/audit.sh`, ~3 min) and the androidTest suites that touch the change. Lint runs in
+     release.sh.
+   - before release: the full audit (`E7_FIXTURES=<fixture folder> tools/audit.sh`, ~8 min, emulator only) and every
+     androidTest suite that touches the change.
    - New screens and states are added to ScreenAudit in the same change, including the states where the player decides
      something (with results, not only empty or intro states).
 4. **Only real product choices go to the maintainer**, each with what it changes for the player.
