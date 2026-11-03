@@ -153,7 +153,7 @@ internal fun EsSummary(es:EsForecast.Es?,rollOn:Double) {
     if(es==null) { Text("Equipment Score not checked · update the list",style=zen(11.sp,color=C.muted));return }
     Row(verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
         Text("ES ${es.now}",style=dela(17.sp))
-        if(es.finishShare>0)Text(es.typical?.let { "now → usually ${it.toInt()} at +15${es.best?.let { b->" · up to ${b.toInt()}" }?:""}" }?:"now · finish not forecast",style=zen(11.sp,color=C.muted))
+        if(es.finishShare>0)Text(es.typical?.let { "now · usually ${it.toInt()} at +15${es.best?.let { b->" · up to ${b.toInt()}" }?:""}" }?:"now · finish not forecast",style=zen(11.sp,color=C.muted))
     }
     esVerdict(es,rollOn)?.let { (text,good)->Text(text,style=zen(12.sp,color=if(good)C.blue else C.deepPink)) }
         ?:Text(if(es.bar==null)"No +15 piece in this slot to set a bar · set one in Worth rolling" else "Chance not forecast for this piece",style=zen(11.sp,color=C.muted))
@@ -296,10 +296,12 @@ fun SellFiltersScreen(graph: AppGraph) {
                     SellCardHead(graph,row)
                     VSpace(10.dp)
                     row.es?.let { es->
-                        Row(verticalAlignment=Alignment.CenterVertically) {
-                            Text("ES ${es.now}",style=dela(17.sp))
-                            if(es.finishShare>0)es.typical?.let { Text("  → ${it.toInt()}",style=zen(14.sp,color=C.muted)) }
-                            Spacer(Modifier.weight(1f));EsChip(es,q.rollOn)
+                        Row(verticalAlignment=Alignment.Top) {
+                            Column(Modifier.weight(1f)) {
+                                Text("ES ${es.now}",style=dela(17.sp))
+                                esCaption(es)?.let { Text(it,style=zen(11.sp,FontWeight.Medium,C.muted)) }
+                            }
+                            EsChip(es,q.rollOn)
                         }
                         VSpace(6.dp);EsBar(es)
                         if(es.finishShare>0) { VSpace(3.dp);Text("~${EsForecast.goldText(es.finishShare*EsForecast.FULL_GOLD)} gold to +15",style=zen(10.sp,color=C.muted)) }

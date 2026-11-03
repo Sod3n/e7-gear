@@ -212,7 +212,8 @@ private fun Bubble(g: AppGraph, b: OverlayBuild, onOpen: () -> Unit) {
 
 /** The collapsed overlay, shaped like the phone's chat bubbles; the badge sits on the side away from the screen edge. */
 @Composable
-internal fun BubbleShell(s: OverlayWindow, progress: Float, ring: Color, track: Color, badge: String?, onTap: () -> Unit, content: @Composable () -> Unit) {
+internal fun BubbleShell(s: OverlayWindow, progress: Float, ring: Color, track: Color, badge: String?, onTap: () -> Unit,
+                         corner: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
     val pop = remember { Animatable(0.4f) }
     LaunchedEffect(Unit) { pop.animateTo(1f, spring(0.55f, Spring.StiffnessMedium)) }
     val left by animateFloatAsState(if (s.closing) 0f else 1f, tween(200), label = "bubble-closing")
@@ -226,6 +227,11 @@ internal fun BubbleShell(s: OverlayWindow, progress: Float, ring: Color, track: 
             drawArc(track, 0f, 360f, false, inset, arc, style = Stroke(w))
             if (progress > 0f) drawArc(ring, -90f, 360f * progress.coerceAtMost(1f), false, inset, arc, style = Stroke(w, cap = StrokeCap.Round))
         }, contentAlignment = Alignment.Center) { content() }
+        // the tracked piece's set, low on the side away from the edge, so it can be matched in the game's inventory
+        corner?.let {
+            Box(Modifier.align(if (s.bubbleLeft) Alignment.BottomEnd else Alignment.BottomStart).padding(bottom = 6.dp, start = 4.dp, end = 4.dp).size(26.dp)
+                .clip(CircleShape).background(C.card).border(1.5.dp, C.edge, CircleShape), contentAlignment = Alignment.Center) { it() }
+        }
         badge?.let {
             Text(it, style = dela(10.sp, C.onAccent), maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.align(if (s.bubbleLeft) Alignment.TopEnd else Alignment.TopStart).widthIn(max = BUBBLE_BOX.dp).padding(top = 6.dp).clip(RoundedCornerShape(999.dp)).background(C.pink).border(1.5.dp, C.card, RoundedCornerShape(999.dp))

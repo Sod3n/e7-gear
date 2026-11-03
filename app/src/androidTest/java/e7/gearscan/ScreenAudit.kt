@@ -617,6 +617,8 @@ class ScreenAudit {
             ui { graph.nav.sheet = null; graph.trackMatches(openOverlay = false); graph.tracker.show(); graph.overlay.expanded = true }
             overlay = true
         })
+        // the collapsed tracker: slot, level, ring, chance badge and the piece's set
+        steps.add("sell-bubble" to { ui { graph.overlay.expanded = false } })
         steps.add("improve-heroes" to { ui { overlay = false; graph.tracker.hide(); graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) } })
         // the states a player decides in need a finished check (~3 min on the emulator), run once when first asked for
         fun heroUpgradesDone(): e7.gearscan.opt.HeroUpgrades.Result {

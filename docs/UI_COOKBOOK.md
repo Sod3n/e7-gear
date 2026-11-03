@@ -43,6 +43,8 @@ Every number on a player screen is computed from that player's data. The player 
 exact, estimated, unknown or out of date. No verdict ("best", "safe", "worth it") unless a calculation shows it.
 - Said: "when to keep rolling does not computed from user inventory?"; "we also need show that it is aproximate values";
   "it isnt feels like it actually best balance tho".
+- Said (2026-11-03): "It is not very clear what exactly ES 47 -> in sell review means." A bare "A → B" reads as "will become B";
+  when B is a forecast or a target, say so ("ES 47", then "now · usually 80 at +15").
 - Ask: where does this number come from, for this player? Is its precision visible? Would I defend the verdict word?
 - Example: keep-rolling tiles are computed live from the review list, marked as estimates, and explain themselves on tap.
   A placeholder or test value is never shipped looking like real data; if a build has one, the delivery message says so.

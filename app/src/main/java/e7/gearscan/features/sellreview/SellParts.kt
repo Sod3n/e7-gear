@@ -25,6 +25,9 @@ import androidx.compose.ui.unit.sp
 import e7.gearscan.data.*
 import e7.gearscan.opt.*
 
+/** Says what the two ES numbers are: "47" alone read as "will become 80" when written "ES 47 -> 80". */
+internal fun esCaption(es: EsForecast.Es): String? = if (es.finishShare > 0) es.typical?.let { "now · usually ${it.toInt()} at +15" } else null
+
 /** Short chip: how many finishes reach the bar, coloured by the keep-rolling chance. */
 @Composable
 internal fun EsChip(es: EsForecast.Es, rollOn: Double) {

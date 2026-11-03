@@ -30,6 +30,7 @@ import e7.gearscan.opt.GearBounds
 import e7.gearscan.opt.GearPotential
 import e7.gearscan.features.sellreview.EsBar
 import e7.gearscan.features.sellreview.EsChip
+import e7.gearscan.features.sellreview.esCaption
 import e7.gearscan.ui.*
 import kotlin.math.floor
 import kotlin.math.min
@@ -101,7 +102,8 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
     val draft = remember(item, t.editing) { if (t.editing) UpgradeDraft(r, correction) else null }
     if (!w.expanded) {
         // the ring fills with the enhance level, in the piece's rank colour
-        BubbleShell(w, item.enhance / 15f, rankColor(item.rank), C.onTile.copy(alpha = 0.25f), chanceBadge(t), { w.expanded = true; onDock(true) }) {
+        BubbleShell(w, item.enhance / 15f, rankColor(item.rank), C.onTile.copy(alpha = 0.25f), chanceBadge(t), { w.expanded = true; onDock(true) },
+            corner = g.content.content.set(item.set)?.icon?.let { icon -> { SetIcon(icon, 18.dp) } }) {
             Box(Modifier.fillMaxSize().background(C.slate), contentAlignment = Alignment.Center) {
                 GearIcon(item.slot.icon, 30.dp, C.onTile)
                 Text("+${item.enhance}", style = dela(9.sp, C.onTile), modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp))
@@ -267,7 +269,10 @@ private fun PieceSummary(t: TrackerFeature, item: Item, height: Float, es: EsFor
 private fun EsBlock(e: EsForecast.Es, rollOn: Double) {
     Column(Modifier.fillMaxWidth().inset().padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            FitText("ES ${e.now}${e.typical?.takeIf { e.finishShare > 0 }?.let { " → ${it.toInt()}" } ?: ""}", dela(13.sp), Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                FitText("ES ${e.now}", dela(13.sp))
+                FitText(esCaption(e) ?: " ", zen(9.sp, color = C.muted))
+            }
             EsChip(e, rollOn)
         }
         EsBar(e)
@@ -280,7 +285,7 @@ private fun EsBlockSpace() {
     val clear = Color.Transparent
     Column(Modifier.fillMaxWidth().inset().padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            FitText("ES", dela(13.sp, clear), Modifier.weight(1f))
+            Column(Modifier.weight(1f)) { FitText("ES", dela(13.sp, clear)); FitText(" ", zen(9.sp, color = clear)) }
             Box(Modifier.border(1.5.dp, clear, RoundedCornerShape(999.dp)).padding(horizontal = 9.dp, vertical = 3.dp)) { Text("Rare only", style = zen(11.sp, color = clear)) }
         }
         Spacer(Modifier.fillMaxWidth().height(14.dp))
