@@ -62,17 +62,14 @@ class QueueScreens {
         assertEquals(matches.map { it.item.id }, t.queue.map { it.id })
         assertEquals(matches.size, t.queue.size)
         assertTrue(t.queue.none { graph.records.records[it.id]!!.item.slot == Slot.BOOTS })
-        ui { t.show(); graph.overlay.expanded = true; graph.overlay.floating = true; overlay = true }
+        ui { t.show(); graph.overlay.expanded = true; graph.overlay.floating = true; graph.overlay.usableHeightDp = 0f; overlay = true }
         shot("31-queue-first-353-big")
         tap("›"); assertEquals(1, t.queueIndex)
         shot("32-queue-next-353-big")
-        rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle(); tap("List"); shot("33-queue-list-353-big")
-        rule.onNodeWithContentDescription("Next list page").performClick(); shot("34-queue-page-two-353-big")
         ui { t.selectInQueue(25) }
-        tap("Back")
         assertEquals(25, t.queueIndex)
         ui { graph.overlay.floatingPanel = true }
-        rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle(); tap("Open E7 Gear"); assertFalse(graph.overlay.floatingPanel)
+        rule.onNodeWithContentDescription("Back to E7 Gear").performClick(); rule.waitForIdle(); assertFalse(graph.overlay.floatingPanel)
         val helmet = t.queue.indexOfFirst { e -> graph.records.records[e.id]!!.item.let { it.slot == Slot.HELMET && it.rank == "Heroic" && it.enhance == 9 } }
         assertTrue(helmet >= 0)
         ui { t.selectInQueue(helmet) }

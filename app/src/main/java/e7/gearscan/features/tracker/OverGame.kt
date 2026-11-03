@@ -64,6 +64,16 @@ class OverGame(
 
     fun showChecklist(): Boolean = launcher.showChecklist()
 
+    /** Track upgrades' Stop tracking: the over-the-game window closes, the record and list stay. */
+    fun stopTracking() {
+        if (ctx.overlay.floating) {
+            closeFloatingPanel()
+        } else {
+            tracker.hide()
+            ctx.platform.stopOverlay()
+        }
+    }
+
     fun closeFloatingPanel() {
         tracker.hide()
         checklist.unload()

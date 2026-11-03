@@ -184,7 +184,7 @@ class UpgradeCheckRun(private val t: TrackerFeature, private val ctx: FeatureCon
                     throw e
                 } catch (e: Exception) {
                     busy = false
-                    t.error = "Check stopped. Recorded steps are saved; tap Recheck to continue."
+                    t.error = "Check stopped. Recorded steps are saved; recheck it in E7 Gear to continue."
                 }
             }
         if (out is Outcome.Failed) t.error = out.text

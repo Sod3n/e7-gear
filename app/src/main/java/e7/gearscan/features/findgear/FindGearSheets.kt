@@ -166,7 +166,7 @@ internal fun PotentialPieceSheet(graph: AppGraph, id: Long) {
     val reforgeOnly = reforgeOnly(match, q)
     SheetBody("Worth enhancing?", button = when { o.matchesNow -> null; item.enhance < 15 -> "Enhance over the game"; else -> "Reforge over the game" }, onButton = {
         graph.nav.sheet = null
-        graph.messages.show(graph.trackMatch(match, openOverlay = true))
+        graph.keepingWalk(match.item.id) { graph.messages.show(graph.trackMatch(match, openOverlay = true)) }
     }) {
         Card(shadow = null, padding = PaddingValues(12.dp)) { GearSearchIdentity(graph, item, q.targets.keys) }
         Card(shadow = null, padding = PaddingValues(12.dp)) {

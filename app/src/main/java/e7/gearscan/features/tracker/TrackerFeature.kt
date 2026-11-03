@@ -99,6 +99,10 @@ class TrackerFeature(
     var editing by mutableStateOf(false)
         internal set
 
+    // the open entry corrects the current values instead of recording the next +3
+    var correcting by mutableStateOf(false)
+        private set
+
     private val scan get() = scanFeature.lastScan
     private val box get() = scanFeature.box
     private val content get() = contentFeature.content
@@ -138,6 +142,7 @@ class TrackerFeature(
         }
         checkRun.stopCheck()
         editing = false
+        correcting = false
         error = null
         if (selected != item.id || records[item.id]?.scan != scan) {
             goal = null
@@ -200,14 +205,19 @@ class TrackerFeature(
         persist()
     }
 
-    fun beginEdit() {
+    fun beginEdit(correction: Boolean = false) {
         error = null
+        correcting = correction
         editing = true
     }
 
     fun cancelEdit() {
         editing = false
+        correcting = false
     }
+
+    /** Tracking [id] keeps the walk only when the piece is in it and the walk is not a Sell review. */
+    fun keepsWalk(id: Long) = pendingQueue.isEmpty() || (scoreQuery == null && queue.any { it.id == id })
 
     fun dismissError() {
         error = null
@@ -226,6 +236,7 @@ class TrackerFeature(
             records = records + (update.item.id to update)
             invalidate()
             editing = false
+            correcting = false
             persist()
             checkRun.runCheck()
             true
@@ -241,6 +252,7 @@ class TrackerFeature(
         records = records + (r.item.id to r.undo())
         invalidate()
         editing = false
+        correcting = false
         persist()
         checkRun.runCheck()
     }
@@ -252,6 +264,7 @@ class TrackerFeature(
             records = records + (r.item.id to r.reforged())
             invalidate()
             editing = false
+            correcting = false
             persist()
             checkRun.runCheck()
             true
@@ -266,7 +279,7 @@ class TrackerFeature(
     fun selectPiece(id: Long) {
         val item = box?.itemsById?.get(id) ?: return
         if (!UpgradeRecord.supported(item)) return
-        select(item, scan)
+        select(item, scan, keepQueue = scoreQuery == null)
         configure()
     }
 
@@ -417,6 +430,7 @@ class TrackerFeature(
     ) {
         checkRun.stopCheck()
         editing = false
+        correcting = false
         val a = j.optJSONArray("records") ?: JSONArray()
         records = (0 until a.length()).map { UpgradeRecord.fromJson(a.getJSONObject(it)) }.associateBy { it.item.id }
         selected = if (j.isNull("selected")) null else j.optLong("selected").takeIf { it in records }

@@ -52,14 +52,6 @@ class NoScrollScreens {
         if (!n.fetchSemanticsNode().config.contains(SemanticsActions.OnClick)) return false
         n.performClick(); rule.waitForIdle(); return true
     }
-    private fun menu(name: String) {
-        rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle()
-        repeat(10) {
-            if (rule.onAllNodesWithText(name, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) { tap(name); return }
-            assertTrue("Missing menu item $name", advance("choices"))
-        }
-        fail("Menu paging did not reach $name")
-    }
     private fun choose(name: String) {
         repeat(10) {
             if (rule.onAllNodesWithText(name, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) { tap(name); return }
@@ -70,7 +62,7 @@ class NoScrollScreens {
     private fun check() {
         rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollBy), useUnmergedTree = true).assertCountEquals(0)
         rule.onAllNodes(hasSetTextAction(), useUnmergedTree = true).assertCountEquals(0)
-        rule.onNodeWithContentDescription("More").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Back to E7 Gear").assertIsDisplayed()
         val body = rule.onNodeWithTag("gear-tracker-body", useUnmergedTree = true).getUnclippedBoundsInRoot()
         val text = rule.onAllNodes(hasAnyAncestor(hasTestTag("gear-tracker-body")) and SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), useUnmergedTree = true)
         repeat(text.fetchSemanticsNodes().size) { i ->
@@ -115,14 +107,8 @@ class NoScrollScreens {
             }
             val label = "$h-${f}"
             shot("$label-piece")
-            menu("Targets"); shot("$label-targets"); while (advance("details")) check(); tap("Back")
-            menu("Help"); shot("$label-help"); var pages = 1; while (advance("details")) { check(); pages++; assertTrue(pages < 100) }; tap("Back")
-            menu("History"); shot("$label-history"); tap("Back")
-            menu("List"); shot("$label-list")
-            var listPages = 1
-            while (advance("list")) { check(); listPages++; assertTrue(listPages <= 43) }
-            assertTrue(listPages > 1)
-            tap("Speed Helmet"); assertEquals(43L, tracker.selected)
+            rule.onNodeWithContentDescription("Verdict details", useUnmergedTree = true).performClick(); rule.waitForIdle(); shot("$label-targets"); while (advance("details")) check(); tap("Back")
+            ui { tracker.selectInQueue(tracker.pendingQueue.indexOfFirst { it.id == 43L }) }; assertEquals(43L, tracker.selected)
             tap("Record +12"); shot("$label-choose")
             choose("Eff"); shot("$label-total")
             rule.onNodeWithContentDescription("Increase value").performClick()
@@ -133,17 +119,18 @@ class NoScrollScreens {
             tap("Apply total"); shot("$label-review")
             tap("Save +12")
             assertEquals(12, tracker.record!!.item.enhance); assertEquals(6.0, tracker.record!!.item.subs.last().value, 0.0)
-            menu("Correct"); choose("Spd: 14")
+            // Correct starts from the app's Track upgrades, which opens this entry over the game
+            ui { tracker.beginEdit(correction = true) }; choose("Spd: 14")
             rule.onNodeWithContentDescription("Increase value").performClick()
             ui { graph.overlay.expanded = false }
             ui { graph.overlay.expanded = true }
             rule.onNodeWithText("15").assertIsDisplayed()
             tap("Apply total"); tap("Save +12")
             assertEquals(15.0, tracker.record!!.item.subs[0].value, 0.0)
-            menu("History"); tap("Undo last entry")
+            ui { tracker.undo() }
             assertEquals(14.0, tracker.record!!.item.subs[0].value, 0.0)
             shot("$label-saved")
-            menu("Open E7 Gear"); assertEquals(1, returned)
+            rule.onNodeWithContentDescription("Back to E7 Gear").performClick(); rule.waitForIdle(); assertEquals(1, returned)
             ui { tracker.error = "The entry could not be saved. Choose the totals shown in the game and try again. ".repeat(8) }
             shot("$label-error"); while (advance("details")) check(); tap("Back")
             assertNull(tracker.error)

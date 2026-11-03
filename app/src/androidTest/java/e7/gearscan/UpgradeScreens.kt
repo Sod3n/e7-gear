@@ -69,8 +69,8 @@ class UpgradeScreens {
         val restored = reopenTracker(graph, ctx.filesDir)
         assertEquals(12, restored.record!!.item.enhance)
         assertEquals(2, restored.record!!.history.size)
-        rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle(); tap("History"); shoot("04-history-353-big")
-        tap("Undo last entry")
+        // Undo last entry lives in the app's Track upgrades now (with a confirm); the tracker call is the same
+        ui { graph.tracker.undo() }
         assertEquals(9, graph.tracker.record!!.item.enhance)
         rule.waitUntil(30_000) { graph.tracker.checkRun.signature.isNotEmpty() }
         ui { width = 411; font = 1f }

@@ -108,8 +108,6 @@ class GalleryScreens {
             ui { m.nav.sheet = null; m.nav.go(Screen.SellKept) }; shot("sell-06-kept"); ui { m.nav.go(Screen.SellFilters) }
             ui { m.trackMatches(openOverlay = false) }
             ui { m.overlay.expanded = true; m.overlay.usableHeightDp = 260f; overlay = true }; rule.mainClock.advanceTimeBy(2000); Thread.sleep(2000); rule.mainClock.advanceTimeBy(500); shot("sell-07-overlay")
-            rule.onNodeWithContentDescription("More").performClick(); rule.mainClock.advanceTimeBy(500); shot("sell-08-overlay-more")
-            rule.onNodeWithContentDescription("More").performClick()
             ui { overlay = false }
         }
     }

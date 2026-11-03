@@ -17,6 +17,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
@@ -153,10 +154,6 @@ class TrackPieceScreens {
         rule.onNodeWithText("${graph.tracker.checkRun.chance}%").performClick()
         both("2-advice")
         rule.onNodeWithText("Back").performClick()
-        rule.onNodeWithContentDescription("More").performClick()
-        rule.onNodeWithText("Final build").performClick()
-        both("2b-final-build")
-        rule.onNodeWithText("Back").performClick()
 
         val recheck = recordWeakStep()
         both("3-after-record")
@@ -180,8 +177,9 @@ class TrackPieceScreens {
         ui { overlay = false }
         both("7b-app-equipped")
         ui { overlay = true }
-        rule.onNodeWithContentDescription("More").performClick(); rule.waitForIdle()
-        rule.onNodeWithContentDescription("Undo equip").performClick()
+        // Undo equip lives in the app's Track upgrades now
+        ui { overlay = false; graph.nav.go(Screen.Upgrade) }
+        rule.onNodeWithText("Undo: equipped on", substring = true).performScrollTo().performClick()
         rule.waitForIdle()
         val back = graph.scan.box!!.itemsById.getValue(piece.id)
         check(back.level == 85 && back.enhance == piece.enhance && back.equippedOn == piece.equippedOn) { "Undo didn't restore the scanned piece" }

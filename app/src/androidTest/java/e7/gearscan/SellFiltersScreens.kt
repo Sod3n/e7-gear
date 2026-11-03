@@ -49,7 +49,7 @@ class SellFiltersScreens {
         rule.onAllNodes(hasSetTextAction(),useUnmergedTree=true).assertCountEquals(0)
         if(overlay) {
             rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollBy),useUnmergedTree=true).assertCountEquals(0)
-            rule.onNodeWithText("···",substring=true).assertIsDisplayed()
+            rule.onNodeWithContentDescription("Back to E7 Gear").assertIsDisplayed()
             val body=rule.onNodeWithTag("gear-tracker-body",useUnmergedTree=true).getUnclippedBoundsInRoot()
             val text=rule.onAllNodes(hasAnyAncestor(hasTestTag("gear-tracker-body")) and SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult),useUnmergedTree=true)
             repeat(text.fetchSemanticsNodes().size) { i->val b=text[i].getUnclippedBoundsInRoot();assertTrue("Text outside overlay: $b vs $body",b.top.value>=body.top.value-1&&b.bottom.value<=body.bottom.value+1) }
@@ -133,7 +133,7 @@ class SellFiltersScreens {
         rule.onNodeWithContentDescription("Next gear").performClick();rule.waitForIdle();assertEquals(1,t.queueIndex);shot("14-overlay-next",true)
         val index=t.queue.indexOfFirst { e->graph.records.records[e.id]!!.item.let { it.rank=="Epic"&&it.enhance<15 } }
         assertTrue(index>=0);ui { t.selectInQueue(index) }
-        rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();choose("Roll review");noPoints();shot("16-overlay-roll-evidence",true);tap("Back")
+        rule.onNodeWithContentDescription("Verdict details",useUnmergedTree=true).performClick();rule.waitForIdle();noPoints();shot("16-overlay-roll-evidence",true);tap("Back")
         val before=t.record!!.item;val countBefore=t.readout.reviewRolls!!.size;val statText=t.readout.reviewStatText
         val next=(before.enhance/3+1)*3
         tap("Record +$next");val sub=before.subs.first();choose("${sub.type.short}: ${fmtNum(sub.value)}")
@@ -159,7 +159,7 @@ class SellFiltersScreens {
         ui { graph.tracker.markSold(soldId) };assertEquals(n-1,t.pendingQueue.size)
         // the stale mark above left an error page in the rail; a player taps Back, then finds Undo in the menu
         if(t.error!=null)tap("Back")
-        rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();rule.onNodeWithContentDescription("Undo last mark").performClick();rule.waitForIdle()
+        rule.onNodeWithContentDescription("Undo last mark").performClick();rule.waitForIdle()
         assertFalse(soldId in graph.marks.cleared);assertEquals(n,t.pendingQueue.size);assertEquals(soldId,t.selected)
         assertEquals(history,t.record!!.history.size);shot("20-undo-sold-mark",true)
         ui { overlay=false;assertTrue(graph.scan.restore(afterSale));graph.nav.go(Screen.Upgrade) }
@@ -167,7 +167,7 @@ class SellFiltersScreens {
         ui { graph.tracker.undoSold() };assertEquals(soldId,t.selected);assertFalse(soldId in graph.marks.cleared)
         ui { graph.overlay.expanded=true;overlay=true }
         shot("21-sold-mark-restored",true)
-        ui { graph.overlay.floating=true;graph.overlay.floatingPanel=true };rule.onNodeWithContentDescription("More").performClick();rule.waitForIdle();tap("Open E7 Gear");assertFalse(graph.overlay.floatingPanel);ui { graph.overlay.floating=false;graph.overlay.floatingPanel=true }
+        ui { graph.overlay.floating=true;graph.overlay.floatingPanel=true };rule.onNodeWithContentDescription("Back to E7 Gear").performClick();rule.waitForIdle();assertFalse(graph.overlay.floatingPanel);ui { graph.overlay.floating=false;graph.overlay.floatingPanel=true }
         val backup=graph.scan.backupText();val saved=JSONObject(backup)
         assertEquals(graph.sellReview.query,SellQuery.of(saved.getJSONObject("fields").getJSONObject("sellReview.query")))
         val reopened=reopenTracker(graph,ctx.filesDir);assertTrue(reopened.isRollReview);assertEquals(t.readout.reviewRolls,reopened.readout.reviewRolls);assertEquals(t.queue,reopened.queue)

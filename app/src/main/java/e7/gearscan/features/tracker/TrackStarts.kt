@@ -23,7 +23,7 @@ class TrackStarts(private val t: TrackerFeature, private val ctx: FeatureContext
         openOverlay: Boolean,
     ): Outcome {
         t.checkRun.stopCheck()
-        t.select(item, scan.lastScan)
+        t.select(item, scan.lastScan, keepQueue = t.scoreQuery == null)
         t.configure()
         t.useGoal(goal)
         show()
@@ -64,7 +64,7 @@ class TrackStarts(private val t: TrackerFeature, private val ctx: FeatureContext
 
     fun trackPiece(id: Long): Outcome {
         val original = scan.box?.itemsById?.get(id)?.takeIf { it.id !in marks.cleared && UpgradeRecord.supported(it) } ?: return Outcome.Done
-        t.select(original, scan.lastScan)
+        t.select(original, scan.lastScan, keepQueue = t.scoreQuery == null)
         t.configure()
         show()
         return t.openOverlay()

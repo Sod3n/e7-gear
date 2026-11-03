@@ -82,6 +82,22 @@ private fun Tracked(graph: AppGraph, t: TrackerFeature, selected: UpgradeRecord,
         SectionTitle("Your rolls")
         Card(shadow = null, padding = PaddingValues(12.dp)) { RollTable(selected.history.takeLast(4)) }
     }
+    // what the rail over the game doesn't carry: fixing an entry, taking one back, closing it
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (UpgradeRecord.supported(item)) OutlineButton("Correct the numbers", Modifier.fillMaxWidth(), height = 40.dp) {
+            t.beginEdit(correction = true); graph.messages.show(t.openOverlay())
+        }
+        if (selected.history.size > 1) OutlineButton("Undo last entry", Modifier.fillMaxWidth(), height = 40.dp) {
+            graph.messages.confirm("Undo the last entry?", "The +${item.enhance} values you recorded go away.", "Undo") { t.undo() }
+        }
+        if (t.shown) OutlineButton("Stop tracking", Modifier.fillMaxWidth(), height = 40.dp) { graph.overGame.stopTracking() }
+    }
+}
+
+/** Tracking one piece ends a walk it is not part of: ask first while pieces are left in it. */
+internal fun AppGraph.keepingWalk(id: Long, go: () -> Unit) {
+    if (tracker.keepsWalk(id)) go()
+    else messages.confirm("End your list?", "${tracker.pendingQueue.size} pieces are left in the list over the game.", "Track this one") { go() }
 }
 
 /** The one fact that decides: the chance to reach the goal, big, with what it is about under it. */
@@ -138,6 +154,8 @@ private fun HeroAdvice(t: TrackerFeature, item: Item) {
         }
         buttons.forEach { (label, act) -> VSpace(8.dp); OutlineButton(label, Modifier.fillMaxWidth(), height = 40.dp, onClick = act) }
     }
+    if (!t.checkRun.busy) { VSpace(8.dp); OutlineButton("Recheck builds", Modifier.fillMaxWidth(), height = 40.dp) { t.checkRun.runCheck() } }
+    t.checkRun.betterBet?.let { (id, _) -> VSpace(8.dp); OutlineButton("Track the better bet", Modifier.fillMaxWidth(), height = 40.dp) { t.switchTo(id) } }
 }
 
 /** Substats down the side as in the game, one column per recorded +3; a value that changed at a step is blue. */
@@ -186,7 +204,7 @@ private fun Choose(graph: AppGraph, t: TrackerFeature, box: e7.gearscan.data.Box
     SectionTitle("Your gear", trailing = "${items.size}")
     items.take(count).forEach { original ->
         val item = graph.records.records[original.id]?.takeIf { it.scan == graph.scan.lastScan }?.item ?: UpgradeRecord.fromScan(original)
-        Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp), onClick = { t.selectPiece(original.id); chosen() }) {
+        Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp), onClick = { graph.keepingWalk(original.id) { t.selectPiece(original.id); chosen() } }) {
             GearSearchIdentity(graph, item) { if (item.id == current) Tag("TRACKING", bg = C.blue, size = 9) else ChevronSlot(true) }
         }
     }
