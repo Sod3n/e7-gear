@@ -60,8 +60,10 @@ internal fun EsChip(es: EsForecast.Es, rollOn: Double, fill: Boolean = false, mo
  *  pin with its range above) and your bar (pink line, a pink pin with its number below). */
 @Composable
 internal fun EsBar(es: EsForecast.Es, modifier: Modifier = Modifier) {
-    val lo = es.worst?.takeIf { es.finishShare > 0 }
-    val hi = es.best?.takeIf { es.finishShare > 0 }
+    // a finished piece shows where its reforge takes it; without one there is nowhere left to go
+    val moves = es.finishShare > 0 || (es.best ?: 0.0) > es.now
+    val lo = es.worst?.takeIf { moves }
+    val hi = es.best?.takeIf { moves }
     val top = maxOf(es.bar ?: 0, hi?.toInt() ?: 0, es.now, 1) * 1.06f
     fun f(v: Number) = (v.toFloat() / top).coerceIn(0f, 1f)
     val shape = RoundedCornerShape(7.dp)

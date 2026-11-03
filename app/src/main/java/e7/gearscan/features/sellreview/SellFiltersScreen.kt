@@ -485,11 +485,12 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                     row.es?.let { es->
                         VSpace(4.dp)
                         Card(shadow=null,padding=PaddingValues(12.dp)) {
-                            val open=es.finishShare>0&&es.bar!=null&&!es.reached&&es.supported
+                            val reforge=es.finishShare==0.0&&(es.best?:0.0)>es.now
+                            val open=(es.finishShare>0||reforge)&&es.bar!=null&&!es.reached&&es.supported
                             Row(verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                                 val rare=open&&es.chance==0.0&&es.possible
                                 Text(if(rare)"Rare" else if(open)Chance(es.chance).text else "ES ${es.now}",style=dela(28.sp,if(!open)C.ink else if(es.worthRolling(graph.sellReview.query.rollOn))C.blue else C.deepPink))
-                                Text(when { es.bar==null->"no bar for this slot";rare->"only rare rolls reach ES ${es.bar}";open->"of finishes reach ES ${es.bar}";es.reached->"at or above your bar ${es.bar}";else->"finished · below bar ${es.bar}" },style=zen(12.sp,color=C.muted),modifier=Modifier.padding(bottom=5.dp))
+                                Text(when { es.bar==null->"no bar for this slot";rare->"only rare rolls reach ES ${es.bar}";open&&reforge->"reach ES ${es.bar} after reforge";open->"of finishes reach ES ${es.bar}";es.reached->"at or above your bar ${es.bar}";else->"finished · below bar ${es.bar}" },style=zen(12.sp,color=C.muted),modifier=Modifier.padding(bottom=5.dp))
                             }
                             VSpace(8.dp);EsBar(es)
                             if(es.finishShare>0) { VSpace(4.dp);Text("~${EsForecast.goldText(es.finishShare*EsForecast.FULL_GOLD)} gold to +15",style=zen(11.sp,color=C.muted)) }

@@ -241,7 +241,7 @@ private fun MatchCard(graph: AppGraph, match: FindGearMatch, q: PotentialQuery) 
     val view = if (match.item.enhance < 15) UpgradeRecord.fromScan(match.item) else match.item
     Card(shadow = null, radius = 14.dp, border = 2.dp, padding = PaddingValues(12.dp), onClick = { open(graph, SheetKind.POTENTIAL_PIECE, match.item.id) }) {
         GearSearchIdentity(graph, match.item, q.targets.keys,
-            side = { GoalLines(view, q.goal().minimums, note = if (reforgeOnly(match, q)) "after reforge" else null) }) {
+            side = { reforgeOnly(match, q).let { r -> GoalLines(if (r) afterReforge(view) ?: view else view, q.goal().minimums, note = if (r) "after reforge" else null) } }) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 ChanceText(match, 15)
                 ChevronSlot(true)

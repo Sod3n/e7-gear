@@ -60,6 +60,10 @@ internal fun GearPositionLabel(graph: AppGraph, item: Item, explicitGameScore: B
     if (!item.ghost) Text("ES ${InventoryOrder.score(item)}", style = zen(10.sp, FontWeight.Medium, C.blue))
 }
 
+/** A finished Lv85 piece as the game's reforge leaves it (Lv90 main and substats), or null when it can't be reforged. */
+internal fun afterReforge(item: Item): Item? =
+    if (item.level == 85 && item.enhance == 15 && !item.ghost) runCatching { UpgradeRecord(0, listOf(item)).reforged().item }.getOrNull() else null
+
 /** One line per target: the stat on the piece now → the target, with a bar that fills as it gets there. */
 @Composable
 internal fun GoalLines(item: Item, minimums: Map<GearStat, Double>, size: Int = 11, note: String? = null) {

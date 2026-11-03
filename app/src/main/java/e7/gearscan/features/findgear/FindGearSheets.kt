@@ -185,7 +185,7 @@ internal fun PotentialPieceSheet(graph: AppGraph, id: Long) {
                 }
             }
             VSpace(10.dp)
-            GoalLines(view, q.goal().minimums, size = 13)
+            GoalLines(if (reforgeOnly) afterReforge(view) ?: view else view, q.goal().minimums, size = 13)
             if (item.enhance < 15) {
                 VSpace(8.dp)
                 Text("~${EsForecast.goldText(EsForecast.finishShare(item) * EsForecast.FULL_GOLD)} gold to +15", style = zen(12.sp, FontWeight.Medium, C.muted))

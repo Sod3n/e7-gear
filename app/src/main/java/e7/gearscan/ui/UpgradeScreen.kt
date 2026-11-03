@@ -67,8 +67,10 @@ private fun listScreen(t: TrackerFeature) = when {
 private fun Tracked(graph: AppGraph, t: TrackerFeature, selected: UpgradeRecord, change: () -> Unit) {
     val item = selected.item
     Card(shadow = null, padding = PaddingValues(12.dp)) {
+        // a finished piece the goal counts reforged: its lines show the values after the reforge
+        val reforged = t.goal?.takeIf { it.reforge && it.reforgeAllowed && t.readout.goalOutcome?.matchesNow != true }?.let { afterReforge(item) }
         GearSearchIdentity(graph, item, t.goal?.minimums?.keys ?: emptySet(),
-            side = t.goal?.let { g -> { GoalLines(item, g.minimums) } }) { Pill("Other piece", onClick = change) }
+            side = t.goal?.let { g -> { GoalLines(reforged ?: item, g.minimums, note = reforged?.let { "after reforge" }) } }) { Pill("Other piece", onClick = change) }
         t.notice?.let { VSpace(8.dp); Text(it, style = zen(11.sp, FontWeight.Medium, C.blue)) }
     }
     Card(shadow = null, padding = PaddingValues(14.dp)) {
