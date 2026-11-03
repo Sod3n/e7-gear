@@ -139,15 +139,6 @@ private fun ScoringControls(graph: AppGraph) {
     LinkText("Reset score model") { graph.messages.askReset("Reset the score model?","Weights and diversity go back to the game's values.",graph.sellReview::resetScoreModel) }
 }
 
-internal fun esVerdict(es:EsForecast.Es,rollOn:Double):Pair<String,Boolean>? = when {
-    !es.supported||es.bar==null->null
-    es.reached->"At your ES bar ${es.bar}" to true
-    es.finishShare==0.0->"Finished below your bar ${es.bar}" to false
-    es.worthRolling(rollOn)->"Worth rolling · ${Chance(es.chance).text} to reach ${es.bar}" to true
-    es.possible&&es.chance==0.0->"Only rare rolls reach ${es.bar}" to false
-    else->"Below your ${Chance(rollOn/100).text} · ${Chance(es.chance).text} to reach ${es.bar}" to false
-}
-
 @Composable
 private fun RollTable(rolls:List<RollReview.Roll>?) {
     if(rolls==null) { Text("No reliable roll history for this piece.",style=zen(11.sp,color=C.muted));return }
@@ -278,7 +269,7 @@ fun SellFiltersScreen(graph: AppGraph) {
                     }
                     if(category==2) { VSpace(6.dp);Text("No roll history, so no forecast.",style=zen(11.sp,color=C.muted)) }
                     if(category==1) { VSpace(6.dp);Text("Can still reach a stat you protect.",style=zen(11.sp,color=C.muted)) }
-                    if(category==3) { VSpace(6.dp);Text("At your ES bar, or ${Chance(q.rollOn/100).text}+ to reach it.",style=zen(11.sp,color=C.muted)) }
+                    if(category==3) { VSpace(6.dp);Text("At your ES bar or can still reach it.",style=zen(11.sp,color=C.muted)) }
                 }
             }
             if(!graph.sellReview.fresh&&!graph.sellReview.busy)Text("Inventory or settings changed. Update before starting a list.",style=zen(12.sp,color=C.deepPink))
@@ -496,7 +487,7 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                             val open=(es.finishShare>0||reforge)&&es.bar!=null&&!es.reached&&es.supported
                             Row(verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                                 val rare=open&&es.chance==0.0&&es.possible
-                                Text(if(rare)"Rare" else if(open)Chance(es.chance).text else "ES ${es.now}",style=dela(28.sp,if(!open)C.ink else if(es.worthRolling(graph.sellReview.query.rollOn))C.blue else C.deepPink))
+                                Text(if(rare)"Rare" else if(open)Chance(es.chance).text else "ES ${es.now}",style=dela(28.sp,if(!open)C.ink else esTint(es,graph.sellReview.query.rollOn)))
                                 Text(when { es.bar==null->"no bar for this slot";rare->"only rare rolls reach ES ${es.bar}";open&&reforge->"reach ES ${es.bar} after reforge";open->"of finishes reach ES ${es.bar}";es.reached->"at or above your bar ${es.bar}";else->"finished · below bar ${es.bar}" },style=zen(12.sp,color=C.muted),modifier=Modifier.padding(bottom=5.dp))
                             }
                             VSpace(8.dp);EsBar(es)

@@ -37,6 +37,7 @@ import e7.gearscan.opt.GearBounds
 import e7.gearscan.opt.GearPotential
 import e7.gearscan.features.sellreview.EsChip
 import e7.gearscan.features.sellreview.esKeeps
+import e7.gearscan.features.sellreview.esRollsOn
 import e7.gearscan.ui.*
 import kotlin.math.floor
 import kotlin.math.min
@@ -185,8 +186,8 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                 pane == UpgradePane.PIECE -> {
                     // the pink button is what the forecast says to do next: sell it, enhance it on, or keep it
                     val record = item.enhance < 15 && UpgradeRecord.supported(item)
-                    val keeps = es?.let { esKeeps(it, t.rollOn) }
-                    val rollOn = keeps == true && es?.reached == false && record
+                    val keeps = es?.let { esKeeps(it) }
+                    val rollOn = record && es?.let { esRollsOn(it, t.rollOn) } == true
                     if (t.isSellQueue) {
                         PanelAction("Sold ›", b, pink = keeps == false, enabled = t.canMarkSold, label = "Sold and next") { t.markSold(item.id); pane = UpgradePane.PIECE }
                         PanelAction("Keep ›", b, pink = keeps == true && !rollOn, enabled = t.canMarkSold, label = "Keep and next") { t.markSold(item.id, keep = true); pane = UpgradePane.PIECE }

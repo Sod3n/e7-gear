@@ -50,8 +50,8 @@ class SellReviewFeature(ctx: FeatureContext, private val content: ContentFeature
         item: (T) -> Item,
     ) = scanFeature.box?.takeIf { grouped }?.walk(list, item) ?: list
 
-    /** The ES bar keeps it: at the bar, or at least the worth-rolling chance to reach it. Never in the sell list or walk. */
-    fun keptByBar(row: SellSearch.Row) = row.es?.let { esKeeps(it, query.rollOn) } == true
+    /** The ES bar keeps it: at the bar, or its usual rolls can still reach it. Never in the sell list or walk. */
+    fun keptByBar(row: SellSearch.Row) = row.es?.let { esKeeps(it) } == true
     val progress = savedFile("sell_progress.jsonl", backup = false, path = "sell_progress.jsonl")
     val run = work<Unit>("Sell review", Weight.Heavy, notice = "Checking sell filters")
     val curve = work<Unit>("Keep curve")

@@ -26,15 +26,21 @@ import androidx.compose.ui.unit.sp
 import e7.gearscan.data.*
 import e7.gearscan.opt.*
 
-/** Short chip: how many finishes reach the bar, coloured by the keep-rolling chance. */
-/** The forecast's answer for a piece: keep (at the bar, or worth rolling on), sell, or null without a forecast. */
-internal fun esKeeps(es: EsForecast.Es, rollOn: Double): Boolean? = when {
-    !es.supported || es.bar == null -> null
-    es.reached -> true
-    es.chance == 0.0 && es.possible -> false
-    // nothing left to enhance and a reforge can't lift it either
-    es.finishShare == 0.0 && es.chance == 0.0 -> false
-    else -> es.worthRolling(rollOn)
+/** The ES bar's answer: keep a piece at the bar or one its usual rolls can still take there, sell the rest; null without a forecast. */
+internal fun esKeeps(es: EsForecast.Es): Boolean? {
+    val bar = es.bar ?: return null
+    if (!es.supported) return null
+    return es.reached || (es.best ?: Double.NEGATIVE_INFINITY) >= bar - 1e-9
+}
+
+/** Worth enhancing on: kept, not at the bar yet, and at least the worth-rolling chance to get there. */
+internal fun esRollsOn(es: EsForecast.Es, rollOn: Double) = esKeeps(es) == true && !es.reached && es.worthRolling(rollOn)
+
+/** Sell is pink-red, worth rolling on (or at the bar) blue, kept but not worth rolling grey, no forecast grey. */
+internal fun esTint(es: EsForecast.Es, rollOn: Double) = when (esKeeps(es)) {
+    null -> C.muted
+    false -> C.deepPink
+    true -> if (es.reached || es.worthRolling(rollOn)) C.blue else C.muted
 }
 
 @Composable
@@ -46,9 +52,8 @@ internal fun EsChip(es: EsForecast.Es, rollOn: Double, fill: Boolean = false, mo
         es.chance == 0.0 && es.possible -> "Rare only"
         else -> "${Chance(es.chance).text} reach ${es.bar}"
     }
-    val good = esKeeps(es, rollOn)
     val shape = RoundedCornerShape(999.dp)
-    val tint = when (good) { true -> C.blue; false -> C.deepPink; null -> C.muted }
+    val tint = esTint(es, rollOn)
     // fill: as wide as its column, the text shrinking to fit (the narrow panel over the game)
     Box(modifier.then(if (fill) Modifier.fillMaxWidth() else Modifier).clip(shape).background(tint.copy(alpha = .13f)).border(1.5.dp, tint, shape)
         .padding(horizontal = if (fill) 6.dp else 9.dp, vertical = 3.dp), contentAlignment = Alignment.Center) {
