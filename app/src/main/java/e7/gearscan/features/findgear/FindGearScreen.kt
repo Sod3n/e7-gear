@@ -194,13 +194,8 @@ private fun Matches(graph: AppGraph, result: FindGearResult, fresh: Boolean, edi
         Spinner(); Text("Checking your gear", style = zen(12.sp))
     }
     val dim = if (fresh) Modifier else Modifier.alpha(.45f)
-    if (odds.isNotEmpty() || rare.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.weight(1f)) {
-            if (odds.isNotEmpty()) FitText("${odds.size} can reach it at +15", dela(16.sp), short = "${odds.size} can reach it")
-            else FitText("None with usual rolls", dela(16.sp))
-        }
-        GroupPill(grouped) { graph.findGear.grouped = it }
-    }
+    if (odds.isNotEmpty()) Text("${odds.size} can reach it at +15", style = dela(16.sp))
+    else if (rare.isNotEmpty()) Text("None with usual rolls", style = dela(16.sp))
     else Card {
         val best = result.bestBelow
         if (best != null) {
@@ -220,6 +215,7 @@ private fun Matches(graph: AppGraph, result: FindGearResult, fresh: Boolean, edi
             OutlineButton("Edit search", Modifier.fillMaxWidth(), height = 42.dp, onClick = edit)
         }
     }
+    if (odds.isNotEmpty() || rare.isNotEmpty()) Segmented(listOf("Best chance", "By set"), if (grouped) 1 else 0) { graph.findGear.grouped = it == 1 }
     Column(dim, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         GroupedRows(graph, grouped, odds.take(count), odds, { it.item }) { MatchCard(graph, it, applied) }
         if (count < odds.size) OutlineButton("Show 20 more", Modifier.fillMaxWidth(), height = 42.dp) { count += 20 }

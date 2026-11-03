@@ -49,7 +49,7 @@ class FindGearFeature(ctx: FeatureContext, private val content: ContentFeature, 
     fun <T> ordered(
         list: List<T>,
         item: (T) -> Item,
-    ) = scanFeature.box?.takeIf { grouped }?.walk(list, item = item) ?: list
+    ) = scanFeature.box?.takeIf { grouped }?.walk(list, item) ?: list
 
     private val search = freshWork<Inputs, FindGearResult>("Find gear") { Inputs(query, scanFeature.lastScan, recordedSteps()) }
 

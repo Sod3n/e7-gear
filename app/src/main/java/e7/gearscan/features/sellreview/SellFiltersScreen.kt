@@ -261,10 +261,7 @@ fun SellFiltersScreen(graph: AppGraph) {
             val pending=matches.filter { it.item.id !in done }
             val guarded=rows.filter { it.protected&&it.item.id !in done };val unknown=rows.filter { it.unknown&&!it.protected&&it.item.id !in done }
             Card(shadow=null,padding=PaddingValues(12.dp)) {
-                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.weight(1f)) { FitText("${pending.size} pieces to review",dela(19.sp),short="${pending.size} to review") }
-                    GroupPill(grouped) { graph.sellReview.grouped=it }
-                }
+                Text("${pending.size} pieces to review",style=dela(19.sp))
                 val rolling=pending.mapNotNull { it.es }.filter { it.finishShare>0&&it.worthRolling(q.rollOn)&&!it.reached }
                 if(rolling.isNotEmpty())Text("${rolling.size} worth rolling now",style=zen(12.sp,color=C.blue))
                 if(result.query.minimumProcs>0||result.query.maximumTotalQuality!=null)Text("${if(result.query.minimumProcs>0)"${result.query.minimumProcs}+ upgrades · " else ""}${rollLimitText(result.query)}",style=zen(11.sp,color=C.blue))
@@ -285,7 +282,7 @@ fun SellFiltersScreen(graph: AppGraph) {
             val shown=when(category) { 1->guarded;2->unknown;else->pending }
             if(shown.isEmpty())Card {
                 Text("Nothing matches",style=dela(17.sp))
-            }
+            }else Segmented(listOf("Worst rolls","By set"),if(grouped)1 else 0) { graph.sellReview.grouped=it==1 }
             GroupedRows(graph,grouped,shown.take(count),shown,{ it.item }) { row->Card(shadow=null,radius=14.dp,border=2.dp,padding=PaddingValues(12.dp)) {
                 Column(Modifier.tap { openSell(graph,SheetKind.SELL_DETAILS,row.item.id) }) {
                     SellCardHead(graph,row)

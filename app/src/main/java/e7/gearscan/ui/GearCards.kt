@@ -83,10 +83,6 @@ internal fun GoalLines(item: Item, minimums: Map<GearStat, Double>, size: Int = 
     }
 }
 
-/** Groups a list the way the game's filters find its pieces: set, slot tab, level. */
-@Composable
-internal fun GroupPill(on: Boolean, onChange: (Boolean) -> Unit) = Pill("By set", selected = on, onClick = { onChange(!on) })
-
 /** Where the player switches the game's filters: the set, slot and level of the pieces under it, and how many there are. */
 @Composable
 internal fun GroupHeader(graph: AppGraph, item: Item, count: Int) {

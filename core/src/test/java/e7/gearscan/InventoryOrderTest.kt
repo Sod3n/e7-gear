@@ -69,7 +69,6 @@ class InventoryOrderTest {
                 piece(7, "HitSet", "Helmet", 85),
             )
         assertEquals(listOf(5L, 3L, 6L, 7L, 1L, 4L, 2L), b.walk(b.items) { it }.map { it.id })
-        assertEquals(listOf(3L, 5L, 6L, 7L, 1L, 4L, 2L), b.walk(b.items, byEs = false) { it }.map { it.id })
     }
 
     @Test fun personalScanMatchesTheGamesScores() {

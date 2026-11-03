@@ -55,10 +55,11 @@ fun HeroUpgradesScreen(graph: AppGraph, heroId: Long?) {
     val minGain = graph.improveHeroes.minGain
     val view = remember(result, minGain, graph.improveHeroes.rebuilds, graph.rev.value, graph.scan.box, graph.marks.cleared) { result?.let { graph.improveHeroes.view(it, minGain) } }
     val one = heroId?.let { id -> view?.firstOrNull { it.hero.id == id } }
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var tab by rememberSaveable { mutableIntStateOf(if (graph.improveHeroes.grouped) 2 else 0) }
     val listed = when {
         one != null -> one.rows.map { it.pick.piece }
-        tab == 1 -> view?.let { v -> if (graph.improveHeroes.grouped) byPiece(graph, v).let { (a, b) -> a + b } else piecesOf(graph, v) }?.map { p -> p.first }.orEmpty()
+        tab == 1 -> view?.let { piecesOf(graph, it).map { p -> p.first } }.orEmpty()
+        tab == 2 -> view?.let { v -> byPiece(graph, v).let { (a, b) -> a + b }.map { p -> p.first } }.orEmpty()
         else -> view?.flatMap { h -> h.rows.map { it.pick.piece } }?.distinct().orEmpty()
     }.filter { it !in graph.marks.cleared }
     Frame(null, null,
@@ -99,7 +100,7 @@ fun HeroUpgradesScreen(graph: AppGraph, heroId: Long?) {
                 Text("${GAINS.firstOrNull { it.first == minGain }?.second ?: "Any"} or more · ${if (graph.improveHeroes.rebuilds) "rebuilds allowed" else "this piece only"}",
                     style = zen(12.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            Segmented(listOf("By hero", "By piece"), tab) { tab = it }
+            Segmented(listOf("By hero", "By piece", "By set"), tab) { tab = it; graph.improveHeroes.grouped = it == 2 }
             // hero rows first, then every listed piece: the chips are ready before most rows are seen
             LaunchedEffect(view, graph.improveHeroes.rebuilds) {
                 val v = view ?: return@LaunchedEffect
@@ -240,10 +241,6 @@ private fun ByPiece(graph: AppGraph, view: List<HeroUpgradeHero>) {
     var count by rememberSavedFor(view, 20)
     var showLong by rememberSavedFor(view, false)
     val shown = likely + if (showLong) long else emptyList()
-    if (likely.isNotEmpty() || long.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionTitle("Pieces", Modifier.weight(1f), trailing = "${likely.size + long.size}")
-        GroupPill(grouped) { graph.improveHeroes.grouped = it }
-    }
     GroupedRows(graph, grouped, shown.take(count), shown, { graph.scan.box?.itemsById?.get(it.first) }) { (id, heroes) ->
         val item = heroUpgradeItem(graph, id) ?: return@GroupedRows
         val r0 = heroes.first().second

@@ -44,27 +44,27 @@ object InventoryOrder {
 
     private val grades = mapOf("Epic" to 5, "Heroic" to 4, "Rare" to 3)
 
-    /**
-     * In the order the game's filters find pieces: set by set (as the list first meets them), slot tab, level, then the ES
-     * grid; without [es] a group keeps the list's own order.
-     */
+    /** In the order the game's filters find pieces: set by set (as the list first meets them), slot tab, level, then the ES grid. */
     fun <T> walk(
         entries: List<T>,
         item: (T) -> Item,
-        es: ((Item) -> Int)?,
+        es: (Item) -> Int,
     ): List<T> {
         val items = entries.map(item)
         val sets = HashMap<String, Int>()
         val set = items.map { sets.getOrPut(it.set) { sets.size } }
-        val score = es?.let { items.map(it) }
-        val groups = compareBy<Int>({ set[it] }, { items[it].slot.ordinal }, { items[it].level })
-        val order =
-            if (score == null) {
-                groups
-            } else {
-                groups.thenBy { score[it] }.thenBy { grades[items[it].rank] ?: 2 }.thenBy { items[it].id }
-            }
-        return entries.indices.sortedWith(order).map(entries::get)
+        val score = items.map(es)
+        return entries.indices
+            .sortedWith(
+                compareBy(
+                    { set[it] },
+                    { items[it].slot.ordinal },
+                    { items[it].level },
+                    { score[it] },
+                    { grades[items[it].rank] ?: 2 },
+                    { items[it].id },
+                ),
+            ).map(entries::get)
     }
 
     fun group(item: Item) = Triple(item.set, item.slot, item.level)

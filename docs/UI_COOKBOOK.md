@@ -42,7 +42,8 @@ an internal baseline.
 - Said (2026-11-03): "group batch reviews by set -> slot -> level, so you dont need to jump back and forward". A walk
   over the game follows the game's own filters: set filter, slot tab, level filter, then up the ES grid
   (`InventoryOrder.walk`). Then: "add this grouping to all gear screens, just on sell view only \"on\" by default". Every
-  gear list has a "By set" pill; on, the list shows a header per set/slot/level and the walk follows the list as shown.
+  gear list has an order switch ending in "By set"; on, the list shows a header per set/slot/level and the walk follows
+  the list as shown.
 - Ask: could a player check this number against something in the game? Is the unit one they already think in? Does a
   walk over the game visit pieces in the order the game's filters find them?
 - Example: GS became the game's Equipment Score; cost became gold; enhancement filters step +0/+3/…/+15.
@@ -65,6 +66,10 @@ all settings. Buttons look like buttons; link-style text is rare. One main actio
   minimum and maximum".
 - Ask: what is the one thing a player does next here? Is it the only pink button? Does every tappable thing look tappable,
   and lead only where its label says?
+- Said (2026-11-03), on a small "By set" pill put on each list's heading: "this toggle is kinda hard to see and feels out
+  of place?" A pill reads as a tag, and it sat somewhere different on each screen. How a list is ordered is chosen with
+  the app's switch for views (`Segmented`, like "By hero | By piece"), directly above the list it orders, the same way on
+  every screen.
 - Example: settings are rows that open their own sheet; a value is a slider over the game's range, tap the number to type.
 
 ### 6. Nothing moves unless the player moved it

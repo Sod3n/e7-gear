@@ -19,22 +19,19 @@ import e7.gearscan.data.*
 fun SellKeptScreen(graph: AppGraph) {
     var slots by rememberSaveable { mutableStateOf(emptySet<Slot>()) }
     var sets by rememberSaveable { mutableStateOf(emptySet<String>()) }
-    var sort by rememberSaveable { mutableIntStateOf(0) }
+    var sort by rememberSaveable { mutableIntStateOf(if (graph.sellReview.keptGrouped) 3 else 0) }
     var count by rememberSaveable { mutableIntStateOf(30) }
     val box = graph.scan.box
     // kept keeps the order pieces were kept in
     val all = graph.marks.kept.toList().mapNotNull { box?.itemsById?.get(it) }
     fun es(item: Item) = InventoryOrder.score(item)
-    val grouped = graph.sellReview.keptGrouped
+    val grouped = sort == 3 && box != null
     val shown = all.filter { (slots.isEmpty() || it.slot in slots) && (sets.isEmpty() || it.set in sets) }.let { list ->
-        when (sort) { 0 -> list.asReversed(); 1 -> list.sortedBy(::es); else -> list.sortedByDescending(::es) }
-    }.let { list -> if (grouped && box != null) box.walk(list, byEs = false) { it } else list }
+        when (sort) { 0 -> list.asReversed(); 1 -> list.sortedBy(::es); 2 -> list.sortedByDescending(::es); else -> box?.walk(list) { it } ?: list }
+    }
     Frame(graph, null) {
         BackToPrevious(); ScreenTitle("Kept pieces")
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("${all.size} kept", style = zen(12.sp, color = C.muted), modifier = Modifier.weight(1f))
-            GroupPill(grouped) { graph.sellReview.keptGrouped = it }
-        }
+        Text("${all.size} kept", style = zen(12.sp, color = C.muted))
         CardGrid(Slot.entries, columns = 3, gap = 6.dp) { s, m ->
             Pill(s.label, m, selected = s in slots, onClick = { slots = if (s in slots) slots - s else slots + s; count = 30 },
                 leading = { GearIcon(s.icon, 14.dp, if (s in slots) C.onAccent else C.ink) })
@@ -45,7 +42,7 @@ fun SellKeptScreen(graph: AppGraph) {
             Pill(set?.name ?: k.removeSuffix("Set"), m, selected = k in sets, onClick = { sets = if (k in sets) sets - k else sets + k; count = 30 },
                 leading = { SetIcon(set?.icon, 14.dp) })
         }
-        Segmented(listOf("Newest", "Lowest ES", "Highest ES"), sort) { sort = it }
+        Segmented(listOf("Newest", "Low ES", "High ES", "By set"), sort) { sort = it; graph.sellReview.keptGrouped = it == 3; count = 30 }
         if (shown.isEmpty()) Card { Text(if (all.isEmpty()) "Nothing kept yet. Tap Keep in Sell review." else "No kept piece matches these filters.", style = zen(13.sp)) }
         GroupedRows(graph, grouped, shown.take(count), shown, { it }) { item ->
             val view = if (item.enhance < 15) UpgradeRecord.fromScan(item) else item

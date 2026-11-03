@@ -602,8 +602,8 @@ class ScreenAudit {
         screen("gear-home", Screen.Gear)
         steps.add("sell-setup" to { ui { graph.nav.sheet = null; graph.messages.dialog = null; graph.nav.stack = listOf(Screen.Gear, Screen.SellFilters) } })
         steps.add("sell-matches" to { clickText("Matches") })
-        steps.add("sell-matches-flat" to { ui { graph.sellReview.grouped = true }; clickText("By set"); if (graph.sellReview.grouped) add("Sell review's By set pill doesn't turn grouping off", "sell") })
-        steps.add("sell-matches-grouped" to { clickText("By set"); if (!graph.sellReview.grouped) add("Sell review's By set pill doesn't turn grouping back on", "sell") })
+        steps.add("sell-matches-flat" to { ui { graph.sellReview.grouped = true }; clickText("Worst rolls"); if (graph.sellReview.grouped) add("Sell review's Worst rolls switch doesn't turn grouping off", "sell") })
+        steps.add("sell-matches-grouped" to { ui { graph.sellReview.grouped = false }; clickText("By set"); if (!graph.sellReview.grouped) add("Sell review's By set switch doesn't turn grouping on", "sell") })
         listOf(SheetKind.SELL_WORTH, SheetKind.SELL_SAFEGUARDS, SheetKind.SELL_INVENTORY, SheetKind.SELL_SLOTS, SheetKind.SELL_SETS, SheetKind.SELL_MAINS, SheetKind.SELL_EXTRA).forEach { k ->
             steps.add("sell-${k.name.lowercase()}" to { ui { graph.messages.dialog = null; graph.nav.stack = listOf(Screen.Gear, Screen.SellFilters); graph.nav.sheet = Sheet(k, 0) } })
         }
@@ -611,7 +611,7 @@ class ScreenAudit {
         steps.add("sell-explain" to { ui { graph.nav.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; clickText("Total gold") })
         steps.add("sell-confirm" to { ui { graph.messages.dialog = null; graph.nav.sheet = Sheet(SheetKind.SELL_WORTH, 0); graph.messages.askReset("Reset the ES bars?", "Every slot goes back to the middle ES of your own +15 pieces.") {} } })
         steps.add("sell-kept" to { ui { graph.messages.dialog = null; graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Gear, Screen.SellFilters, Screen.SellKept) } })
-        steps.add("sell-kept-grouped" to { ui { graph.sellReview.keptGrouped = false }; clickText("By set"); if (!graph.sellReview.keptGrouped) add("Kept pieces' By set pill doesn't group the pieces", "sell kept") })
+        steps.add("sell-kept-grouped" to { ui { graph.sellReview.keptGrouped = false }; clickText("By set"); if (!graph.sellReview.keptGrouped) add("Kept pieces' By set switch doesn't group the pieces", "sell kept") })
         steps.add("sell-kept-back" to {
             ui { graph.nav.back() }
             if (graph.nav.screen != Screen.SellFilters || rule.onAllNodesWithText("Worth rolling").fetchSemanticsNodes().isEmpty()) add("back from Kept pieces doesn't return to the Sell review tab you left", "sell kept: ${graph.nav.screen}")
@@ -636,7 +636,7 @@ class ScreenAudit {
             ?: run { warn("Improve heroes found no hero with gains on the audit's setups, so its hero page and piece sheet go unchecked", "improve-heroes"); null }
         steps.add("improve-heroes-by-hero" to { heroUpgradesDone(); ui { overlay = false; graph.tracker.hide(); graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) } })
         steps.add("improve-heroes-by-piece" to { heroUpgradesDone(); ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Gear, Screen.HeroUpgrades()) }; clickText("By piece") })
-        steps.add("improve-heroes-by-piece-grouped" to { ui { graph.improveHeroes.grouped = false }; clickText("By set"); if (!graph.improveHeroes.grouped) add("Improve heroes' By set pill doesn't group the pieces", "improve-heroes") })
+        steps.add("improve-heroes-by-piece-grouped" to { ui { graph.improveHeroes.grouped = false }; clickText("By set"); if (!graph.improveHeroes.grouped) add("Improve heroes' By set tab doesn't group the pieces", "improve-heroes") })
         steps.add("improve-heroes-settings" to { heroUpgradesDone(); ui { graph.nav.stack = listOf(Screen.Gear, Screen.HeroUpgrades()); graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_SETTINGS, 0) } })
         steps.add("improve-heroes-hero" to { val h = upgradeHero() ?: return@to; ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Gear, Screen.HeroUpgrades(), Screen.HeroUpgrades(h.hero.id)) } })
         steps.add("improve-heroes-piece" to { val h = upgradeHero() ?: return@to
@@ -677,7 +677,7 @@ class ScreenAudit {
             if (!findGearSearch(findGearQuery)) add("the Find gear search cannot be restored", "find-gear")
             ui { graph.nav.stack = listOf(Screen.Gear, Screen.GearPotential) }
         })
-        steps.add("find-gear-grouped" to { ui { findGear.grouped = false }; clickText("By set"); if (!findGear.grouped) add("Find gear's By set pill doesn't group the matches", "find-gear") })
+        steps.add("find-gear-grouped" to { ui { findGear.grouped = false }; clickText("By set"); if (!findGear.grouped) add("Find gear's By set switch doesn't group the matches", "find-gear") })
         steps.add("scan-restart-sheet" to { ui { resetCapture(graph); graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Optimize, Screen.ScanData); graph.nav.sheet = Sheet(SheetKind.SCAN_RESTART, 0) } })
         steps.add("scan-restart-scan-now" to {
             // "not running" hands the scan to the screen under the sheet; with no game installed it lands on that error

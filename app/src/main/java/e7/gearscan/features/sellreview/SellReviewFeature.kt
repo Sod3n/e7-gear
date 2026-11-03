@@ -48,7 +48,7 @@ class SellReviewFeature(ctx: FeatureContext, private val content: ContentFeature
     fun <T> ordered(
         list: List<T>,
         item: (T) -> Item,
-    ) = scanFeature.box?.takeIf { grouped }?.walk(list, item = item) ?: list
+    ) = scanFeature.box?.takeIf { grouped }?.walk(list, item) ?: list
     val progress = savedFile("sell_progress.jsonl", backup = false, path = "sell_progress.jsonl")
     val run = work<Unit>("Sell review", Weight.Heavy, notice = "Checking sell filters")
     val curve = work<Unit>("Keep curve")
