@@ -24,6 +24,10 @@ or put them behind a tap.
 - Said: "Remove ALL text that doesnt provide ACTUALLY important information and what user will dont just ignore as noise";
   "this text is reduntant"; "something user would ignore"; "too much text".
 - Ask: if this line disappeared, would a player miss it? Does another element already say it?
+- Said (2026-11-03), on "ES 47 → 80" in Sell review: "It is not very clear what exactly ES 47 -> in sell review means", then, on
+  my fix that added "now · usually 80 at +15" under it: "it doesnt mean that you can just add text and expect it to help. Stop this
+  \"lazy\" UX decisions that leads to text overwhelming". An unclear number is fixed by how it is shown (the game's own
+  conventions, position, colour) or by removing it, never by a caption.
 - Example: a chance repeated next to a bar that already showed it was removed; explanations of the keep-rolling tiles live behind a tap.
 - Said (2026-11-03): "keep the rare-roll fold, but for curious users add description why so". The why is the first line inside
   the opened fold, not on the list.
@@ -43,8 +47,6 @@ Every number on a player screen is computed from that player's data. The player 
 exact, estimated, unknown or out of date. No verdict ("best", "safe", "worth it") unless a calculation shows it.
 - Said: "when to keep rolling does not computed from user inventory?"; "we also need show that it is aproximate values";
   "it isnt feels like it actually best balance tho".
-- Said (2026-11-03): "It is not very clear what exactly ES 47 -> in sell review means." A bare "A → B" reads as "will become B";
-  when B is a forecast or a target, say so ("ES 47", then "now · usually 80 at +15").
 - Ask: where does this number come from, for this player? Is its precision visible? Would I defend the verdict word?
 - Example: keep-rolling tiles are computed live from the review list, marked as estimates, and explain themselves on tap.
   A placeholder or test value is never shipped looking like real data; if a build has one, the delivery message says so.
