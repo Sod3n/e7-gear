@@ -44,8 +44,6 @@ class MarksFeature(ctx: FeatureContext, private val scanFeature: ScanFeature) : 
         changed()
     }
 
-    fun lastSale(scan: Long, queued: Set<Long>): Sale? = sold.lastOrNull { it.scan == scan && it.id in reviewed && it.id in queued }
-
     fun undoSale(sale: Sale) {
         sold = sold - sale
         if (sale.kept) kept = kept - sale.id else cleared = cleared - sale.id

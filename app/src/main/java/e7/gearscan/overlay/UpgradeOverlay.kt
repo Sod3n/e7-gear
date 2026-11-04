@@ -172,7 +172,7 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
             .border(2.dp, C.edge, shape).testTag("gear-tracker-panel").padding(RAIL_PAD.dp), verticalArrangement = Arrangement.spacedBy(GAP.dp)) {
             Row(Modifier.fillMaxWidth().height(topRow.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(GAP.dp)) {
                 if (backOnTop) PanelAction("<", Modifier.weight(1f), enabled = !t.editing, label = "Back to E7 Gear") { pane = UpgradePane.PIECE; t.returnToApp() }
-                if (t.isSellQueue) PanelAction("", Modifier.weight(1f), enabled = t.canUndoSold && !t.editing, label = "Undo last mark", icon = { UndoArrow(it) }) { t.undoSold(); pane = UpgradePane.PIECE }
+                PanelAction("", Modifier.weight(1f), enabled = t.canUndoStep, label = "Undo last step", icon = { UndoArrow(it) }) { t.undoStep(); pane = UpgradePane.PIECE }
                 PanelAction("–", Modifier.weight(1f), label = "Collapse tracker") { w.expanded = false; onDock(false) }
             }
             val countText = if (t.sellQueueComplete) "0 left" else if (t.needsRollRefresh) "Refresh" else "${t.queueIndex + 1}/${t.pendingQueue.size}"
@@ -226,7 +226,7 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                             }
                         }
                     }
-                    t.sellQueueComplete -> PanelAction("Undo mark", b, pink = true, enabled = t.canUndoSold) { t.undoSold(); pane = UpgradePane.PIECE }
+                    t.sellQueueComplete -> PanelAction("Undo mark", b, pink = true, enabled = t.canUndoStep) { t.undoStep(); pane = UpgradePane.PIECE }
                     pane == UpgradePane.PIECE -> {
                         // the pink button is what the forecast says to do next: sell it, enhance it on, or keep it
                         val record = item.enhance < 15 && UpgradeRecord.supported(item)
@@ -253,8 +253,7 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                     }
                 }
             }
-            // the way back to the app sits under the buttons, the length of the rail (owner's layout); everything else
-            // (correct, history, stop) lives in E7 Gear's Track upgrades
+            // the way back to the app sits under the buttons, the length of the rail (owner's layout); stop is the bubble's dismiss target
             if (!backOnTop) PanelAction("<", Modifier.fillMaxWidth().height(back.dp), enabled = !t.editing, label = "Back to E7 Gear") { pane = UpgradePane.PIECE; t.returnToApp() }
         }
     }

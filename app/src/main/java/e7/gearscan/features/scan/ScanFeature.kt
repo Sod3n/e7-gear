@@ -121,8 +121,9 @@ class ScanFeature(ctx: FeatureContext, private val settings: SettingsFeature, pr
             if (!j.has("state") && !j.has("fields")) return false
             stopAll()
             ctx.store.restore(j)
-            adopt()
+            // restored files load before the box events, or a feature reacting to the box saves its old state over them
             events.restored()
+            adopt()
             true
         }.getOrDefault(false)
 

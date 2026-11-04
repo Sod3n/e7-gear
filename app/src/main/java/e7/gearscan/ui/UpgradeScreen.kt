@@ -49,7 +49,7 @@ fun UpgradeScreen(graph: AppGraph) {
         when {
             t.sellQueueComplete -> Card(shadow = null, padding = PaddingValues(14.dp)) {
                 Text("List complete", style = dela(18.sp))
-                if (t.canUndoSold) { VSpace(10.dp); OutlineButton("Undo the last sold mark", Modifier.fillMaxWidth(), height = 40.dp) { t.undoSold() } }
+                if (t.canUndoStep) { VSpace(10.dp); OutlineButton("Undo the last mark", Modifier.fillMaxWidth(), height = 40.dp) { t.undoStep() } }
             }
             !choosing && selected != null && item != null -> Tracked(graph, t, selected) { choosing = true }
             else -> Choose(graph, t, box) { choosing = false }

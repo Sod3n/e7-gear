@@ -108,7 +108,12 @@ A mode the player uses often has a front door they can see, with its state on it
 settings screens, and flows don't depend on cross-links.
 - Said: "Currently flow to this screens is complete bs"; "kept pieces should be its own full screen with filters/search".
 - Ask: how does a player who just opened the app get here? What do they see before entering (status, count)?
-- Example: the Gear tab has one raised card per mode with a live status line.
+- Example: the Gear tab has one raised card per mode.
+- Said (2026-11-04), on the Gear tab: "All tab state chips looks stale or useless" and "Over the game: Continue tracking
+  button is useless". The chips reported what the app held in memory ("Not checked yet", "Out of date" after any restart),
+  not the player's gear, and the row opened a screen with nothing for a running walk. A front door shows state only when
+  it is true for the player's data and worth acting on; the walk's own controls live on the rail (undo takes back the last
+  mark or recorded +3, the bubble's dismiss target stops it).
 
 ### 8. Built for one thumb on a small phone
 Large-enough targets, few precise drags, no keyboard unless typing is the point. Assume 353 dp width, large font, Russian

@@ -89,18 +89,88 @@ class TrackerFeatureTest {
         assertEquals(setOf(pieces[0].id), g.marks.cleared)
         assertEquals(pieces[1].id, t.selected)
         assertEquals(listOf(pieces[1].id, pieces[2].id), t.pendingQueue.map { it.id })
-        assertTrue(t.canUndoSold)
+        assertTrue(t.canUndoStep)
 
         t.markSold(pieces[1].id, keep = true)
         assertEquals(setOf(pieces[1].id), g.marks.kept)
 
-        t.undoSold()
+        t.undoStep()
         assertFalse(pieces[1].id in g.marks.kept)
         assertEquals(pieces[1].id, t.selected)
 
         t.markSold(pieces[1].id)
         t.markSold(pieces[2].id)
         assertTrue(t.sellQueueComplete)
+    }
+
+    @Test fun undoTakesBackTheNewestStepOfTheWalkWhetherMarkOrEntry() = runTest(UnconfinedTestDispatcher()) {
+        val g = graph(this)
+        val t = g.tracker
+        val scan = g.scan.lastScan
+        val own = pieces.map { own(it.id) }
+        t.startQueue(own.map { it to entry(it) }, scan, SellQuery())
+        assertFalse(t.canUndoStep)
+        step(t)
+        t.markSold(own[0].id)
+        assertEquals(own[1].id, t.selected)
+
+        t.undoStep()
+        assertFalse(own[0].id in g.marks.reviewed)
+        assertEquals(own[0].id, t.selected)
+        assertEquals(2, t.record!!.history.size)
+
+        t.undoStep()
+        assertEquals(1, t.record!!.history.size)
+        assertFalse(t.canUndoStep)
+    }
+
+    @Test fun undoSkipsAStepAlreadyTakenBackElsewhere() = runTest(UnconfinedTestDispatcher()) {
+        val g = graph(this)
+        val t = g.tracker
+        val scan = g.scan.lastScan
+        val own = pieces.map { own(it.id) }
+        t.startQueue(own.map { it to entry(it) }, scan, SellQuery())
+        t.markSold(own[0].id)
+        step(t)
+        t.undo()
+        assertTrue(t.canUndoStep)
+
+        t.undoStep()
+        assertFalse(own[0].id in g.marks.reviewed)
+        assertEquals(1, g.records.records.getValue(own[1].id).history.size)
+        assertFalse(t.canUndoStep)
+    }
+
+    @Test fun theUndoLogSurvivesARestartAndANewWalkClearsIt() = runTest(UnconfinedTestDispatcher()) {
+        val g = graph(this)
+        val t = g.tracker
+        val scan = g.scan.lastScan
+        val own = pieces.map { own(it.id) }
+        t.startQueue(own.map { it to entry(it) }, scan, SellQuery())
+        t.markSold(own[0].id)
+        t.reload()
+        assertTrue(t.canUndoStep)
+        t.startQueue(own.drop(1).map { it to entry(it) }, scan, SellQuery())
+        assertFalse(t.canUndoStep)
+    }
+
+    @Test fun undoAfterRestoringABackupTakesBackTheBackedUpMark() = runTest(UnconfinedTestDispatcher()) {
+        val g = graph(this)
+        val t = g.tracker
+        val scan = g.scan.lastScan
+        val own = pieces.map { own(it.id) }
+        t.startQueue(own.map { it to entry(it) }, scan, SellQuery())
+        step(t)
+        t.markSold(own[0].id)
+        val backup = g.scan.backupText()
+        t.undoStep()
+        assertFalse(own[0].id in g.marks.reviewed)
+        assertTrue(g.scan.restore(backup))
+        assertTrue(own[0].id in g.marks.cleared)
+        t.undoStep()
+        assertFalse(own[0].id in g.marks.reviewed)
+        assertEquals(own[0].id, t.selected)
+        assertEquals(2, t.record!!.history.size)
     }
 
     @Test fun aMarkForAnOtherPieceThanTheShownOneIsIgnored() = runTest(UnconfinedTestDispatcher()) {

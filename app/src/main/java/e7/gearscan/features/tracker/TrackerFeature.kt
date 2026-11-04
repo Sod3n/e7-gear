@@ -99,6 +99,11 @@ class TrackerFeature(
     var editing by mutableStateOf(false)
         internal set
 
+    // what the rail's undo takes back, newest last: a Sold/Keep mark (kept set) or a recorded step (history size after it)
+    data class Step(val id: Long, val scan: Long, val kept: Boolean? = null, val size: Int = 0)
+    var steps: List<Step> by mutableStateOf(emptyList())
+        private set
+
     // the open entry corrects the current values instead of recording the next +3
     var correcting by mutableStateOf(false)
         private set
@@ -115,7 +120,7 @@ class TrackerFeature(
     val isSellQueue get() = scoreQuery != null && queue.isNotEmpty()
     val sellQueueComplete get() = isSellQueue && pendingQueue.isEmpty()
     val needsRollRefresh get() = isSellQueue && queueBasis != RollReview.BASIS && (scoreQuery?.scoreFilter == false || scoreQuery?.sort == SellSort.QUALITY)
-    val canUndoSold get() = marks.lastSale(scan, queue.mapTo(HashSet()) { it.id }) != null
+    val canUndoStep get() = !editing && steps.any(::live)
     val canMarkSold get() = isSellQueue && !sellQueueComplete && !editing && selected in pendingQueue.map { it.id }
     val rollOn get() = sellReview.query.rollOn
     val rebuilds get() = improveHeroes.rebuilds
@@ -139,6 +144,7 @@ class TrackerFeature(
             queue = emptyList()
             scoreQuery = null
             queueScan = 0
+            steps = emptyList()
         }
         checkRun.stopCheck()
         editing = false
@@ -179,6 +185,7 @@ class TrackerFeature(
         queueScan = scan
         queueBasis = RollReview.BASIS
         queueSource = source
+        steps = emptyList()
         val unique = items.distinctBy { it.first.id }
         if (unique.isEmpty()) return
         records = records +
@@ -234,6 +241,7 @@ class TrackerFeature(
         return runCatching {
             val update = r.record(next, main, values, added, correction)
             records = records + (update.item.id to update)
+            if (!correction) log(Step(update.item.id, update.scan, size = update.history.size))
             invalidate()
             editing = false
             correcting = false
@@ -261,7 +269,9 @@ class TrackerFeature(
     fun reforge(): Boolean {
         val r = record ?: return false
         return runCatching {
-            records = records + (r.item.id to r.reforged())
+            val update = r.reforged()
+            records = records + (r.item.id to update)
+            log(Step(r.item.id, update.scan, size = update.history.size))
             invalidate()
             editing = false
             correcting = false
@@ -319,6 +329,8 @@ class TrackerFeature(
         }
         val index = queueIndex.coerceAtLeast(0)
         marks.recordSold(expectedId, scan, keep)
+        log(Step(expectedId, scan, kept = keep))
+        persist()
         invalidate()
         ctx.store.saveNow()
         val next = pendingQueue.getOrNull(index) ?: pendingQueue.lastOrNull()
@@ -326,19 +338,35 @@ class TrackerFeature(
         configure()
     }
 
-    fun undoSold() {
+    private fun log(step: Step) {
+        steps = (steps + step).takeLast(100)
+    }
+
+    // a step already undone elsewhere or from an older scan is skipped, so undo never takes back the wrong one
+    private fun live(s: Step): Boolean {
+        if (s.scan != scan || box?.itemsById?.containsKey(s.id) != true) return false
+        return if (s.kept != null) marks.sold.any { it.id == s.id && it.scan == s.scan && it.kept == s.kept }
+        else records[s.id]?.let { it.scan == s.scan && it.history.size == s.size } == true
+    }
+
+    /** The rail's undo: takes back the newest step of this walk, a Sold/Keep mark or a recorded +3, and shows that piece. */
+    fun undoStep() {
         if (editing) return
-        val mark = marks.lastSale(scan, queue.map { it.id }.toSet()) ?: return
-        val b = box
-        if (b?.itemsById?.containsKey(mark.id) != true) {
-            error = "That piece is no longer in your scan."
-            return
-        }
-        marks.undoSale(mark)
+        val i = steps.indexOfLast(::live)
+        if (i < 0) return
+        val s = steps[i]
+        steps = steps.take(i)
+        if (s.kept != null) marks.sold.lastOrNull { it.id == s.id && it.scan == s.scan && it.kept == s.kept }?.let(marks::undoSale)
+        else records = records + (s.id to records.getValue(s.id).undo())
         invalidate()
+        editing = false
+        correcting = false
+        persist()
         ctx.store.saveNow()
-        select(b.itemsById.getValue(mark.id), scan, keepQueue = true)
+        val b = box ?: return
+        if (selected != s.id) select(b.itemsById.getValue(s.id), scan, keepQueue = true)
         configure()
+        if (s.kept == null) checkRun.runCheck()
     }
 
     fun returnToApp() {
@@ -422,6 +450,7 @@ class TrackerFeature(
             .put("scoreGoal", scoreGoal?.toJson() ?: JSONObject.NULL).put("scoreQuery", scoreQuery?.toJson() ?: JSONObject.NULL)
             .put("queue", JSONArray(queue.map { it.toJson() })).put("goal", goal?.toJson() ?: JSONObject.NULL)
             .put("records", JSONArray(records.values.map { it.toJson() })).put("selected", selected ?: JSONObject.NULL)
+            .put("steps", JSONArray(steps.map { JSONObject().put("id", it.id).put("scan", it.scan).put("kept", it.kept ?: JSONObject.NULL).put("size", it.size) }))
             .put("signature", checkRun.signature).put("attempt", checkRun.attempt).put("expected", checkRun.expected).put("results", JSONArray(checkRun.results.map { it.toJson() }))
 
     fun restore(
@@ -452,6 +481,10 @@ class TrackerFeature(
             }.distinctBy { it.id }
         queueBasis = j.optString("queueBasis", j.optJSONObject("scoreQuery")?.optString("rollBasis", "UPGRADES") ?: RollReview.BASIS)
         queueSource = j.optString("queueSource")
+        val st = j.optJSONArray("steps") ?: JSONArray()
+        steps = (0 until st.length()).mapNotNull { i ->
+            runCatching { st.getJSONObject(i).let { Step(it.getLong("id"), it.getLong("scan"), if (it.isNull("kept")) null else it.getBoolean("kept"), it.optInt("size")) } }.getOrNull()
+        }
         queueScan = j.optLong("queueScan", queue.mapNotNull { records[it.id]?.scan }.minOrNull() ?: 0L)
         checkRun.signature = j.optString("signature")
         checkRun.attempt = j.optInt("attempt")

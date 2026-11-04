@@ -228,7 +228,7 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
     fun update(v:SellQuery)=graph.sellReview.edit(v)
     val title=when(sheet.kind) {
         SheetKind.SELL_INVENTORY->"Gear to review";SheetKind.SELL_SLOTS->"Slots";SheetKind.SELL_SETS->"Sets";SheetKind.SELL_MAINS->"Main stats"
-        SheetKind.SELL_DETAILS->"Rolls & stat potential";SheetKind.SELL_SAFEGUARDS->"Stat safeguards";SheetKind.SELL_EXTRA->"More filters";SheetKind.SELL_WORTH->"When to keep rolling";else->"How gear is compared"
+        SheetKind.SELL_DETAILS->"Rolls & stat potential";SheetKind.SELL_SAFEGUARDS->"Stat safeguards";SheetKind.SELL_EXTRA->"More filters";SheetKind.SELL_WORTH->"When to keep rolling";else->""
     }
     key(sheet.kind) {
     SheetBody(title,button="Done",onButton={ graph.nav.sheet=null }) {
@@ -317,19 +317,7 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                     if(graph.sellReview.result?.matches?.any { it.item.id==row.item.id }==true)OutlineButton("Track over game",Modifier.fillMaxWidth(),height=44.dp,enabled=graph.sellReview.fresh) { graph.trackSell(row.item.id) }
                 }
             }
-            else->{
-                Text("Sell filters find pieces matching your chosen limits. They do not prove a piece should be sold.",style=zen(13.sp))
-                SectionTitle("Points")
-                Text("Main and substats become points using your chosen weights. For example, 10 Speed × 2 gives 20 points. The optional diversity penalty discounts points outside the strongest substat group. Flat and percent versions of a stat share a group. Main points are separate.",style=zen(12.sp))
-                SectionTitle("Comparison gear")
-                Text("For each slot, use the lowest-point piece already equipped on your selected heroes. That is the score unfinished gear must reach. See the hero and item under Compare with. Changing weights or diversity also changes these comparison scores. You can choose finished pieces only or enter your own score.",style=zen(12.sp))
-                SectionTitle("Chance")
-                Text("The ordinary-roll model gives legal roll destinations and ordinary values equal weight, including Heroic +12 and optional reforging. Shared allocations are counted together. Rare endpoint possibilities have no estimated percentage. Unknowns and time limits are never treated as zero chance.",style=zen(12.sp))
-                SectionTitle("Current inventory")
-                Text("Recorded upgrades are included. Cleared gear cannot be a candidate or comparison piece. Update the search after changes. Your settings are backed up.",style=zen(12.sp))
-                SectionTitle("Coverage")
-                Text("Standard coverage uses supported Lv85 histories. Broader coverage is an ordinary-roll scenario for Lv85/88; some event gear uses fixed rolls. Finished gear can be scored at any level. The time limit is editable; incomplete checks stay unknown.",style=zen(12.sp))
-            }
+            else->{}
         }
     }
     }

@@ -322,8 +322,8 @@ fun ResultsScreen(graph: AppGraph) {
         if (!s.running && s.builds.isNotEmpty() && s.timedOut && !s.cancelled && s.limitMs < graph.optimize.longLimitMs)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f)) {
-                    Text("Stopped at ${s.limitMs / 1000} s", style = zen(12.sp, FontWeight.Medium, C.muted))
-                    Text("A better build may exist", style = zen(12.sp, FontWeight.Medium, C.muted))
+                    FitText("Stopped at ${s.limitMs / 1000} s", zen(12.sp, FontWeight.Medium, C.muted))
+                    FitText("A better build may exist", zen(12.sp, FontWeight.Medium, C.muted), short = "Better may exist")
                 }
                 OutlineButton("Search for ${graph.optimize.longLimitMs / 1000} s", height = 36.dp) { graph.optimize.startSearch(graph.optimize.longLimitMs) }
             }

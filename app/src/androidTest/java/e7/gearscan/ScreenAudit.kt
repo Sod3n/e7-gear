@@ -48,6 +48,7 @@ import e7.gearscan.data.Stat
 import e7.gearscan.overlay.OverlayUi
 import e7.gearscan.ui.App
 import e7.gearscan.ui.installImageLoader
+import e7.gearscan.ui.trackAllMatches
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -680,7 +681,14 @@ class ScreenAudit {
             ui { graph.nav.stack = listOf(Screen.Gear, Screen.GearPotential) }
         })
         steps.add("find-gear-grouped" to { ui { findGear.grouped = false }; clickText("By set"); if (!findGear.grouped) add("Find gear's By set switch doesn't group the matches", "find-gear") })
-        steps.add("scan-restart-sheet" to { ui { resetCapture(graph); graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Optimize, Screen.ScanData); graph.nav.sheet = Sheet(SheetKind.SCAN_RESTART, 0) } })
+        // a walk that isn't a Sell review keeps the owner's top row too: undo beside collapse
+        steps.add("find-gear-overlay" to {
+            ui { graph.nav.sheet = null; graph.messages.show(graph.trackAllMatches(openOverlay = false)); graph.tracker.show(); graph.overlay.expanded = true }
+            overlay = true
+            rule.waitForIdle()
+            if (rule.onAllNodesWithContentDescription("Undo last step").fetchSemanticsNodes().isEmpty()) add("a Find gear walk over the game has no undo", "find-gear-overlay")
+        })
+        steps.add("scan-restart-sheet" to { ui { overlay = false; graph.tracker.hide(); resetCapture(graph); graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Optimize, Screen.ScanData); graph.nav.sheet = Sheet(SheetKind.SCAN_RESTART, 0) } })
         steps.add("scan-restart-scan-now" to {
             // "not running" hands the scan to the screen under the sheet; with no game installed it lands on that error
             runCatching { clickText("It's not running · scan now") }.onFailure { add("can't tap scan now: ${it.message?.take(60)}", "scan restart") }

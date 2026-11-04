@@ -17,7 +17,7 @@ abstract class Feature(protected val ctx: FeatureContext, val id: String) {
     protected fun <K, R> freshWork(name: String, weight: Weight = Weight.Light, inputs: () -> K) =
         FreshWork<K, R>(name, ctx.work, weight, inputs)
 
-    // Box events, in the order ScanFeature raises them: replacing -> changed -> adopted (adopt), imported, restored, erased.
+    // Box events as ScanFeature raises them: import = replacing -> changed -> adopted -> imported; restore and erase = restored/erased, then the adopt three.
     open fun onBoxReplacing() {}
 
     open fun onBoxChanged(old: Box?, new: Box?) {}

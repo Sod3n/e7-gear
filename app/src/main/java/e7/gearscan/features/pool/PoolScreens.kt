@@ -257,29 +257,40 @@ fun PoolRunScreen(graph: AppGraph) {
         val traders = p.trades.flatMap { listOf(it.taker, it.holder) }.distinct()
         val queue = graph.pool.reviewQueue()
         RowCard("Every hero", { graph.nav.sheet = Sheet(SheetKind.POOL_HEROES, 0) }) { Text("${queue.count { it in p.reviewed }} of ${queue.size} reviewed", style = zen(12.sp)) }
-        SectionTitle("Worth a look", trailing = "${(worse + low + traders).distinct().size} heroes")
-        Card(padding = PaddingValues(0.dp)) {
-            LookRow(graph, worse, "${worse.size} heroes got worse",
-                worse.take(3).joinToString(" · ") { id -> "${graph.heroes.hero(id)?.let(graph.heroes::heroName)} ${p.before[id]}→${p.after[id]}%" }, true) {
-                graph.nav.sheet = Sheet(SheetKind.POOL_WORSE, 0)
+        val looks = listOfNotNull<@Composable () -> Unit>(
+            if (worse.isEmpty()) null else { {
+                LookRow(graph, worse, heroes(worse.size) + " got worse",
+                    worse.take(3).joinToString(" · ") { id -> "${graph.heroes.hero(id)?.let(graph.heroes::heroName)} ${p.before[id]}→${p.after[id]}%" }, true) {
+                    graph.nav.sheet = Sheet(SheetKind.POOL_WORSE, 0)
+                }
+            } },
+            if (p.trades.isEmpty()) null else { {
+                LookRow(graph, traders, "${p.trades.size} contested " + if (p.trades.size == 1) "trade" else "trades",
+                    "${p.trades.count { it.made }} made · ${p.trades.count { !it.made }} not made · yours to change", false) { graph.nav.sheet = Sheet(SheetKind.POOL_TRADES, 0) }
+            } },
+            if (low.isEmpty()) null else { {
+                LookRow(graph, low, "${low.size} still below 60%", "Not enough gear · see ghost pieces", false) { graph.nav.sheet = Sheet(SheetKind.POOL_LOW, 0) }
+            } },
+        )
+        if (looks.isNotEmpty()) {
+            SectionTitle("Worth a look", trailing = heroes((worse + low + traders).distinct().size))
+            Card(padding = PaddingValues(0.dp)) {
+                looks.forEachIndexed { i, row -> if (i > 0) Box(Modifier.fillMaxWidth().height(1.5.dp).background(C.line)); row() }
             }
-            Box(Modifier.fillMaxWidth().height(1.5.dp).background(C.line))
-            LookRow(graph, traders, "${p.trades.size} contested " + if (p.trades.size == 1) "trade" else "trades",
-                "${p.trades.count { it.made }} made · ${p.trades.count { !it.made }} not made · yours to change", false) { graph.nav.sheet = Sheet(SheetKind.POOL_TRADES, 0) }
-            Box(Modifier.fillMaxWidth().height(1.5.dp).background(C.line))
-            LookRow(graph, low, "${low.size} still below 60%", "Not enough gear · see ghost pieces", false) { graph.nav.sheet = Sheet(SheetKind.POOL_LOW, 0) }
         }
         if (p.builds.size < p.ids.size) Text("Stopped after ${p.builds.size} of ${p.ids.size} heroes; the rest keep their gear.",
             style = zen(11.sp, FontWeight.Medium, C.muted))
     }
 }
 
+private fun heroes(n: Int) = if (n == 1) "1 hero" else "$n heroes"
+
 @Composable
 private fun LookRow(graph: AppGraph, ids: List<Long>, title: String, sub: String, hot: Boolean, onTap: () -> Unit) {
-    ListRow(if (ids.isEmpty()) null else onTap, Modifier.then(if (hot && ids.isNotEmpty()) Modifier.hatch() else Modifier).padding(horizontal = 12.dp, vertical = 10.dp),
+    ListRow(onTap, Modifier.then(if (hot) Modifier.hatch() else Modifier).padding(horizontal = 12.dp, vertical = 10.dp),
         leading = { FaceStack(graph, ids.mapNotNull { graph.heroes.hero(it) }) }) {
         Text(title, style = zen(13.sp))
-        Text(if (ids.isEmpty()) "None" else sub, style = zen(11.sp, color = if (hot && ids.isNotEmpty()) C.deepPink else C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(claims(sub), style = zen(11.sp, color = if (hot) C.deepPink else C.muted))
     }
 }
 

@@ -163,12 +163,12 @@ class SellFiltersScreens {
         ui { graph.tracker.markSold(soldId) };assertEquals(n-1,t.pendingQueue.size)
         // the stale mark above left an error page in the rail; a player taps Back, then finds Undo in the menu
         if(t.error!=null)tap("Back")
-        rule.onNodeWithContentDescription("Undo last mark").performClick();rule.waitForIdle()
+        rule.onNodeWithContentDescription("Undo last step").performClick();rule.waitForIdle()
         assertFalse(soldId in graph.marks.cleared);assertEquals(n,t.pendingQueue.size);assertEquals(soldId,t.selected)
         assertEquals(history,t.record!!.history.size);shot("20-undo-sold-mark",true)
         ui { overlay=false;assertTrue(graph.scan.restore(afterSale));graph.nav.go(Screen.Upgrade) }
-        assertTrue(soldId in graph.marks.cleared);assertEquals(n-1,t.pendingQueue.size);assertTrue(t.canUndoSold)
-        ui { graph.tracker.undoSold() };assertEquals(soldId,t.selected);assertFalse(soldId in graph.marks.cleared)
+        assertTrue(soldId in graph.marks.cleared);assertEquals(n-1,t.pendingQueue.size);assertTrue(t.canUndoStep)
+        ui { graph.tracker.undoStep() };assertEquals(soldId,t.selected);assertFalse(soldId in graph.marks.cleared)
         ui { graph.overlay.expanded=true;overlay=true }
         shot("21-sold-mark-restored",true)
         ui { graph.overlay.floating=true;graph.overlay.floatingPanel=true };rule.onNodeWithContentDescription("Back to E7 Gear").performClick();rule.waitForIdle();assertFalse(graph.overlay.floatingPanel);ui { graph.overlay.floating=false;graph.overlay.floatingPanel=true }
