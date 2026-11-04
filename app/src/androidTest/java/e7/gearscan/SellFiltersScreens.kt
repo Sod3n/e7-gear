@@ -39,7 +39,8 @@ class SellFiltersScreens {
     }
     private fun choose(name:String) {
         repeat(10) {
-            if(rule.onAllNodesWithText(name,useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()) { tap(name);return }
+            val found=rule.onAllNodes(hasContentDescription(name) or hasText(name),useUnmergedTree=true)
+            if(found.fetchSemanticsNodes().isNotEmpty()) { found.onFirst().performTouchInput { click() };rule.waitForIdle();return }
             rule.onNodeWithContentDescription("Next choices page").performClick();rule.waitForIdle()
         }
         fail("Choice paging did not reach $name")
@@ -132,14 +133,14 @@ class SellFiltersScreens {
         File(ctx.getExternalFilesDir(null),"sell-filters/walk.txt").writeText("$n pieces; set/slot/level changes in list order ${changes(listed)}, walked ${changes(walked)}\n")
         ui { graph.overlay.expanded=true;graph.overlay.usableHeightDp=240f;overlay=true }
         noPoints();shot("13-overlay-review",true)
-        rule.onNodeWithContentDescription("Next gear").performClick();rule.waitForIdle();assertEquals(1,t.queueIndex);shot("14-overlay-next",true)
+        rule.onNodeWithContentDescription("Next gear").assertDoesNotExist();ui { t.selectInQueue(1) };assertEquals(1,t.queueIndex);shot("14-overlay-next",true)
         val index=t.queue.indexOfFirst { e->graph.records.records[e.id]!!.item.let { it.rank=="Epic"&&it.enhance<15 } }
         assertTrue(index>=0);ui { t.selectInQueue(index) }
         rule.onNodeWithContentDescription("Verdict details",useUnmergedTree=true).performClick();rule.waitForIdle();noPoints();shot("16-overlay-roll-evidence",true);tap("Back")
         val before=t.record!!.item;val countBefore=t.readout.reviewRolls!!.size;val statText=t.readout.reviewStatText
         val next=(before.enhance/3+1)*3
         tap("Record +$next");val sub=before.subs.first();choose("${sub.type.short}: ${fmtNum(sub.value)}")
-        shot("17-overlay-record",true);tap("Apply total");tap("Save +$next")
+        shot("17-overlay-record",true);rule.pickValue();tap("Save +$next")
         assertEquals(next,t.record!!.item.enhance);assertEquals(n,t.queue.size);assertEquals(countBefore+1,t.readout.reviewRolls!!.size);assertNotEquals(statText,t.readout.reviewStatText)
         noPoints();shot("18-overlay-updated",true)
         // This acknowledges only a fixture sale; the audit never touches the game.

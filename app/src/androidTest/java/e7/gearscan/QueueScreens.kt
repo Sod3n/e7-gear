@@ -77,8 +77,7 @@ class QueueScreens {
         tap("Eff")
         rule.onNodeWithContentDescription("Step 10").assertDoesNotExist()
         shot("36-roll-bounds-353-big")
-        repeat(2) { rule.onNodeWithContentDescription("Increase value").performClick() }
-        tap("Apply total"); tap("Save +12")
+        rule.pickValue(6.0); tap("Save +12")
         assertEquals(12, t.record!!.item.enhance)
         assertEquals(6.0, t.record!!.item.subs.last().value, 0.0)
         assertEquals(matches.size, t.queue.size)

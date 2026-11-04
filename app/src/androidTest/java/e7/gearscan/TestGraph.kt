@@ -1,6 +1,11 @@
 package e7.gearscan
 
 import android.content.Context
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performSemanticsAction
 import e7.gearscan.state.Disk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,3 +19,11 @@ fun restartedGraph(ctx: Context): AppGraph =
 
 // a game-data update landing mid-test marks every list out of date
 fun AppGraph.contentSettled() = System.currentTimeMillis() - content.checkedAt < 24 * 3600 * 1000L
+
+/** Sets the rail's value slider like lifting a finger at [value] (default: its lowest value). */
+fun ComposeTestRule.pickValue(value: Double? = null) {
+    val slider = onNodeWithContentDescription("Value slider")
+    val range = slider.fetchSemanticsNode().config[SemanticsProperties.ProgressBarRangeInfo].range
+    slider.performSemanticsAction(SemanticsActions.SetProgress) { it(value?.toFloat() ?: range.start) }
+    waitForIdle()
+}

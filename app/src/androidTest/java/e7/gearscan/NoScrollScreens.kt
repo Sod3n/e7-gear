@@ -54,7 +54,8 @@ class NoScrollScreens {
     }
     private fun choose(name: String) {
         repeat(10) {
-            if (rule.onAllNodesWithText(name, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) { tap(name); return }
+            val found = rule.onAllNodes(hasContentDescription(name) or hasText(name), useUnmergedTree = true)
+            if (found.fetchSemanticsNodes().isNotEmpty()) { found.onFirst().performTouchInput { click() }; rule.waitForIdle(); return }
             assertTrue("Missing choice $name", advance("choices"))
         }
         fail("Choice paging did not reach $name")
@@ -111,21 +112,18 @@ class NoScrollScreens {
             ui { tracker.selectInQueue(tracker.pendingQueue.indexOfFirst { it.id == 43L }) }; assertEquals(43L, tracker.selected)
             tap("Record +12"); shot("$label-choose")
             choose("Eff"); shot("$label-total")
-            rule.onNodeWithContentDescription("Increase value").performClick()
             ui { graph.overlay.expanded = false }
             ui { graph.overlay.expanded = true }
-            rule.onNodeWithText("5").assertIsDisplayed()
-            rule.onNodeWithContentDescription("Increase value").performClick()
-            tap("Apply total"); shot("$label-review")
+            rule.onNodeWithContentDescription("Value slider").assertIsDisplayed()
+            rule.pickValue(6.0); shot("$label-review")
             tap("Save +12")
             assertEquals(12, tracker.record!!.item.enhance); assertEquals(6.0, tracker.record!!.item.subs.last().value, 0.0)
             // Correct starts from the app's Track upgrades, which opens this entry over the game
             ui { tracker.beginEdit(correction = true) }; choose("Spd: 14")
-            rule.onNodeWithContentDescription("Increase value").performClick()
             ui { graph.overlay.expanded = false }
             ui { graph.overlay.expanded = true }
-            rule.onNodeWithText("15").assertIsDisplayed()
-            tap("Apply total"); tap("Save +12")
+            rule.onNodeWithContentDescription("Value slider").assertIsDisplayed()
+            rule.pickValue(15.0); tap("Save +12")
             assertEquals(15.0, tracker.record!!.item.subs[0].value, 0.0)
             ui { tracker.undo() }
             assertEquals(14.0, tracker.record!!.item.subs[0].value, 0.0)
@@ -144,8 +142,8 @@ class NoScrollScreens {
             normal.select(epic, 1); normal.show(); epicGraph.overlay.expanded = true
             height = 240; font = 1.3f; t = epicGraph
         }
-        tap("Record +12"); choose("Spd: 14"); tap("Apply total")
-        tap("Back"); choose("Hp%: 5"); tap("Apply total")
+        tap("Record +12"); choose("Spd: 14"); rule.pickValue()
+        tap("Back"); tap("Back"); choose("Hp%: 5"); rule.pickValue()
         shot("240-1.3-epic-review")
         tap("Save +12")
         assertEquals(14.0, normal.record!!.item.subs[0].value, 0.0)

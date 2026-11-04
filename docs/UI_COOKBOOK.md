@@ -91,7 +91,9 @@ player expects to find again (a tab, an open section, a filter) is still there w
 - Ask: what changes on this screen after the player acts or data arrives? Does anything above the player's focus change
   height? Does state survive leaving and coming back?
 - Example: the keep-rolling tile area has a fixed height whether or not numbers exist; errors from actions are toasts;
-  the Sell review tab lives in AppModel, not in `remember`.
+  the Sell review tab lives in AppModel, not in `remember`. The rail over the game keeps one height for a whole walk: a
+  three-substat piece is measured as four, and a record step's pages keep the piece's height, so Sold, Keep and Back
+  stay under the thumb (RailFitScreens checks it).
 
 ### 7. Reachable from where the player is
 A mode the player uses often has a front door they can see, with its state on it. Tools are not buried under data or
@@ -107,6 +109,14 @@ text lengths.
   much values"; "+/- buttons adds overhead to UI".
 - Ask: can every control be hit with a thumb at 353 dp and 1.3x font? How many values does a slider span?
 - Example: sliders snap to meaningful stops (upgrade steps, 22 chances), and the far-left stop means off.
+- Said (2026-11-04, the rail over the game): "some buttons kinda small on overlay?", "recording new substat is not very
+  convenient", "Hide/undo/back buttons full wide", "make whole overlay less wider", "make text for artifact numbers
+  larger". A walk moves on with the buttons that decide (Sold ›, Keep ›), not separate arrows; a row of buttons fills
+  its width; a value is picked on a vertical slider with every value marked, and lifting the finger picks it. The rail
+  measures the piece before choosing sizes: big buttons only while the piece keeps its cell, then compact buttons, then
+  smaller numbers; text pages are the last resort. Check it at the owner's 792 x 353 dp landscape, not a portrait box.
+  It may cover the game's first inventory column's icons, never its substats ("it is fine, because I still can see
+  substats of this items").
 
 ### 9. Safe to explore
 A player can tap around without losing work: resets and anything irreversible ask first; marks can be undone; nothing

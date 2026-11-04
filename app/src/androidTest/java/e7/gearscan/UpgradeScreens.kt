@@ -59,9 +59,8 @@ class UpgradeScreens {
         shoot("03-editor-353-big")
         val first = piece.subs.first { 4 in e7.gearscan.opt.Finish.range(it.type, piece.level) }
         val firstIndex = piece.subs.indexOf(first)
-        tap("${first.type.short}: ${fmtNum(first.value)}")
-        repeat(4 - e7.gearscan.opt.Finish.range(first.type, piece.level).first) { rule.onNodeWithContentDescription("Increase value").performClick() }
-        tap("Apply total"); tap("Save +12")
+        rule.onNodeWithContentDescription("${first.type.short}: ${fmtNum(first.value)}").performClick(); rule.waitForIdle()
+        rule.pickValue(first.value + 4); tap("Save +12")
         rule.waitUntil(30_000) { graph.tracker.checkRun.signature.isNotEmpty() }
         assertEquals(12, graph.tracker.record!!.item.enhance)
         assertEquals(first.value + 4, graph.tracker.record!!.item.subs[firstIndex].value, 0.0)

@@ -49,8 +49,7 @@ class UpgradeViewsTest {
         shot("11-heroic-reveal-353-big")
         tap("Eff")
         shot("12-touch-controls-353-big")
-        repeat(2) { rule.onNodeWithContentDescription("Increase value").performClick() }
-        tap("Apply total"); tap("Save +12")
+        rule.pickValue(6.0); tap("Save +12")
         assertEquals(4, t.record!!.item.subs.size)
         ui {
             t.checkRun.begin("synthetic-layout-only", 1)
