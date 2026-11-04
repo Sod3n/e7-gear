@@ -235,9 +235,6 @@ fun ScanDataScreen(graph: AppGraph) {
                 val (uri, name) = graph.scan.export("e7gear-backup.json", graph.scan.backupText())
                 graph.messages.showToast("Saved $name to Downloads/E7GearScan", "Share") { share(uri, "application/json") }
             }
-            DataRow("Over the game", if (graph.settings.overGameNative) "Phone's floating window · tap to use E7 Gear's panel" else "E7 Gear's panel · tap to use the phone's floating window", true) {
-                graph.settings.useOverGameNative(!graph.settings.overGameNative)
-            }
             DataRow("Restore from a backup", null, true) { restore.launch(arrayOf("application/json", "text/plain", "*/*")) }
             DataRow("Import a gear.txt file", null, true) { importGear.launch(arrayOf("text/plain", "application/json", "*/*")) }
             DataRow("Game content", graph.content.status ?: ("Version ${graph.content.content.version}" +

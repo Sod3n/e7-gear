@@ -7,24 +7,7 @@ import e7.gearscan.opt.Build
 import e7.gearscan.state.FeatureContext
 
 class OverGameLauncher(private val ctx: FeatureContext, private val settings: SettingsFeature, private val scan: ScanFeature) {
-    // false = E7 Gear's own overlay (any phone), true = the phone's floating window showing the app's panel
-    private fun native() {
-        ctx.platform.stopOverlay()
-        ctx.overlay.expanded = true
-        ctx.overlay.floatingPanel = true
-        if (!settings.nativeSeen) {
-            ctx.nav.go(Screen.OverlayIntro)
-            return
-        }
-        scan.openGame()
-    }
-
     fun open(afterStart: () -> Unit = {}) {
-        if (settings.overGameNative) {
-            native()
-            afterStart()
-            return
-        }
         if (ctx.platform.pillAllowed) {
             ctx.platform.startOverlay()
             afterStart()
@@ -35,10 +18,6 @@ class OverGameLauncher(private val ctx: FeatureContext, private val settings: Se
     }
 
     fun showChecklist(): Boolean {
-        if (settings.overGameNative) {
-            native()
-            return true
-        }
         if (!ctx.platform.pillAllowed) return false
         ctx.platform.stopOverlay()
         ctx.platform.startOverlay()
@@ -66,17 +45,7 @@ class OverGame(
 
     /** Track upgrades' Stop tracking: the over-the-game window closes, the record and list stay. */
     fun stopTracking() {
-        if (ctx.overlay.floating) {
-            closeFloatingPanel()
-        } else {
-            tracker.hide()
-            ctx.platform.stopOverlay()
-        }
-    }
-
-    fun closeFloatingPanel() {
         tracker.hide()
-        checklist.unload()
-        ctx.overlay.floatingPanel = true
+        ctx.platform.stopOverlay()
     }
 }

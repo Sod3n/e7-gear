@@ -53,15 +53,6 @@ class ChangeCounterTest {
         assertTrue(g.disk.exists("state.json"))
     }
 
-    @Test fun switchingTheOverGameChoiceCountsOneChange() = runTest(UnconfinedTestDispatcher()) {
-        val g = graph(this)
-        val rev = g.rev.value
-        g.settings.useOverGameNative(true)
-        assertEquals(rev + 1, g.rev.value)
-        g.settings.useOverGameNative(false)
-        assertEquals(rev + 2, g.rev.value)
-    }
-
     @Test fun anUpdatedContentFileCountsOneChange() = runTest(UnconfinedTestDispatcher()) {
         val g = graph(this)
         g.content.fetch = site("2")

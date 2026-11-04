@@ -369,10 +369,7 @@ class TrackerFeature(
         if (s.kept == null) checkRun.runCheck()
     }
 
-    fun returnToApp() {
-        // in the phone's floating window the app is already here: show all of it
-        if (ctx.overlay.floating) ctx.overlay.floatingPanel = false else ctx.platform.showApp()
-    }
+    fun returnToApp() = ctx.platform.showApp()
 
     fun openOverlay(): Outcome {
         val r = record ?: return Outcome.Done

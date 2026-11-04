@@ -25,9 +25,5 @@ class OverlayWindow {
         }
     var onAppInFront: ((Boolean) -> Unit)? = null
 
-    var native by mutableStateOf(false)
-    val listHidden get() = opacity == 0f && !native
-
-    var floating by mutableStateOf(false)
-    var floatingPanel by mutableStateOf(true)
+    val listHidden get() = opacity == 0f
 }

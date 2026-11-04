@@ -321,8 +321,8 @@ private fun OverlayControls(g: AppGraph, b: OverlayBuild, onMove: (Float, Float)
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val n = s.done.count { it }
             FitText("$n of ${b.pieces.size} done", zen(12.sp, color = C.muted), Modifier.weight(1f), short = "$n/${b.pieces.size}")
-            // the list below lets taps through to the game; its opacity is the one thing worth changing mid-game (not in the phone's own window)
-            if (!w.native) Row(Modifier.width(64.dp).clip(RoundedCornerShape(999.dp)).border(2.dp, C.edge, RoundedCornerShape(999.dp)).tap {
+            // the list below lets taps through to the game; its opacity is the one thing worth changing mid-game
+            Row(Modifier.width(64.dp).clip(RoundedCornerShape(999.dp)).border(2.dp, C.edge, RoundedCornerShape(999.dp)).tap {
                 w.opacity = OPACITY_STEPS[(OPACITY_STEPS.indexOf(w.opacity) + 1).mod(OPACITY_STEPS.size)]
             }.padding(horizontal = 8.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)) {

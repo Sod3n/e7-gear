@@ -46,15 +46,7 @@ private fun AppContent(graph: AppGraph, onExit: () -> Unit) {
     BackHandler { if (!graph.nav.back()) onExit() }
     if (!graph.ready) { Box(Modifier.fillMaxSize().background(C.paper)); return }
     if (graph.content.content.heroes.isEmpty()) { GameDataScreen(graph); return }
-    // in the phone's floating window, a loaded tracker or checklist is all the window shows
-    val window = graph.overlay
-    val loaded = graph.tracker.shown || graph.checklist.build != null
-    if (window.floating && window.floatingPanel && loaded) { FloatingPanel(graph); return }
     androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
-    // the whole app in the floating window: a slim bar above it goes back to the panel, covering nothing
-    if (window.floating && loaded) Row(Modifier.fillMaxWidth().background(C.pink).tap { window.floatingPanel = true }.padding(horizontal = 14.dp, vertical = 7.dp)) {
-        Text("‹ Back to the " + if (graph.tracker.shown) "tracker" else "checklist", style = zen(13.sp, color = C.onAccent))
-    }
     Box(Modifier.fillMaxWidth().weight(1f)) {
         val nav = graph.nav
         val entry = nav.entries.last()

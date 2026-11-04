@@ -270,7 +270,7 @@ fun ratingText(r: Rating, v: Double) = when (r) {
 }
 
 @Composable
-@OptIn(LinkStyle::class)
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class, LinkStyle::class)
 fun ResultsScreen(graph: AppGraph) {
     graph.rev.value
     val s = graph.optimize.search ?: run { OptimizeScreen(graph); return }
@@ -304,8 +304,9 @@ fun ResultsScreen(graph: AppGraph) {
                 Text("Best so far is shown. Stops at ${s.limitMs / 1000} s.", style = zen(11.sp, FontWeight.Medium, C.muted))
             }
         } else {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("SHOW", style = zen(12.sp, color = C.muted).copy(letterSpacing = 0.7.sp))
+            // wraps rather than cut a pill at 353 dp with a large font
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("SHOW", style = zen(12.sp, color = C.muted).copy(letterSpacing = 0.7.sp), modifier = Modifier.align(Alignment.CenterVertically))
                 val targets = req.goal == Goal.TARGETS
                 val main = if (targets) listOf(Rating.DMG, Rating.SPD, Rating.EHP) else listOf(Rating.DMG, Rating.SPD, Rating.CP, Rating.EHP)
                 if (targets) Pill("Match", selected = byMatch, onClick = { graph.optimize.showMatch = true })
@@ -459,12 +460,11 @@ private fun ResultCard(graph: AppGraph, i: Int, b: Build, cur: Build?, r: Rating
                 FitText(main, dela(18.sp), Modifier.width(78.dp))
                 FitText(delta ?: "", zen(12.sp, color = if (up) C.blue else C.red), Modifier.width(52.dp).padding(bottom = 2.dp))
                 val mods = b.items.count { it.mod != null }
-                if (b.fromOthers > 0 || mods > 0) Text(buildAnnotatedString {
-                    if (b.fromOthers > 0) append("${b.fromOthers} from others")
-                    if (b.fromOthers > 0 && mods > 0) append(" · ")
-                    if (mods > 0) withStyle(SpanStyle(color = C.deepPink)) { append("改 $mods") }
-                }, style = zen(10.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(bottom = 3.dp).weight(1f, fill = false))
+                if (b.fromOthers > 0 || mods > 0) Row(Modifier.padding(bottom = 3.dp).weight(1f, fill = false), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (b.fromOthers > 0) FitText("${b.fromOthers} from others", zen(10.sp, FontWeight.Medium, C.muted), Modifier.weight(1f, fill = false),
+                        short = "${b.fromOthers} others")
+                    if (mods > 0) Text("改 $mods", style = zen(10.sp, FontWeight.Medium, C.deepPink), softWrap = false)
+                }
             }
             StatGrid(req) { b.final[it] }
         }

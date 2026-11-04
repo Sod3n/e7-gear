@@ -397,7 +397,7 @@ fun StatStack(item: Item, modifier: Modifier = Modifier, reforged: Boolean = fal
         if (main) {
             val ref = reforged && item.reforgeable
             StackLine(item.mainType.stat, item.mainType.format(if (ref) e7.gearscan.calc.Reforge.main(item.mainType, item.mainValue) else item.mainValue),
-                C.ink, size + 1, FontWeight.Black, fit)
+                C.ink, size + 1, FontWeight.Black, fit, icon = if (fit) size else size + 1)
         }
         item.subs.forEachIndexed { i, s ->
             val tint = when { item.mod?.index == i -> C.deepPink; s.modified -> C.blue; s.type in highlight -> C.blue; else -> C.muted }
@@ -408,9 +408,10 @@ fun StatStack(item: Item, modifier: Modifier = Modifier, reforged: Boolean = fal
 }
 
 @Composable
-private fun StackLine(stat: Stat, text: String, color: Color, size: Int, weight: FontWeight, fit: Boolean = false) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (fit) 3.dp else 4.dp)) {
-        StatIcon(stat, size.dp, color)
+private fun StackLine(stat: Stat, text: String, color: Color, size: Int, weight: FontWeight, fit: Boolean = false, icon: Int = size) {
+    // fitted (the rail's 33 dp column): a four-digit HP main keeps every digit
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (fit) 2.dp else 4.dp)) {
+        StatIcon(stat, icon.dp, color)
         if (fit) FitText(text, zen(size.sp, weight, color), Modifier.weight(1f, fill = false)) else Text(text, style = zen(size.sp, weight, color), softWrap = false)
     }
 }

@@ -162,6 +162,9 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
     val openVerdict = { if (!t.editing) pane = if (!t.hasTarget) UpgradePane.ADVICE else UpgradePane.GOAL }
     val need = draft?.need() ?: 0f
     val shape = RoundedCornerShape(14.dp)
+    val countText = if (t.sellQueueComplete) "0 left" else if (t.needsRollRefresh) "Refresh" else "${t.queueIndex + 1}/${t.pendingQueue.size}"
+    // a ‹ › walk shows its count under the piece's score, where a Sell walk has its verdict: ‹ › keep full-size halves, the rail its height
+    val cellCount = countText.takeIf { navWalk }
     val rail: @Composable (Boolean, Int, Boolean) -> Unit = { roomy, statSize, backOnTop ->
         val topRow = if (roomy) TOP_ROW else TOP_ROW_COMPACT
         val action = if (roomy) ACTION else ACTION_COMPACT
@@ -175,16 +178,12 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                 PanelAction("", Modifier.weight(1f), enabled = t.canUndoStep, label = "Undo last step", icon = { UndoArrow(it) }) { t.undoStep(); pane = UpgradePane.PIECE }
                 PanelAction("–", Modifier.weight(1f), label = "Collapse tracker") { w.expanded = false; onDock(false) }
             }
-            val countText = if (t.sellQueueComplete) "0 left" else if (t.needsRollRefresh) "Refresh" else "${t.queueIndex + 1}/${t.pendingQueue.size}"
             if (countRow) Box(Modifier.fillMaxWidth().height(COUNT_ROW.dp).dragWindow(onMove), contentAlignment = Alignment.Center) {
                 FitText(countText, zen(9.sp, color = C.blue))
             }
             if (queueRow) Row(Modifier.fillMaxWidth().height(NAV_ROW.dp), horizontalArrangement = Arrangement.spacedBy(GAP.dp), verticalAlignment = Alignment.CenterVertically) {
-                PanelAction("‹", Modifier.width(SMALL.dp), enabled = t.queueIndex > 0 && !t.editing, label = "Previous gear") { t.selectInQueue(t.queueIndex - 1); pane = UpgradePane.PIECE }
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    FitText(countText, zen(10.sp, color = C.blue))
-                }
-                PanelAction("›", Modifier.width(SMALL.dp), enabled = t.queueIndex < t.pendingQueue.lastIndex && !t.editing, label = "Next gear") { t.selectInQueue(t.queueIndex + 1); pane = UpgradePane.PIECE }
+                PanelAction("‹", Modifier.weight(1f), enabled = t.queueIndex > 0 && !t.editing, label = "Previous gear") { t.selectInQueue(t.queueIndex - 1); pane = UpgradePane.PIECE }
+                PanelAction("›", Modifier.weight(1f), enabled = t.queueIndex < t.pendingQueue.lastIndex && !t.editing, label = "Next gear") { t.selectInQueue(t.queueIndex + 1); pane = UpgradePane.PIECE }
             }
             PanelBody(Modifier.fillMaxWidth(), floor = BODY_FLOOR.dp, cap = bodyCap.dp, need = need.dp,
                 // the nav row's room while it hides, and a draft's unused button slots: the rail keeps its height and Back stays put
@@ -194,13 +193,13 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                     ((if (navWalk && !queueRow) NAV_ROW.dp.roundToPx() + gap else 0) +
                         (draft?.let { (pieceButtons - it.buttons()) * (action.dp.roundToPx() + gap) } ?: 0)).toDp()
                 },
-                natural = { RailPiece(t, item.fourLines(), 10_000f, es, onMove, measure = true, statSize = statSize, wearer = wearer) {} }) { fits ->
+                natural = { RailPiece(t, item.fourLines(), 10_000f, es, onMove, measure = true, statSize = statSize, wearer = wearer, count = cellCount) {} }) { fits ->
             BoxWithConstraints(Modifier.fillMaxSize().testTag("gear-tracker-body")) {
                 when {
                     t.error != null -> PanelTextPages(t.error!!, maxHeight.value)
                     t.sellQueueComplete -> PanelTextPages("List complete\n\nEvery piece in this list is marked sold or kept.\n\nRescan after selling to refresh the game inventory.", maxHeight.value)
                     draft != null -> DraftBody(draft, maxHeight.value)
-                    pane == UpgradePane.PIECE -> RailPiece(t, item, if (fits) maxHeight.value else 0f, es, onMove, statSize = statSize, wearer = wearer, onVerdict = openVerdict)
+                    pane == UpgradePane.PIECE -> RailPiece(t, item, if (fits) maxHeight.value else 0f, es, onMove, statSize = statSize, wearer = wearer, count = cellCount, onVerdict = openVerdict)
                     pane == UpgradePane.GOAL -> GoalPage(t, maxHeight.value)
                     pane == UpgradePane.ADVICE -> PanelTextPages(adviceText(t), maxHeight.value)
                     pane == UpgradePane.EQUIP -> PanelChoices(t.checkRun.equipHeroes.map { "${it.name} · ${it.nowGain}" }, maxHeight.value, "Equipped on") { i ->
@@ -259,7 +258,7 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
     }
     // the piece is measured first; short of room it keeps its cell by giving up, in turn, the bigger buttons and then the bigger numbers
     SubcomposeLayout { c ->
-        val natural = subcompose("natural") { Box(Modifier.padding(horizontal = 2.dp).clearAndSetSemantics { }) { RailPiece(t, item.fourLines(), 10_000f, es, onMove, measure = true, wearer = wearer) {} } }
+        val natural = subcompose("natural") { Box(Modifier.padding(horizontal = 2.dp).clearAndSetSemantics { }) { RailPiece(t, item.fourLines(), 10_000f, es, onMove, measure = true, wearer = wearer, count = cellCount) {} } }
             .maxOfOrNull { it.measure(Constraints(maxWidth = (RAIL_WIDTH - 2 * RAIL_PAD).dp.roundToPx())).height }?.toDp()?.value ?: 0f
         val roomy = usable - 12 - chromeOf(TOP_ROW, ACTION, BACK_ROW) >= natural
         val statSize = if (roomy || usable - 12 - chromeOf(TOP_ROW_COMPACT, ACTION_COMPACT, BACK_ROW_COMPACT) >= natural) STAT_SIZE else STAT_SIZE_SMALL
@@ -297,11 +296,11 @@ private fun chanceBadge(t: TrackerFeature) = if (!t.hasTarget && t.checkRun.resu
 /** The piece as the game's inventory cell (tile, ES under it, stats stacked beside it), then the verdict, which opens its page. */
 @Composable
 private fun RailPiece(t: TrackerFeature, item: Item, height: Float, es: EsForecast.Es?, onMove: (Float, Float) -> Unit, measure: Boolean = false,
-                      statSize: Int = STAT_SIZE, wearer: String? = null, onVerdict: () -> Unit) {
+                      statSize: Int = STAT_SIZE, wearer: String? = null, count: String? = null, onVerdict: () -> Unit) {
     if (height < 60 * LocalDensity.current.fontScale + 12) {
         // too short for the tile: the stats as text pages, and a tap on them opens the verdict like the chip does
         Box(Modifier.fillMaxSize().tap(onVerdict).then(if (measure) Modifier else Modifier.semantics { contentDescription = "Verdict details" })) {
-            PanelTextPages("${item.rank} Lv.${item.level} · ${item.mainType.short} ${item.mainType.format(item.mainValue)}\n" +
+            PanelTextPages((count?.let { "$it\n" } ?: "") + "${item.rank} Lv.${item.level} · ${item.mainType.short} ${item.mainType.format(item.mainValue)}\n" +
                 item.subs.joinToString("\n") { "${it.type.short} ${it.type.format(it.value)}" }, height)
         }
         return
@@ -316,6 +315,7 @@ private fun RailPiece(t: TrackerFeature, item: Item, height: Float, es: EsForeca
                 Column(Modifier.width(CELL_LEFT.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     RailTile(item, t.setIcon, wearer)
                     Text("${InventoryOrder.score(item)}", style = dela(11.sp))
+                    count?.let { FitText(it, zen(9.sp, color = C.blue)) }
                     // a sell walk's verdict sits under the score (owner's layout)
                     if (t.hasEs) Box(Modifier.fillMaxWidth().then(if (measure) Modifier else Modifier.semantics { contentDescription = "Verdict details" })) {
                         // while the forecast loads the chip keeps its room, so nothing shifts and a tap still opens the verdict
@@ -447,7 +447,7 @@ private fun PanelTextPages(text: String, height: Float) {
         var page by remember(text, chunks) { mutableIntStateOf(0) }
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Box(Modifier.weight(1f)) { Text(chunks[page.coerceAtMost(chunks.lastIndex)], style = style) }
-            PanelPager(page, chunks.size, "${page + 1} / ${chunks.size}", "details") { page = it }
+            if (chunks.size > 1) PanelPager(page, chunks.size, "${page + 1} / ${chunks.size}", "details") { page = it }
         }
     }
 }
@@ -485,7 +485,7 @@ private fun adviceText(t: TrackerFeature) = buildList {
 private fun PanelPager(page: Int, pages: Int, text: String, kind: String, change: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().height(NAV_ROW.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         PanelAction("‹", Modifier.width(SMALL.dp), enabled = page > 0, label = "Previous $kind page") { change(page - 1) }
-        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { FitText(text, zen(9.sp, color = C.muted)) }
+        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { FitText(text, zen(9.sp, color = C.muted), short = "${page + 1}") }
         PanelAction("›", Modifier.width(SMALL.dp), enabled = page + 1 < pages, label = "Next $kind page") { change(page + 1) }
     }
 }

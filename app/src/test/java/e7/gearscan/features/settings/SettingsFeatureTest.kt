@@ -25,29 +25,16 @@ class SettingsFeatureTest {
 
     private fun graph(scope: CoroutineScope, phone: Phone) = AppGraph(Disk(createTempDirectory("settings").toFile()), scope, platform = phone)
 
-    @Test fun switchingToThePhonesFloatingWindowClosesOurOverlayAndSwitchingBackDoesNot() = runTest(UnconfinedTestDispatcher()) {
-        val phone = Phone()
-        val g = graph(this, phone)
-        val rev = g.rev.value
-        g.settings.useOverGameNative(true)
-        assertTrue(g.settings.overGameNative)
-        assertEquals(1, phone.overlayStops)
-        assertTrue(g.rev.value > rev)
-        g.settings.useOverGameNative(false)
-        assertFalse(g.settings.overGameNative)
-        assertEquals(1, phone.overlayStops)
-    }
-
-    @Test fun theProxyAndTheOverlayChoiceSurviveEraseButConsentDoesNot() = runTest(UnconfinedTestDispatcher()) {
+    @Test fun theProxyAndTheOverlayIntroSurviveEraseButConsentDoesNot() = runTest(UnconfinedTestDispatcher()) {
         val g = graph(this, Phone())
         g.settings.consent = true
         g.settings.proxyOn = true
         g.settings.proxy = "127.0.0.1:8080"
-        g.settings.useOverGameNative(true)
+        g.settings.overlaySeen = true
         g.store.erase()
         assertFalse(g.settings.consent)
         assertTrue(g.settings.proxyOn)
         assertEquals("127.0.0.1:8080", g.settings.proxy)
-        assertTrue(g.settings.overGameNative)
+        assertTrue(g.settings.overlaySeen)
     }
 }

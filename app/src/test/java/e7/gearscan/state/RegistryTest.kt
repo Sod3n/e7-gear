@@ -31,7 +31,7 @@ class RegistryTest {
     }
 
     private val keptKeys = setOf(
-        "settings.proxyOn", "settings.proxy", "settings.overlaySeen", "settings.overGameNative", "settings.nativeSeen",
+        "settings.proxyOn", "settings.proxy", "settings.overlaySeen",
         "content.checkedAt", "content.mirror",
     )
 
@@ -68,8 +68,6 @@ class RegistryTest {
         "settings.proxy" to { g.settings.proxy = "1.2.3.4:80" },
         "settings.showRating" to { g.settings.showRating = Rating.EHP },
         "settings.overlaySeen" to { g.settings.overlaySeen = true },
-        "settings.overGameNative" to { g.settings.overGameNative = true },
-        "settings.nativeSeen" to { g.settings.nativeSeen = true },
     )
 
     private fun same(a: Any?, b: Any?) = when (a) {
@@ -159,7 +157,7 @@ class RegistryTest {
         }
         assertTrue(g.settings.consent); assertTrue(g.settings.proxyOn); assertEquals("127.0.0.1:8080", g.settings.proxy)
         assertEquals(Rating.EHP, g.settings.showRating)
-        assertTrue(g.settings.overlaySeen); assertTrue(g.settings.overGameNative); assertTrue(g.settings.nativeSeen)
+        assertTrue(g.settings.overlaySeen)
         assertEquals(setOf(5, 2), g.pool.tiers); assertEquals(setOf(1003L, 1004L), g.pool.extra); assertEquals(setOf(1005L), g.pool.skip)
         assertEquals(PoolLosses.SMALL, g.pool.losses); assertEquals(PoolEffort.REBUILD, g.pool.effort)
         assertEquals(4.75, g.pool.secondsPerHero, 0.0); assertEquals(1_760_999_999_000L, g.pool.pending)

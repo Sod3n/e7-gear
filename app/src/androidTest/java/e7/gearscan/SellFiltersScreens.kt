@@ -171,7 +171,6 @@ class SellFiltersScreens {
         ui { graph.tracker.undoStep() };assertEquals(soldId,t.selected);assertFalse(soldId in graph.marks.cleared)
         ui { graph.overlay.expanded=true;overlay=true }
         shot("21-sold-mark-restored",true)
-        ui { graph.overlay.floating=true;graph.overlay.floatingPanel=true };rule.onNodeWithContentDescription("Back to E7 Gear").performClick();rule.waitForIdle();assertFalse(graph.overlay.floatingPanel);ui { graph.overlay.floating=false;graph.overlay.floatingPanel=true }
         val backup=graph.scan.backupText();val saved=JSONObject(backup)
         assertEquals(graph.sellReview.query,SellQuery.of(saved.getJSONObject("fields").getJSONObject("sellReview.query")))
         val reopened=reopenTracker(graph,ctx.filesDir);assertTrue(reopened.isRollReview);assertEquals(t.readout.reviewRolls,reopened.readout.reviewRolls);assertEquals(t.queue,reopened.queue)

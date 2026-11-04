@@ -51,21 +51,20 @@ fun OverlayIntroScreen(graph: AppGraph) {
     // that switch locked until "Allow restricted settings" is turned on in its App info
     var blocked by remember { mutableStateOf(false) }
     fun go() {
-        if (graph.settings.overGameNative) { graph.settings.nativeSeen = true; OverlayService.stop(ctx) } else OverlayService.start(ctx)
+        OverlayService.start(ctx)
         graph.settings.overlaySeen = true
         graph.store.saveNow()
         graph.nav.back()
         if (graph.tracker.shown) graph.tracker.checkRun.runCheck()
         graph.scan.openGame()
     }
-    val native = graph.settings.overGameNative
     LifecycleResumeEffect(waiting) {
         if (waiting && graph.platform.pillAllowed) { waiting = false; blocked = false; go() }
         else if (waiting) blocked = true
         onPauseOrDispose { }
     }
-    Frame(null, null, primary = Action(if (native || graph.platform.pillAllowed) "Open game" else "Allow and open game") {
-        if (native || graph.platform.pillAllowed) go() else {
+    Frame(null, null, primary = Action(if (graph.platform.pillAllowed) "Open game" else "Allow and open game") {
+        if (graph.platform.pillAllowed) go() else {
             waiting = true
             ctx.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${ctx.packageName}")))
         }
@@ -75,14 +74,7 @@ fun OverlayIntroScreen(graph: AppGraph) {
         Text(if (upgrade) "Track upgrades over the game" else "Show this build over the game", style = TitleStyle.copy(fontSize = 24.sp, lineHeight = 28.sp))
         Text(if (upgrade) "Record each +3 in a small floating panel and check whether the piece could improve a hero build." else "A small panel floats on top of Epic Seven, so you can equip each piece without switching apps.",
             style = zen(13.sp, FontWeight.Medium, C.muted))
-        Segmented(listOf("E7 Gear's panel", "Phone's floating window"), if (native) 1 else 0) { graph.settings.useOverGameNative(it == 1) }
-        if (native) Card(padding = PaddingValues(12.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                IntroStep(1, "Open the game", "Tap the pink button. E7 Gear keeps the ${if (upgrade) "tracker" else "checklist"} ready.")
-                IntroStep(2, "Open E7 Gear as a floating window", "Use your phone's side bar or recent apps, as for any app. The window shows only the ${if (upgrade) "tracker" else "checklist"}.")
-                IntroStep(3, "Move, resize or minimize it", "Your phone handles the window. – shows the whole app, Panel brings the ${if (upgrade) "tracker" else "checklist"} back.")
-            }
-        } else Card(padding = PaddingValues(12.dp)) {
+        Card(padding = PaddingValues(12.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 IntroStep(1, "Allow “Display over other apps”", "Android opens its settings page once. Turn it on, then come back.")
                 IntroStep(2, "Open the game's gear screen", "The bubble stays at the edge; tap it to open the checklist.")
@@ -93,7 +85,7 @@ fun OverlayIntroScreen(graph: AppGraph) {
         DashedBox(Modifier.fillMaxWidth(), color = C.edge, padding = PaddingValues(12.dp)) {
             Text("The panel only shows information. It never taps or reads the game screen.", style = zen(12.sp, FontWeight.Medium))
         }
-        if (!native && blocked && android.os.Build.VERSION.SDK_INT >= 33) DashedBox(Modifier.fillMaxWidth(), color = C.blue, padding = PaddingValues(12.dp)) {
+        if (blocked && android.os.Build.VERSION.SDK_INT >= 33) DashedBox(Modifier.fillMaxWidth(), color = C.blue, padding = PaddingValues(12.dp)) {
             Text("Switch greyed out, or “Restricted setting”?", style = zen(13.sp, color = C.blue))
             VSpace(4.dp)
             Text("Android locks it for apps installed from a file. Open App info, tap the three-dot menu in the corner, choose “Allow restricted settings”, " +

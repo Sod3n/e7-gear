@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.Density
@@ -70,7 +71,8 @@ class RailFitScreens {
             val h = rule.onNodeWithTag("gear-tracker-panel").getBoundsInRoot().let { it.bottom - it.top }
             File(ctx.getExternalFilesDir(null), "rail-fit/sizes.txt").appendText("$label: rail $h, body ${rule.onNodeWithTag("gear-tracker-body").getBoundsInRoot().let { it.bottom - it.top }}\n")
             assertTrue("$label: rail $h tall, over 315 dp", h <= 315.dp)
-            rule.onNodeWithContentDescription("Next details page").assertDoesNotExist()
+            // text pages start "Epic Lv.85 · ..."; the cell shows the level on the tile
+            assertTrue("$label: text pages, not the cell", rule.onAllNodesWithText(" Lv.", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         }
         rule.onNodeWithContentDescription("Next gear").assertDoesNotExist()
         ui { screenH = 900; graph.overlay.usableHeightDp = 900f }
@@ -124,6 +126,34 @@ class RailFitScreens {
         tap("${piece.subs.first().type.short}: ${fmtNum(piece.subs.first().value)}"); shot("12-goal-slider"); assertEquals(goalLast, bottom("Back"))
         rule.pickValue(); shot("13-goal-check"); assertEquals(goalLast, bottom("Back"))
         tap("Back"); tap("Back"); tap("Cancel")
+        // a long Find gear walk: its count sits under the piece's score, ‹ › share their row; on text pages it is the first line
+        val many = graph.scan.box!!.items.filter { it.level == 85 && it.enhance < 15 && UpgradeRecord.supported(it) }.take(150)
+        assertTrue("fixture has ${many.size} pieces for a three-digit walk", many.size >= 100)
+        fun walk(g: e7.gearscan.opt.GearPotential.Goal) = ui {
+            t.startQueue(many.map { it to e7.gearscan.features.tracker.TrackerFeature.QueueEntry(it.id, g, "Set", null) }, graph.scan.lastScan); t.show(); graph.overlay.expanded = true
+        }
+        fun notCut(text: String) {
+            val nodes = rule.onAllNodesWithText(text, useUnmergedTree = true).fetchSemanticsNodes()
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            nodes.forEach { n -> n.config.getOrNull(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult)?.action?.invoke(layouts) }
+            assertTrue("\"$text\" is cut", layouts.isNotEmpty() && layouts.none { it.lineCount > 0 && it.isLineEllipsized(0) })
+        }
+        fun naturalBody(label: String) {
+            ui { screenH = 900; graph.overlay.usableHeightDp = 900f }
+            File(ctx.getExternalFilesDir(null), "rail-fit/sizes.txt").appendText("$label natural body ${rule.onNodeWithTag("gear-tracker-body").getBoundsInRoot().let { it.bottom - it.top }}\n")
+            ui { screenH = 353; graph.overlay.usableHeightDp = 353f }
+        }
+        val count = "1/${many.size}"
+        walk(e7.gearscan.opt.GearPotential.Goal(mapOf(GearStat.SPD to 20.0)))
+        rule.onNodeWithContentDescription("Next gear").assertExists(); rule.onNodeWithContentDescription("Previous gear").assertExists()
+        naturalBody("long walk, one target")
+        shot("14-long-walk-1-target"); fits("long walk, one target"); notCut(count)
+        ui { font = 1.3f }; shot("15-long-walk-1-target-font-1.3"); fits("long walk, one target, font 1.3"); notCut(count)
+        ui { font = 1f }
+        // three targets don't fit beside the ‹ › row at this height (169.9 dp natural, 150.9 dp left): text pages, the count first
+        walk(goal); naturalBody("long walk, three targets"); shot("16-long-walk-3-targets")
+        assertTrue(rule.onNodeWithTag("gear-tracker-panel").getBoundsInRoot().let { it.bottom - it.top } <= 315.dp)
+        assertTrue("the count is lost", rule.onAllNodesWithText(count, substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         File(ctx.getExternalFilesDir(null), "rail-fit/sizes.txt").writeText(
             "rail at 1.3: ${rule.onNodeWithTag("gear-tracker-panel").getBoundsInRoot().let { it.bottom - it.top }}; pager shown: " +
                 "${rule.onAllNodesWithContentDescription("Next details page").fetchSemanticsNodes().isNotEmpty()}\n")

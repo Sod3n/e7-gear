@@ -62,14 +62,12 @@ class QueueScreens {
         assertEquals(matches.map { it.item.id }, t.queue.map { it.id })
         assertEquals(matches.size, t.queue.size)
         assertTrue(t.queue.none { graph.records.records[it.id]!!.item.slot == Slot.BOOTS })
-        ui { t.show(); graph.overlay.expanded = true; graph.overlay.floating = true; graph.overlay.usableHeightDp = 0f; overlay = true }
+        ui { t.show(); graph.overlay.expanded = true; graph.overlay.usableHeightDp = 0f; overlay = true }
         shot("31-queue-first-353-big")
         rule.onNodeWithContentDescription("Next gear").performClick(); rule.waitForIdle(); assertEquals(1, t.queueIndex)
         shot("32-queue-next-353-big")
         ui { t.selectInQueue(25) }
         assertEquals(25, t.queueIndex)
-        ui { graph.overlay.floatingPanel = true }
-        rule.onNodeWithContentDescription("Back to E7 Gear").performClick(); rule.waitForIdle(); assertFalse(graph.overlay.floatingPanel)
         val helmet = t.queue.indexOfFirst { e -> graph.records.records[e.id]!!.item.let { it.slot == Slot.HELMET && it.rank == "Heroic" && it.enhance == 9 } }
         assertTrue(helmet >= 0)
         ui { t.selectInQueue(helmet) }
@@ -89,6 +87,6 @@ class QueueScreens {
         assertEquals(t.queue, restored.queue); assertEquals(helmet, restored.queueIndex)
         assertEquals(2, restored.record!!.history.size)
         File(ctx.getExternalFilesDir(null), "queue/receipt.txt").writeText("${matches.size} filtered matches in queue; next/list/page-two/return callback and Heroic +12 recording passed; selected=$helmet; queue/history restored.\n")
-        ui { graph.tracker.hide(); graph.overlay.floating = false; graph.overlay.floatingPanel = true }
+        ui { graph.tracker.hide() }
     }
 }

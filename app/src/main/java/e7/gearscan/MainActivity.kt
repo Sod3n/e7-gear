@@ -39,17 +39,16 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         setContent { App(graph) { finish() } }
-        updateFloating()
+        updateOrientation()
     }
 
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: android.content.res.Configuration) {
         super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
-        updateFloating()
+        updateOrientation()
     }
 
-    /** In the phone's floating or split window the app follows the window; full screen it stays portrait. */
-    private fun updateFloating() {
-        graph.overlay.floating = isInMultiWindowMode
+    /** In a floating or split window the app follows the window; full screen it stays portrait. */
+    private fun updateOrientation() {
         requestedOrientation = if (isInMultiWindowMode) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
     }
@@ -57,7 +56,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         graph.overlay.appInFront = true
-        updateFloating()
+        updateOrientation()
         graph.appUpdate.resumed()
     }
 

@@ -11,7 +11,6 @@ object Migrations {
         "configs" to "heroes.configs",
         "consent" to "settings.consent", "proxyOn" to "settings.proxyOn", "proxy" to "settings.proxy",
         "showRating" to "settings.showRating", "overlaySeen" to "settings.overlaySeen",
-        "overGameNative" to "settings.overGameNative", "nativeSeen" to "settings.nativeSeen",
         "poolTiers" to "pool.tiers", "poolExtra" to "pool.extra", "poolSkip" to "pool.skip",
         "poolLosses" to "pool.losses", "poolEffort" to "pool.effort", "poolSecondsPerHero" to "pool.secondsPerHero",
         "pendingPool" to "pool.pending",
