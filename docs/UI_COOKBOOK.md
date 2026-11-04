@@ -68,8 +68,13 @@ all settings. Buttons look like buttons; link-style text is rare. One main actio
   filter on which I clicked"; "you generaly overuse link style buttons"; "why there this 3 links on bottom?";
   "having two main action buttons on screen feels strange"; "Window for ES value selection is BS. Just scrollbar with
   minimum and maximum".
+- Link-style text is a third-level action, below outlined buttons: next to any other element it loses its weight, so
+  it is only for actions that genuinely don't matter (a rare escape, "Report this"). An isolated link with space around
+  it (the "‹ Back" at a screen's top) still reads. Anything the player needs (a recovery, cancel or stop, a main way
+  in, a required permission) is a button, a row or a pill. Said (2026-11-04): link style is "even not secondary, but
+  'thirdry' action that is very not important. It loses a lot of 'value' near any other element".
 - Ask: what is the one thing a player does next here? Is it the only pink button? Does every tappable thing look tappable,
-  and lead only where its label says?
+  and lead only where its label says? Is every link an action the player could do without?
 - Said (2026-11-03), on a small "By set" pill put on each list's heading: "this toggle is kinda hard to see and feels out
   of place?" A pill reads as a tag, and it sat somewhere different on each screen. How a list is ordered is chosen with
   the app's switch for views (`Segmented`, like "By hero | By piece"), directly above the list it orders, the same way on

@@ -31,7 +31,8 @@ class TouchScreens {
     private fun ui(f: () -> Unit) { rule.runOnUiThread(f); rule.waitForIdle() }
     private fun tap(text: String) { val n = rule.onAllNodesWithText(text, useUnmergedTree = true).onFirst(); runCatching { n.performScrollTo() }; n.performTouchInput { click() }; rule.waitForIdle() }
     private fun shot(name: String, legacyStats: Boolean = false) {
-        if (!legacyStats) rule.onAllNodes(hasSetTextAction(), useUnmergedTree = true).assertCountEquals(0)
+        // the name search is the one place typing is the point
+        if (!legacyStats) rule.onAllNodes(hasSetTextAction() and !hasTestTag(e7.gearscan.ui.NAME_SEARCH_TAG), useUnmergedTree = true).assertCountEquals(0)
         val dir = File(ctx.getExternalFilesDir(null), "touch").also { it.mkdirs() }
         (if (rule.onAllNodes(isRoot()).fetchSemanticsNodes().size > 1) inst.uiAutomation.takeScreenshot() else rule.onRoot().captureToImage().asAndroidBitmap()).let { b -> File(dir, "$name.png").outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) } }
     }
@@ -51,14 +52,15 @@ class TouchScreens {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, 1.3f)) { Box(Modifier.width(353.dp).fillMaxHeight()) { App(graph) {} } }
         }
-        tap("All names"); shot("20-hero-browse-353-big"); tap("A-F")
+        shot("20-hero-browse-353-big")
+        rule.onNodeWithContentDescription("Name").performTextInput("ar"); rule.waitForIdle()
         shot("21-hero-filtered-353-big")
         val hero = graph.scan.box!!.heroes.first()
         ui { graph.nav.sheet = Sheet(SheetKind.ARTIFACT, hero.id) }
-        tap("All names"); tap("G-L"); shot("22-artifact-browse-353-big")
+        rule.onNodeWithContentDescription("Artifact").performTextInput("ma"); rule.waitForIdle(); shot("22-artifact-browse-353-big")
         ui { graph.nav.sheet = Sheet(SheetKind.TARGETS, hero.id) }
         tap("Speed")
-        val oldStatFields = rule.onAllNodes(hasSetTextAction(), useUnmergedTree = true)
+        val oldStatFields = rule.onAllNodes(hasSetTextAction() and !hasTestTag(e7.gearscan.ui.NAME_SEARCH_TAG), useUnmergedTree = true)
         assertTrue(oldStatFields.fetchSemanticsNodes().size >= 3)
         oldStatFields[1].performTextReplacement("220")
         rule.waitForIdle()

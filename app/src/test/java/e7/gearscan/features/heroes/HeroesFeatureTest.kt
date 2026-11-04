@@ -82,7 +82,8 @@ class HeroesFeatureTest {
         val hero = g.scan.box!!.heroes.first { made.builds.containsKey(it.code) }
         g.heroes.loadPresetsQuietly(hero.id, network = false)
         withContext(Dispatchers.Default) {
-            withTimeout(20_000) { while (g.heroes.presets[hero.code] == null) Thread.sleep(20) }
+            // the loading flag clears just after the presets land, on the loader's thread
+            withTimeout(20_000) { while (g.heroes.presets[hero.code] == null || g.heroes.presetLoading[hero.code] == true) Thread.sleep(20) }
         }
         assertTrue(g.heroes.presets.getValue(hero.code)!!.mostUsed.isNotEmpty())
         assertFalse(g.heroes.presetLoading[hero.code] == true)

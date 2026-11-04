@@ -583,6 +583,7 @@ private fun eeLabel(t: String) = when (t) {
     "cri" -> "Crit chance %"; "acc" -> "Effectiveness %"; "res" -> "Resistance %"; else -> t
 }
 
+@OptIn(KeyboardInput::class)
 @Composable
 private fun ArtifactSheet(graph: AppGraph, sheet: Sheet) {
     graph.rev.value
@@ -595,7 +596,7 @@ private fun ArtifactSheet(graph: AppGraph, sheet: Sheet) {
     val fromPreset = graph.content.content.artifact(graph.heroes.request(heroId).artifact)
     fun pick(code: String?) { cfg.artifact = code; graph.rev.bump(); graph.store.saveNow(); graph.nav.sheet = sheet.back?.let { Sheet(it, heroId) } }
     SheetBody("Artifact", trailing = { Text(graph.heroes.heroName(h), style = zen(12.sp, color = C.muted)) }) {
-        NameFilter(q, "Name") { q = it }
+        NameFilter(q, "Artifact") { q = it }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(0 to "All", 5 to "5★", 4 to "4★", 3 to "3★ and lower").forEach { (n, label) -> Pill(label, selected = stars == n, onClick = { stars = n }) }
         }

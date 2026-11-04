@@ -52,6 +52,7 @@ private val ELEMENTS = listOf("fire" to "Fire", "ice" to "Ice", "wind" to "Earth
 private val CLASSES = listOf("warrior" to "Warrior", "knight" to "Knight", "assassin" to "Thief", "ranger" to "Ranger",
     "mage" to "Mage", "manauser" to "Soul Weaver")
 
+@OptIn(KeyboardInput::class)
 @Composable
 fun HeroFilterBar(f: HeroFilter) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

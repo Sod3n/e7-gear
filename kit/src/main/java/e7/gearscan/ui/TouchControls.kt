@@ -14,28 +14,56 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
-/** Browsing ranges, not a text field: never starts an input connection or opens a keyboard. */
-fun nameMatches(name: String, group: String): Boolean = when (group) {
-    "" -> true
-    "A-F" -> name.firstOrNull()?.uppercaseChar() in 'A'..'F'
-    "G-L" -> name.firstOrNull()?.uppercaseChar() in 'G'..'L'
-    "M-R" -> name.firstOrNull()?.uppercaseChar() in 'M'..'R'
-    "S-Z" -> name.firstOrNull()?.uppercaseChar() in 'S'..'Z'
-    "Other" -> name.firstOrNull()?.uppercaseChar() !in 'A'..'Z'
-    else -> name.contains(group.trim(), true) // preserved filters from older local state
+const val NAME_SEARCH_TAG = "name-search"
+
+// the old letter groups, still in some saved filters: they now mean no filter
+private val LETTER_GROUPS = setOf("A-F", "G-L", "M-R", "S-Z", "Other")
+
+fun nameMatches(name: String, query: String): Boolean =
+    query.isBlank() || query in LETTER_GROUPS || name.contains(query.trim(), ignoreCase = true)
+
+/** A name search: finding a hero or set by name is where typing is the point (owner, 2026-11-04). */
+@KeyboardInput
+@Composable
+fun NameFilter(value: String, hint: String = "Name", onChange: (String) -> Unit) {
+    LaunchedEffect(value) { if (value in LETTER_GROUPS) onChange("") }
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    val shape = RoundedCornerShape(12.dp)
+    Row(Modifier.fillMaxWidth().clip(shape).background(C.field).border(2.dp, C.edge, shape).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SearchGlyph()
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (value.isEmpty()) Text("Search by ${hint.lowercase()}", style = zen(13.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            androidx.compose.foundation.text.BasicTextField(value, { onChange(it.take(40)) }, singleLine = true,
+                textStyle = zen(13.sp, FontWeight.Medium, C.ink), cursorBrush = androidx.compose.ui.graphics.SolidColor(C.ink),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search, autoCorrect = false),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { focus.clearFocus() }),
+                modifier = Modifier.fillMaxWidth().described(hint).testTag(NAME_SEARCH_TAG))
+        }
+        if (value.isNotEmpty()) Box(Modifier.size(24.dp).tap { onChange(""); focus.clearFocus() }.described("Clear $hint"), contentAlignment = Alignment.Center) { ClearGlyph() }
+    }
+}
+
+private fun Modifier.described(label: String) = this.then(androidx.compose.ui.Modifier.semantics { contentDescription = label })
+
+@Composable
+private fun SearchGlyph() = androidx.compose.foundation.Canvas(Modifier.size(16.dp)) {
+    val w = 2.dp.toPx()
+    val r = size.minDimension * 0.34f
+    val c = androidx.compose.ui.geometry.Offset(r + w / 2, r + w / 2)
+    drawCircle(C.muted, r, c, style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+    drawLine(C.muted, androidx.compose.ui.geometry.Offset(c.x + r * 0.72f, c.y + r * 0.72f), androidx.compose.ui.geometry.Offset(size.width - w / 2, size.height - w / 2), w, androidx.compose.ui.graphics.StrokeCap.Round)
 }
 
 @Composable
-fun NameFilter(value: String, hint: String = "Name", onChange: (String) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        RowCard(hint, { open = !open }) { Text(value.ifEmpty { "All names" }, style = zen(12.sp)) }
-        if (open) CardGrid(listOf("All", "A-F", "G-L", "M-R", "S-Z", "Other"), columns = 3, gap = 6.dp) { label, m ->
-            val group = if (label == "All") "" else label
-            Pill(label, modifier = m, selected = value == group, onClick = { onChange(group); open = false })
-        }
-    }
+private fun ClearGlyph() = androidx.compose.foundation.Canvas(Modifier.size(12.dp)) {
+    val w = 2.dp.toPx()
+    drawLine(C.muted, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, size.height), w, androidx.compose.ui.graphics.StrokeCap.Round)
+    drawLine(C.muted, androidx.compose.ui.geometry.Offset(size.width, 0f), androidx.compose.ui.geometry.Offset(0f, size.height), w, androidx.compose.ui.graphics.StrokeCap.Round)
 }
 
 /** Free text arrives only from an explicit Paste action, so none of these controls summon an IME. */
