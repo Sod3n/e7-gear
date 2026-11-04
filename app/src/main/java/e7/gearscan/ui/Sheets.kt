@@ -566,7 +566,7 @@ private fun BonusSheet(graph: AppGraph, heroId: Long) {
         SectionTitle("Extra bonuses")
         val first = listOf(Bonus.ATK_P, Bonus.HP_P, Bonus.DEF_P, Bonus.SPD, Bonus.CR, Bonus.CD)
         val rest = listOf(Bonus.ATK, Bonus.HP, Bonus.DEF, Bonus.EFF, Bonus.RES, Bonus.FINAL_ATK, Bonus.FINAL_HP, Bonus.FINAL_DEF)
-        CardGrid(if (more) first + rest else first, columns = 3) { b, cell ->
+        val bonusCell: @Composable (Bonus, Modifier) -> Unit = { b, cell ->
             Column(cell.clip(RoundedCornerShape(10.dp)).border(2.dp, C.edge, RoundedCornerShape(10.dp)).padding(8.dp)) {
                 FitText(b.label, zen(9.sp, color = C.muted))
                 var t by remember(b, cfg.bonus[b.ordinal]) { mutableStateOf(fmtNum(cfg.bonus[b.ordinal])) }
@@ -574,7 +574,8 @@ private fun BonusSheet(graph: AppGraph, heroId: Long) {
                     textStyle = dela(14.sp), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
             }
         }
-        if (!more) LinkText("More: flat stats, eff, res, final multipliers") { more = true }
+        CardGrid(first, columns = 3) { b, cell -> bonusCell(b, cell) }
+        Fold("Flat stats, eff, res, final multipliers", more, { more = !more }) { CardGrid(rest, columns = 3) { b, cell -> bonusCell(b, cell) } }
     }
 }
 

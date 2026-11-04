@@ -66,8 +66,8 @@ fun CrashCard(graph: AppGraph) {
         Text(crash.lineSequence().first(), style = zen(12.sp, FontWeight.Medium, C.muted), maxLines = 2,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         VSpace(6.dp)
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            LinkText("Report this") { graph.nav.go(e7.gearscan.Screen.Feedback(crash)); graph.feedback.dismissCrash() }
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlineButton("Report this", height = 38.dp) { graph.nav.go(e7.gearscan.Screen.Feedback(crash)); graph.feedback.dismissCrash() }
             LinkText("Dismiss", color = C.muted) { graph.feedback.dismissCrash() }
         }
     }

@@ -87,10 +87,11 @@ fun PoolSetup(graph: AppGraph) {
             }
             Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(1.5.dp).background(C.line))
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().tap { graph.nav.sheet = Sheet(SheetKind.POOL_PICK, 0) }.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically) {
             Text(if (graph.pool.extra.isEmpty()) "Or pick heroes one by one" else "${graph.pool.extra.size} picked one by one",
-                style = zen(12.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f))
-            LinkText("Choose") { graph.nav.sheet = Sheet(SheetKind.POOL_PICK, 0) }
+                style = zen(12.sp, FontWeight.Medium), modifier = Modifier.weight(1f))
+            Text("›", style = zen(16.sp))
         }
     }
     val pending = heroes.count { graph.heroes.hasBuild(it.id) == null }
@@ -203,7 +204,7 @@ fun PoolRunScreen(graph: AppGraph) {
             Text((if (p.round > 1) "Round ${p.round} · " else "") + "${doneIds.size} of ${p.ids.size} heroes" +
                 " · ${secs / 60}:${"%02d".format(java.util.Locale.US, secs % 60)}",
                 style = zen(12.sp), modifier = Modifier.weight(1f))
-            LinkText("Stop", color = C.deepPink) { graph.pool.stop() }
+            OutlineButton("Stop", height = 34.dp) { graph.pool.stop() }
         }
         TierBars(graph, p, running = true)
         p.current?.let { id -> graph.heroes.hero(id)?.let { h ->
@@ -255,9 +256,7 @@ fun PoolRunScreen(graph: AppGraph) {
         val low = p.builds.keys.filter { (p.after[it] ?: 100) < 60 }
         val traders = p.trades.flatMap { listOf(it.taker, it.holder) }.distinct()
         val queue = graph.pool.reviewQueue()
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            LinkText("Every hero · ${queue.count { it in p.reviewed }} of ${queue.size} reviewed") { graph.nav.sheet = Sheet(SheetKind.POOL_HEROES, 0) }
-        }
+        RowCard("Every hero", { graph.nav.sheet = Sheet(SheetKind.POOL_HEROES, 0) }) { Text("${queue.count { it in p.reviewed }} of ${queue.size} reviewed", style = zen(12.sp)) }
         SectionTitle("Worth a look", trailing = "${(worse + low + traders).distinct().size} heroes")
         Card(padding = PaddingValues(0.dp)) {
             LookRow(graph, worse, "${worse.size} heroes got worse",
@@ -349,10 +348,12 @@ fun PoolHeroScreen(graph: AppGraph, heroId: Long, setup: Boolean) {
                 Column(Modifier.weight(1f)) {
                     Text(graph.heroes.heroName(h), style = dela(17.sp).copy(lineHeight = 21.sp), maxLines = 3, overflow = TextOverflow.Ellipsis)
                     HeroSubtitle(graph, h, if (setup && req.targets.all { it.isNaN() }) "No build yet" else heroSubtitle(graph, h))
-                }
-                LinkText(if (heroId in graph.pool.skip) "Kept as is" else "Keep as is", color = C.deepPink) {
-                    graph.pool.skip = if (heroId in graph.pool.skip) graph.pool.skip - heroId else graph.pool.skip + heroId
-                    graph.store.saveNow()
+                    // under the name, so a long name keeps the card's width
+                    VSpace(6.dp)
+                    Pill(if (heroId in graph.pool.skip) "Kept as is" else "Keep as is", selected = heroId in graph.pool.skip, onClick = {
+                        graph.pool.skip = if (heroId in graph.pool.skip) graph.pool.skip - heroId else graph.pool.skip + heroId
+                        graph.store.saveNow()
+                    })
                 }
             }
         }
@@ -370,10 +371,7 @@ fun PoolHeroScreen(graph: AppGraph, heroId: Long, setup: Boolean) {
         } else PresetCard(graph, h, req)
         SectionTitle("What it looks for")
         Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { LooksFor(graph, h, req) }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Goal: ${req.goal.label}", style = zen(12.sp, color = C.muted))
-            LinkText("More goals") { graph.nav.sheet = Sheet(SheetKind.GOALS, heroId) }
-        }
+        RowCard("Goal", { graph.nav.sheet = Sheet(SheetKind.GOALS, heroId) }) { Text(req.goal.label, style = zen(12.sp)) }
         Text("Everything here works as in one-hero Optimize; the pool run uses it as set.", style = zen(11.sp, FontWeight.Medium, C.muted))
     }
 }

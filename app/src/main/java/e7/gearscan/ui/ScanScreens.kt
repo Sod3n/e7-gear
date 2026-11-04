@@ -82,7 +82,7 @@ fun ScanRestartSheet(graph: AppGraph) {
         Text("The scan reads the game's login, so Epic Seven has to start from its title screen. If it's open, tap Force stop on the next screen and come back: the scan starts by itself.",
             style = zen(13.sp, FontWeight.Medium))
         Text("Android doesn't let one app close another, so this one tap is yours.", style = zen(11.sp, FontWeight.Medium, C.muted))
-        LinkText("It's not running · scan now") { graph.nav.sheet = null; graph.scan.scanNow = true }
+        OutlineButton("It's not running · scan now", Modifier.fillMaxWidth(), height = 44.dp) { graph.nav.sheet = null; graph.scan.scanNow = true }
     }
 }
 
@@ -156,7 +156,7 @@ fun ScanIntroScreen(graph: AppGraph) {
             Checkbox(agree) { agree = it }
             Text("I understand what is sent and agree to scan", style = zen(13.sp))
         }
-        LinkText("Restore a backup or import a gear.txt instead") { graph.settings.consent = agree; graph.store.saveNow(); graph.nav.replace(Screen.ScanData) }
+        OutlineButton("Restore a backup or import a gear.txt instead", Modifier.fillMaxWidth(), height = 44.dp) { graph.settings.consent = agree; graph.store.saveNow(); graph.nav.replace(Screen.ScanData) }
     }
 }
 
@@ -377,8 +377,8 @@ private fun ErrorCard(err: ScanError, graph: AppGraph) {
         VSpace(4.dp)
         Text(body, style = zen(12.sp, FontWeight.Medium, C.muted))
         VSpace(6.dp)
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            if (err == ScanError.VPN) LinkText("Open proxy setting") { graph.nav.replace(Screen.ScanData) }
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (err == ScanError.VPN) OutlineButton("Open proxy setting", height = 38.dp) { graph.nav.replace(Screen.ScanData) }
             LinkText("Report this") { graph.nav.go(Screen.Feedback("$title: $body")) }
         }
     }

@@ -1,5 +1,6 @@
 package e7.gearscan.ui
 
+import androidx.compose.ui.draw.rotate
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import e7.gearscan.features.scan.ScanPhase
@@ -98,9 +99,10 @@ fun HeroesScreen(graph: AppGraph) {
             if (!f.active) {
                 val low = shown.count { group(it) <= 2 }
                 if (!first) Box(Modifier.fillMaxWidth().height(1.5.dp).background(C.line))
-                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                // the row folds the low tiers open and shut, like a Fold
+                Row(Modifier.fillMaxWidth().tap { showLow = !showLow }.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Tiers 2 and 1 · $low heroes", style = zen(12.sp, FontWeight.Medium), modifier = Modifier.weight(1f))
-                    LinkText(if (showLow) "Hide" else "Show") { showLow = !showLow }
+                    Text("›", style = zen(16.sp), modifier = Modifier.rotate(if (showLow) -90f else 90f))
                 }
             } else if (first) Text("No hero matches.", style = zen(12.sp, FontWeight.Medium, C.muted), modifier = Modifier.padding(12.dp))
         }
@@ -148,9 +150,9 @@ private fun TierEditor(graph: AppGraph, h: OwnedHero, onClose: () -> Unit) {
         TierBar(t) { graph.heroes.setTier(h.id, it) }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(TIER_LABELS[0], style = zen(10.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f))
-            LinkText("Hero details", size = 11) { graph.nav.go(Screen.HeroDetail(h.id)) }
             Text(TIER_LABELS[4], style = zen(10.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
+        RowCard("Hero details", { graph.nav.go(Screen.HeroDetail(h.id)) }) { Text("Stats, sets, targets", style = zen(12.sp)) }
     }
 }
 
@@ -169,9 +171,10 @@ fun MissingSetRow(st: e7.gearscan.data.SetDef) {
 @OptIn(LinkStyle::class)
 private fun MatchCard(graph: AppGraph, id: Long, m: Match.Result) {
     Card(shadow = C.shadow, radius = 14.dp, border = 2.5.dp, padding = PaddingValues(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(Modifier.tap { graph.nav.sheet = Sheet(SheetKind.PRESET, id) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             Text("Match with", style = zen(13.sp))
-            LinkText(m.label, size = 13) { graph.nav.sheet = Sheet(SheetKind.PRESET, id) }
+            Text(m.label, style = zen(13.sp, color = C.blue), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Text("›", style = zen(16.sp, color = C.blue))
             Spacer(Modifier.weight(1f))
             Text("${m.pct}%", style = dela(20.sp).pinkShadow(4f))
         }

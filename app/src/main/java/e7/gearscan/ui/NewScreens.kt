@@ -99,7 +99,7 @@ fun OverlayIntroScreen(graph: AppGraph) {
             Text("Android locks it for apps installed from a file. Open App info, tap the three-dot menu in the corner, choose “Allow restricted settings”, " +
                 "then tap the pink button again.", style = zen(12.sp, FontWeight.Medium))
             VSpace(6.dp)
-            LinkText("Open App info") {
+            OutlineButton("Open App info", Modifier.fillMaxWidth(), height = 42.dp) {
                 ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}")))
             }
         }

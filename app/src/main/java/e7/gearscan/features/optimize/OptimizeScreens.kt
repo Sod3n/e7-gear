@@ -124,7 +124,7 @@ private fun NoBox(graph: AppGraph) {
         VSpace(10.dp)
         CardAction(Action("Scan the game") { graph.nav.go(if (graph.settings.consent) Screen.ScanData else Screen.ScanIntro) })
         VSpace(8.dp)
-        LinkText("Restore a backup or import a gear.txt") { graph.nav.go(Screen.ScanData) }
+        OutlineButton("Restore a backup or import a gear.txt", Modifier.fillMaxWidth(), height = 44.dp) { graph.nav.go(Screen.ScanData) }
     }
 }
 
@@ -164,10 +164,7 @@ private fun SingleSetup(graph: AppGraph, h: OwnedHero) {
     PresetCard(graph, h, req)
     SectionTitle("What it looks for")
     Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { LooksFor(graph, h, req) }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text("Goal: ${req.goal.label}", style = zen(12.sp, color = C.muted))
-        LinkText("More goals") { graph.nav.sheet = Sheet(SheetKind.GOALS, h.id) }
-    }
+    RowCard("Goal", { graph.nav.sheet = Sheet(SheetKind.GOALS, h.id) }) { Text(req.goal.label, style = zen(12.sp)) }
 }
 
 @Composable
@@ -197,7 +194,8 @@ internal fun PresetCard(graph: AppGraph, h: OwnedHero, req: Request) {
                 else -> Text("Choose a preset", style = zen(13.sp))
             }
         }
-        LinkText("Change") { graph.nav.sheet = Sheet(SheetKind.PRESET, h.id) }
+        // the whole card opens the presets
+        Text("›", style = zen(18.sp))
     }
 }
 
@@ -286,7 +284,7 @@ fun ResultsScreen(graph: AppGraph) {
             Card(shadow = null, radius = 14.dp, border = 2.5.dp) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Searching · ${"%.1f".format(java.util.Locale.US, (now - s.startedAt) / 1000.0)} s", style = zen(12.sp), modifier = Modifier.weight(1f))
-                    LinkText("Cancel", color = C.deepPink) { graph.optimize.cancelSearch() }
+                    OutlineButton("Cancel", height = 34.dp) { graph.optimize.cancelSearch() }
                 }
                 VSpace(6.dp)
                 val frac = ((now - s.startedAt).toFloat() / s.limitMs).coerceIn(0.02f, 1f)
@@ -332,7 +330,7 @@ fun ResultsScreen(graph: AppGraph) {
                     Text("It stopped before checking every combination, so a build may still exist. Mods make the search slower.",
                         style = zen(12.sp, FontWeight.Medium, C.muted))
                     VSpace(4.dp)
-                    LinkText("Search for ${graph.optimize.longLimitMs / 1000} s") { graph.optimize.startSearch(graph.optimize.longLimitMs) }
+                    OutlineButton("Search for ${graph.optimize.longLimitMs / 1000} s", Modifier.fillMaxWidth(), height = 42.dp) { graph.optimize.startSearch(graph.optimize.longLimitMs) }
                 }
             }
         }
@@ -358,7 +356,7 @@ fun StaleBox(graph: AppGraph) {
         .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("Box is ${if (age < 48) "a day" else "${age / 24} days"} old · new gear isn't counted", style = zen(12.sp),
             modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        LinkText("Scan now") { graph.nav.go(Screen.ScanData) }
+        OutlineButton("Scan now", height = 34.dp) { graph.nav.go(Screen.ScanData) }
     }
 }
 
@@ -375,7 +373,7 @@ private fun ModsLine(graph: AppGraph, s: e7.gearscan.features.optimize.SearchSta
             top.isEmpty() -> "Mods on"
             else -> top.count { b -> b.items.any { it.mod != null } }.let { n -> if (n == 0) "Mods on · no mod beats these builds" else "Mods on · $n of the top ${top.size} use a mod" }
         }, style = zen(12.sp, color = if (req.mods) C.deepPink else C.muted), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (!req.mods && !s.running) LinkText("Turn on") { req.mods = true; graph.rev.bump(); graph.store.saveNow(); graph.optimize.startSearch() }
+        if (!req.mods && !s.running) Pill("Turn on", onClick = { req.mods = true; graph.rev.bump(); graph.store.saveNow(); graph.optimize.startSearch() })
     }
 }
 

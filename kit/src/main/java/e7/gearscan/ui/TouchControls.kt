@@ -76,7 +76,7 @@ fun PasteField(value: String, hint: String, limit: Int, multiline: Boolean = fal
         Text(hint, style = zen(11.sp, FontWeight.Medium, C.muted))
         if (value.isNotEmpty()) Text(value, style = zen(13.sp, FontWeight.Medium), maxLines = if (multiline) 6 else 2, overflow = TextOverflow.Ellipsis)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            LinkText("Paste") { clipboard.getText()?.text?.let { onChange(it.take(limit)) } }
+            OutlineButton("Paste", height = 34.dp) { clipboard.getText()?.text?.let { onChange(it.take(limit)) } }
             if (value.isNotEmpty()) LinkText("Clear") { onChange("") }
             if (multiline) Text("${value.length} / $limit", style = zen(10.sp, FontWeight.Medium, C.muted))
         }

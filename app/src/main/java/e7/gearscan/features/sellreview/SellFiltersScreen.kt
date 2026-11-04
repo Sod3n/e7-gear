@@ -135,8 +135,8 @@ private fun ScoringControls(graph: AppGraph) {
         Text("The comparison gear is rescored with these same settings.",style=zen(10.sp,color=C.muted))
         VSpace(6.dp);LinkText(if(calculation)"Hide point calculation" else "Show point calculation") { calculation=!calculation }
     }
-    LinkText("Edit stat weights & main") { openSell(graph,SheetKind.SELL_WEIGHTS) }
-    LinkText("Reset score model") { graph.messages.askReset("Reset the score model?","Weights and diversity go back to the game's values.",graph.sellReview::resetScoreModel) }
+    // the reset sits in the weights sheet, next to the values it resets
+    RowCard("Stat weights & main",{ openSell(graph,SheetKind.SELL_WEIGHTS) }) { Text("Edit",style=zen(12.sp)) }
 }
 
 @Composable
@@ -399,7 +399,7 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                 if(sources) {
                     Text("Use gear equipped on",style=zen(12.sp))
                     Segmented(listOf("Pool","Everyone","Chosen"),q.reference.ordinal) { update(q.copy(reference=SellReference.entries[it])) }
-                    LinkText("Choose reference heroes (${q.referenceHeroes.size})") { openSell(graph,SheetKind.SELL_HEROES) }
+                    RowCard("Chosen heroes",{ openSell(graph,SheetKind.SELL_HEROES) }) { Text("${q.referenceHeroes.size}",style=zen(12.sp)) }
                     Text("Pool uses the heroes included in your pool run. Everyone uses all equipped gear. Chosen uses only the heroes you select.",style=zen(11.sp,color=C.muted))
                     SellNumber("Minimum equipped +",q.referenceMinimum.toDouble(),0.0,15.0,0) { update(q.copy(referenceMinimum=(it?:0.0).toInt())) }
                     Text("At 0, unfinished equipped pieces count too. At 15, only finished pieces supply the comparison.",style=zen(11.sp,color=C.muted))
@@ -408,21 +408,21 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                     Text("100% uses the equipped score as-is. 110% asks unfinished gear to reach 10% above it.",style=zen(11.sp,color=C.muted))
                 }
                 Slot.entries.forEach { BenchmarkCard(graph,it) }
-                LinkText("Set custom scores per slot") { openSell(graph,SheetKind.SELL_CUSTOMS) }
+                OutlineButton("Set custom scores per slot",Modifier.fillMaxWidth(),height=42.dp) { openSell(graph,SheetKind.SELL_CUSTOMS) }
             }
             SheetKind.SELL_CUSTOMS->{
                 Text("Leave a slot unset to use its equipped comparison. Enter a score to replace it. Your comparison scale still applies.",style=zen(12.sp))
                 Slot.entries.forEach { slot->
                     SellNumber("${slot.label} comparison",q.floors[slot],0.0,graph.sellReview.scoreLimit,4,true) { v->update(q.copy(floors=if(v==null)q.floors-slot else q.floors+(slot to v))) }
                 }
-                LinkText("Use equipped scores for all slots") { update(q.copy(floors=emptyMap())) }
+                LinkText("Use equipped scores for all slots") { graph.messages.askReset("Use equipped scores for all slots?","Every custom slot score is cleared.") { update(q.copy(floors=emptyMap())) } }
             }
             SheetKind.SELL_HEROES->{
                 var name by remember { mutableStateOf("") };NameFilter(name,"Name") { name=it }
                 Text("Use the weakest equipped piece per slot among these heroes.",style=zen(11.sp,color=C.muted))
-                Row(horizontalArrangement=Arrangement.spacedBy(20.dp)) {
-                    LinkText("Use pool selection") { update(q.copy(reference=SellReference.SELECTED,referenceHeroes=graph.pool.members().map { it.id }.toSet())) }
-                    LinkText("Clear") { update(q.copy(referenceHeroes=emptySet())) }
+                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Pill("Use pool selection",onClick={ update(q.copy(reference=SellReference.SELECTED,referenceHeroes=graph.pool.members().map { it.id }.toSet())) })
+                    Pill("Clear",onClick={ update(q.copy(referenceHeroes=emptySet())) })
                 }
                 graph.scan.box?.allHeroes.orEmpty().filter { nameMatches(graph.heroes.heroName(it),name) }.sortedBy(graph.heroes::heroName).forEach { h->
                     val selected=h.id in q.referenceHeroes
@@ -443,7 +443,7 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
             }
             SheetKind.SELL_SETS->{
                 var name by remember { mutableStateOf("") };NameFilter(name,"Name") { name=it }
-                LinkText("Any set") { update(q.copy(sets=emptySet())) }
+                OutlineButton("Any set",Modifier.fillMaxWidth(),height=40.dp,enabled=q.sets.isNotEmpty()) { update(q.copy(sets=emptySet())) }
                 CardGrid(graph.content.content.sets.filter { nameMatches(it.name,name) },columns=3) { s,m->
                     Column(m, horizontalAlignment=Alignment.CenterHorizontally) { SetIcon(s.icon,25.dp);SellChoice(s.name,Modifier.fillMaxWidth(),s.key in q.sets) { update(q.copy(sets=if(s.key in q.sets)q.sets-s.key else q.sets+s.key)) } }
                 }
@@ -453,7 +453,7 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                 CardGrid(GearStat.entries,columns=3) { s,m->SellChoice(s.short,m,s in q.mains,leading={ StatIcon(s.stat,14.dp,C.ink) }) { update(q.copy(mains=if(s in q.mains)q.mains-s else q.mains+s)) } }
             }
             SheetKind.SELL_LEVELS->{
-                LinkText("Any level") { update(q.copy(levels=emptySet())) }
+                OutlineButton("Any level",Modifier.fillMaxWidth(),height=40.dp,enabled=q.levels.isNotEmpty()) { update(q.copy(levels=emptySet())) }
                 CardGrid(graph.scan.box?.items.orEmpty().map { it.level }.distinct().sorted(),columns=4) { n,m->SellChoice("Lv.$n",m,n in q.levels) { update(q.copy(levels=if(n in q.levels)q.levels-n else q.levels+n)) } }
             }
             SheetKind.SELL_QUALITY->{
@@ -464,8 +464,7 @@ fun SellSheet(graph: AppGraph,sheet:Sheet) {
                 SellNumber("Minimum upgrades recorded",q.minimumProcs.toDouble(),0.0,5.0,0) { update(q.copy(minimumProcs=(it?:2.0).toInt())) }
                 if(q.maximumProcQuality!=null)Text("An additional upgrade-only limit is active: ${fmtNum(q.maximumProcQuality!!)}% of range.",style=zen(11.sp,color=C.blue))
                 var custom by remember { mutableStateOf(false) }
-                LinkText(if(custom)"Hide custom roll limits" else "Custom roll limits") { custom=!custom }
-                if(custom) {
+                Fold("Custom roll limits",custom,{ custom=!custom }) {
                     Text("0% is the minimum; 50% is halfway; 100% is the usual maximum. Rare endpoints can exceed 100%.",style=zen(11.sp,color=C.muted))
                     SellNumber("Upgrade-only limit %",q.maximumProcQuality,0.0,200.0,1,true) { update(q.copy(maximumProcQuality=it)) }
                     SellNumber("Overall roll limit %",q.maximumTotalQuality,0.0,200.0,1,true) { update(q.copy(maximumTotalQuality=it)) }

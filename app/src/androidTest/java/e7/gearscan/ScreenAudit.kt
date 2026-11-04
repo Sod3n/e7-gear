@@ -82,6 +82,7 @@ class ScreenAudit {
 
     @Test
     fun everyScreen() {
+        var boxAside: e7.gearscan.data.Box? = null
         assumeTrue("replaces the app's box; emulator only", Build.FINGERPRINT.contains("generic") || Build.HARDWARE.contains("ranchu"))
         val gear = InstrumentationRegistry.getInstrumentation().context.assets.open("gear.txt").bufferedReader().use { it.readText() }
         shots.deleteRecursively(); shots.mkdirs()
@@ -516,7 +517,7 @@ class ScreenAudit {
             val queue = graph.pool.reviewQueue()
             if (queue.isEmpty()) add("the pool run has no changes to review", "pool review")
             else {
-                runCatching { clickText("Every hero · ", substring = true) }.onFailure { add("can't tap Every hero: ${it.message?.take(60)}", "pool review") }
+                runCatching { clickText("Every hero") }.onFailure { add("can't tap Every hero: ${it.message?.take(60)}", "pool review") }
                 if (graph.nav.sheet?.kind != SheetKind.POOL_HEROES) add("Every hero doesn't open the hero list", "pool review")
                 runCatching { clickText("Review next · ", substring = true) }.onFailure { add("can't tap Review next: ${it.message?.take(60)}", "pool review") }
                 if (graph.nav.screen != Screen.PoolReview(queue[0])) add("Review next doesn't open the first change", "pool review")
@@ -569,7 +570,7 @@ class ScreenAudit {
         steps.add("pool-off" to { ui { graph.appUpdate.release = null; graph.nav.sheet = null; graph.pool.state = poolDone; graph.pool.mode = false; graph.nav.stack = listOf(Screen.Optimize) } })
         screen("heroes", Screen.Heroes)
         steps.add("heroes-tier-editor" to { ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Heroes) }; clickText(graph.heroes.heroName(graph.heroes.hero(hero)!!)) })
-        steps.add("heroes-unranked" to { ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Heroes) }; clickText("Show") })
+        steps.add("heroes-unranked" to { ui { graph.nav.sheet = null; graph.nav.stack = listOf(Screen.Heroes) }; clickText("Tiers 2 and 1", substring = true) })
         screen("hero-detail", Screen.Heroes, Screen.HeroDetail(hero))
         screen("scan-intro", Screen.ScanIntro)
         // first start: Scan & data must be reachable without agreeing to scan, and both ways in leave Optimize under it
@@ -604,7 +605,8 @@ class ScreenAudit {
         steps.add("sell-matches" to { clickText("Matches") })
         steps.add("sell-matches-flat" to { ui { graph.sellReview.grouped = true }; clickText("Worst rolls"); if (graph.sellReview.grouped) add("Sell review's Worst rolls switch doesn't turn grouping off", "sell") })
         steps.add("sell-matches-grouped" to { ui { graph.sellReview.grouped = false }; clickText("By set"); if (!graph.sellReview.grouped) add("Sell review's By set switch doesn't turn grouping on", "sell") })
-        listOf(SheetKind.SELL_WORTH, SheetKind.SELL_SAFEGUARDS, SheetKind.SELL_INVENTORY, SheetKind.SELL_SLOTS, SheetKind.SELL_SETS, SheetKind.SELL_MAINS, SheetKind.SELL_EXTRA).forEach { k ->
+        listOf(SheetKind.SELL_WORTH, SheetKind.SELL_SAFEGUARDS, SheetKind.SELL_INVENTORY, SheetKind.SELL_SLOTS, SheetKind.SELL_SETS, SheetKind.SELL_MAINS, SheetKind.SELL_EXTRA,
+            SheetKind.SELL_WEIGHTS, SheetKind.SELL_FLOORS, SheetKind.SELL_CUSTOMS, SheetKind.SELL_HEROES, SheetKind.SELL_LEVELS, SheetKind.SELL_QUALITY, SheetKind.SELL_SCORE).forEach { k ->
             steps.add("sell-${k.name.lowercase()}" to { ui { graph.messages.dialog = null; graph.nav.stack = listOf(Screen.Gear, Screen.SellFilters); graph.nav.sheet = Sheet(k, 0) } })
         }
         steps.add("sell-worth-per-slot" to { ui { graph.messages.dialog = null; graph.nav.stack = listOf(Screen.Gear, Screen.SellFilters); graph.nav.sheet = Sheet(SheetKind.SELL_WORTH, 0) }; clickText("Per slot", substring = true) })
@@ -811,6 +813,22 @@ class ScreenAudit {
             if (graph.nav.backLabel() == "Track upgrades") add("Track upgrades stacked on itself: back names the screen it is on", "track-upgrades")
         })
         steps.add("track-upgrades-choose" to { ui { graph.nav.sheet = null }; runCatching { clickText("Other piece") }.onFailure { add("can't open Track upgrades' piece chooser", it.message?.take(60) ?: "") } })
+        // states the other steps don't reach, for the link audit; the box goes last and comes back after the setup's shots
+        steps.add("optimize-running" to { ui { overlay = false; graph.nav.sheet = null; graph.pool.mode = false; graph.optimize.search = SearchState(hero, true, current = single!!.current); graph.nav.stack = listOf(Screen.Optimize, Screen.Results) } })
+        // the same screens scrolled to a control below the first screenful, found by text that is the same before and after
+        fun scrollTo(text: String) { rule.onAllNodesWithText(text, substring = true, useUnmergedTree = true)[0].performScrollTo(); rule.waitForIdle() }
+        steps.add("scroll-optimize-goal" to { ui { graph.pool.mode = false; graph.optimize.search = single; graph.nav.stack = listOf(Screen.Optimize) }; scrollTo("Goal") })
+        steps.add("scroll-pool-choose" to { ui { graph.pool.mode = true; graph.nav.stack = listOf(Screen.Optimize) }; scrollTo("one by one") })
+        steps.add("scroll-heroes-low" to { ui { graph.pool.mode = false; graph.nav.stack = listOf(Screen.Heroes) }; scrollTo("Tiers 2 and 1") })
+        steps.add("scroll-hero-details" to { ui { graph.nav.stack = listOf(Screen.Heroes) }; clickText(graph.heroes.heroName(graph.heroes.hero(hero)!!)); scrollTo("Hero details") })
+        steps.add("scroll-scan-intro" to { ui { graph.nav.stack = listOf(Screen.ScanIntro) }; scrollTo("Restore a backup or import a gear.txt instead") })
+        steps.add("optimize-stale" to { ui { graph.optimize.search = single; graph.scan.lastScan = System.currentTimeMillis() - 3 * 24 * 3_600_000L; graph.nav.stack = listOf(Screen.Optimize) } })
+        steps.add("crash-card" to {
+            File(ctx.filesDir, e7.gearscan.features.feedback.CRASH_FILE).writeText("java.lang.IllegalStateException: sample crash for the audit\n\tat e7.gearscan.Sample.run")
+            kotlinx.coroutines.runBlocking { graph.feedback.loadCrash() }
+            ui { graph.nav.stack = listOf(Screen.Optimize) }
+        })
+        steps.add("optimize-no-box" to { ui { graph.feedback.dismissCrash(); graph.optimize.search = null; boxAside = graph.scan.box; graph.scan.replaceBox(null); graph.nav.stack = listOf(Screen.Optimize) } })
 
         // state flips that must not move anything else: (name, open the screen, change the state)
         val sheetOn = { k: SheetKind -> ui { overlay = false; graph.optimize.search = single; graph.nav.stack = listOf(Screen.Optimize); graph.nav.sheet = Sheet(k, hero) } }
@@ -924,6 +942,7 @@ class ScreenAudit {
                     add("crash", "$name@${s.name}: ${e.javaClass.simpleName}: ${e.message?.lineSequence()?.firstOrNull()}")
                 }
             }
+            boxAside?.let { b -> ui { graph.scan.replaceBox(b) }; boxAside = null }
             // findings so far survive a crash in a later setup
             File(shots, "report-partial.txt").writeText("after ${s.name}\n" + found.entries.joinToString("\n") { (k, v) -> "$k\n" + v.joinToString("\n") { "    $it" } })
             ui { overlay = false; graph.nav.sheet = null; graph.heroes.request(hero).capCrit = true; graph.heroes.request(hero).mods = false; graph.heroes.request(hero).goal = e7.gearscan.data.Goal.TARGETS; graph.heroes.setTier(hero, 5); graph.pool.mode = false; graph.history.shown = false; graph.pool.tiers = setOf(5); graph.pool.losses = e7.gearscan.opt.PoolLosses.SAFE; graph.pool.effort = e7.gearscan.opt.PoolEffort.BALANCED; graph.optimize.showMatch = true; graph.heroes.request(hero).maxChanges = 6 }
