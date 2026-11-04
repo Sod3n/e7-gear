@@ -459,17 +459,18 @@ private fun ResultCard(graph: AppGraph, i: Int, b: Build, cur: Build?, r: Rating
                 }
                 FitText(main, dela(18.sp), Modifier.width(78.dp))
                 FitText(delta ?: "", zen(12.sp, color = if (up) C.blue else C.red), Modifier.width(52.dp).padding(bottom = 2.dp))
-                val mods = b.items.count { it.mod != null }
-                if (b.fromOthers > 0 || mods > 0) Row(Modifier.padding(bottom = 3.dp).weight(1f, fill = false), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (b.fromOthers > 0) FitText("${b.fromOthers} from others", zen(10.sp, FontWeight.Medium, C.muted), Modifier.weight(1f, fill = false),
-                        short = "${b.fromOthers} others")
-                    if (mods > 0) Text("改 $mods", style = zen(10.sp, FontWeight.Medium, C.deepPink), softWrap = false)
-                }
+                if (b.fromOthers > 0) FitText("${b.fromOthers} from others", zen(10.sp, FontWeight.Medium, C.muted), Modifier.padding(bottom = 3.dp).weight(1f, fill = false),
+                    short = "${b.fromOthers} others")
             }
             StatGrid(req) { b.final[it] }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Calc.setCounts(b.items, graph.content.content).forEach { (sd, _) -> SetIcon(sd.icon, 22.dp) }
+        // the build's gear: its sets, and how many pieces are modded
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            val mods = b.items.count { it.mod != null }
+            if (mods > 0) Text("改 $mods", style = zen(11.sp, FontWeight.Medium, C.deepPink), softWrap = false)
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                Calc.setCounts(b.items, graph.content.content).forEach { (sd, _) -> SetIcon(sd.icon, 22.dp) }
+            }
         }
     }
 }
