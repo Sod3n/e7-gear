@@ -430,7 +430,7 @@ fun rankColor(rank: String) = when (rank) {
 
 
 @Composable
-fun GearTile(item: Item?, size: Dp = 44.dp, slotIcon: String? = null, setIcon: String? = null, onClick: (() -> Unit)? = null) {
+fun GearTile(item: Item?, size: Dp = 44.dp, slotIcon: String? = null, setIcon: String? = null, plusBadge: Boolean = true, onClick: (() -> Unit)? = null) {
     val shape = RoundedCornerShape(10.dp)
     val ghost = item?.ghost == true
     val inset = with(LocalDensity.current) { 4.dp.toPx() }
@@ -451,7 +451,7 @@ fun GearTile(item: Item?, size: Dp = 44.dp, slotIcon: String? = null, setIcon: S
         ) {
             if (icon != null) GearIcon(icon, size * 0.6f, when { item == null -> C.faint; ghost -> C.blue; else -> C.onTile })
         }
-        if (item != null && size >= 36.dp) {
+        if (item != null && size >= 36.dp && plusBadge) {
             Text("+${item.enhance}", style = dela(9.sp, C.card), modifier = Modifier.offset((-4).dp, (-6).dp)
                 .clip(RoundedCornerShape(5.dp)).background(if (ghost) C.blue else C.ink).padding(horizontal = 4.dp, vertical = 1.dp))
         }

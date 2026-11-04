@@ -101,8 +101,8 @@ private const val BACK_ROW = 24f
 private const val BACK_ROW_COMPACT = 22f
 
 /** The tile, its score and the verdict chip under it: the cell's left column. */
-private const val CELL_LEFT = 34f
-private const val TILE = 32f
+private const val CELL_LEFT = 38f
+private const val TILE = 38f
 private const val SMALL = 28f
 private const val STAT_SIZE = 11
 private const val STAT_SIZE_SMALL = 9
@@ -561,9 +561,9 @@ private fun ValueSlider(value: Double, minimum: Double, maximum: Double, modifie
 @Composable
 private fun RailTile(item: Item, setIcon: String?, wearer: String?) {
     Box(Modifier.size(TILE.dp)) {
-        GearTile(item, TILE.dp, setIcon = setIcon)
-        Text("${item.level}", style = dela(8.sp, C.onTile), modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 3.dp))
-        if (item.enhance > 0) Text("+${item.enhance}", style = dela(8.sp, C.onAccent), modifier = Modifier.align(Alignment.TopEnd).offset(3.dp, (-4).dp)
+        GearTile(item, TILE.dp, setIcon = setIcon, plusBadge = false)
+        Text("${item.level}", style = dela(10.sp, C.onTile), modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 3.dp))
+        if (item.enhance > 0) Text("+${item.enhance}", style = dela(10.sp, C.onAccent), modifier = Modifier.align(Alignment.TopEnd).offset(3.dp, (-4).dp)
             .clip(RoundedCornerShape(5.dp)).background(C.pink).padding(horizontal = 3.dp, vertical = 1.dp))
         if (wearer != null) Box(Modifier.align(Alignment.BottomStart).offset((-3).dp, 3.dp)) { Face(wearer, (TILE * 0.45f).dp, ring = C.edge, ringWidth = 1.5.dp) }
     }
