@@ -439,7 +439,7 @@ private fun PieceRow(s: ChecklistFeature, i: Int, p: OverlayPiece, open: Boolean
         Row(Modifier.fillMaxWidth().hatch().padding(horizontal = 10.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Check(done)
-            GearTile(p.item, 40.dp, wearer = p.ownerFace.takeIf { worn })
+            GearTile(p.item, 40.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     SetIcon(p.setIcon, 18.dp)

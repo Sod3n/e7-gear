@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-val TIER_LABELS = listOf("Just geared", "A bit of good gear", "Good gear", "Some perfect gear", "Best of account")
+val TIER_LABELS = listOf("Ungeared", "Just geared", "Good gear", "Some perfect gear", "Best of account")
 
 fun tierLabel(t: Int) = "$t · ${TIER_LABELS[t - 1]}"
 

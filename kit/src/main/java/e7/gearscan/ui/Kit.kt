@@ -74,6 +74,9 @@ import e7.gearscan.data.Stat
 /** Game-derived images live on the content site, not in the APK; the content names the base, so it can move. */
 val LocalImageBase = staticCompositionLocalOf { e7.gearscan.data.Content.DEFAULT_IMAGE_BASE }
 
+/** The face of the hero with this id, so every gear tile shows who wears it, as the game's inventory does. */
+val LocalWearerFace = staticCompositionLocalOf<(Long) -> String?> { { null } }
+
 @Composable
 fun gameImage(path: String) = LocalImageBase.current + path
 
@@ -430,7 +433,8 @@ fun rankColor(rank: String) = when (rank) {
 
 
 @Composable
-fun GearTile(item: Item?, size: Dp = 44.dp, slotIcon: String? = null, setIcon: String? = null, plusBadge: Boolean = true, wearer: String? = null,
+fun GearTile(item: Item?, size: Dp = 44.dp, slotIcon: String? = null, setIcon: String? = null, plusBadge: Boolean = true,
+             wearer: String? = item?.equippedOn?.let(LocalWearerFace.current),
              onClick: (() -> Unit)? = null) {
     val shape = RoundedCornerShape(10.dp)
     val ghost = item?.ghost == true

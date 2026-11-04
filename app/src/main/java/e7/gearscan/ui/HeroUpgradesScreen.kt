@@ -437,7 +437,7 @@ internal fun HeroUpgradeBuildSheet(graph: AppGraph) {
             val mine = it.id == fb.pieceId
             Card(shadow = if (mine) C.pink else null, radius = 12.dp, border = 2.dp, padding = PaddingValues(10.dp)) {
                 Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GearTile(it, 40.dp, setIcon = graph.content.content.set(it.set)?.icon, wearer = graph.heroes.faceOf(it.equippedOn))
+                    GearTile(it, 40.dp, setIcon = graph.content.content.set(it.set)?.icon)
                     Column(Modifier.weight(1f)) {
                         Text("${graph.content.content.set(it.set)?.name ?: it.set.removeSuffix("Set")} ${it.slot.label}", style = zen(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(fb.from[i], style = zen(11.sp, color = if (mine) C.deepPink else C.blue))

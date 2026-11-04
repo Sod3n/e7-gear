@@ -601,8 +601,7 @@ private fun GearCard(graph: AppGraph, it: Item?, heroId: Long, reforged: Boolean
     Row(modifier.clip(shape).background(if (it?.ghost == true) C.ghostBg else C.card)
         .then(if (it?.ghost == true) Modifier.dashedBorder(C.blue, 2.dp, 10.dp) else Modifier.border(2.dp, C.edge, shape))
         .padding(7.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GearTile(it, 40.dp, setIcon = it?.let { i -> graph.content.content.set(i.set)?.icon },
-            wearer = it?.takeIf { i -> !i.ghost }?.equippedOn?.takeIf { h -> h != heroId }.let(graph.heroes::faceOf))
+        GearTile(it, 40.dp, setIcon = it?.let { i -> graph.content.content.set(i.set)?.icon })
         Column(Modifier.weight(1f)) {
             if (it == null) { Text("Empty", style = zen(12.sp, color = C.muted)); return@Column }
             StatStack(it, reforged = reforged, size = 10)
@@ -658,8 +657,7 @@ fun GhostBuildScreen(graph: AppGraph) {
             Slot.entries.forEach { sl ->
                 val it = g.items.firstOrNull { x -> x.slot == sl }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    GearTile(it, 46.dp, setIcon = it?.let { i -> graph.content.content.set(i.set)?.icon },
-                        wearer = it?.takeIf { i -> !i.ghost }?.equippedOn?.takeIf { h -> h != s.heroId }.let(graph.heroes::faceOf))
+                    GearTile(it, 46.dp, setIcon = it?.let { i -> graph.content.content.set(i.set)?.icon })
                     Text(when {
                         it == null -> "—"; it.ghost -> "ghost"; it.equippedOn == s.heroId -> "own"; it.equippedOn == null -> "free"
                         else -> graph.heroes.hero(it.equippedOn!!)?.let(graph.heroes::heroName)?.take(7) ?: "other"

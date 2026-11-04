@@ -36,7 +36,9 @@ fun App(graph: AppGraph, onExit: () -> Unit) {
             override fun go() { graph.nav.back() }
         }
     }
-    CompositionLocalProvider(LocalBack provides back, LocalImageBase provides graph.content.imageBase) { AppContent(graph, onExit) }
+    CompositionLocalProvider(LocalBack provides back, LocalImageBase provides graph.content.imageBase, LocalWearerFace provides graph.heroes::faceOf) {
+        AppContent(graph, onExit)
+    }
 }
 
 @Composable
