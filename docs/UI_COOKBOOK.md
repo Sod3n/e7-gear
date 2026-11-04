@@ -73,6 +73,9 @@ all settings. Buttons look like buttons; link-style text is rare. One main actio
   it (the "‹ Back" at a screen's top) still reads. Anything the player needs (a recovery, cancel or stop, a main way
   in, a required permission) is a button, a row or a pill. Said (2026-11-04): link style is "even not secondary, but
   'thirdry' action that is very not important. It loses a lot of 'value' near any other element".
+- The pink button follows the order of the work: review each hero's changes, then change gear in the game. Said
+  (2026-11-04): "first review all heroes changes, and only after go to in game changing". A screen or sheet nothing can
+  open is deleted, not kept ("Why they still in app?").
 - Ask: what is the one thing a player does next here? Is it the only pink button? Does every tappable thing look tappable,
   and lead only where its label says? Is every link an action the player could do without?
 - Said (2026-11-03), on a small "By set" pill put on each list's heading: "this toggle is kinda hard to see and feels out
@@ -143,6 +146,11 @@ grids with a centred short last row, every stat with its icon, both themes.
 - Every frame ends at its content: sheets, cards and the floating panel over the game. A fixed-size frame with a large
   empty area reads as something missing. Said, on the overlay panel that stayed two-thirds empty on a piece: "submenus
   dont fit height by content". Keep a size fixed only while one thing is shown, so buttons don't jump between its pages.
+- Rows of one list share one label width, and value grids keep the same columns from row to row (a target sits above
+  the value it asks for). Said (2026-11-04) of "What it looks for": "nightmare of perfectionist".
+- No text is cut with "…": a label that can be long wraps or shrinks (FitText). A " · " line breaks between claims, never
+  inside one (`claims()`, enforced by SourceRulesTest). Said: "I thinked clipping text is banned?"; "It is more convenient
+  to move whole claim to new line".
 - A gear tile is the game's inventory cell: level, +N, set at the bottom right and, for a piece another hero wears, that
   hero's face at the bottom left (`GearTile(wearer = heroes.faceOf(id))`). Said: "add hero icon if somebody currently
   uses this piece, like in game", then "search for other places where gear shows 'on X hero'".

@@ -80,7 +80,7 @@ fun HeroUpgradesScreen(graph: AppGraph, heroId: Long?) {
         if (running) Card(padding = PaddingValues(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Spinner()
-                Text("Checking ${graph.improveHeroes.heroes().size} heroes · ${if (st!!.total > 0) st.done * 100 / st.total else 0}%", style = zen(13.sp))
+                Text(claims("Checking ${graph.improveHeroes.heroes().size} heroes · ${if (st!!.total > 0) st.done * 100 / st.total else 0}%"), style = zen(13.sp))
             }
             VSpace(8.dp)
             Bar(if (st!!.total > 0) st.done.toFloat() / st.total else 0f)
@@ -97,7 +97,7 @@ fun HeroUpgradesScreen(graph: AppGraph, heroId: Long?) {
             else HeroPage(graph, one)
         } else {
             RowCard("Showing", { graph.nav.sheet = Sheet(SheetKind.HERO_UPGRADE_SETTINGS, 0) }, labelWidth = 84.dp) {
-                Text("${GAINS.firstOrNull { it.first == minGain }?.second ?: "Any"} or more · ${if (graph.improveHeroes.rebuilds) "rebuilds allowed" else "this piece only"}",
+                Text(claims("${GAINS.firstOrNull { it.first == minGain }?.second ?: "Any"} or more · ${if (graph.improveHeroes.rebuilds) "rebuilds allowed" else "this piece only"}"),
                     style = zen(12.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Segmented(listOf("By hero", "By piece", "By set"), tab) { tab = it; graph.improveHeroes.grouped = it == 2 }
@@ -180,7 +180,7 @@ private fun Summary(graph: AppGraph, view: List<HeroUpgradeHero>, st: HeroUpgrad
             Text("${better.size}", style = dela(32.sp).pinkShadow())
             Text(if (better.size == 1) "hero can get better" else "heroes can get better", style = zen(13.sp), modifier = Modifier.padding(bottom = 6.dp))
         }
-        Text("${better.flatMap { h -> h.rows.map { it.pick.piece } }.distinct().size} pieces · checked ${graph.scan.scannedLabelOf(st.finishedAt)}",
+        Text(claims("${better.flatMap { h -> h.rows.map { it.pick.piece } }.distinct().size} pieces · checked ${graph.scan.scannedLabelOf(st.finishedAt)}"),
             style = zen(11.sp, FontWeight.Medium, C.muted))
         if (r.unknownSteps > 0 && !st.running) Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("${r.unknownSteps} ${if (r.unknownSteps == 1) "check" else "checks"} not finished", style = zen(11.sp, FontWeight.Medium, C.deepPink), modifier = Modifier.weight(1f))
@@ -308,12 +308,12 @@ private fun HeroPage(graph: AppGraph, h: HeroUpgradeHero) {
             Face(graph.heroes.face(h.hero), 52.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(graph.heroes.heroName(h.hero), style = dela(17.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(when {
+                Text(claims(when {
                     rebuilds && h.base.value == null && !h.base.unresolved -> "No build meets the setup yet"
                     !rebuilds && h.base.worn == null -> "What it wears doesn't meet its setup"
                     h.bestNow != null -> if (rebuilds) "Best build now · ${h.bestNow}% match" else "Wearing now · ${h.bestNow}% match"
                     else -> if (rebuilds) "Gains are over its best build now" else "Gains are over what it wears"
-                }, style = zen(12.sp, FontWeight.Medium, C.muted))
+                }), style = zen(12.sp, FontWeight.Medium, C.muted))
                 h.bestNow?.let { Bar(it / 100f) }
             }
             ChevronSlot(true)
@@ -416,7 +416,7 @@ internal fun HeroUpgradeBuildSheet(graph: AppGraph) {
             Face(graph.heroes.face(fb.hero), 40.dp)
             Column(Modifier.weight(1f)) {
                 Text(graph.heroes.heroName(fb.hero), style = zen(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(fb.note + " · usually ${fb.gain}", style = zen(11.sp, FontWeight.Medium, C.muted))
+                Text(claims(fb.note + " · usually ${fb.gain}"), style = zen(11.sp, FontWeight.Medium, C.muted))
             }
         }
         Card(shadow = null, padding = PaddingValues(12.dp)) {
@@ -447,8 +447,8 @@ internal fun HeroUpgradeBuildSheet(graph: AppGraph) {
             }
         }
         val stay = fb.items.size - changed.size
-        Text((if (stay > 0) "$stay other ${if (stay == 1) "piece stays" else "pieces stay"} · " else "") +
-            (if (fb.sets.first == fb.sets.second) "sets stay: ${fb.sets.second}" else "sets: ${fb.sets.first} → ${fb.sets.second}"),
+        Text(claims((if (stay > 0) "$stay other ${if (stay == 1) "piece stays" else "pieces stay"} · " else "") +
+            (if (fb.sets.first == fb.sets.second) "sets stay: ${fb.sets.second}" else "sets: ${fb.sets.first} → ${fb.sets.second}")),
             style = zen(11.sp, FontWeight.Medium, C.muted))
     }
 }

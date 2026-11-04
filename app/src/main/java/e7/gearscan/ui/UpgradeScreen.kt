@@ -116,7 +116,7 @@ private fun GoalVerdict(graph: AppGraph, t: TrackerFeature, item: Item) {
         Column(Modifier.weight(1f)) {
             t.scoreGoal?.let { g -> Text(g.label(), style = zen(13.sp)); Text(g.reference, style = zen(11.sp, FontWeight.Medium, C.muted)) }
             t.goal?.let { g ->
-                Text("reach " + g.minimums.entries.joinToString(" · ") { (s, v) -> "${targetLabel(s)} ${targetValue(s, fmtNum(v))}" }, style = zen(13.sp))
+                Text(claims("reach " + g.minimums.entries.joinToString(" · ") { (s, v) -> "${targetLabel(s)} ${targetValue(s, fmtNum(v))}" }), style = zen(13.sp))
                 Text(when {
                     out?.matchesNow == true -> "every target reached"
                     item.enhance == 15 && out?.chance == 1.0 -> "after reforge"

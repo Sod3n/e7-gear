@@ -101,8 +101,7 @@ class SellFiltersScreens {
         noPoints();shot("04-raw-results")
         ui { graph.nav.sheet=Sheet(SheetKind.SELL_DETAILS,first.item.id) };noPoints();shot("05-roll-history")
         ui { graph.nav.sheet=Sheet(SheetKind.SELL_EXTRA,0) };shot("08-more-filters")
-        tap("Also filter by combined score");assertTrue(graph.sellReview.query.scoreFilter)
-        tap("Also filter by combined score");assertFalse(graph.sellReview.query.scoreFilter);tap("Done")
+        rule.onNodeWithText("Also filter by combined score").assertDoesNotExist();tap("Done")
         // what the safeguard slider commits: Speed 20 alone
         ui { graph.nav.sheet=null;graph.sellReview.edit(graph.sellReview.query.copy(keepStats=mapOf(GearStat.SPD to 20.0))) }
         assertEquals(20.0,graph.sellReview.query.keepStats.getValue(GearStat.SPD),0.0)

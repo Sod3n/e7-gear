@@ -173,7 +173,7 @@ internal fun PotentialPieceSheet(graph: AppGraph, id: Long) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ChanceText(match, 28)
                 Column(Modifier.weight(1f)) {
-                    Text(if (o.matchesNow) "Already there" else "reach " + q.targets.entries.joinToString(" · ") { (t, v) -> "${targetLabel(t)} ${targetValue(t, v)}" },
+                    Text(claims(if (o.matchesNow) "Already there" else "reach " + q.targets.entries.joinToString(" · ") { (t, v) -> "${targetLabel(t)} ${targetValue(t, v)}" }),
                         style = zen(13.sp))
                     Text(when {
                         o.matchesNow -> "Meets every target now"

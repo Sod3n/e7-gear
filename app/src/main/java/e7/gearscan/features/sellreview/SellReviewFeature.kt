@@ -38,7 +38,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 class SellReviewFeature(ctx: FeatureContext, private val content: ContentFeature, private val scanFeature: ScanFeature, private val marks: MarksFeature, private val recordsFeature: RecordsFeature, private val heroes: HeroesFeature, private val pool: PoolFeature) : Feature(ctx, "sellReview") {
-    var query by saved("query", SellQuery(), Codecs.obj({ it.toJson() }, { SellQuery.of(it) }))
+    // the combined-score filter is gone from the app (owner, 2026-11-04); a saved query that had it on loads with it off
+    var query by saved("query", SellQuery(), Codecs.obj({ it.toJson() }, { SellQuery.of(it).copy(scoreFilter = false) }))
         private set
 
     /** Lists and the walk over the game follow the game's filters: set, slot tab, level. */

@@ -101,7 +101,7 @@ fun HeroesScreen(graph: AppGraph) {
                 if (!first) Box(Modifier.fillMaxWidth().height(1.5.dp).background(C.line))
                 // the row folds the low tiers open and shut, like a Fold
                 Row(Modifier.fillMaxWidth().tap { showLow = !showLow }.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Tiers 2 and 1 · $low heroes", style = zen(12.sp, FontWeight.Medium), modifier = Modifier.weight(1f))
+                    Text(claims("Tiers 2 and 1 · $low heroes"), style = zen(12.sp, FontWeight.Medium), modifier = Modifier.weight(1f))
                     Text("›", style = zen(16.sp), modifier = Modifier.rotate(if (showLow) -90f else 90f))
                 }
             } else if (first) Text("No hero matches.", style = zen(12.sp, FontWeight.Medium, C.muted), modifier = Modifier.padding(12.dp))
@@ -172,10 +172,11 @@ fun MissingSetRow(st: e7.gearscan.data.SetDef) {
 private fun MatchCard(graph: AppGraph, id: Long, m: Match.Result) {
     Card(shadow = C.shadow, radius = 14.dp, border = 2.5.dp, padding = PaddingValues(12.dp)) {
         Row(Modifier.tap { graph.nav.sheet = Sheet(SheetKind.PRESET, id) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text("Match with", style = zen(13.sp))
-            Text(m.label, style = zen(13.sp, color = C.blue), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            Text("›", style = zen(16.sp, color = C.blue))
-            Spacer(Modifier.weight(1f))
+            // the preset's name gets its own line, so a long one wraps between words
+            Column(Modifier.weight(1f)) {
+                Text("Match with", style = zen(11.sp, FontWeight.Medium, C.muted))
+                Text(m.label + " ›", style = zen(13.sp, color = C.blue))
+            }
             Text("${m.pct}%", style = dela(20.sp).pinkShadow(4f))
         }
         VSpace(8.dp)
@@ -186,7 +187,7 @@ private fun MatchCard(graph: AppGraph, id: Long, m: Match.Result) {
                 Row(Modifier.fillMaxWidth().clip(shape).background(if (r.met) C.ghostBg else C.lightPink)
                     .border(2.dp, if (r.met) C.blue else C.edge, shape).padding(horizontal = 10.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(r.stat.label, style = zen(13.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    FitText(r.stat.label, zen(13.sp), Modifier.weight(1f))
                     FitText(fmtInt(Math.floor(r.now)), zen(13.sp), Modifier.width(52.dp), textAlign = TextAlign.End)
                     FitText("/ ${fmtInt(r.target)}", zen(12.sp, color = C.muted), Modifier.width(58.dp))
                     val surplus = r.now - r.target
@@ -232,7 +233,7 @@ fun HeroDetailScreen(graph: AppGraph, id: Long) {
                     Text(art?.name ?: "No artifact chosen",
                         style = zen(12.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text("Artifact +30 · full imprint, always", style = zen(11.sp, FontWeight.Medium, C.muted))
+                Text(claims("Artifact +30 · full imprint, always"), style = zen(11.sp, FontWeight.Medium, C.muted))
             }
         }
         LaunchedEffect(id) { graph.heroes.loadPresetsQuietly(id, network = true) }
@@ -257,12 +258,12 @@ fun HeroDetailScreen(graph: AppGraph, id: Long) {
             val st = graph.improveHeroes.heroUpgrades
             val rows = remember(st?.result, graph.improveHeroes.minGain, graph.rev.value) { st?.result?.let { r -> graph.improveHeroes.view(r).firstOrNull { it.hero.id == id }?.rows } }
             RowCard("Upgrades", { graph.nav.go(Screen.HeroUpgrades(id)) }) {
-                Text(when {
+                Text(claims(when {
                     st?.running == true -> "Checking your gear"
                     rows == null -> "Find pieces that could improve this hero"
                     rows.isEmpty() -> "No piece to enhance gains enough now"
                     else -> "${rows.size} ${if (rows.size == 1) "piece" else "pieces"} could improve this hero · best ${rows.first().chance}%"
-                }, style = zen(12.sp))
+                }), style = zen(12.sp))
             }
         }
         Card(shadow = null, radius = 14.dp, border = 2.5.dp, padding = PaddingValues(12.dp)) {
@@ -294,7 +295,7 @@ fun HeroDetailScreen(graph: AppGraph, id: Long) {
                             Text(sb.name, style = dela(14.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             if (equipped) Stamp("装", "Equipped")
                         }
-                        if (b != null) Text("Spd ${fmtNum(Math.floor(b.final[Stat.SPD]))} · Cr ${fmtNum(Math.floor(b.final[Stat.CR]))} · Cd ${fmtNum(Math.floor(b.final[Stat.CD]))}" +
+                        if (b != null) Text(claims("Spd ${fmtNum(Math.floor(b.final[Stat.SPD]))} · Cr ${fmtNum(Math.floor(b.final[Stat.CR]))} · Cd ${fmtNum(Math.floor(b.final[Stat.CD]))}") +
                             if (items.size < sb.items.size) " · ${sb.items.size - items.size} pieces gone" else "",
                             style = zen(11.sp, FontWeight.Medium, C.muted))
                     }

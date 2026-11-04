@@ -60,11 +60,11 @@ fun PoolSetup(graph: AppGraph) {
     RowCard("Rules", { graph.nav.sheet = Sheet(SheetKind.ADVANCED, POOL_RULES) }) {
         val reqs = heroes.map { graph.heroes.request(it.id) }
         fun <T> same(f: (Request) -> T) = reqs.map(f).distinct().singleOrNull()
-        Text(listOf(
+        Text(claims(listOf(
             same { it.minEnhance }?.let { "+$it gear" } ?: "mixed levels",
             when (same { it.mods }) { true -> "mods on"; false -> "mods off"; null -> "mods for some" },
             when (same { it.capCrit }) { true -> "crit cap 105"; false -> "no crit cap"; null -> "crit cap for some" },
-        ).joinToString(" · "), style = zen(12.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        ).joinToString(" · ")), style = zen(12.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
     SectionTitle("Which heroes", trailing = "by tier")
     Card(padding = PaddingValues(0.dp)) {
@@ -81,7 +81,7 @@ fun PoolSetup(graph: AppGraph) {
                         Text("$t", style = dela(13.sp, C.pink)); Text(e7.gearscan.ui.TIER_LABELS[t - 1], style = zen(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     val avg = inTier.mapNotNull { graph.heroes.matchFor(it.id)?.pct }.takeIf { it.isNotEmpty() }?.average()?.toInt()
-                    Text("${inTier.size} heroes" + (avg?.let { " · now $it%" } ?: ""), style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(claims("${inTier.size} heroes" + (avg?.let { " · now $it%" } ?: "")), style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 FaceStack(graph, inTier)
             }
@@ -101,7 +101,7 @@ fun PoolSetup(graph: AppGraph) {
         val reviewed = heroes.count { graph.heroes.hasBuild(it.id) == true && graph.heroes.request(it.id).reviewed }
         ListRow(if (ready > 0) ({ graph.nav.sheet = Sheet(SheetKind.POOL_LIST, 0) }) else null, Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
             leading = { Box(Modifier.size(8.dp).clip(CircleShape).background(C.blue)) }) {
-            Text(if (pending > 0) "$ready ready · loading builds for $pending" else "$ready use their preset · $reviewed reviewed",
+            Text(claims(if (pending > 0) "$ready ready · loading builds for $pending" else "$ready use their preset · $reviewed reviewed"),
                 style = zen(13.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (noBuild.isNotEmpty()) ListRow({ graph.nav.go(Screen.PoolHero(noBuild.first().id, setup = true)) },
@@ -119,8 +119,8 @@ private fun PendingCard(graph: AppGraph) {
     val e = graph.history.entries.firstOrNull { it.at == at } ?: return
     Card(shadow = C.pink, padding = PaddingValues(0.dp)) {
         ListRow({ graph.pool.openPending() }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text("Pending run · ${historyStamp(at)}", style = zen(13.sp))
-            Text("${fmtInt(e.before.toDouble())} → ${fmtInt(e.after.toDouble())} · ${e.builds.size} to equip · ${e.reviewed.size} reviewed. Stays until you equip it or run again.",
+            Text(claims("Pending run · ${historyStamp(at)}"), style = zen(13.sp))
+            Text(claims("${fmtInt(e.before.toDouble())} → ${fmtInt(e.after.toDouble())} · ${e.builds.size} to equip · ${e.reviewed.size} reviewed. Stays until you equip it or run again."),
                 style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -201,8 +201,8 @@ fun PoolRunScreen(graph: AppGraph) {
         PoolScoreCard("POOL SCORE · LIVE", start, score) { Text("+${fmtInt((score - start).toDouble())}", style = dela(18.sp, C.blue)) }
         Row(verticalAlignment = Alignment.CenterVertically) {
             val secs = (now - p.startedAt) / 1000
-            Text((if (p.round > 1) "Round ${p.round} · " else "") + "${doneIds.size} of ${p.ids.size} heroes" +
-                " · ${secs / 60}:${"%02d".format(java.util.Locale.US, secs % 60)}",
+            Text(claims((if (p.round > 1) "Round ${p.round} · " else "") + "${doneIds.size} of ${p.ids.size} heroes" +
+                " · ${secs / 60}:${"%02d".format(java.util.Locale.US, secs % 60)}"),
                 style = zen(12.sp), modifier = Modifier.weight(1f))
             OutlineButton("Stop", height = 34.dp) { graph.pool.stop() }
         }
@@ -223,13 +223,13 @@ fun PoolRunScreen(graph: AppGraph) {
         Text("A piece moves only when the hero taking it gains more than its wearer loses, counting higher tiers more. Stop any time and keep what's done. You can leave the app; we'll notify you.",
             style = zen(11.sp, FontWeight.Medium, C.muted))
     } else Frame(null, null,
-        // moves happen in the game, so the checklist comes first; its last step records them here
-        primary = Action("Checklist") {
-            if (graph.checklist.loadPool()) {
-                graph.overGame.open()
-            }
+        // each hero's changes are reviewed first; then the checklist makes them in the game and its last step records them here
+        primary = graph.pool.reviewQueue().filter { it !in p.reviewed }.let { left ->
+            if (left.isNotEmpty()) Action("Review ${left.size} ${if (left.size == 1) "hero" else "heroes"}") { graph.nav.go(Screen.PoolHero(left.first(), setup = false)) }
+            else Action("Checklist") { if (graph.checklist.loadPool()) graph.overGame.open() }
         },
-        secondary = if (!p.fromHistory) Secondary("Just record") { graph.pool.equip(); graph.nav.tab(Screen.Optimize) } else null) {
+        secondary = if (graph.pool.reviewQueue().any { it !in p.reviewed }) Secondary("Checklist") { if (graph.checklist.loadPool()) graph.overGame.open() }
+            else if (!p.fromHistory) Secondary("Just record") { graph.pool.equip(); graph.nav.tab(Screen.Optimize) } else null) {
         BackToPrevious()
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FitText("Pool done", TitleStyle, Modifier.weight(1f, fill = false)); Stamp("済")
@@ -297,7 +297,7 @@ private fun TierBars(graph: AppGraph, p: PoolState, running: Boolean) {
                 verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("$t", style = dela(13.sp, C.pink))
-                    Text("${TIER_LABELS[t - 1]} · ${ids.size}", style = zen(13.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(claims("${TIER_LABELS[t - 1]} · ${ids.size}"), style = zen(13.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     // fixed-width slot: the stamp or count appearing never moves the label
                     Box(Modifier.width(64.dp), contentAlignment = Alignment.CenterEnd) {
                         when {
@@ -371,7 +371,7 @@ fun PoolHeroScreen(graph: AppGraph, heroId: Long, setup: Boolean) {
         } else PresetCard(graph, h, req)
         SectionTitle("What it looks for")
         Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { LooksFor(graph, h, req) }
-        RowCard("Goal", { graph.nav.sheet = Sheet(SheetKind.GOALS, heroId) }) { Text(req.goal.label, style = zen(12.sp)) }
+        RowCard("Goal", { graph.nav.sheet = Sheet(SheetKind.GOALS, heroId) }, labelWidth = e7.gearscan.ui.LOOKS_LABEL) { Text(req.goal.label, style = zen(12.sp)) }
         Text("Everything here works as in one-hero Optimize; the pool run uses it as set.", style = zen(11.sp, FontWeight.Medium, C.muted))
     }
 }
@@ -452,8 +452,8 @@ fun PoolListSheet(graph: AppGraph) {
                 Text(graph.heroes.heroName(h), style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     TierDots(graph.heroes.tier(h.id), 7.dp)
-                    Text(when { has == null -> "Loading builds…"; has == false -> "No build yet"; h.id in graph.pool.skip -> "Kept as is"
-                        else -> req.presetLabel?.substringAfter(" · ") ?: "Your targets" },
+                    Text(claims(when { has == null -> "Loading builds…"; has == false -> "No build yet"; h.id in graph.pool.skip -> "Kept as is"
+                        else -> req.presetLabel?.substringAfter(" · ") ?: "Your targets" }),
                         style = zen(11.sp, FontWeight.Medium, if (has == false) C.deepPink else C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
@@ -493,7 +493,7 @@ fun PoolTradesSheet(graph: AppGraph) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 ListRow({ graph.pool.open(t.taker) }, Modifier.padding(top = 5.dp), leading = { Face(graph.heroes.face(holder), 34.dp) },
                     trailing = { Slot(30.dp) { Face(graph.heroes.face(taker), 26.dp, ringWidth = 2.dp) } }) {
-                    Text("${graph.heroes.heroName(holder)} → ${graph.heroes.heroName(taker)} · ${t.items.size} " + if (t.items.size == 1) "piece" else "pieces",
+                    Text(claims("${graph.heroes.heroName(holder)} → ${graph.heroes.heroName(taker)} · ${t.items.size} ") + if (t.items.size == 1) "piece" else "pieces",
                         style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(effect, style = zen(11.sp, FontWeight.Medium, if (t.made) C.blue else C.muted), maxLines = 3, overflow = TextOverflow.Ellipsis)
                 }
@@ -522,8 +522,8 @@ fun PoolHeroesSheet(graph: AppGraph) {
                     Slot(48.dp) { p.after[id]?.let { MatchChip(it) } }
                 }) {
                 Text(graph.heroes.heroName(h), style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(if (b == null) (if (p.running) "Not run" else "Keeps its gear") else "${p.before[id]?.let { "$it%" } ?: "—"} → ${p.after[id]?.let { "$it%" } ?: "—"} · " +
-                    "${b.items.count { it.equippedOn != id }} changes", style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(claims(if (b == null) (if (p.running) "Not run" else "Keeps its gear") else "${p.before[id]?.let { "$it%" } ?: "—"} → ${p.after[id]?.let { "$it%" } ?: "—"} · " +
+                    "${b.items.count { it.equippedOn != id }} changes"), style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

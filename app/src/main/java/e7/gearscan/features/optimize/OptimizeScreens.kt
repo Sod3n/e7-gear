@@ -97,7 +97,7 @@ fun OptimizeScreen(graph: AppGraph) {
             .tap { graph.nav.go(Screen.PoolRun) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PulseDot(8.dp)
-            Text("Pool running · ${graph.pool.state!!.builds.size} of ${graph.pool.state!!.ids.size}", style = zen(12.sp, color = C.card), modifier = Modifier.weight(1f))
+            Text(claims("Pool running · ${graph.pool.state!!.builds.size} of ${graph.pool.state!!.ids.size}"), style = zen(12.sp, color = C.card), modifier = Modifier.weight(1f))
             Text("Open ›", style = zen(12.sp, color = C.card))
         }
         when {
@@ -164,7 +164,7 @@ private fun SingleSetup(graph: AppGraph, h: OwnedHero) {
     PresetCard(graph, h, req)
     SectionTitle("What it looks for")
     Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { LooksFor(graph, h, req) }
-    RowCard("Goal", { graph.nav.sheet = Sheet(SheetKind.GOALS, h.id) }) { Text(req.goal.label, style = zen(12.sp)) }
+    RowCard("Goal", { graph.nav.sheet = Sheet(SheetKind.GOALS, h.id) }, labelWidth = LOOKS_LABEL) { Text(req.goal.label, style = zen(12.sp)) }
 }
 
 @Composable
@@ -180,7 +180,7 @@ internal fun PresetCard(graph: AppGraph, h: OwnedHero, req: Request) {
             when {
                 req.presetLabel != null -> {
                     Text(req.presetLabel ?: "", style = zen(13.sp))
-                    Text("${if (req.presetAuto) "Picked as closest to your gear" else "From Fribbels' hero library"} · ${req.presetShare}% of players",
+                    Text(claims("${if (req.presetAuto) "Picked as closest to your gear" else "From Fribbels' hero library"} · ${req.presetShare}% of players"),
                         style = zen(11.sp, FontWeight.Medium, C.muted))
                 }
                 loading -> {
@@ -214,39 +214,48 @@ fun StatGrid(req: Request, value: (Stat) -> Double) {
     }
 }
 
+/** The label column every "What it looks for" row shares, so the values start at one edge. */
+val LOOKS_LABEL = 70.dp
+
 @Composable
 internal fun LooksFor(graph: AppGraph, h: OwnedHero, req: Request) {
-    RowCard("Artifact", { graph.nav.sheet = Sheet(SheetKind.ARTIFACT, h.id) }) {
+    RowCard("Artifact", { graph.nav.sheet = Sheet(SheetKind.ARTIFACT, h.id) }, labelWidth = LOOKS_LABEL) {
         val art = graph.content.content.artifact(graph.heroes.config(h.id).artifact ?: req.artifact)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ArtifactIcon(graph, art, 20.dp)
             Text(art?.name ?: "None chosen", style = zen(12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
-    RowCard("Sets", { graph.nav.sheet = Sheet(SheetKind.SETS, h.id) }) { SetsSummary(graph, req) }
-    RowCard("Mains", { graph.nav.sheet = Sheet(SheetKind.MAINS, h.id) }) {
+    RowCard("Sets", { graph.nav.sheet = Sheet(SheetKind.SETS, h.id) }, labelWidth = LOOKS_LABEL) { SetsSummary(graph, req) }
+    RowCard("Mains", { graph.nav.sheet = Sheet(SheetKind.MAINS, h.id) }, labelWidth = LOOKS_LABEL) {
         if (req.mains.isEmpty()) Text("Any", style = zen(12.sp))
-        for (s in Slot.ACCESSORIES) {
-            val m = req.mains[s] ?: continue
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(if (s == Slot.NECKLACE) "Neck" else s.label, style = zen(12.sp))
-                m.take(2).forEach { g ->
-                    StatIcon(g.stat)
-                    if (g.percentOfBase) Text("%", style = zen(12.sp))
+        // one line per accessory with a main, its name in a fixed column so the mains line up
+        else Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            for (s in Slot.ACCESSORIES) {
+                val m = req.mains[s] ?: continue
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(if (s == Slot.NECKLACE) "Neck" else s.label, style = zen(12.sp), modifier = Modifier.width(44.dp))
+                    m.take(2).forEach { g ->
+                        StatIcon(g.stat)
+                        if (g.percentOfBase) Text("%", style = zen(12.sp), softWrap = false)
+                    }
                 }
             }
         }
     }
-    RowCard("Targets", { graph.nav.sheet = Sheet(SheetKind.TARGETS, h.id) }) {
+    RowCard("Targets", { graph.nav.sheet = Sheet(SheetKind.TARGETS, h.id) }, labelWidth = LOOKS_LABEL) {
         val set = Stat.entries.filter { !req.targets[it.ordinal].isNaN() }
-        if (set.isEmpty()) Text(if (req.goal == Goal.TARGETS) "None · ranks by gear score" else "None", style = zen(12.sp))
-        // every target in a fixed stat order (the row wraps), so a weight change never adds, drops or reorders one
-        set.forEach { s -> StatValue(s, fmtK(req.targets[s.ordinal])) }
+        if (set.isEmpty()) Text(claims(if (req.goal == Goal.TARGETS) "None · ranks by gear score" else "None"), style = zen(12.sp))
+        // the same 4×2 cells as "Now", so each target sits right above the value it asks for
+        else CardGrid(Stat.entries, columns = 4, gap = 2.dp) { st, cell ->
+            val t = req.targets[st.ordinal]
+            Box(cell) { StatValue(st, if (t.isNaN()) "—" else fmtK(t), if (t.isNaN()) C.muted else C.ink, 11) }
+        }
     }
     val cur = graph.heroes.currentBuild(h.id)
-    if (cur != null) RowCard("Now", { graph.nav.sheet = Sheet(SheetKind.TARGETS, h.id) }) { StatGrid(req) { cur.final[it] } }
-    RowCard("Advanced", { graph.nav.sheet = Sheet(SheetKind.ADVANCED, h.id) }) {
-        Text("Rules · ghost gear ${if (req.ghost) "on" else "off"}", style = zen(12.sp))
+    if (cur != null) RowCard("Now", { graph.nav.sheet = Sheet(SheetKind.TARGETS, h.id) }, labelWidth = LOOKS_LABEL) { StatGrid(req) { cur.final[it] } }
+    RowCard("Advanced", { graph.nav.sheet = Sheet(SheetKind.ADVANCED, h.id) }, labelWidth = LOOKS_LABEL) {
+        Text(claims("Rules · ghost gear ${if (req.ghost) "on" else "off"}"), style = zen(12.sp))
     }
 }
 
@@ -276,14 +285,14 @@ fun ResultsScreen(graph: AppGraph) {
         if (s.historyAt != 0L) HistoryNote(s.historyAt)
         ScreenTitle("Best 50") { ScanChip(graph.scan.scannedLabel(), graph.scan.phase != ScanPhase.IDLE) { if (graph.scan.phase != ScanPhase.IDLE) graph.nav.go(Screen.Capture) else graph.nav.go(Screen.ScanData) } }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Face(graph.heroes.face(h), 26.dp, ringWidth = 2.dp)
-            Text("${graph.heroes.heroName(h)} · ${req.goal.label}", style = zen(13.sp).copy(lineHeight = 16.sp), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Face(graph.heroes.face(h), 40.dp, ringWidth = 2.dp)
+            Text(claims("${graph.heroes.heroName(h)} · ${req.goal.label}"), style = zen(13.sp).copy(lineHeight = 16.sp), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         StaleBox(graph)
         if (s.running) {
             Card(shadow = null, radius = 14.dp, border = 2.5.dp) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Searching · ${"%.1f".format(java.util.Locale.US, (now - s.startedAt) / 1000.0)} s", style = zen(12.sp), modifier = Modifier.weight(1f))
+                    Text(claims("Searching · ${"%.1f".format(java.util.Locale.US, (now - s.startedAt) / 1000.0)} s"), style = zen(12.sp), modifier = Modifier.weight(1f))
                     OutlineButton("Cancel", height = 34.dp) { graph.optimize.cancelSearch() }
                 }
                 VSpace(6.dp)
@@ -312,7 +321,10 @@ fun ResultsScreen(graph: AppGraph) {
         // any search that hit its time limit can go longer, found builds or not
         if (!s.running && s.builds.isNotEmpty() && s.timedOut && !s.cancelled && s.limitMs < graph.optimize.longLimitMs)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Stopped at ${s.limitMs / 1000} s · a better build may exist", style = zen(12.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f))
+                Column(Modifier.weight(1f)) {
+                    Text("Stopped at ${s.limitMs / 1000} s", style = zen(12.sp, FontWeight.Medium, C.muted))
+                    Text("A better build may exist", style = zen(12.sp, FontWeight.Medium, C.muted))
+                }
                 OutlineButton("Search for ${graph.optimize.longLimitMs / 1000} s", height = 36.dp) { graph.optimize.startSearch(graph.optimize.longLimitMs) }
             }
         val cur = s.current
@@ -325,12 +337,12 @@ fun ResultsScreen(graph: AppGraph) {
                 }, style = dela(14.sp))
                 VSpace(4.dp)
                 val bl = s.blockers
-                Text(when {
+                Text(claims(when {
                     s.cancelled -> "Search again to finish it."
                     s.checkingBlockers -> "Checking which rule to loosen…"
                     bl.isNullOrEmpty() -> "Loosening any single rule isn't enough. Loosen several: minimums, sets, mains or enhance level."
                     else -> "Loosen any one of these and builds appear: " + bl.joinToString(" · ")
-                }, style = zen(12.sp, FontWeight.Medium, C.muted), minLines = 2)
+                }), style = zen(12.sp, FontWeight.Medium, C.muted), minLines = 2)
                 if (s.timedOut && !s.cancelled && s.limitMs < graph.optimize.longLimitMs) {
                     VSpace(6.dp)
                     Text("It stopped before checking every combination, so a build may still exist. Mods make the search slower.",
@@ -360,7 +372,7 @@ fun StaleBox(graph: AppGraph) {
     if (age < 24) return
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).hatch().border(2.dp, C.edge, RoundedCornerShape(10.dp))
         .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("Box is ${if (age < 48) "a day" else "${age / 24} days"} old · new gear isn't counted", style = zen(12.sp),
+        Text(claims("Box is ${if (age < 48) "a day" else "${age / 24} days"} old · new gear isn't counted"), style = zen(12.sp),
             modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
         OutlineButton("Scan now", height = 34.dp) { graph.nav.go(Screen.ScanData) }
     }
@@ -373,12 +385,12 @@ private fun ModsLine(graph: AppGraph, s: e7.gearscan.features.optimize.SearchSta
     Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("改", style = dela(12.sp, if (req.mods) C.deepPink else C.muted))
         val top = s.builds.take(10)
-        Text(when {
+        Text(claims(when {
             !req.mods -> "Substat mods are off"
             s.running -> "Mods on · searching takes longer"
             top.isEmpty() -> "Mods on"
             else -> top.count { b -> b.items.any { it.mod != null } }.let { n -> if (n == 0) "Mods on · no mod beats these builds" else "Mods on · $n of the top ${top.size} use a mod" }
-        }, style = zen(12.sp, color = if (req.mods) C.deepPink else C.muted), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }), style = zen(12.sp, color = if (req.mods) C.deepPink else C.muted), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (!req.mods && !s.running) Pill("Turn on", onClick = { req.mods = true; graph.rev.bump(); graph.store.saveNow(); graph.optimize.startSearch() })
     }
 }
@@ -418,7 +430,7 @@ private fun GhostBand(graph: AppGraph, s: e7.gearscan.features.optimize.SearchSt
                 Text("${r.short.lowercase()}${if (r != Rating.SPD && Math.abs(spd) >= 1) ", ${fmtSigned(spd)} spd" else ""} over #1", style = zen(12.sp, color = C.blue),
                     modifier = Modifier.padding(bottom = 2.dp))
             }
-        } else if (g != null) Text("Meets every rule · tap to see it", style = zen(12.sp, color = C.blue))
+        } else if (g != null) Text(claims("Meets every rule · tap to see it"), style = zen(12.sp, color = C.blue))
         else if (s.running || s.ghostRunning) Skeleton(Modifier.width(160.dp).height(10.dp))
         else Spacer(Modifier.height(10.dp))
     }
@@ -632,7 +644,7 @@ fun GhostBuildScreen(graph: AppGraph) {
             GhostTag(); Text("Ghost build", style = TitleStyle)
         }
         Card(shadow = C.blue) {
-            Text(if (owned) "Gain over your best owned-only build" else "No owned-only build meets the rules · change from current gear",
+            Text(claims(if (owned) "Gain over your best owned-only build" else "No owned-only build meets the rules · change from current gear"),
                 style = zen(11.sp, FontWeight.Bold, C.muted))
             VSpace(6.dp)
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -662,7 +674,7 @@ fun GhostBuildScreen(graph: AppGraph) {
                     Text("${set?.name ?: gp.set.removeSuffix("Set")} ${gp.slot.label.lowercase()}", style = dela(15.sp))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         SetIcon(set?.icon, 16.dp)
-                        Text("${set?.name ?: ""} set · ${gp.mainType.short} ${gp.mainType.format(gp.mainValue)} main", style = zen(12.sp, color = C.blue))
+                        Text(claims("${set?.name ?: ""} set · ${gp.mainType.short} ${gp.mainType.format(gp.mainValue)} main"), style = zen(12.sp, color = C.blue))
                     }
                 }
             }
@@ -684,7 +696,7 @@ fun GhostBuildScreen(graph: AppGraph) {
                 ". This ghost is a ${listOf("typical", "top 25%", "top 5%")[q]} one of those.", style = zen(12.sp, FontWeight.Medium))
             if (replaced != null) {
                 VSpace(4.dp)
-                Text("Replaces: ${replaced.mainType.short} ${replaced.mainType.format(replaced.mainValue)} · " +
+                Text(claims("Replaces: ${replaced.mainType.short} ${replaced.mainType.format(replaced.mainValue)} · ") +
                     replaced.subs.joinToString(" · ") { "${it.type.short} ${it.type.format(it.value)}" }, style = zen(11.sp, FontWeight.Medium, C.muted))
             }
             VSpace(4.dp)

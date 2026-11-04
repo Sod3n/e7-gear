@@ -67,6 +67,7 @@ import e7.gearscan.AppGraph
 import e7.gearscan.data.fmtInt
 import e7.gearscan.data.fmtNum
 import e7.gearscan.features.tracker.ChecklistFeature
+import e7.gearscan.ui.claims
 import e7.gearscan.ui.C
 import e7.gearscan.ui.Stamp
 import e7.gearscan.ui.hatch
@@ -344,7 +345,7 @@ private fun OverlayControls(g: AppGraph, b: OverlayBuild, onMove: (Float, Float)
         if (b.pieces.any { it.modStep }) RolledRow(s, b, s.current.takeIf { it >= 0 && b.pieces[it].modStep })
         // with the list hidden, the open step is named here instead
         s.current.takeIf { it >= 0 && w.listHidden }?.let { b.pieces[it] }?.let { p ->
-            Text((p.forHero?.let { "$it · " } ?: "") + "${p.item.slot.label} · ${p.mainText} · " + (p.mod?.let { "改 Mod: $it" } ?: REFORGE_NOTE.takeIf { p.reforgeStep } ?: p.owner),
+            Text(claims((p.forHero?.let { "$it · " } ?: "") + "${p.item.slot.label} · ${p.mainText} · " + (p.mod?.let { "改 Mod: $it" } ?: REFORGE_NOTE.takeIf { p.reforgeStep } ?: p.owner)),
                 style = zen(12.sp, color = if (p.otherMenu) C.deepPink else C.ink), modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp))
         }
     }
@@ -404,8 +405,8 @@ fun OverlayBody(g: AppGraph) {
                 val members = b.pieces.indices.filter { group(b.pieces[it]) == group(p) }
                 val done = members.count { s.done.getOrElse(it) { false } }
                 Row(Modifier.fillMaxWidth().background(C.paper).padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(when { p.modStep -> "改 Modify" + (p.forHero?.let { " · $it" } ?: ""); p.reforgeStep -> "Reforge" + (p.forHero?.let { " · $it" } ?: "")
-                        else -> p.forHero.orEmpty() }, style = dela(12.sp),
+                    Text(claims(when { p.modStep -> "改 Modify" + (p.forHero?.let { " · $it" } ?: ""); p.reforgeStep -> "Reforge" + (p.forHero?.let { " · $it" } ?: "")
+                        else -> p.forHero.orEmpty() }), style = dela(12.sp),
                         modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("$done of ${members.size}", style = zen(11.sp, color = C.muted))
                 }
@@ -443,7 +444,7 @@ private fun PieceRow(s: ChecklistFeature, i: Int, p: OverlayPiece, open: Boolean
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     SetIcon(p.setIcon, 18.dp)
-                    Text((p.forHero?.let { "$it · " } ?: "") + p.item.slot.label, style = dela(13.sp))
+                    Text(claims((p.forHero?.let { "$it · " } ?: "") + p.item.slot.label), style = dela(13.sp))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     StatIcon(p.item.mainType.stat, 12.dp)
@@ -463,7 +464,7 @@ private fun PieceRow(s: ChecklistFeature, i: Int, p: OverlayPiece, open: Boolean
             Check(done)
             GearTile(p.item, 24.dp)
             SetIcon(p.setIcon, 16.dp)
-            Text("${p.item.slot.label} · ${p.mainText}", style = zen(12.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(claims("${p.item.slot.label} · ${p.mainText}"), style = zen(12.sp), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             // the stamp's room is kept when not done, so ticking a piece doesn't push the owner sideways
             Box(Modifier.alpha(if (done) 1f else 0f)) { Stamp("済") }
             if (!p.otherMenu && !worn) Text(p.owner, style = zen(11.sp, color = ownerColor))

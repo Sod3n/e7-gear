@@ -204,8 +204,8 @@ fun ScanDataScreen(graph: AppGraph) {
                 }
                 Column(Modifier.weight(1f)) {
                     Text(if (graph.scan.game != null) "Epic Seven found" else "Epic Seven not installed", style = dela(15.sp))
-                    Text(box?.let { "${if (graph.scan.lastScan > 0) "Last scan ${graph.scan.scannedLabel().removePrefix("Scanned ")}" else "Imported"} · ${fmtInt(it.items.size.toDouble())} items · ${it.heroes.size} heroes" }
-                        ?: "No scan yet", style = zen(11.sp, FontWeight.Medium, C.muted))
+                    Text(claims(box?.let { "${if (graph.scan.lastScan > 0) "Last scan ${graph.scan.scannedLabel().removePrefix("Scanned ")}" else "Imported"} · ${fmtInt(it.items.size.toDouble())} items · ${it.heroes.size} heroes" }
+                        ?: "No scan yet"), style = zen(11.sp, FontWeight.Medium, C.muted))
                 }
             }
         }
@@ -311,8 +311,8 @@ fun CaptureScreen(graph: AppGraph) {
                 PulseDot(9.dp)
                 Column {
                     Text("Scanning is ON", style = zen(12.sp, color = C.card))
-                    Text(if (graph.scan.pillAllowed) "Its status shows over the game · tap it to come back"
-                        else "Shown in your notifications · tap there to come back", style = zen(10.sp, FontWeight.Medium, C.faint))
+                    Text(claims(if (graph.scan.pillAllowed) "Its status shows over the game · tap it to come back"
+                        else "Shown in your notifications · tap there to come back"), style = zen(10.sp, FontWeight.Medium, C.faint))
                 }
             }
         }
@@ -415,13 +415,13 @@ fun ScanResultScreen(graph: AppGraph) {
                 Column(Modifier.weight(1f)) { Text(fmtInt(box.heroes.size.toDouble()), style = dela(32.sp).pinkShadow()); Text("heroes", style = zen(11.sp, FontWeight.Medium, C.muted)) }
             }
             VSpace(8.dp)
-            Text(if (graph.scan.decodeSec > 0) "Decoded in ${graph.scan.decodeSec} s · saved on this phone" else "Saved on this phone",
+            Text(claims(if (graph.scan.decodeSec > 0) "Decoded in ${graph.scan.decodeSec} s · saved on this phone" else "Saved on this phone"),
                 style = zen(11.sp, FontWeight.Medium, C.muted))
         }
         Card(shadow = null, radius = 14.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
             ListRow({ graph.nav.tab(Screen.Gear) }, Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                 Text("Gear", style = zen(14.sp))
-                Text("Sell review · Improve heroes · Find gear", style = zen(11.sp, FontWeight.Medium, C.muted))
+                Text(claims("Sell review · Improve heroes · Find gear"), style = zen(11.sp, FontWeight.Medium, C.muted))
             }
         }
         SectionTitle("Since last scan")

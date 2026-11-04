@@ -185,7 +185,7 @@ private fun Matches(graph: AppGraph, result: FindGearResult, fresh: Boolean, edi
             Column(Modifier.weight(1f)) {
                 GoalTargets(applied, zen(13.sp, color = C.blue), full = false, extra = changedFilters(applied))
                 if (!fresh) Text(if (graph.findGear.query == applied) "Gear changed since this search" else "Filters changed", style = zen(11.sp, FontWeight.Medium, C.deepPink), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                else Text("${slots(applied)} · ${sets(graph, applied)}${if (applied.mains.isNotEmpty()) " · " + mains(applied) else ""}", style = zen(11.sp, FontWeight.Medium, C.muted),
+                else Text(claims("${slots(applied)} · ${sets(graph, applied)}${if (applied.mains.isNotEmpty()) " · " + mains(applied) else ""}"), style = zen(11.sp, FontWeight.Medium, C.muted),
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Pill("Edit", onClick = edit)

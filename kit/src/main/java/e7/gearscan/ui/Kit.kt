@@ -148,6 +148,10 @@ fun Card(
 }
 
 /** One line that shrinks (to 70%) rather than wrapping or clipping; for numbers, ranks and button labels. */
+/** A " · " line breaks between claims, never inside one shorter than 25 characters (owner, 2026-11-04). */
+fun claims(s: String): String = if (" · " !in s) s
+    else s.split(" · ").joinToString("\u00A0· ") { part -> if (part.length <= 24) part.replace(' ', '\u00A0') else part }
+
 @Composable
 fun FitText(text: String, style: TextStyle, modifier: Modifier = Modifier, textAlign: TextAlign? = null, short: String? = null) {
     var scale by remember(text, style) { mutableFloatStateOf(1f) }

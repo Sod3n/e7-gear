@@ -65,7 +65,7 @@ private fun HistoryRow(graph: AppGraph, e: HistoryEntry) {
             }
         }) {
         Text(e.title, style = zen(13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Text("${historyStamp(e.at)} · ${e.detail} · ${e.moves} " + (if (e.moves == 1) "move" else "moves") +
+        Text(claims("${historyStamp(e.at)} · ${e.detail} · ${e.moves} ") + (if (e.moves == 1) "move" else "moves") +
             (if (e.pool && e.reviewed.isNotEmpty()) " · ${e.reviewed.size} reviewed" else "") + if (e.at == graph.pool.pending) " · pending" else "",
             style = zen(11.sp, FontWeight.Medium, C.muted), maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
@@ -74,6 +74,6 @@ private fun HistoryRow(graph: AppGraph, e: HistoryEntry) {
 /** Over a run opened from history: when it was, and why there's nothing to equip. */
 @Composable
 fun HistoryNote(at: Long) {
-    Text("From history · ${historyStamp(at)}. Gear may have moved since; each piece shows where it is now. The checklist works, flagged as from history.",
+    Text(claims("From history · ${historyStamp(at)}. Gear may have moved since; each piece shows where it is now. The checklist works, flagged as from history."),
         style = zen(11.sp, FontWeight.Medium, C.deepPink))
 }

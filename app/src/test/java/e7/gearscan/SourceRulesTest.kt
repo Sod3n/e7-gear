@@ -40,6 +40,16 @@ class SourceRulesTest {
     }
 
     @Test
+    fun separatedTextBreaksBetweenClaims() {
+        // owner, 2026-11-04: "It is more convenient to move whole claim to new line"
+        val bad = Regex("""(?<![A-Za-z.])Text\(\s*"[^"\n]*\s·\s""")
+        val hits = sources().filter { it.extension == "kt" }.flatMap { f ->
+            f.readLines().withIndex().filter { bad.containsMatchIn(it.value) }.map { "${f.name}:${it.index + 1}: ${it.value.trim()}" }
+        }.toList()
+        assertTrue("a \" · \" text must go through claims():\n" + hits.joinToString("\n"), hits.isEmpty())
+    }
+
+    @Test
     fun chancesReadAsPercents() {
         val bad = Regex(""""[^"\n]*\b1 in [\d$]""")
         val hits = sources().filter { it.extension == "kt" }.flatMap { f ->

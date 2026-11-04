@@ -76,7 +76,7 @@ internal fun GoalLines(item: Item, minimums: Map<GearStat, Double>, size: Int = 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 StatIcon(t.stat, size.dp, color)
                 // past the target, "22 → 20" would read as going down; a missing line is a dash, not a zero
-                Text(when { met -> "${t.format(now)} · met"; sub == null -> "— → ${t.format(want)}"; else -> "${t.format(now)} → ${t.format(want)}" },
+                Text(claims(when { met -> "${t.format(now)} · met"; sub == null -> "— → ${t.format(want)}"; else -> "${t.format(now)} → ${t.format(want)}" }),
                     style = zen(size.sp, FontWeight.Bold, color), softWrap = false)
                 Box(Modifier.weight(1f).height(5.dp).clip(RoundedCornerShape(3.dp)).background(C.line)) {
                     Box(Modifier.fillMaxWidth((now / want).coerceIn(0.0, 1.0).toFloat()).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(C.blue))

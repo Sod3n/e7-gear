@@ -169,7 +169,7 @@ fun SheetHost(graph: AppGraph) {
                 SheetKind.HERO_UPGRADE_HELP -> HeroUpgradeHelpSheet(graph)
                 SheetKind.HERO_UPGRADE_SETTINGS -> HeroUpgradeSettingsSheet(graph)
                 SheetKind.HERO_UPGRADE_BUILD -> HeroUpgradeBuildSheet(graph)
-                SheetKind.SELL_SAFEGUARDS,SheetKind.SELL_EXTRA,SheetKind.SELL_WORTH,SheetKind.SELL_SCORE,SheetKind.SELL_WEIGHTS,SheetKind.SELL_FLOORS,SheetKind.SELL_CUSTOMS,SheetKind.SELL_HEROES,SheetKind.SELL_INVENTORY,SheetKind.SELL_SLOTS,SheetKind.SELL_SETS,SheetKind.SELL_MAINS,SheetKind.SELL_LEVELS,SheetKind.SELL_QUALITY,SheetKind.SELL_DETAILS,SheetKind.SELL_HELP -> SellSheet(graph,sheet)
+                SheetKind.SELL_SAFEGUARDS,SheetKind.SELL_EXTRA,SheetKind.SELL_WORTH,SheetKind.SELL_INVENTORY,SheetKind.SELL_SLOTS,SheetKind.SELL_SETS,SheetKind.SELL_MAINS,SheetKind.SELL_DETAILS,SheetKind.SELL_HELP -> SellSheet(graph,sheet)
             }
         }
     }
@@ -370,7 +370,7 @@ private fun TargetEditor(graph: AppGraph, req: Request, st: Stat, now: Double?, 
             Text(if (st == Stat.CR && req.capCrit && req.maxs[i].isNaN()) "105 by default: over 100 is wasted"
                 else "Builds above it are left out", style = zen(11.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f).padding(bottom = 6.dp))
         }
-        Text("WEIGHT · how much a miss hurts", style = zen(11.sp, color = C.muted))
+        Text(claims("WEIGHT · how much a miss hurts"), style = zen(11.sp, color = C.muted))
         WeightBar(req.weights[i]) { req.weights[i] = it; graph.rev.bump() }
     }
 }
@@ -622,8 +622,8 @@ private fun ArtifactSheet(graph: AppGraph, sheet: Sheet) {
                 Column(Modifier.weight(1f)) {
                     Text(a.name, style = zen(13.sp, color = if (on) C.deepPink else C.ink), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     // some artifacts exist twice: the class one and a later all-class one with the same name
-                    Text((if (a.role == null) "All classes · " else "") +
-                        listOfNotNull("Atk ${fmtNum(a.atk)}".takeIf { a.atk > 0 }, "Hp ${fmtNum(a.hp)}", "Def ${fmtNum(a.def)}".takeIf { a.def > 0 }).joinToString(" · ") + " at +30",
+                    Text(claims((if (a.role == null) "All classes · " else "") +
+                        listOfNotNull("Atk ${fmtNum(a.atk)}".takeIf { a.atk > 0 }, "Hp ${fmtNum(a.hp)}", "Def ${fmtNum(a.def)}".takeIf { a.def > 0 }).joinToString(" · ") + " at +30"),
                         style = zen(10.sp, FontWeight.Medium, C.muted))
                 }
                 Box(Modifier.size(16.dp)) { if (on) CheckMark(16.dp, C.deepPink) }
