@@ -309,6 +309,12 @@ fun ResultsScreen(graph: AppGraph) {
         // history and other finished lists without a ghost run have nothing to report there
         if (req.ghost && (s.running || s.ghostRunning || s.ghostSearched)) GhostBand(graph, s, r, if (byMatch) h.id else null)
         ModsLine(graph, s, req)
+        // any search that hit its time limit can go longer, found builds or not
+        if (!s.running && s.builds.isNotEmpty() && s.timedOut && !s.cancelled && s.limitMs < graph.optimize.longLimitMs)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Stopped at ${s.limitMs / 1000} s · a better build may exist", style = zen(12.sp, FontWeight.Medium, C.muted), modifier = Modifier.weight(1f))
+                OutlineButton("Search for ${graph.optimize.longLimitMs / 1000} s", height = 36.dp) { graph.optimize.startSearch(graph.optimize.longLimitMs) }
+            }
         val cur = s.current
         if (!s.running && s.builds.isEmpty()) {
             Card(shadow = null, radius = 14.dp, border = 2.dp) {

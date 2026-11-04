@@ -728,6 +728,14 @@ class ScreenAudit {
             if (rule.onAllNodesWithText("Search for 60 s").fetchSemanticsNodes().isEmpty()) add("a timed-out empty search offers no longer search", "results-none-timeout")
             if (rule.onAllNodesWithText("No build meets these rules.").fetchSemanticsNodes().isNotEmpty()) add("a timed-out search claims no build exists", "results-none-timeout")
         })
+        steps.add("results-timeout" to {
+            ui {
+                graph.optimize.search = SearchState(hero, false, builds = single!!.builds, current = single.current, timedOut = true, limitMs = 15_000L)
+                graph.nav.stack = listOf(Screen.Optimize, Screen.Results)
+            }
+            rule.waitForIdle()
+            if (rule.onAllNodesWithText("Search for 60 s").fetchSemanticsNodes().isEmpty()) add("a timed-out search with builds offers no longer search", "results-timeout")
+        })
         steps.add("results-none-done" to { ui { graph.optimize.search = single; graph.nav.stack = listOf(Screen.Optimize, Screen.Results) } })
         // a build with modded pieces, made from the real #1 so the mod display is checked without a slow mods search
         steps.add("results-mods" to {
