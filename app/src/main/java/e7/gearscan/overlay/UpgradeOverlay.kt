@@ -90,13 +90,18 @@ private class UpgradeDraft(val record: UpgradeRecord, val correction: Boolean) {
 }
 
 /** The rail's rows, in dp; the body takes what is left of the screen height under [RAIL_TOP]. */
-private const val RAIL_PAD = 6f
-private const val TOP_ROW = 32f
-private const val TOP_ROW_COMPACT = 24f
+private const val RAIL_PAD = 5f
+private const val TOP_ROW = 26f
+private const val TOP_ROW_COMPACT = 22f
 private const val NAV_ROW = 30f
-private const val COUNT_ROW = 14f
-private const val ACTION = 34f
-private const val ACTION_COMPACT = 28f
+private const val COUNT_ROW = 12f
+private const val ACTION = 28f
+private const val ACTION_COMPACT = 24f
+private const val BACK_ROW = 24f
+private const val BACK_ROW_COMPACT = 22f
+
+/** The tile, its score and the verdict chip under it: the cell's left column. */
+private const val CELL_LEFT = 34f
 private const val SMALL = 28f
 private const val STAT_SIZE = 11
 private const val STAT_SIZE_SMALL = 9
@@ -150,20 +155,21 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
     val pieceButtons = if (t.isSellQueue) 2 + (if (recordable) 1 else 0)
         else listOf(recordable, item.enhance == 15 && item.level == 85 && t.canReforge(item.id),
             item.enhance == 15 && t.checkRun.equipHeroes.isNotEmpty() && t.worn.equippedOn == null).count { it }
-    fun chromeOf(top: Float, action: Float) = 2 * RAIL_PAD + top + 2 * GAP + slots * action + (slots - 1) * GAP + rows
+    fun chromeOf(top: Float, action: Float, back: Float) = 2 * RAIL_PAD + top + 2 * GAP + slots * action + (slots - 1) * GAP + rows +
+        if (back > 0) back + GAP else 0f
     val openVerdict = { if (!t.editing) pane = if (!t.hasTarget) UpgradePane.ADVICE else UpgradePane.GOAL }
     val need = draft?.need() ?: 0f
     val shape = RoundedCornerShape(14.dp)
-    val rail: @Composable (Boolean, Int) -> Unit = { roomy, statSize ->
+    val rail: @Composable (Boolean, Int, Boolean) -> Unit = { roomy, statSize, backOnTop ->
         val topRow = if (roomy) TOP_ROW else TOP_ROW_COMPACT
         val action = if (roomy) ACTION else ACTION_COMPACT
-        val chrome = chromeOf(topRow, action)
+        val back = if (backOnTop) 0f else if (roomy) BACK_ROW else BACK_ROW_COMPACT
+        val chrome = chromeOf(topRow, action, back)
         val bodyCap = (usable - 12 - chrome).coerceAtLeast(BODY_FLOOR)
         Column(Modifier.popIn(w).padding(end = 4.dp, bottom = 4.dp).width(RAIL_WIDTH.dp).hardShadow(C.pink, 3.dp, 3.dp, 14.dp).clip(shape).background(C.card)
             .border(2.dp, C.edge, shape).testTag("gear-tracker-panel").padding(RAIL_PAD.dp), verticalArrangement = Arrangement.spacedBy(GAP.dp)) {
             Row(Modifier.fillMaxWidth().height(topRow.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(GAP.dp)) {
-                // everything else (correct, history, stop) lives in E7 Gear's Track upgrades
-                PanelAction("<", Modifier.weight(1f), enabled = !t.editing, label = "Back to E7 Gear") { pane = UpgradePane.PIECE; t.returnToApp() }
+                if (backOnTop) PanelAction("<", Modifier.weight(1f), enabled = !t.editing, label = "Back to E7 Gear") { pane = UpgradePane.PIECE; t.returnToApp() }
                 if (t.isSellQueue) PanelAction("", Modifier.weight(1f), enabled = t.canUndoSold && !t.editing, label = "Undo last mark", icon = { UndoArrow(it) }) { t.undoSold(); pane = UpgradePane.PIECE }
                 PanelAction("–", Modifier.weight(1f), label = "Collapse tracker") { w.expanded = false; onDock(false) }
             }
@@ -180,8 +186,12 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
             }
             PanelBody(Modifier.fillMaxWidth(), floor = BODY_FLOOR.dp, cap = bodyCap.dp, need = need.dp,
                 // the nav row's room while it hides, and a draft's unused button slots: the rail keeps its height and Back stays put
-                extra = ((if (navWalk && !queueRow) NAV_ROW + GAP else 0f) +
-                    (draft?.let { (pieceButtons - it.buttons()) * (action + GAP) } ?: 0f)).dp,
+                // rounded per row like the rows themselves, or the buttons land a pixel off
+                extra = with(LocalDensity.current) {
+                    val gap = GAP.dp.roundToPx()
+                    ((if (navWalk && !queueRow) NAV_ROW.dp.roundToPx() + gap else 0) +
+                        (draft?.let { (pieceButtons - it.buttons()) * (action.dp.roundToPx() + gap) } ?: 0)).toDp()
+                },
                 natural = { RailPiece(t, item.fourLines(), 10_000f, es, onMove, measure = true, statSize = statSize) {} }) { fits ->
             BoxWithConstraints(Modifier.fillMaxSize().testTag("gear-tracker-body")) {
                 when {
@@ -241,15 +251,20 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                     }
                 }
             }
+            // the way back to the app sits under the buttons, the length of the rail (owner's layout); everything else
+            // (correct, history, stop) lives in E7 Gear's Track upgrades
+            if (!backOnTop) PanelAction("<", Modifier.fillMaxWidth().height(back.dp), enabled = !t.editing, label = "Back to E7 Gear") { pane = UpgradePane.PIECE; t.returnToApp() }
         }
     }
     // the piece is measured first; short of room it keeps its cell by giving up, in turn, the bigger buttons and then the bigger numbers
     SubcomposeLayout { c ->
         val natural = subcompose("natural") { Box(Modifier.padding(horizontal = 2.dp).clearAndSetSemantics { }) { RailPiece(t, item.fourLines(), 10_000f, es, onMove, measure = true) {} } }
             .maxOfOrNull { it.measure(Constraints(maxWidth = (RAIL_WIDTH - 2 * RAIL_PAD).dp.roundToPx())).height }?.toDp()?.value ?: 0f
-        val roomy = usable - 12 - chromeOf(TOP_ROW, ACTION) >= natural
-        val statSize = if (roomy || usable - 12 - chromeOf(TOP_ROW_COMPACT, ACTION_COMPACT) >= natural) STAT_SIZE else STAT_SIZE_SMALL
-        val placed = subcompose("rail") { rail(roomy, statSize) }.map { it.measure(c) }
+        val roomy = usable - 12 - chromeOf(TOP_ROW, ACTION, BACK_ROW) >= natural
+        val statSize = if (roomy || usable - 12 - chromeOf(TOP_ROW_COMPACT, ACTION_COMPACT, BACK_ROW_COMPACT) >= natural) STAT_SIZE else STAT_SIZE_SMALL
+        // a window too short for even the compact rail keeps the way back on top, where it can't fall off the screen
+        val backOnTop = usable - 12 - chromeOf(TOP_ROW_COMPACT, ACTION_COMPACT, BACK_ROW_COMPACT) < BODY_FLOOR
+        val placed = subcompose("rail") { rail(roomy, statSize, backOnTop) }.map { it.measure(c) }
         layout(placed.maxOfOrNull { it.width } ?: 0, placed.maxOfOrNull { it.height } ?: 0) { placed.forEach { it.place(0, 0) } }
     }
 }
@@ -295,24 +310,28 @@ private fun RailPiece(t: TrackerFeature, item: Item, height: Float, es: EsForeca
     CompositionLocalProvider(LocalDensity provides androidx.compose.ui.unit.Density(d.density, min(d.fontScale, 1f))) {
         Column(if (measure) Modifier else Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             // the tile's +level badge sits above its corner: the top padding keeps it inside the body
-            Row(Modifier.fillMaxWidth().dragWindow(onMove).padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            // the cell takes the touch: a drag moves the rail, a tap opens the verdict
+            Row(Modifier.fillMaxWidth().dragWindow(onMove, onTap = if (measure) null else onVerdict).padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                Column(Modifier.width(CELL_LEFT.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     GearTile(item, 32.dp, setIcon = t.setIcon)
                     Text("${InventoryOrder.score(item)}", style = dela(11.sp))
+                    // a sell walk's verdict sits under the score (owner's layout)
+                    if (t.hasEs) Box(Modifier.fillMaxWidth().then(if (measure) Modifier else Modifier.semantics { contentDescription = "Verdict details" })) {
+                        // while the forecast loads the chip keeps its room, so nothing shifts and a tap still opens the verdict
+                        if (es != null) EsChip(es, t.rollOn, fill = true)
+                        else EsChip(EsForecast.Es(0, 1, 0.0, 1.0, 1.0, false, true, 1.0, 1.0), 0.0, fill = true, modifier = Modifier.alpha(0f))
+                    }
                 }
-                StatStack(item, highlight = t.goal?.minimums?.keys ?: emptySet(), size = statSize)
+                StatStack(item, Modifier.weight(1f), highlight = t.goal?.minimums?.keys ?: emptySet(), size = statSize, fit = true)
             }
-            // the verdict sits on the buttons, so a three-substat piece moves nothing
-            if (!measure) Spacer(Modifier.weight(1f))
-            Column(Modifier.fillMaxWidth().tap(onVerdict).then(if (measure) Modifier else Modifier.semantics { contentDescription = "Verdict details" }), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                if (t.hasEs) {
-                    if (es != null) EsChip(es, t.rollOn, fill = true)
-                    else if (measure) EsChip(EsForecast.Es(0, 1, 0.0, 1.0, 1.0, false, true, 1.0, 1.0), 0.0, fill = true, modifier = Modifier.alpha(0f))
-                } else {
+            if (!t.hasEs) {
+                // the verdict sits on the buttons, so a three-substat piece moves nothing
+                if (!measure) Spacer(Modifier.weight(1f))
+                Column(Modifier.fillMaxWidth().tap(onVerdict).then(if (measure) Modifier else Modifier.semantics { contentDescription = "Verdict details" }), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     val badge = chanceBadge(t)
                     FitText(badge, dela(18.sp, if (badge in setOf("Rare", "Stop", "0%")) C.deepPink else C.blue))
+                    t.goal?.let { GoalLines(item, it.minimums, size = 9) }
                 }
-                t.goal?.let { GoalLines(item, it.minimums, size = 9) }
             }
         }
     }
@@ -327,7 +346,7 @@ private fun DraftBody(d: UpgradeDraft, height: Float) {
         }
         EntryPage.VALUE -> Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             ValueSlider(d.input, d.bounds.minimum, d.bounds.maximum, Modifier.weight(1f).fillMaxHeight(), { d.input = it }) { d.apply() }
-            Column(Modifier.width(44.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+            Column(Modifier.width(36.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally) {
                 StatIcon(d.type.stat, 14.dp, C.ink)
                 FitText(d.type.short, zen(10.sp))

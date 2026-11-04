@@ -141,7 +141,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     }
 
     private fun show() {
-        w.usableHeightDp = screen().height() / resources.displayMetrics.density
+        w.usableHeightDp = railHeightPx() / resources.displayMetrics.density
         if (view != null) { dock(w.expanded); return }
         val d = resources.displayMetrics.density
         params = WindowManager.LayoutParams(
@@ -224,7 +224,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         e7.gearscan.ui.Themes.load(this)
-        w.usableHeightDp = screen().height() / resources.displayMetrics.density
+        w.usableHeightDp = railHeightPx() / resources.displayMetrics.density
         if (!w.expanded) placeBubble()
     }
 
@@ -426,6 +426,14 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
      * Where the overlay can sit now, in its own coordinates: between the system bars, which is where the window
      * manager places it. displayMetrics can keep the portrait size after the game turns the screen.
      */
+    /** The game hides the status and navigation bars and the rail draws over them, so only the camera cutout takes height. */
+    private fun railHeightPx(): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val m = wm.currentWindowMetrics
+            val i = m.windowInsets.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.displayCutout())
+            m.bounds.height() - i.top - i.bottom
+        } else screen().height()
+
     private fun screen(): android.graphics.Rect =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val m = wm.currentWindowMetrics

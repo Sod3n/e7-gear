@@ -46,18 +46,20 @@ internal fun esTint(es: EsForecast.Es, rollOn: Double) = when (esKeeps(es)) {
 @Composable
 internal fun EsChip(es: EsForecast.Es, rollOn: Double, fill: Boolean = false, modifier: Modifier = Modifier) {
     val text = when {
-        !es.supported || es.bar == null -> "No forecast"
-        es.reached -> "At bar ${es.bar}"
+        !es.supported || es.bar == null -> if (fill) "No data" else "No forecast"
+        es.reached -> if (fill) "At bar" else "At bar ${es.bar}"
         // a sell names its best ending, so the gap to the bar is the fact on the card
-        esKeeps(es) == false -> es.best?.let { "Max ${kotlin.math.floor(it).toInt()}" } ?: "Below bar ${es.bar}"
+        esKeeps(es) == false -> es.best?.let { "Max ${kotlin.math.floor(it).toInt()}" } ?: if (fill) "Below" else "Below bar ${es.bar}"
+        fill -> Chance(es.chance).text
         else -> "${Chance(es.chance).text} reach ${es.bar}"
     }
-    val shape = RoundedCornerShape(999.dp)
+    // fill: the narrow chip under the score on the rail over the game, less rounded so its text has the room
+    val shape = RoundedCornerShape(if (fill) 6.dp else 999.dp)
     val tint = esTint(es, rollOn)
     // fill: as wide as its column, the text shrinking to fit (the narrow panel over the game)
     Box(modifier.then(if (fill) Modifier.fillMaxWidth() else Modifier).clip(shape).background(tint.copy(alpha = .13f)).border(1.5.dp, tint, shape)
-        .padding(horizontal = if (fill) 6.dp else 9.dp, vertical = 3.dp), contentAlignment = Alignment.Center) {
-        if (fill) FitText(text, zen(11.sp, color = tint)) else Text(text, style = zen(11.sp, color = tint))
+        .padding(horizontal = if (fill) 2.dp else 9.dp, vertical = if (fill) 2.dp else 3.dp), contentAlignment = Alignment.Center) {
+        if (fill) FitText(text, zen(9.sp, color = tint)) else Text(text, style = zen(11.sp, color = tint))
     }
 }
 

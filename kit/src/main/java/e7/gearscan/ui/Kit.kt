@@ -384,27 +384,27 @@ fun StatValue(stat: Stat, text: String, color: Color = C.ink, size: Int = 12) {
  *  改 marks a mod: blue done in game, pink suggested. [highlight] colours the stats a search asks for. */
 @Composable
 fun StatStack(item: Item, modifier: Modifier = Modifier, reforged: Boolean = false, main: Boolean = true,
-              highlight: Set<e7.gearscan.data.GearStat> = emptySet(), size: Int = 11) {
+              highlight: Set<e7.gearscan.data.GearStat> = emptySet(), size: Int = 11, fit: Boolean = false) {
     val minWidth = with(LocalDensity.current) { (size * 4.1f).sp.toDp() } + size.dp + 4.dp
-    Column(modifier.widthIn(min = minWidth), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+    Column(if (fit) modifier else modifier.widthIn(min = minWidth), verticalArrangement = Arrangement.spacedBy(1.dp)) {
         if (main) {
             val ref = reforged && item.reforgeable
             StackLine(item.mainType.stat, item.mainType.format(if (ref) e7.gearscan.calc.Reforge.main(item.mainType, item.mainValue) else item.mainValue),
-                C.ink, size + 1, FontWeight.Black)
+                C.ink, size + 1, FontWeight.Black, fit)
         }
         item.subs.forEachIndexed { i, s ->
             val tint = when { item.mod?.index == i -> C.deepPink; s.modified -> C.blue; s.type in highlight -> C.blue; else -> C.muted }
             StackLine(s.type.stat, s.type.format(e7.gearscan.calc.Calc.subValue(item, i, reforged)) + if (item.mod?.index == i || s.modified) " 改" else "",
-                tint, size, if (tint == C.deepPink) FontWeight.Black else FontWeight.Bold)
+                tint, size, if (tint == C.deepPink) FontWeight.Black else FontWeight.Bold, fit)
         }
     }
 }
 
 @Composable
-private fun StackLine(stat: Stat, text: String, color: Color, size: Int, weight: FontWeight) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+private fun StackLine(stat: Stat, text: String, color: Color, size: Int, weight: FontWeight, fit: Boolean = false) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (fit) 3.dp else 4.dp)) {
         StatIcon(stat, size.dp, color)
-        Text(text, style = zen(size.sp, weight, color), softWrap = false)
+        if (fit) FitText(text, zen(size.sp, weight, color), Modifier.weight(1f, fill = false)) else Text(text, style = zen(size.sp, weight, color), softWrap = false)
     }
 }
 

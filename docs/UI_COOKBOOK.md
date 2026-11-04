@@ -111,8 +111,13 @@ text lengths.
 - Example: sliders snap to meaningful stops (upgrade steps, 22 chances), and the far-left stop means off.
 - Said (2026-11-04, the rail over the game): "some buttons kinda small on overlay?", "recording new substat is not very
   convenient", "Hide/undo/back buttons full wide", "make whole overlay less wider", "make text for artifact numbers
-  larger". A walk moves on with the buttons that decide (Sold ›, Keep ›), not separate arrows; a row of buttons fills
-  its width; a value is picked on a vertical slider with every value marked, and lifting the finger picks it. The rail
+  larger". I read "full wide" as one filled row and built it; the owner: "you completely didnt understand what I was
+  suggesting", and placed the pieces themselves in a placement page (cache/e7gear_mock/rail-editor). Their layout is
+  the spec: 84 dp rail; undo and hide side by side on top; count; tile, score and a narrow less-rounded verdict chip in
+  the left column, stats at 11 sp on the right; Sold ›, Keep ›, Record full width; "<" back to the app full width at
+  the bottom. When a layout request has two readings, mock both or hand over a placement page before building.
+  A walk moves on with the buttons that decide (Sold ›, Keep ›), not separate arrows; a value is picked on a vertical
+  slider with every value marked, and lifting the finger picks it. The rail
   measures the piece before choosing sizes: big buttons only while the piece keeps its cell, then compact buttons, then
   smaller numbers; text pages are the last resort. Check it at the owner's 792 x 353 dp landscape, not a portrait box.
   It may cover the game's first inventory column's icons, never its substats ("it is fine, because I still can see
