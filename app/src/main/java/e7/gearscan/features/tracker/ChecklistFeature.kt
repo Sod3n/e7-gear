@@ -101,6 +101,7 @@ class ChecklistFeature(ctx: FeatureContext, private val contentFeature: ContentF
                 holder == heroId,
                 it.mod?.takeIf { modStep }?.let { m -> "${m.from.short} ${m.from.format(m.fromValue)} → ${m.to.short} ${m.to.format(m.toValue)}" },
                 box?.itemsById?.get(it.id) ?: it, shown, reforgeStep = reforgeStep,
+                ownerFace = holder?.takeIf { h -> h != heroId }.let(heroes::faceOf),
             )
         }
         val pieces = items.map { step(it, false) } + items.filter(::needsReforge).map { step(it, false, true) } + items.filter { it.mod != null }.map { step(it, true) }

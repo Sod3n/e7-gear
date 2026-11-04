@@ -138,6 +138,9 @@ grids with a centred short last row, every stat with its icon, both themes.
 - Every frame ends at its content: sheets, cards and the floating panel over the game. A fixed-size frame with a large
   empty area reads as something missing. Said, on the overlay panel that stayed two-thirds empty on a piece: "submenus
   dont fit height by content". Keep a size fixed only while one thing is shown, so buttons don't jump between its pages.
+- A gear tile is the game's inventory cell: level, +N, set at the bottom right and, for a piece another hero wears, that
+  hero's face at the bottom left (`GearTile(wearer = heroes.faceOf(id))`). Said: "add hero icon if somebody currently
+  uses this piece, like in game", then "search for other places where gear shows 'on X hero'".
 - Ask: does it look like a finished screen next to the existing ones, in light and dark? Does any frame have empty
   space its content doesn't use?
 

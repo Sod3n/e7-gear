@@ -430,7 +430,8 @@ fun rankColor(rank: String) = when (rank) {
 
 
 @Composable
-fun GearTile(item: Item?, size: Dp = 44.dp, slotIcon: String? = null, setIcon: String? = null, plusBadge: Boolean = true, onClick: (() -> Unit)? = null) {
+fun GearTile(item: Item?, size: Dp = 44.dp, slotIcon: String? = null, setIcon: String? = null, plusBadge: Boolean = true, wearer: String? = null,
+             onClick: (() -> Unit)? = null) {
     val shape = RoundedCornerShape(10.dp)
     val ghost = item?.ghost == true
     val inset = with(LocalDensity.current) { 4.dp.toPx() }
@@ -457,6 +458,8 @@ fun GearTile(item: Item?, size: Dp = 44.dp, slotIcon: String? = null, setIcon: S
         }
         if (item != null) {
             if (setIcon != null) Box(Modifier.align(Alignment.BottomEnd).offset(4.dp, 4.dp)) { SetIcon(setIcon, size * 0.38f) }
+            // the hero wearing it, where the game's inventory cell shows them
+            if (wearer != null && size >= 30.dp) Box(Modifier.align(Alignment.BottomStart).offset((-3).dp, 3.dp)) { Face(wearer, size * 0.45f, ring = C.edge, ringWidth = 1.5.dp) }
         }
     }
 }

@@ -470,7 +470,7 @@ fun DiffItemsScreen(graph: AppGraph, kind: Int) {
 fun ItemRow(graph: AppGraph, it: Item, owner: String? = null) {
     Card(shadow = null, radius = 12.dp, border = 2.dp, padding = androidx.compose.foundation.layout.PaddingValues(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            GearTile(it, 44.dp, setIcon = graph.content.content.set(it.set)?.icon)
+            GearTile(it, 44.dp, setIcon = graph.content.content.set(it.set)?.icon, wearer = graph.heroes.faceOf(it.equippedOn))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.Top) {
                     StatStack(it, Modifier.weight(1f))

@@ -34,7 +34,7 @@ internal fun GearSearchIdentity(graph: AppGraph, original: Item, highlight: Set<
             trailing?.invoke()
         }
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GearTile(item, 46.dp, setIcon = graph.content.content.set(item.set)?.icon)
+            GearTile(item, 46.dp, setIcon = graph.content.content.set(item.set)?.icon, wearer = if (owner) graph.heroes.faceOf(item.equippedOn) else null)
             StatStack(item, highlight = highlight)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 side?.invoke(this)

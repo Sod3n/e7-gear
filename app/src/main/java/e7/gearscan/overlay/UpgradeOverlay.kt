@@ -561,11 +561,10 @@ private fun ValueSlider(value: Double, minimum: Double, maximum: Double, modifie
 @Composable
 private fun RailTile(item: Item, setIcon: String?, wearer: String?) {
     Box(Modifier.size(TILE.dp)) {
-        GearTile(item, TILE.dp, setIcon = setIcon, plusBadge = false)
+        GearTile(item, TILE.dp, setIcon = setIcon, plusBadge = false, wearer = wearer)
         Text("${item.level}", style = dela(10.sp, C.onTile), modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 3.dp))
         if (item.enhance > 0) Text("+${item.enhance}", style = dela(10.sp, C.onAccent), modifier = Modifier.align(Alignment.TopEnd).offset(3.dp, (-4).dp)
             .clip(RoundedCornerShape(5.dp)).background(C.pink).padding(horizontal = 3.dp, vertical = 1.dp))
-        if (wearer != null) Box(Modifier.align(Alignment.BottomStart).offset((-3).dp, 3.dp)) { Face(wearer, (TILE * 0.45f).dp, ring = C.edge, ringWidth = 1.5.dp) }
     }
 }
 

@@ -60,6 +60,8 @@ class OverlayPiece(
     val forHero: String? = null,
     /** A reforge step: the build counts this finished level 85 piece as reforged and it isn't yet. */
     val reforgeStep: Boolean = false,
+    /** The face of the other hero wearing it now. */
+    val ownerFace: String? = null,
 ) {
     /** The game modifies gear in another menu than it equips, so a mod is its own step, after all the equipping. */
     val modStep get() = mod != null

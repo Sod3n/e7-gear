@@ -83,6 +83,8 @@ class HeroesFeature(ctx: FeatureContext, private val contentFeature: ContentFeat
 
     fun face(h: OwnedHero) = content.face(h.code)
 
+    fun faceOf(id: Long?): String? = id?.let(::hero)?.let(::face)
+
     fun config(id: Long): HeroConfig = configs.getOrPut(id) { HeroConfig() }
 
     fun request(id: Long): Request {
