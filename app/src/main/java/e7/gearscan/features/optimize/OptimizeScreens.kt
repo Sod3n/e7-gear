@@ -600,25 +600,14 @@ private fun GearCard(graph: AppGraph, it: Item?, heroId: Long, reforged: Boolean
     val shape = RoundedCornerShape(10.dp)
     Row(modifier.clip(shape).background(if (it?.ghost == true) C.ghostBg else C.card)
         .then(if (it?.ghost == true) Modifier.dashedBorder(C.blue, 2.dp, 10.dp) else Modifier.border(2.dp, C.edge, shape))
-        .padding(7.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GearTile(it, 40.dp, setIcon = it?.let { i -> graph.content.content.set(i.set)?.icon })
+        .padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // the face on the tile says whose piece it is; a tap opens the build of the hero it comes from
+        val holder = it?.equippedOn?.takeIf { h -> h != heroId && !it.ghost }
+        val link = holder?.takeIf { h -> openHolder != null && graph.pool.state?.builds?.get(h) != null }
+        GearTile(it, 56.dp, setIcon = it?.let { i -> graph.content.content.set(i.set)?.icon }, onClick = link?.let { h -> { openHolder!!(h) } })
         Column(Modifier.weight(1f)) {
             if (it == null) { Text("Empty", style = zen(12.sp, color = C.muted)); return@Column }
-            StatStack(it, reforged = reforged, size = 10)
-            VSpace(2.dp)
-            run {
-                val who = when {
-                    it.ghost -> "ghost"
-                    it.equippedOn == null -> "free"
-                    it.equippedOn == heroId -> "own"
-                    else -> graph.heroes.hero(it.equippedOn!!)?.let(graph.heroes::heroName) ?: "other"
-                }
-                val holder = it.equippedOn?.takeIf { h -> h != heroId && !it.ghost }
-                val link = holder?.takeIf { h -> openHolder != null && graph.pool.state?.builds?.get(h) != null }
-                Text(if (who == "own" || who == "free" || who == "ghost") who else "on $who", style = zen(10.sp, color = if (who == "own" || who == "free") C.muted else C.blue).copy(lineHeight = 12.sp,
-                    textDecoration = if (link != null) androidx.compose.ui.text.style.TextDecoration.Underline else null),
-                    maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.tap(link?.let { h -> { openHolder!!(h) } }))
-            }
+            StatStack(it, reforged = reforged, size = 11, fit = true)
             it.mod?.let { m -> Text("Mod ${m.from.short} ${m.from.format(m.fromValue)} → ${m.to.short}", style = zen(10.sp, color = C.deepPink), maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }
@@ -658,10 +647,6 @@ fun GhostBuildScreen(graph: AppGraph) {
                 val it = g.items.firstOrNull { x -> x.slot == sl }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     GearTile(it, 46.dp, setIcon = it?.let { i -> graph.content.content.set(i.set)?.icon })
-                    Text(when {
-                        it == null -> "—"; it.ghost -> "ghost"; it.equippedOn == s.heroId -> "own"; it.equippedOn == null -> "free"
-                        else -> graph.heroes.hero(it.equippedOn!!)?.let(graph.heroes::heroName)?.take(7) ?: "other"
-                    }, style = zen(10.sp, color = if (it?.ghost == true) C.blue else C.muted))
                 }
             }
         }
