@@ -497,7 +497,9 @@ private fun PanelAction(text: String, modifier: Modifier = Modifier, pink: Boole
         .clip(shape).background(if (!enabled) C.paper else if (pink) C.pink else C.card)
         .border(1.5.dp, if (pink || enabled) C.edge else C.line, shape).tap(if (enabled) click else null).semantics { contentDescription = label }.padding(horizontal = pad), contentAlignment = Alignment.Center) {
         val ink = if (!enabled) C.faint else if (pink) C.onAccent else C.ink
-        if (icon != null) icon(ink) else FitText(text, zen(if (text.length == 1) 15.sp else 10.sp, color = ink))
+        // the font sets these glyphs off centre, so they are drawn
+        val drawn = when (text) { "<", "‹" -> Glyph.LEFT; "›" -> Glyph.RIGHT; "–" -> Glyph.DASH; else -> null }
+        if (icon != null) icon(ink) else if (drawn != null) DrawnGlyph(drawn, ink) else FitText(text, zen(10.sp, color = ink))
     }
 }
 
@@ -550,6 +552,23 @@ private fun ValueSlider(value: Double, minimum: Double, maximum: Double, modifie
             drawText(text, topLeft = Offset(x + 13.dp.toPx(), y(v) - text.size.height / 2f))
         }
         drawCircle(C.ink, 9.dp.toPx(), Offset(x, y(value))); drawCircle(C.card, 5.dp.toPx(), Offset(x, y(value)))
+    }
+}
+
+private enum class Glyph { LEFT, RIGHT, DASH }
+
+@Composable
+private fun DrawnGlyph(glyph: Glyph, color: Color) = Canvas(Modifier.size(12.dp)) {
+    val stroke = 2.dp.toPx()
+    val c = Offset(size.width / 2, size.height / 2)
+    val h = size.height * 0.36f
+    when (glyph) {
+        Glyph.DASH -> drawLine(color, Offset(c.x - h, c.y), Offset(c.x + h, c.y), stroke, StrokeCap.Round)
+        else -> {
+            val dx = if (glyph == Glyph.LEFT) h / 2 else -h / 2
+            drawLine(color, Offset(c.x + dx, c.y - h), Offset(c.x - dx, c.y), stroke, StrokeCap.Round)
+            drawLine(color, Offset(c.x - dx, c.y), Offset(c.x + dx, c.y + h), stroke, StrokeCap.Round)
+        }
     }
 }
 

@@ -64,7 +64,7 @@ class QueueScreens {
         assertTrue(t.queue.none { graph.records.records[it.id]!!.item.slot == Slot.BOOTS })
         ui { t.show(); graph.overlay.expanded = true; graph.overlay.floating = true; graph.overlay.usableHeightDp = 0f; overlay = true }
         shot("31-queue-first-353-big")
-        tap("›"); assertEquals(1, t.queueIndex)
+        rule.onNodeWithContentDescription("Next gear").performClick(); rule.waitForIdle(); assertEquals(1, t.queueIndex)
         shot("32-queue-next-353-big")
         ui { t.selectInQueue(25) }
         assertEquals(25, t.queueIndex)
@@ -82,7 +82,7 @@ class QueueScreens {
         assertEquals(6.0, t.record!!.item.subs.last().value, 0.0)
         assertEquals(matches.size, t.queue.size)
         shot("37-recorded-in-queue-353-big")
-        tap("›"); tap("‹")
+        rule.onNodeWithContentDescription("Next gear").performClick(); rule.onNodeWithContentDescription("Previous gear").performClick(); rule.waitForIdle()
         assertEquals(helmet, t.queueIndex)
         assertEquals(12, t.record!!.item.enhance)
         val restored = reopenTracker(graph, ctx.filesDir)

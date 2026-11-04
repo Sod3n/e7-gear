@@ -15,6 +15,7 @@ import e7.gearscan.ui.Outcome
 
 class TrackStarts(private val t: TrackerFeature, private val ctx: FeatureContext, private val scan: ScanFeature, private val contentFeature: ContentFeature, private val marks: MarksFeature, private val records: RecordsFeature) {
     // tracking from Track upgrades itself must not stack a second copy, or back would name the screen it is on
+    // only a single piece opens Track upgrades: a list walk keeps the app on its list, where "<" over the game returns
     private fun show() { if (ctx.nav.screen != Screen.Upgrade) ctx.nav.go(Screen.Upgrade) }
 
     fun track(
@@ -37,7 +38,6 @@ class TrackStarts(private val t: TrackerFeature, private val ctx: FeatureContext
         t.checkRun.stopCheck()
         t.startQueue(entries, scan.lastScan)
         t.configure()
-        show()
         return if (openOverlay) t.openOverlay() else Outcome.Done
     }
 
@@ -58,7 +58,6 @@ class TrackStarts(private val t: TrackerFeature, private val ctx: FeatureContext
             }
         t.startQueue(entries, scan.lastScan, query)
         t.configure()
-        show()
         return if (openOverlay) t.openOverlay() else Outcome.Done
     }
 
@@ -81,7 +80,6 @@ class TrackStarts(private val t: TrackerFeature, private val ctx: FeatureContext
         if (items.isEmpty()) return Outcome.Done
         t.startQueue(items, scan.lastScan, source = "heroes")
         t.configure()
-        show()
         return t.openOverlay()
     }
 }

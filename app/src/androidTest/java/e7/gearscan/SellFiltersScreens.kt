@@ -116,6 +116,8 @@ class SellFiltersScreens {
         val byBar=result.matches.count { graph.sellReview.keptByBar(it) };assertTrue(byBar>0)
         tap("$byBar kept by ES bar");noPoints();shot("11b-kept-by-es-bar");tap("$byBar kept by ES bar")
         var started:Outcome?=null;ui { started=graph.trackMatches(openOverlay=false) };assertEquals(Outcome.Done,started)
+        // a walk started from the list keeps the app on the list, where "<" over the game comes back to
+        assertEquals(Screen.SellFilters,graph.nav.screen)
         assertEquals(result.matches.size-byBar,graph.tracker.queue.size);assertTrue(graph.tracker.queue.none { e->result.matches.first { it.item.id==e.id }.let(graph.sellReview::keptByBar) })
         // the rest walks many pieces: a bar no piece can reach keeps none out
         ui { graph.sellReview.edit(graph.sellReview.query.copy(esBar=300));graph.sellReview.find() };rule.waitUntil(90_000) { !graph.sellReview.busy };assertTrue(graph.sellReview.fresh)
