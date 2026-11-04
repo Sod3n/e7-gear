@@ -102,6 +102,7 @@ private const val BACK_ROW_COMPACT = 22f
 
 /** The tile, its score and the verdict chip under it: the cell's left column. */
 private const val CELL_LEFT = 34f
+private const val TILE = 32f
 private const val SMALL = 28f
 private const val STAT_SIZE = 11
 private const val STAT_SIZE_SMALL = 9
@@ -149,6 +150,7 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
     val countRow = t.queue.isNotEmpty() && t.isSellQueue
     val navWalk = t.queue.size > 1 && !t.isSellQueue
     val queueRow = navWalk && pane == UpgradePane.PIECE && !t.editing
+    val wearer = g.scan.box?.let { b -> b.itemsById[item.id]?.equippedOn?.let { id -> b.heroes.firstOrNull { it.id == id } } }?.let { g.heroes.face(it) }
     val slots = if (t.isSellQueue) 3 else 2
     val rows = if (countRow) COUNT_ROW + GAP else if (navWalk) NAV_ROW + GAP else 0f
     val recordable = item.enhance < 15 && UpgradeRecord.supported(item)
@@ -192,13 +194,13 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
                     ((if (navWalk && !queueRow) NAV_ROW.dp.roundToPx() + gap else 0) +
                         (draft?.let { (pieceButtons - it.buttons()) * (action.dp.roundToPx() + gap) } ?: 0)).toDp()
                 },
-                natural = { RailPiece(t, item.fourLines(), 10_000f, es, onMove, measure = true, statSize = statSize) {} }) { fits ->
+                natural = { RailPiece(t, item.fourLines(), 10_000f, es, onMove, measure = true, statSize = statSize, wearer = wearer) {} }) { fits ->
             BoxWithConstraints(Modifier.fillMaxSize().testTag("gear-tracker-body")) {
                 when {
                     t.error != null -> PanelTextPages(t.error!!, maxHeight.value)
                     t.sellQueueComplete -> PanelTextPages("List complete\n\nEvery piece in this list is marked sold or kept.\n\nRescan after selling to refresh the game inventory.", maxHeight.value)
                     draft != null -> DraftBody(draft, maxHeight.value)
-                    pane == UpgradePane.PIECE -> RailPiece(t, item, if (fits) maxHeight.value else 0f, es, onMove, statSize = statSize, onVerdict = openVerdict)
+                    pane == UpgradePane.PIECE -> RailPiece(t, item, if (fits) maxHeight.value else 0f, es, onMove, statSize = statSize, wearer = wearer, onVerdict = openVerdict)
                     pane == UpgradePane.GOAL -> GoalPage(t, maxHeight.value)
                     pane == UpgradePane.ADVICE -> PanelTextPages(adviceText(t), maxHeight.value)
                     pane == UpgradePane.EQUIP -> PanelChoices(t.checkRun.equipHeroes.map { "${it.name} · ${it.nowGain}" }, maxHeight.value, "Equipped on") { i ->
@@ -258,7 +260,7 @@ fun UpgradeOverlay(g: AppGraph, onMove: (Float, Float) -> Unit, onDock: (Boolean
     }
     // the piece is measured first; short of room it keeps its cell by giving up, in turn, the bigger buttons and then the bigger numbers
     SubcomposeLayout { c ->
-        val natural = subcompose("natural") { Box(Modifier.padding(horizontal = 2.dp).clearAndSetSemantics { }) { RailPiece(t, item.fourLines(), 10_000f, es, onMove, measure = true) {} } }
+        val natural = subcompose("natural") { Box(Modifier.padding(horizontal = 2.dp).clearAndSetSemantics { }) { RailPiece(t, item.fourLines(), 10_000f, es, onMove, measure = true, wearer = wearer) {} } }
             .maxOfOrNull { it.measure(Constraints(maxWidth = (RAIL_WIDTH - 2 * RAIL_PAD).dp.roundToPx())).height }?.toDp()?.value ?: 0f
         val roomy = usable - 12 - chromeOf(TOP_ROW, ACTION, BACK_ROW) >= natural
         val statSize = if (roomy || usable - 12 - chromeOf(TOP_ROW_COMPACT, ACTION_COMPACT, BACK_ROW_COMPACT) >= natural) STAT_SIZE else STAT_SIZE_SMALL
@@ -296,7 +298,7 @@ private fun chanceBadge(t: TrackerFeature) = if (!t.hasTarget && t.checkRun.resu
 /** The piece as the game's inventory cell (tile, ES under it, stats stacked beside it), then the verdict, which opens its page. */
 @Composable
 private fun RailPiece(t: TrackerFeature, item: Item, height: Float, es: EsForecast.Es?, onMove: (Float, Float) -> Unit, measure: Boolean = false,
-                      statSize: Int = STAT_SIZE, onVerdict: () -> Unit) {
+                      statSize: Int = STAT_SIZE, wearer: String? = null, onVerdict: () -> Unit) {
     if (height < 60 * LocalDensity.current.fontScale + 12) {
         // too short for the tile: the stats as text pages, and a tap on them opens the verdict like the chip does
         Box(Modifier.fillMaxSize().tap(onVerdict).then(if (measure) Modifier else Modifier.semantics { contentDescription = "Verdict details" })) {
@@ -313,7 +315,7 @@ private fun RailPiece(t: TrackerFeature, item: Item, height: Float, es: EsForeca
             // the cell takes the touch: a drag moves the rail, a tap opens the verdict
             Row(Modifier.fillMaxWidth().dragWindow(onMove, onTap = if (measure) null else onVerdict).padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                 Column(Modifier.width(CELL_LEFT.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    GearTile(item, 32.dp, setIcon = t.setIcon)
+                    RailTile(item, t.setIcon, wearer)
                     Text("${InventoryOrder.score(item)}", style = dela(11.sp))
                     // a sell walk's verdict sits under the score (owner's layout)
                     if (t.hasEs) Box(Modifier.fillMaxWidth().then(if (measure) Modifier else Modifier.semantics { contentDescription = "Verdict details" })) {
@@ -552,6 +554,18 @@ private fun ValueSlider(value: Double, minimum: Double, maximum: Double, modifie
             drawText(text, topLeft = Offset(x + 13.dp.toPx(), y(v) - text.size.height / 2f))
         }
         drawCircle(C.ink, 9.dp.toPx(), Offset(x, y(value))); drawCircle(C.card, 5.dp.toPx(), Offset(x, y(value)))
+    }
+}
+
+/** The piece as the game's inventory cell: level top-left, +N top-right, the wearer bottom-left, the set bottom-right. */
+@Composable
+private fun RailTile(item: Item, setIcon: String?, wearer: String?) {
+    Box(Modifier.size(TILE.dp)) {
+        GearTile(item, TILE.dp, setIcon = setIcon)
+        Text("${item.level}", style = dela(8.sp, C.onTile), modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 3.dp))
+        if (item.enhance > 0) Text("+${item.enhance}", style = dela(8.sp, C.onAccent), modifier = Modifier.align(Alignment.TopEnd).offset(3.dp, (-4).dp)
+            .clip(RoundedCornerShape(5.dp)).background(C.pink).padding(horizontal = 3.dp, vertical = 1.dp))
+        if (wearer != null) Box(Modifier.align(Alignment.BottomStart).offset((-3).dp, 3.dp)) { Face(wearer, (TILE * 0.45f).dp, ring = C.edge, ringWidth = 1.5.dp) }
     }
 }
 

@@ -80,6 +80,10 @@ class RailFitScreens {
         shot("01-sell-piece"); fits("piece")
         val soldTop = rule.onNodeWithContentDescription("Sold and next").getBoundsInRoot().top
         val verdictBottom = rule.onNodeWithContentDescription("Verdict details", useUnmergedTree = true).getBoundsInRoot().bottom
+        // the tile carries the game cell's marks: its +N chip (it vanished once when the tile shrank)
+        assertTrue(rule.onAllNodesWithText("+${t.record!!.item.enhance}", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        val worn = t.queue.indexOfFirst { e -> graph.scan.box!!.itemsById[e.id]?.equippedOn != null }
+        if (worn >= 0) { ui { t.selectInQueue(worn) }; shot("01b-worn-piece"); ui { t.selectInQueue(0) } }
         val heroic = t.queue.indexOfFirst { e -> graph.records.records[e.id]!!.item.let { it.rank == "Heroic" && it.enhance == 9 && it.subs.size == 3 } }
         assertTrue(heroic >= 0)
         ui { t.selectInQueue(heroic) }; shot("02-heroic-piece"); fits("heroic piece")
