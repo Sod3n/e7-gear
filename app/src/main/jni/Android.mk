@@ -13,4 +13,10 @@
 # limitations under the License.
 #
 
-include $(call all-subdir-makefiles)
+# This is required by TProxyService at scan startup. A wildcard include silently
+# builds an APK without the VPN library when a new worktree has no submodules.
+TUNNEL_MAKEFILE := $(call my-dir)/hev-socks5-tunnel/Android.mk
+ifeq ($(wildcard $(TUNNEL_MAKEFILE)),)
+    $(error Scan VPN sources are missing. Run: git submodule update --init --recursive)
+endif
+include $(TUNNEL_MAKEFILE)

@@ -15,6 +15,11 @@ VERSION=$(sed -n 's/^appVersion=//p' gradle.properties)
 
 ./gradlew -q testDebugUnitTest assembleRelease
 APK="app/build/outputs/apk/release/e7.gearscan-$VERSION-release.apk"
+# Check the actual artifact too: unit tests do not load the scan service's JNI library.
+for ABI in armeabi-v7a arm64-v8a x86 x86_64; do
+	unzip -p "$APK" "lib/$ABI/libhev-socks5-tunnel.so" > /dev/null ||
+		{ echo "$APK is missing the scan VPN library for $ABI; not releasing"; exit 1; }
+done
 SIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner "$HOME"/Library/Android/sdk/build-tools/*/apksigner 2>/dev/null | tail -1)
 "$SIGNER" verify --print-certs "$APK" | grep -q "SHA-256 digest: $(echo "$CERT" | tr -d ':' | tr 'A-F' 'a-f')" ||
 	{ echo "$APK isn't signed with the release key; not releasing"; exit 1; }
