@@ -23,7 +23,7 @@ class OptimizeFeatureTest {
 
     private fun graph(scope: CoroutineScope, dir: File = createTempDirectory("optimize").toFile()): AppGraph {
         File(dir, "content.json").writeText(TestContent.text)
-        return AppGraph(Disk(dir), scope)
+        return AppGraph(Disk(dir), scope).also { it.heroes.presetNetwork = false }
     }
 
     @Test fun aSearchCancelledMidWayPublishesNothing() = runTest(UnconfinedTestDispatcher()) {
