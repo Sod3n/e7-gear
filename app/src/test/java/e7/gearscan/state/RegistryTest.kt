@@ -41,6 +41,7 @@ class RegistryTest {
         "scan.decodeSec" to { g.scan.decodeSec = 17 },
         "heroes.tiers" to { g.heroes.tiers = mapOf(1001L to 4, 1002L to 2) },
         "heroes.team" to { g.heroes.team = listOf(1002L) },
+        "heroes.showAll" to { g.heroes.showAll = true },
         "heroes.configs" to { g.heroes.configs[1001L] = HeroConfig().apply { stars = 4; artifact = "art"; eeValue = 9.5 } },
         "pool.tiers" to { g.pool.tiers = setOf(1, 2) },
         "pool.extra" to { g.pool.extra = setOf(7L, 8L) },

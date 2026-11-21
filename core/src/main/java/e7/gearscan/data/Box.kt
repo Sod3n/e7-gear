@@ -30,8 +30,11 @@ class Box(
             }
     }
 
-    /** Heroes worth gearing: 6-star units and anything that wears gear. */
-    val heroes: List<OwnedHero> by lazy {
+    /** Every hero the scan read. */
+    val heroes: List<OwnedHero> get() = allHeroes
+
+    /** The Heroes list's default view: 6-star units and anything that wears gear. */
+    val gearable: List<OwnedHero> by lazy {
         val wearing = items.mapNotNullTo(HashSet()) { it.equippedOn }
         allHeroes.filter { it.stars >= 6 || it.id in wearing }
     }
@@ -182,13 +185,13 @@ class ScanDiff(
             val n = new.itemsById
             val enhanced = n.values.filter { it.id in o && (it.enhance > o[it.id]!!.enhance || it.level > o[it.id]!!.level) }
             val moved = n.values.filter { it.id in o && it.equippedOn != o[it.id]!!.equippedOn }
-            val oldCodes = old.heroes.mapTo(HashSet()) { it.code }
+            val oldCodes = old.gearable.mapTo(HashSet()) { it.code }
             return ScanDiff(
                 n.keys.filter { it !in o },
                 o.keys.filter { it !in n },
                 enhanced.map { it.id },
                 moved.map { it.id },
-                new.heroes
+                new.gearable
                     .filter { it.code !in oldCodes }
                     .map { it.name }
                     .distinct(),

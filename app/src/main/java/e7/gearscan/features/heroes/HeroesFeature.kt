@@ -42,6 +42,9 @@ import org.json.JSONObject
 class HeroesFeature(ctx: FeatureContext, private val contentFeature: ContentFeature, private val scanFeature: ScanFeature) : Feature(ctx, "heroes") {
     var tiers by saved("tiers", emptyMap(), TIERS)
     var team by saved("team", emptyList(), Codecs.longList)
+
+    /** The Heroes list shows every hero, not only 6-star heroes and heroes that wear gear. */
+    var showAll by saved("showAll", false, Codecs.bool)
     private var storedConfigs by saved("configs", emptyMap(), CONFIGS)
     val builds = savedDir("builds")
 

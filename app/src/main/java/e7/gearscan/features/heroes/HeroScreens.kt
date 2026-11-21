@@ -71,10 +71,14 @@ fun HeroesScreen(graph: AppGraph) {
             }, style = zen(12.sp, FontWeight.Medium))
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Sort", style = zen(13.sp))
+            Text("Show", style = zen(13.sp), softWrap = false, modifier = Modifier.width(HERO_LIST_LABEL))
+            Segmented(listOf("6★ or geared", "All ${box.heroes.size}"), if (graph.heroes.showAll) 1 else 0, height = 32.dp) { graph.heroes.showAll = it == 1 }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Sort", style = zen(13.sp), softWrap = false, modifier = Modifier.width(HERO_LIST_LABEL))
             Segmented(listOf("A–Z", "Lowest match"), if (byMatch) 1 else 0, height = 32.dp) { byMatch = it == 1 }
         }
-        val shown = box.heroes.filter { f.matches(graph, it) }
+        val shown = (if (graph.heroes.showAll) box.heroes else box.gearable).filter { f.matches(graph, it) }
         fun group(h: OwnedHero) = if (h.id == open) openGroup else graph.heroes.tier(h.id)
         val tiers = if (f.active || showLow) (5 downTo 1) else (5 downTo 3)
         Card(padding = PaddingValues(0.dp)) {
@@ -307,3 +311,6 @@ fun HeroDetailScreen(graph: AppGraph, id: Long) {
         }
     }
 }
+
+/** One label width for the Heroes list's Show and Sort rows. */
+private val HERO_LIST_LABEL = 60.dp
