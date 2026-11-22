@@ -23,7 +23,7 @@ jobs:
           java-version: 17
 
       - name: Cache the NDK
-        uses: actions/cache@v4.2.3
+        uses: actions/cache@v6.1.0
         with:
           path: /usr/local/lib/android/sdk/ndk/29.0.14206865
           key: ndk-29.0.14206865
