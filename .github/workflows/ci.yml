@@ -36,7 +36,7 @@ jobs:
         with:
           packages: platform-tools platforms;android-34 build-tools;34.0.0 ndk;29.0.14206865
 
-      - uses: gradle/actions/setup-gradle@v4.4.4
+      - uses: gradle/actions/setup-gradle@v6.4.1
 
       - name: Test, build and check
         run: ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :core:ktlintCheck
