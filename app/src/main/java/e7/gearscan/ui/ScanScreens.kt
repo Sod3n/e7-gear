@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -62,14 +63,51 @@ import e7.gearscan.data.fmtInt
 @Composable
 fun rememberStartScan(graph: AppGraph): () -> Unit {
     val scan = rememberScanNow(graph)
+    val begin = { if (graph.scan.game == null || (graph.scan.otherVpnActive() && !graph.settings.proxyOn)) scan() else graph.nav.sheet = Sheet(SheetKind.SCAN_RESTART, 0) }
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
-        val watch = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME && graph.scan.afterRestart) { graph.scan.afterRestart = false; scan() } }
+        val watch = LifecycleEventObserver { _, e ->
+            if (e != Lifecycle.Event.ON_RESUME) return@LifecycleEventObserver
+            if (graph.scan.afterRestart) { graph.scan.afterRestart = false; scan() }
+            else if (graph.scan.afterPillAsk) {
+                graph.scan.afterPillAsk = false
+                if (graph.scan.pillAllowed) { graph.scan.pillBlocked = false; graph.nav.sheet = null; begin() }
+                else graph.scan.pillBlocked = true
+            }
+        }
         owner.lifecycle.addObserver(watch)
         onDispose { owner.lifecycle.removeObserver(watch) }
     }
     LaunchedEffect(graph.scan.scanNow) { if (graph.scan.scanNow) { graph.scan.scanNow = false; scan() } }
-    return { if (graph.scan.game == null || (graph.scan.otherVpnActive() && !graph.settings.proxyOn)) scan() else graph.nav.sheet = Sheet(SheetKind.SCAN_RESTART, 0) }
+    LaunchedEffect(graph.scan.scanAfterAsk) { if (graph.scan.scanAfterAsk) { graph.scan.scanAfterAsk = false; begin() } }
+    // without "Display over other apps" the scan's status can't show over the game, so the scan asks for it first
+    return { if (graph.scan.game != null && !graph.scan.pillAllowed && !graph.scan.pillSkipped) graph.nav.sheet = Sheet(SheetKind.SCAN_OVERLAY, 0) else begin() }
+}
+
+/** The scan's ask for "Display over other apps", so its status shows over the game. */
+@Composable
+@OptIn(LinkStyle::class)
+fun ScanOverlaySheet(graph: AppGraph) {
+    val ctx = LocalContext.current
+    SheetBody("Show the scan over the game", button = "Allow", onButton = {
+        graph.scan.afterPillAsk = true; graph.scan.allowPill()
+    }) {
+        Text("A small pill over Epic Seven shows how the scan is going. Tap it to come back here.", style = zen(13.sp, FontWeight.Medium))
+        Text("Android opens its settings: turn on “Display over other apps”, then come back. The scan starts by itself.", style = zen(11.sp, FontWeight.Medium, C.muted))
+        if (graph.scan.pillBlocked) DashedBox(Modifier.fillMaxWidth(), color = C.blue, padding = PaddingValues(12.dp)) {
+            Text(if (android.os.Build.VERSION.SDK_INT >= 33) "Switch greyed out? Android locks it for apps installed from a file. Open App info, tap the three-dot menu, choose “Allow restricted settings”, then tap Allow again."
+                else "The switch is still off. Tap Allow and turn it on.", style = zen(12.sp, FontWeight.Medium))
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                VSpace(6.dp)
+                OutlineButton("Open App info", Modifier.fillMaxWidth(), height = 42.dp) {
+                    ctx.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}")))
+                }
+            }
+        }
+        OutlineButton("Scan without it", Modifier.fillMaxWidth(), height = 44.dp) {
+            graph.nav.sheet = null; graph.scan.pillSkipped = true; graph.scan.pillBlocked = false; graph.scan.scanAfterAsk = true
+        }
+    }
 }
 
 /** Fresh session for a scan: Android lets no app close another, so the player taps Force stop on the game's page. */

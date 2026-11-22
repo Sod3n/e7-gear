@@ -156,6 +156,7 @@ fun SheetHost(graph: AppGraph) {
                 SheetKind.POOL_LOW -> PoolLowSheet(graph)
                 SheetKind.POOL_TRADES -> PoolTradesSheet(graph)
                 SheetKind.SCAN_RESTART -> ScanRestartSheet(graph)
+                SheetKind.SCAN_OVERLAY -> ScanOverlaySheet(graph)
                 SheetKind.POTENTIAL_TARGETS -> PotentialTargetsSheet(graph)
                 SheetKind.POTENTIAL_SLOTS -> PotentialSlotsSheet(graph)
                 SheetKind.POTENTIAL_SETS -> PotentialSetsSheet(graph)

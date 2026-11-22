@@ -59,6 +59,14 @@ class ScanFeature(ctx: FeatureContext, private val settings: SettingsFeature, pr
     var elapsed by mutableStateOf(0L)
     var afterRestart = false
     var scanNow by mutableStateOf(false)
+    /** Set while Android's "Display over other apps" page is open from the scan's ask; the scan goes on when the player comes back. */
+    var afterPillAsk = false
+    /** Came back from that page without the switch on: the ask shows how to unlock it. */
+    var pillBlocked by mutableStateOf(false)
+    /** The player chose to scan without the status over the game; not asked again until the app restarts. */
+    var pillSkipped = false
+    /** Starts the scan from the ask sheet, where the scan buttons' launcher isn't reachable. */
+    var scanAfterAsk by mutableStateOf(false)
 
     val step get() = ScanStatus.of(conns, bytes, elapsed)
     val lobbyLikely get() = bytes > TProxyService.LOBBY_KB * 1024
